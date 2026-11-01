@@ -9,8 +9,9 @@ first usable release is planned as `0.1.0`.
 
 The plugin shows [Temporal](https://temporal.io) workflows next to the catalog
 entities that own them in [Backstage](https://backstage.io): a list of workflow
-executions per entity, execution details with failures and pending activities,
-and the event history. Workflows can be catalog entities of their own (the
+executions per entity with the progress of each run, and a details page built
+around a graph of the run's steps, with the inputs, outputs, errors and
+retries of each step, and the event history. Workflows can be catalog entities of their own (the
 `TemporalWorkflow` kind), and a **Workflows** page lists every workflow of a
 namespace. This version is read-only; permission-checked controls (signal,
 cancel, re-run) are planned.
@@ -135,6 +136,56 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 <SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />;
 ```
+
+## Workflow details
+
+The details page of a run shows, from top to bottom:
+
+- a summary line: status, where the run is now (what it waits for, or the
+  step it failed at), workflow type, duration and start time, the link to
+  the Temporal UI and a refresh button. Running workflows reload every five
+  seconds; the **Auto refresh** switch turns this off.
+- the step graph: one box per step and arrows between them. Colors follow
+  the status, running steps pulse, waiting steps are dashed, retried
+  activities show their attempt (`×3`), and a child workflow links to its own
+  details. The graph can be zoomed, panned and fitted to the view. Selecting
+  a step opens a panel with its input, output, error, attempts and events.
+- tabs: **Steps** (a table of the steps), **Events** (grouped by step, or the
+  raw history), **Details** (the summary table, failure, pending activities,
+  search attributes and memo), and one tab per workflow section.
+
+The backend builds the steps from the history (`GET .../graph`):
+
+| Step           | Events                                                                                        |
+| -------------- | --------------------------------------------------------------------------------------------- |
+| Activity       | `ActivityTask*` by scheduled event ID, with the current attempt of pending activities         |
+| Timer          | `TimerStarted`, `TimerFired`, `TimerCanceled`                                                 |
+| Signal         | `WorkflowExecutionSignaled`; signals sent by the workflow: `SignalExternalWorkflowExecution*` |
+| Update         | `WorkflowExecutionUpdate*` by update ID (admitted, accepted, completed, rejected)             |
+| Child workflow | `StartChildWorkflowExecution*` and `ChildWorkflowExecution*` by initiated event ID            |
+| Marker         | `MarkerRecorded` (for example local activities)                                               |
+| Start and end  | `WorkflowExecutionStarted` and the closing event, including continue-as-new                   |
+
+Workflow task events are internal steps, hidden unless a workflow task
+failed (the grouped event view can show them). A step B follows a step A when
+B started after A ended (by event ID); steps whose time ranges overlap, like
+activities scheduled together, become parallel branches. A running workflow
+with nothing open gets a **Waiting** step. Its text comes from a search
+attribute whose name ends with `Pending` and whose value is true, for example
+`ApprovalPending` gives "Waiting for approval"; without one it says "Waiting
+for an external event (signal or update)", since the history does not tell
+which signal or update handler the workflow waits for.
+
+Limits: Temporal records only the last attempt of an activity and the
+failure of the attempt before it, so earlier attempts are not listed.
+Updates rejected by a validator are not written to the history. The backend
+reads at most 5000 events per run; the graph of a longer history shows its
+start and says so.
+
+Workflow lists show a progress column (done steps and the current step or
+failure). It is loaded for the rows on screen only, with at most four
+requests at a time; the backend reads at most 1000 events per run for it and
+keeps the progress of closed runs in memory.
 
 ## Configuration
 
@@ -269,19 +320,23 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type    | Used for                        |
-| -------------------------------- | ---------------- | ------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity` | Workflow list and details       |
-| `temporal.workflow.history.read` | `catalog-entity` | Event history (inputs, results) |
-| `temporal.workflow.list`         | none (basic)     | Workflows page                  |
+| Permission                       | Resource type    | Used for                                                 |
+| -------------------------------- | ---------------- | -------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph and progress          |
+| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                        |
+| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity |
+| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity      |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
 is a basic permission: it allows the Workflows page, which lists every
-workflow of the allowed namespaces, and opening any of those workflows
-without an entity (details, inputs and outputs, and event history). Give it
-only to users who may read every workflow. When a request names an entity
-(`entityRef`), the entity permissions are checked as before. Access is open by default: with the permission
+workflow of the allowed namespaces, and opening the details and the step
+graph of any of them without an entity. Their event history, inputs and
+results also need `temporal.workflow.history.list`, another basic
+permission. Give them only to users who may read every workflow. When a
+request names an entity (`entityRef`), the entity permissions are checked as
+before. Without the history permission the step graph is still shown, without
+inputs and results. Access is open by default: with the permission
 framework disabled, or with the allow-all policy (as in the development
 backend), every signed-in user can read every entity's workflows. To restrict
 it, handle these permissions in your Backstage permission policy. Both are
@@ -331,9 +386,12 @@ TemporalWorkflowActionBlueprint.make({
 });
 ```
 
-`TemporalWorkflowSectionBlueprint` adds a card in the same way. In the legacy
-system, pass `workflowActions` and `workflowSections` to
-`EntityTemporalContent`. Components get the workflow as props or through
+`TemporalWorkflowSectionBlueprint` adds a tab in the same way. Both attach to
+the shared mount point `api:temporal/workflow-extensions`
+(`temporalWorkflowExtensionsApiRef`), so they show on the details pages of
+the entity tab and of the Workflows page. In the legacy system, pass
+`workflowActions` and `workflowSections` to `EntityTemporalContent` and to
+`TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`.
 
 Backend modules can add data to workflow summaries with
@@ -345,6 +403,12 @@ Backend modules can add data to workflow summaries with
 The main line targets Backstage **1.56.x** (see `backstage.json`), which is the
 minimum supported version. Both frontend systems are supported: the legacy
 system (`EntityPage.tsx`) and the new frontend system (`./alpha`).
+
+The screens use the Backstage design system `@backstage/ui`; the app must
+load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
+1.56 do). Light and dark themes follow the app theme. The step graph uses
+[React Flow](https://reactflow.dev) (`@xyflow/react`) with the
+[dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed.
 
 ## Development
 
@@ -370,17 +434,19 @@ The frontend runs on <http://localhost:3000> and the backend on
 ignored by git.
 
 The development backend expects a Temporal server on `localhost:7233` (for
-example `temporal server start-dev --search-attribute BackstageEntityRef=Keyword`).
+example `temporal server start-dev --search-attribute BackstageEntityRef=Keyword --search-attribute ApprovalPending=Bool`).
 Start the example workflows for the `example-orders` component with:
 
 ```sh
 yarn workspace example-worker start
 ```
 
-Smoke tests sign in as the guest user, open the Temporal tab and two workflows,
-a `TemporalWorkflow` entity and its runs, a component that depends on workflow
-entities, and the Workflows page from the sidebar, and save a screenshot of
-every step:
+Smoke tests sign in as the guest user, open the Temporal tab, open a failed
+workflow, select the failed step in the graph and check its input and error,
+switch to the grouped events, open a running workflow, a `TemporalWorkflow`
+entity and its runs, a component that depends on workflow entities, and the
+Workflows page from the sidebar, and save a screenshot of every step. A
+second test takes the details page in the dark theme:
 
 ```sh
 npx playwright install chromium

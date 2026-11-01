@@ -21,10 +21,15 @@
  *   - orderWorkflow       completes
  *   - paymentWorkflow     fails, with a cause chain
  *   - deploymentWorkflow  stays running, with a pending activity that retries
+ *   - fulfillmentWorkflow completes, with parallel activities, retries, a
+ *                         timer and a child workflow (notifyCustomerWorkflow)
+ *   - approvalWorkflow    stays running, waiting for an `approve` update
  *
  * Environment: TEMPORAL_ADDRESS (default localhost:7233), TEMPORAL_NAMESPACE
  * (default `default`), ENTITY_REF_ATTRIBUTE (default BackstageEntityRef; set
- * to an empty string when the search attribute is not registered).
+ * to an empty string when the search attribute is not registered). The
+ * approval workflow sets the ApprovalPending attribute (Bool) when it is
+ * registered.
  */
 const { Client, Connection } = require('@temporalio/client');
 const { NativeConnection, Worker } = require('@temporalio/worker');
@@ -69,7 +74,46 @@ async function startAll(client, withSearchAttributes) {
       workflowId: `example-deployment-${suffix}`,
       args: [{ environment: 'staging', version: '1.2.3' }],
     }),
+    client.workflow.start('fulfillmentWorkflow', {
+      ...common,
+      workflowId: `example-fulfillment-${suffix}`,
+      args: [
+        {
+          orderId: `order-${suffix}-f`,
+          items: ['BOOK-1', 'PEN-2'],
+          email: 'customer@example.com',
+        },
+      ],
+    }),
   ]);
+}
+
+/** Starts the approval workflow, with ApprovalPending when registered. */
+async function startApproval(client, withSearchAttributes) {
+  const suffix = Date.now().toString(36);
+  const base =
+    withSearchAttributes && entityRefAttribute
+      ? { [entityRefAttribute]: [entityRef] }
+      : {};
+  const options = {
+    taskQueue,
+    workflowId: `example-approval-${suffix}`,
+    args: [{ requestId: `req-${suffix}`, amount: 1200 }],
+  };
+  try {
+    return await client.workflow.start('approvalWorkflow', {
+      ...options,
+      searchAttributes: { ...base, ApprovalPending: [true] },
+    });
+  } catch (err) {
+    console.warn(
+      `Could not start with search attribute ApprovalPending (${err.message}); starting without it`,
+    );
+    return client.workflow.start('approvalWorkflow', {
+      ...options,
+      searchAttributes: Object.keys(base).length > 0 ? base : undefined,
+    });
+  }
 }
 
 async function main() {
@@ -79,15 +123,19 @@ async function main() {
   let handles;
   try {
     handles = await startAll(client, true);
+    handles.withSearchAttributes = true;
   } catch (err) {
     if (!entityRefAttribute) throw err;
     console.warn(
       `Could not start with search attribute ${entityRefAttribute} (${err.message}); starting without it`,
     );
     handles = await startAll(client, false);
+    handles.withSearchAttributes = false;
   }
-  const [order, secondOrder, payment, deployment] = handles;
-  for (const h of handles) console.log(`Started ${h.workflowId}`);
+  const [order, secondOrder, payment, deployment, fulfillment] = handles;
+  const approval = await startApproval(client, handles.withSearchAttributes);
+  for (const h of [...handles, approval])
+    console.log(`Started ${h.workflowId}`);
 
   const workerConnection = await NativeConnection.connect({ address });
   const worker = await Worker.create({
@@ -109,6 +157,13 @@ async function main() {
           `paymentWorkflow failed as expected: ${err.cause?.message}`,
         ),
     );
+    console.log(
+      `fulfillmentWorkflow result: ${JSON.stringify(
+        await fulfillment.result(),
+      )}`,
+    );
+    // A comment on the approval; the workflow keeps waiting for approval.
+    await approval.signal('comment', 'Please check the amount');
     // Give the running workflow time to schedule its retrying activity.
     const deadline = Date.now() + 20000;
     while (Date.now() < deadline) {

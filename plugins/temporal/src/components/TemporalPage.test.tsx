@@ -58,7 +58,7 @@ describe('Workflows page', () => {
       ],
     });
     await render(api);
-    const table = await screen.findByRole('table', { name: 'All workflows' });
+    const table = await screen.findByRole('grid', { name: 'All workflows' });
     expect(
       within(table).getByRole('link', { name: 'order-1' }),
     ).toHaveAttribute(
@@ -91,13 +91,13 @@ describe('Workflows page', () => {
   it('filters by workflow ID prefix and type, and rejects unsafe input', async () => {
     const api = mockTemporalApi();
     await render(api);
-    await screen.findByRole('table', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'All workflows' });
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'Workflow ID search' }),
+      screen.getByRole('textbox', { name: 'Workflow ID starts with' }),
       'order-',
     );
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'Workflow type filter' }),
+      screen.getByRole('textbox', { name: 'Workflow type' }),
       'orderWorkflow{enter}',
     );
     await waitFor(() =>
@@ -110,12 +110,12 @@ describe('Workflows page', () => {
     );
     const calls = api.listWorkflows.mock.calls.length;
     await userEvent.type(
-      screen.getByRole('textbox', { name: 'Workflow ID search' }),
+      screen.getByRole('textbox', { name: 'Workflow ID starts with' }),
       "' OR '1",
     );
-    expect(
-      screen.getByText('Letters, digits and _ . : / - only'),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'letters, digits and _ . : / - only',
+    );
     expect(screen.getByRole('button', { name: 'Search' })).toBeDisabled();
     expect(api.listWorkflows).toHaveBeenCalledTimes(calls);
   });

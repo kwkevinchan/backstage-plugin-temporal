@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
@@ -24,7 +24,12 @@ import {
   useTemporalWorkflow,
 } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
-import { entity, mockTemporalApi } from '../testData';
+import {
+  entity,
+  failedWorkflow,
+  graphResponse,
+  mockTemporalApi,
+} from '../testData';
 
 function render(
   api: ReturnType<typeof mockTemporalApi>,
@@ -47,8 +52,17 @@ describe('EntityTemporalContent', () => {
     await render(api, '/');
     expect(await screen.findByText('order-1')).toBeInTheDocument();
     expect(screen.getByText('payment-1')).toBeInTheDocument();
-    expect(screen.getByText('Completed')).toBeInTheDocument();
-    expect(screen.getByText('Failed')).toBeInTheDocument();
+    const table = screen.getByRole('grid', { name: 'Workflows' });
+    expect(within(table).getByText('Completed')).toBeInTheDocument();
+    expect(within(table).getByText('Failed')).toBeInTheDocument();
+    // Progress of each run, loaded per row.
+    expect(
+      (await screen.findAllByText('1/2 steps · Failed at chargeCard')).length,
+    ).toBe(2);
+    expect(api.getWorkflowProgress).toHaveBeenCalledWith(
+      { namespace: 'default', workflowId: 'payment-1', runId: 'run-2' },
+      { entityRef: 'component:default/orders' },
+    );
     expect(screen.getByText('Namespace: default')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'payment-1' })).toHaveAttribute(
       'href',
@@ -68,39 +82,128 @@ describe('EntityTemporalContent', () => {
     );
   });
 
-  it('shows details with failure chain, pending activities and history', async () => {
+  it('shows the summary line and the step graph', async () => {
     const api = mockTemporalApi();
     await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
-    expect(
-      await screen.findByText('Payment could not be completed'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Activity task failed')).toBeInTheDocument();
-    expect(screen.getAllByText('Card declined').length).toBeGreaterThan(0);
-    // The workflow failure chain, outermost first (the activity failure in
-    // the inputs and outputs card comes after it).
-    const levels = screen
-      .getAllByTestId('failure-level')
-      .map(e => e.textContent);
-    expect(levels.slice(0, 3)).toEqual([
-      expect.stringContaining('Payment could not be completed'),
-      expect.stringContaining('Activity task failed'),
-      expect.stringContaining('Card declined'),
-    ]);
-    expect(screen.getByText('waitForUpstream')).toBeInTheDocument();
-    expect(screen.getByText('Upstream not ready')).toBeInTheDocument();
-    expect(
-      await screen.findByText('WorkflowExecutionStarted'),
-    ).toBeInTheDocument();
+    const summary = await screen.findByTestId('workflow-summary');
+    expect(summary).toHaveTextContent('Failed');
+    expect(summary).toHaveTextContent('paymentWorkflow');
+    expect(await screen.findByTestId('workflow-current')).toHaveTextContent(
+      'Failed at chargeCard',
+    );
     expect(
       screen.getByRole('link', { name: /Open in Temporal UI/ }),
     ).toHaveAttribute(
       'href',
       'http://temporal-ui/namespaces/default/workflows/payment-1/run-2/history',
     );
+    const graph = screen.getByTestId('workflow-graph');
+    // Internal workflow tasks are not drawn.
+    expect(
+      within(graph)
+        .getAllByRole('button', { name: /, (Completed|Failed)/ })
+        .map(b => b.getAttribute('aria-label')),
+    ).toEqual([
+      'Start, Completed',
+      'reserveStock, Completed',
+      'chargeCard, Failed, attempt 2',
+      'End, Failed',
+    ]);
+    expect(within(graph).getByText('×2')).toBeInTheDocument();
+    expect(screen.getByText('1 of 2 steps done')).toBeInTheDocument();
     expect(api.getWorkflow).toHaveBeenCalledWith(
       { namespace: 'default', workflowId: 'payment-1', runId: 'run-2' },
       { entityRef: 'component:default/orders' },
     );
+    expect(api.getWorkflowGraph).toHaveBeenCalledWith(
+      { namespace: 'default', workflowId: 'payment-1', runId: 'run-2' },
+      { entityRef: 'component:default/orders' },
+    );
+  });
+
+  it('opens a step with its input, output, error and attempts', async () => {
+    const api = mockTemporalApi();
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'chargeCard, Failed, attempt 2',
+      }),
+    );
+    const drawer = screen.getByTestId('step-drawer');
+    expect(within(drawer).getByTestId('step-input')).toHaveTextContent(
+      'binary/encrypted, 64 bytes (not decoded)',
+    );
+    expect(within(drawer).getByTestId('step-error')).toHaveTextContent(
+      'Card declined',
+    );
+    expect(within(drawer).getByTestId('step-attempts')).toHaveTextContent(
+      'Bank timeout',
+    );
+    expect(within(drawer).getByTestId('step-events')).toHaveTextContent(
+      'ActivityTaskFailed',
+    );
+    expect(within(drawer).getByText('2 of 2')).toBeInTheDocument();
+
+    // Another step: decoded JSON that can be copied.
+    fireEvent.click(
+      screen.getByRole('button', { name: 'reserveStock, Completed' }),
+    );
+    expect(screen.getByTestId('step-input')).toHaveTextContent(
+      '"sku": "BOOK-1"',
+    );
+    expect(screen.getByTestId('step-output')).toHaveTextContent(
+      '"reserved": true',
+    );
+    expect(
+      within(screen.getByTestId('step-drawer')).getAllByRole('button', {
+        name: 'Copy JSON',
+      }).length,
+    ).toBe(2);
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Close step details' }),
+    );
+    expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
+  });
+
+  it('says when inputs and results are hidden', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowGraph.mockResolvedValue({
+      ...graphResponse,
+      payloadsHidden: true,
+      nodes: graphResponse.nodes.map(({ input, result, ...n }) => n),
+    });
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'reserveStock, Completed' }),
+    );
+    expect(screen.getByTestId('step-drawer')).toHaveTextContent(
+      'Inputs and results are hidden',
+    );
+  });
+
+  it('has tabs with the steps, grouped and raw events, and details', async () => {
+    const api = mockTemporalApi();
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    const steps = await screen.findByRole('grid', { name: 'Steps' });
+    expect(steps).toHaveTextContent('reserveStock');
+    expect(steps).toHaveTextContent('Card declined');
+    expect(steps).not.toHaveTextContent('Workflow task');
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Events' }));
+    const grouped = screen.getByTestId('grouped-events');
+    expect(grouped).toHaveTextContent('chargeCard');
+    expect(grouped).toHaveTextContent('3 events');
+    expect(grouped).not.toHaveTextContent('Workflow task');
+    await userEvent.click(screen.getByText('Show workflow tasks'));
+    expect(screen.getByTestId('grouped-events')).toHaveTextContent(
+      'Workflow task',
+    );
+    expect(api.getWorkflowHistory).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('radio', { name: 'Raw' }));
+    expect(
+      await screen.findByText('WorkflowExecutionStarted'),
+    ).toBeInTheDocument();
     expect(api.getWorkflowHistory).toHaveBeenCalledWith(
       { namespace: 'default', workflowId: 'payment-1', runId: 'run-2' },
       {
@@ -109,28 +212,47 @@ describe('EntityTemporalContent', () => {
         pageToken: undefined,
       },
     );
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Details' }));
+    const levels = screen
+      .getAllByTestId('failure-level')
+      .map(e => e.textContent);
+    expect(levels).toEqual([
+      expect.stringContaining('Payment could not be completed'),
+      expect.stringContaining('Activity task failed'),
+      expect.stringContaining('Card declined'),
+    ]);
+    expect(screen.getByText('waitForUpstream')).toBeInTheDocument();
+    expect(screen.getByText('Upstream not ready')).toBeInTheDocument();
   });
 
-  it('shows workflow and activity inputs and outputs', async () => {
+  it('reloads a running workflow every five seconds until turned off', async () => {
     const api = mockTemporalApi();
-    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
-    const activities = await screen.findByRole('table', { name: 'Activities' });
-    expect(activities).toHaveTextContent('reserveStock');
-    expect(activities).toHaveTextContent('{"sku":"BOOK-1"}');
-    expect(activities).toHaveTextContent('{"reserved":true}');
-    expect(activities).toHaveTextContent('chargeCard');
-    expect(activities).toHaveTextContent(
-      'binary/encrypted, 64 bytes (not decoded)',
-    );
-    expect(activities).toHaveTextContent('Card declined');
-    expect(screen.getByTestId('workflow-input')).toHaveTextContent(
-      '{"paymentId":"pay-1","amount":42}',
-    );
-    expect(screen.getByTestId('workflow-result')).toHaveTextContent('—');
-    expect(api.getWorkflowSteps).toHaveBeenCalledWith(
-      { namespace: 'default', workflowId: 'payment-1', runId: 'run-2' },
-      { entityRef: 'component:default/orders' },
-    );
+    api.getWorkflow.mockResolvedValue({ ...failedWorkflow, status: 'Running' });
+    const intervals: (() => void)[] = [];
+    const setIntervalSpy = jest
+      .spyOn(window, 'setInterval')
+      .mockImplementation(((fn: () => void, ms: number) => {
+        if (ms === 5000) intervals.push(fn);
+        return intervals.length as any;
+      }) as any);
+    try {
+      await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+      const toggle = await screen.findByRole('switch', {
+        name: 'Auto refresh',
+      });
+      expect(toggle).toBeChecked();
+      expect(intervals.length).toBeGreaterThan(0);
+      intervals[intervals.length - 1]();
+      await waitFor(() => expect(api.getWorkflow).toHaveBeenCalledTimes(2));
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+      const before = intervals.length;
+      await userEvent.click(toggle);
+      expect(toggle).not.toBeChecked();
+      expect(intervals.length).toBe(before);
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
   });
 
   it('shows the tab for entities of any kind', async () => {

@@ -149,7 +149,8 @@ jobs:
       - name: Start Temporal development server
         run: |
           temporal server start-dev --headless --port 7233 \
-            --search-attribute BackstageEntityRef=Keyword > temporal.log 2>&1 &
+            --search-attribute BackstageEntityRef=Keyword \
+            --search-attribute ApprovalPending=Bool > temporal.log 2>&1 &
           for i in $(seq 1 60); do
             temporal operator cluster health 2>/dev/null | grep -q SERVING && break
             sleep 2

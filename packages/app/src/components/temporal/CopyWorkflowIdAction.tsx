@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react';
-import Button from '@material-ui/core/Button';
+import { Button } from '@backstage/ui';
 import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal-react';
 
 /** Example workflow action used by both development apps. */
@@ -23,8 +23,8 @@ export function CopyWorkflowIdAction(props: TemporalWorkflowExtensionProps) {
   const [copied, setCopied] = useState(false);
   return (
     <Button
-      variant="outlined"
-      onClick={async () => {
+      variant="secondary"
+      onPress={async () => {
         await window.navigator.clipboard
           ?.writeText(props.workflow.workflowId)
           .catch(() => undefined);

@@ -47,8 +47,15 @@ export const temporalWorkflowSectionDataRef =
     id: 'temporal.workflow-section',
   });
 
-/** The entity content of the Temporal plugin collects the extensions. */
-const ATTACH_ID = 'entity-content:temporal';
+/**
+ * The workflow extensions API of the Temporal plugin collects the
+ * extensions; the entity tab and the Workflows page both read it.
+ *
+ * @alpha
+ */
+export const TEMPORAL_WORKFLOW_EXTENSIONS_API_ID =
+  'api:temporal/workflow-extensions';
+const ATTACH_ID = TEMPORAL_WORKFLOW_EXTENSIONS_API_ID;
 
 type Loader = () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
 
@@ -84,7 +91,7 @@ function lazyComponent(
  */
 export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
   kind: 'temporal-workflow-action',
-  attachTo: { id: ATTACH_ID, input: 'workflowActions' },
+  attachTo: { id: ATTACH_ID, input: 'actions' },
   output: [temporalWorkflowActionDataRef],
   dataRefs: { action: temporalWorkflowActionDataRef },
   *factory(
@@ -103,13 +110,14 @@ export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
 });
 
 /**
- * Adds a card to the workflow details page, below the summary.
+ * Adds a tab to the workflow details page, next to Steps, Events and
+ * Details.
  *
  * @alpha
  */
 export const TemporalWorkflowSectionBlueprint = createExtensionBlueprint({
   kind: 'temporal-workflow-section',
-  attachTo: { id: ATTACH_ID, input: 'workflowSections' },
+  attachTo: { id: ATTACH_ID, input: 'sections' },
   output: [temporalWorkflowSectionDataRef],
   dataRefs: { section: temporalWorkflowSectionDataRef },
   *factory(

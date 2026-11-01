@@ -18,7 +18,18 @@
  * Example workflows for local development. Plain JavaScript, so no build step
  * is needed; the Temporal worker bundles this file itself.
  */
-const { proxyActivities, ApplicationFailure } = require('@temporalio/workflow');
+const {
+  proxyActivities,
+  ApplicationFailure,
+  condition,
+  defineSignal,
+  defineUpdate,
+  executeChild,
+  setHandler,
+  sleep,
+  upsertSearchAttributes,
+  workflowInfo,
+} = require('@temporalio/workflow');
 
 const { reserveStock, chargeCard, deploy } = proxyActivities({
   startToCloseTimeout: '10 seconds',
@@ -59,4 +70,81 @@ async function deploymentWorkflow(deployment) {
   return 'deployed';
 }
 
-module.exports = { orderWorkflow, paymentWorkflow, deploymentWorkflow };
+const { pickItems, printLabel, sendEmail } = proxyActivities({
+  startToCloseTimeout: '10 seconds',
+});
+
+const { bookCourier } = proxyActivities({
+  startToCloseTimeout: '10 seconds',
+  retry: { maximumAttempts: 5, initialInterval: '1 second' },
+});
+
+/**
+ * Completes with every kind of step: two activities in parallel, an
+ * activity that succeeds on its third attempt, a timer and a child
+ * workflow.
+ */
+async function fulfillmentWorkflow(order) {
+  const [picked, label] = await Promise.all([
+    pickItems(order),
+    printLabel(order),
+  ]);
+  const shipment = await bookCourier(order);
+  // Wait for the courier to pick the parcel up.
+  await sleep('2 seconds');
+  const info = workflowInfo();
+  const notice = await executeChild(notifyCustomerWorkflow, {
+    workflowId: `${info.workflowId}-notify`,
+    args: [{ orderId: order.orderId, email: order.email }],
+    // Keeps the entity reference, so the child is listed for the same entity.
+    searchAttributes: info.searchAttributes,
+  });
+  return { picked, label, shipment, notice };
+}
+
+/** Child workflow of fulfillmentWorkflow. */
+async function notifyCustomerWorkflow(notice) {
+  return sendEmail(notice);
+}
+
+const commentSignal = defineSignal('comment');
+const approveUpdate = defineUpdate('approve');
+
+/**
+ * Stays running until someone approves: waits for the `approve` update and
+ * records `comment` signals. Sets the ApprovalPending search attribute,
+ * when it is registered, so the plugin shows "Waiting for approval".
+ */
+async function approvalWorkflow(request) {
+  const comments = [];
+  let approver;
+  setHandler(commentSignal, text => {
+    comments.push(text);
+  });
+  setHandler(
+    approveUpdate,
+    async by => {
+      approver = by;
+      return { approvedBy: by };
+    },
+    {
+      validator: by => {
+        if (!by) throw new Error('approver is required');
+      },
+    },
+  );
+  const hasAttribute =
+    'ApprovalPending' in (workflowInfo().searchAttributes ?? {});
+  await condition(() => approver !== undefined);
+  if (hasAttribute) upsertSearchAttributes({ ApprovalPending: [false] });
+  return { request: request.requestId, approver, comments };
+}
+
+module.exports = {
+  orderWorkflow,
+  paymentWorkflow,
+  deploymentWorkflow,
+  fulfillmentWorkflow,
+  notifyCustomerWorkflow,
+  approvalWorkflow,
+};

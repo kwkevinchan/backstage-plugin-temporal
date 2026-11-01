@@ -32,7 +32,9 @@ import {
   parseTemporalWorkflowSpec,
   TemporalAnnotations,
   WorkflowDetail,
+  WorkflowGraphResponse,
   WorkflowHistoryResponse,
+  WorkflowProgressResponse,
   WorkflowListResponse,
   WorkflowRef,
   WorkflowStatsResponse,
@@ -53,6 +55,7 @@ import {
   toWorkflowSteps,
   toWorkflowSummary,
 } from './convert';
+import { buildWorkflowGraph } from './graph';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -69,6 +72,10 @@ export const STATS_LIMIT = { default: 50, max: 100 };
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
 /** Most history events read to build the steps of one run. */
 export const MAX_STEP_EVENTS = 5000;
+/** Most history events read for the progress of one run in a list. */
+export const MAX_PROGRESS_EVENTS = 1000;
+/** Closed runs whose progress is kept in memory; closed runs do not change. */
+export const PROGRESS_CACHE_SIZE = 1000;
 
 /**
  * Reads the workflow filter of an entity: the spec of a `TemporalWorkflow`
@@ -426,10 +433,11 @@ export class WorkflowReader {
     };
   }
 
-  /** Workflow input/result and activity inputs/results of one run. */
-  async steps(
+  /** Reads the history of one run, oldest first, up to `max` events. */
+  private async readEvents(
     ref: WorkflowRef & { runId: string },
-  ): Promise<WorkflowStepsResponse> {
+    max: number,
+  ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.checkNamespace(ref.namespace);
     const connection = await this.temporal.getConnection();
     const events: unknown[] = [];
@@ -439,7 +447,7 @@ export class WorkflowReader {
         .getWorkflowExecutionHistory({
           namespace: ref.namespace,
           execution: { workflowId: ref.workflowId, runId: ref.runId },
-          maximumPageSize: HISTORY_PAGE_SIZE.max,
+          maximumPageSize: Math.min(HISTORY_PAGE_SIZE.max, max),
           nextPageToken,
         })
         .catch(mapTemporalError);
@@ -448,7 +456,76 @@ export class WorkflowReader {
         response.nextPageToken && response.nextPageToken.length > 0
           ? response.nextPageToken
           : undefined;
-    } while (nextPageToken && events.length < MAX_STEP_EVENTS);
-    return toWorkflowSteps(events, Boolean(nextPageToken));
+    } while (nextPageToken && events.length < max);
+    return { events, truncated: Boolean(nextPageToken) };
+  }
+
+  /** Workflow input/result and activity inputs/results of one run. */
+  async steps(
+    ref: WorkflowRef & { runId: string },
+  ): Promise<WorkflowStepsResponse> {
+    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS);
+    return toWorkflowSteps(events, truncated);
+  }
+
+  /**
+   * Steps and arrows of one run, from its history and the pending
+   * activities of `workflow`. Without `includePayloads`, inputs and results
+   * are left out.
+   */
+  async graph(
+    workflow: WorkflowDetail,
+    options: { includePayloads: boolean; maxEvents?: number },
+  ): Promise<WorkflowGraphResponse> {
+    const ref = {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId: workflow.runId,
+    };
+    const { events, truncated } = await this.readEvents(
+      ref,
+      options.maxEvents ?? MAX_STEP_EVENTS,
+    );
+    return buildWorkflowGraph(events, {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      status: workflow.status,
+      truncated,
+      pendingActivities: workflow.pendingActivities,
+      searchAttributes: workflow.searchAttributes,
+      includePayloads: options.includePayloads,
+      failure: workflow.failure,
+    });
+  }
+
+  private readonly progressCache = new Map<string, WorkflowProgressResponse>();
+
+  /**
+   * Completed steps and the current step of one run, for lists. The
+   * progress of closed runs is cached, since their history does not change.
+   */
+  async progress(workflow: WorkflowDetail): Promise<WorkflowProgressResponse> {
+    const key = `${workflow.namespace}/${workflow.workflowId}/${workflow.runId}`;
+    const cached = this.progressCache.get(key);
+    if (cached) return cached;
+    const graph = await this.graph(workflow, {
+      includePayloads: false,
+      maxEvents: MAX_PROGRESS_EVENTS,
+    });
+    const progress: WorkflowProgressResponse = {
+      status: graph.status,
+      completedSteps: graph.completedSteps,
+      totalSteps: graph.totalSteps,
+      truncated: graph.truncated,
+    };
+    if (graph.current) progress.current = graph.current;
+    if (workflow.status !== 'Running') {
+      if (this.progressCache.size >= PROGRESS_CACHE_SIZE) {
+        const oldest = this.progressCache.keys().next().value;
+        if (oldest !== undefined) this.progressCache.delete(oldest);
+      }
+      this.progressCache.set(key, progress);
+    }
+    return progress;
   }
 }

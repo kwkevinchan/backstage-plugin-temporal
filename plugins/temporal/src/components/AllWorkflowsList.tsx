@@ -15,35 +15,18 @@
  */
 
 import { useState } from 'react';
-import {
-  EmptyState,
-  InfoCard,
-  Link,
-  Progress,
-  ResponseErrorPanel,
-} from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { EntityRefLink } from '@backstage/plugin-catalog-react';
 import {
   isValidWorkflowIdPrefix,
   isValidWorkflowTypeName,
-  WORKFLOW_STATUSES,
   WorkflowStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
-import MenuItem from '@material-ui/core/MenuItem';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import TextField from '@material-ui/core/TextField';
+import { Button, Flex, Text, TextField } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
-import { formatDuration, formatTime } from './format';
-import { workflowLink } from './WorkflowList';
-import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
+import { ErrorAlert } from './feedback';
+import { PanelCard } from './PanelCard';
+import { Pager, StatusSelect, WorkflowRunsTable } from './WorkflowRunsTable';
 
 const PAGE_SIZE = 20;
 
@@ -97,147 +80,78 @@ export function AllWorkflowsList() {
   };
 
   const filterBar = (
-    <Box display="flex" flexWrap="wrap" alignItems="flex-start" mb={2}>
+    <Flex align="end" gap="2" mb="3" style={{ flexWrap: 'wrap' }}>
       <TextField
         label="Workflow ID starts with"
         size="small"
-        variant="outlined"
         value={draft.workflowIdPrefix}
-        error={idError}
-        helperText={idError ? 'Letters, digits and _ . : / - only' : ' '}
-        onChange={e => setDraft({ ...draft, workflowIdPrefix: e.target.value })}
+        isInvalid={idError}
+        onChange={v => setDraft({ ...draft, workflowIdPrefix: v })}
         onKeyDown={onEnter}
-        style={{ marginRight: 8, minWidth: 220 }}
-        inputProps={{ 'aria-label': 'Workflow ID search' }}
+        style={{ minWidth: 220 }}
       />
       <TextField
         label="Workflow type"
         size="small"
-        variant="outlined"
         value={draft.workflowType}
-        error={typeError}
-        helperText={typeError ? 'Not a valid workflow type' : ' '}
-        onChange={e => setDraft({ ...draft, workflowType: e.target.value })}
+        isInvalid={typeError}
+        onChange={v => setDraft({ ...draft, workflowType: v })}
         onKeyDown={onEnter}
-        style={{ marginRight: 8, minWidth: 200 }}
-        inputProps={{ 'aria-label': 'Workflow type filter' }}
+        style={{ minWidth: 200 }}
       />
-      <TextField
-        select
-        size="small"
-        variant="outlined"
-        label="Status"
+      <StatusSelect
         value={draft.status}
-        helperText=" "
-        style={{ marginRight: 8, minWidth: 160 }}
-        onChange={e => {
-          const next = {
-            ...draft,
-            status: e.target.value as WorkflowStatus | '',
-          };
+        onChange={status => {
+          const next = { ...draft, status };
           setDraft(next);
           apply(next);
         }}
-        SelectProps={{ inputProps: { 'aria-label': 'Status filter' } }}
-      >
-        <MenuItem value="">All</MenuItem>
-        {WORKFLOW_STATUSES.map(s => (
-          <MenuItem key={s} value={s}>
-            {statusLabel(s)}
-          </MenuItem>
-        ))}
-      </TextField>
+      />
       <Button
-        variant="outlined"
-        color="primary"
-        onClick={() => apply(draft)}
-        disabled={typeError || idError}
-        style={{ marginTop: 2 }}
+        variant="primary"
+        size="small"
+        onPress={() => apply(draft)}
+        isDisabled={typeError || idError}
       >
         Search
       </Button>
-      <Button onClick={retry} style={{ marginLeft: 8, marginTop: 2 }}>
+      <Button variant="secondary" size="small" onPress={retry}>
         Refresh
       </Button>
-    </Box>
+      {(idError || typeError) && (
+        <Text as="p" variant="body-small" color="danger" role="alert">
+          {idError ? 'Workflow ID: letters, digits and _ . : / - only. ' : ''}
+          {typeError ? 'Not a valid workflow type.' : ''}
+        </Text>
+      )}
+    </Flex>
   );
 
-  let body;
-  if (loading) {
-    body = <Progress />;
-  } else if (error) {
-    body = <ResponseErrorPanel error={error} />;
-  } else if (!value || value.items.length === 0) {
-    body = (
-      <EmptyState
-        missing="data"
-        title="No workflows"
-        description="No Temporal workflows match these filters."
-      />
-    );
-  } else {
-    body = (
-      <Table size="small" aria-label="All workflows">
-        <TableHead>
-          <TableRow>
-            <TableCell>Status</TableCell>
-            <TableCell>Workflow ID</TableCell>
-            <TableCell>Type</TableCell>
-            <TableCell>Task queue</TableCell>
-            <TableCell>Started</TableCell>
-            <TableCell>Duration</TableCell>
-            <TableCell>Entity</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {value.items.map(item => {
-            const entityRef = item.workflowEntityRef ?? item.entityRef;
-            return (
-              <TableRow key={`${item.workflowId}/${item.runId}`}>
-                <TableCell>
-                  <WorkflowStatusLabel status={item.status} />
-                </TableCell>
-                <TableCell>
-                  <Link to={workflowLink(item)}>{item.workflowId}</Link>
-                </TableCell>
-                <TableCell>{item.workflowType}</TableCell>
-                <TableCell>{item.taskQueue}</TableCell>
-                <TableCell>{formatTime(item.startTime)}</TableCell>
-                <TableCell>
-                  {formatDuration(item.startTime, item.closeTime)}
-                </TableCell>
-                <TableCell>
-                  {entityRef && <EntityRefLink entityRef={entityRef} />}
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    );
-  }
-
   return (
-    <InfoCard
+    <PanelCard
       title="All workflows"
-      subheader={value ? `Namespace: ${value.namespace}` : undefined}
+      subtitle={value ? `Namespace: ${value.namespace}` : undefined}
     >
       {filterBar}
-      {body}
-      <Box display="flex" justifyContent="flex-end" mt={2}>
-        <Button
-          disabled={tokens.length <= 1 || loading}
-          onClick={() => setTokens(t => t.slice(0, -1))}
-        >
-          Previous page
-        </Button>
-        <Button
-          disabled={!value?.nextPageToken || loading}
-          onClick={() => setTokens(t => [...t, value?.nextPageToken])}
-        >
-          Next page
-        </Button>
-      </Box>
-    </InfoCard>
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <WorkflowRunsTable
+          label="All workflows"
+          items={value?.items ?? []}
+          showTaskQueue
+          entityColumn="any"
+          pending={loading}
+          emptyText="No Temporal workflows match these filters."
+        />
+      )}
+      <Pager
+        hasPrevious={tokens.length > 1}
+        hasNext={Boolean(value?.nextPageToken)}
+        disabled={loading}
+        onPrevious={() => setTokens(t => t.slice(0, -1))}
+        onNext={() => setTokens(t => [...t, value?.nextPageToken])}
+      />
+    </PanelCard>
   );
 }

@@ -43,14 +43,28 @@ export const temporalWorkflowHistoryReadPermission = createPermission({
 });
 
 /**
- * List every workflow of a namespace on the Workflows page, and open any of
- * them (details, inputs and outputs, event history) without an entity. A
- * basic permission: it does not depend on a catalog entity.
+ * List every workflow of a namespace on the Workflows page, and open the
+ * details and the step graph of any of them without an entity. Inputs,
+ * results and the event history also need
+ * {@link temporalWorkflowHistoryListPermission}. A basic permission: it does
+ * not depend on a catalog entity.
  *
  * @public
  */
 export const temporalWorkflowListPermission = createPermission({
   name: 'temporal.workflow.list',
+  attributes: { action: 'read' },
+});
+
+/**
+ * Read the event history, inputs and results of any workflow opened without
+ * an entity (from the Workflows page). Used together with
+ * {@link temporalWorkflowListPermission}. A basic permission.
+ *
+ * @public
+ */
+export const temporalWorkflowHistoryListPermission = createPermission({
+  name: 'temporal.workflow.history.list',
   attributes: { action: 'read' },
 });
 
@@ -63,4 +77,5 @@ export const temporalPermissions = [
   temporalWorkflowReadPermission,
   temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
+  temporalWorkflowHistoryListPermission,
 ];

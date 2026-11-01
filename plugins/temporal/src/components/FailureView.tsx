@@ -15,8 +15,8 @@
  */
 
 import type { WorkflowFailure } from '@kwkevinchan/backstage-plugin-temporal-common';
-import Box from '@material-ui/core/Box';
-import Typography from '@material-ui/core/Typography';
+import { Text } from '@backstage/ui';
+import { tp } from './styles';
 
 function flatten(failure: WorkflowFailure): WorkflowFailure[] {
   const chain: WorkflowFailure[] = [];
@@ -32,40 +32,36 @@ function flatten(failure: WorkflowFailure): WorkflowFailure[] {
 export function FailureView(props: { failure: WorkflowFailure }) {
   const chain = flatten(props.failure);
   return (
-    <Box>
+    <div>
       {chain.map((f, i) => (
-        <Box
+        <div
           key={i}
-          ml={i * 2}
-          mb={1.5}
-          pl={1.5}
-          borderLeft={3}
-          borderColor={i === 0 ? 'error.main' : 'divider'}
+          className={tp('tp-failure')}
+          data-first={i === 0}
+          style={{ marginLeft: i * 12 }}
           data-testid="failure-level"
         >
-          <Typography variant="caption" color="textSecondary">
+          <Text as="p" variant="body-x-small" color="secondary">
             {i === 0 ? 'Failure' : 'Caused by'}
             {f.kind ? ` · ${f.kind}` : ''}
             {f.type ? ` · ${f.type}` : ''}
             {f.nonRetryable ? ' · non-retryable' : ''}
-          </Typography>
-          <Typography variant="body2" style={{ wordBreak: 'break-word' }}>
+          </Text>
+          <Text as="p" variant="body-small" style={{ wordBreak: 'break-word' }}>
             {f.message || '(no message)'}
-          </Typography>
+          </Text>
           {f.stackTrace && (
             <details>
               <summary>
-                <Typography variant="caption" component="span">
+                <Text as="span" variant="body-x-small" color="secondary">
                   Stack trace
-                </Typography>
+                </Text>
               </summary>
-              <pre style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
-                {f.stackTrace}
-              </pre>
+              <pre className={tp('tp-pre')}>{f.stackTrace}</pre>
             </details>
           )}
-        </Box>
+        </div>
       ))}
-    </Box>
+    </div>
   );
 }

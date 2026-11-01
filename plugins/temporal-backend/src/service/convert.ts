@@ -67,6 +67,13 @@ export function toIsoTime(value: Json): string | undefined {
   return new Date(ms).toISOString();
 }
 
+/** Milliseconds of a `Duration` message (JSON form). */
+export function durationToMs(value: Json): number | undefined {
+  if (!isTimestampLike(value)) return undefined;
+  const ms = Number(value.seconds ?? 0) * 1000 + Number(value.nanos ?? 0) / 1e6;
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
 function toDuration(value: Json): string {
   const seconds = Number(value.seconds ?? 0) + Number(value.nanos ?? 0) / 1e9;
   return `${Number(seconds.toFixed(3))}s`;
@@ -337,26 +344,30 @@ export function toWorkflowDetail(
 
 const EVENT_ATTRIBUTES_SUFFIX = 'EventAttributes';
 
+/** `EVENT_TYPE_ACTIVITY_TASK_SCHEDULED` becomes `ActivityTaskScheduled`. */
+export function eventTypeName(value: unknown): string {
+  return String(value ?? 'Unspecified')
+    .replace(/^EVENT_TYPE_/, '')
+    .toLowerCase()
+    .replace(/(^|_)([a-z])/g, (_m, _s, c: string) => c.toUpperCase());
+}
+
 /** Converts a `HistoryEvent` message (JSON form). */
 export function toHistoryEvent(event: Json): WorkflowHistoryEvent {
   const attributesKey = Object.keys(event).find(k =>
     k.endsWith(EVENT_ATTRIBUTES_SUFFIX),
   );
-  const eventType = String(event.eventType ?? 'Unspecified')
-    .replace(/^EVENT_TYPE_/, '')
-    .toLowerCase()
-    .replace(/(^|_)([a-z])/g, (_m, _s, c: string) => c.toUpperCase());
   return dropUndefined({
     eventId: String(event.eventId ?? ''),
     eventTime: toIsoTime(event.eventTime),
-    eventType,
+    eventType: eventTypeName(event.eventType),
     attributes: attributesKey
       ? (toDisplayJson(event[attributesKey]) as JsonObject)
       : undefined,
   });
 }
 
-function dropUndefined<T extends object>(value: T): T {
+export function dropUndefined<T extends object>(value: T): T {
   for (const key of Object.keys(value) as (keyof T)[]) {
     if (value[key] === undefined) delete value[key];
   }

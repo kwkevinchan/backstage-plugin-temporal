@@ -14,61 +14,52 @@
  * limitations under the License.
  */
 
-import { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  InfoCard,
-  Link,
-  Progress,
-  ResponseErrorPanel,
-  StructuredMetadataTable,
-} from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { useApiHolder } from '@backstage/core-plugin-api';
 import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type {
+  WorkflowDetail,
+  WorkflowGraphResponse,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
-  temporalApiRef,
   TemporalWorkflowActionDef,
   TemporalWorkflowProvider,
   TemporalWorkflowSectionDef,
+  temporalWorkflowExtensionsApiRef,
 } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
-import Grid from '@material-ui/core/Grid';
-import Typography from '@material-ui/core/Typography';
-import OpenInNewIcon from '@material-ui/icons/OpenInNew';
-import useAsyncRetry from 'react-use/esm/useAsyncRetry';
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  Card,
+  CardBody,
+  CardHeader,
+  Flex,
+  Link,
+  Switch,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+  Text,
+} from '@backstage/ui';
+import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
+import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
 import { formatDuration, formatTime } from './format';
+import { WorkflowGraph } from './graph/WorkflowGraph';
+import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
-import { WorkflowHistory } from './WorkflowHistory';
+import { DefinitionList, StepDrawer } from './StepDrawer';
+import { StepsTable } from './StepsTable';
+import { useWorkflowData } from './useWorkflowData';
+import { WorkflowEvents } from './WorkflowEvents';
+import { workflowLink } from './WorkflowList';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
-import { WorkflowSteps } from './WorkflowSteps';
-
-function summaryMetadata(workflow: WorkflowDetail) {
-  const metadata: Record<string, unknown> = {
-    'Workflow ID': workflow.workflowId,
-    'Run ID': workflow.runId,
-    Type: workflow.workflowType,
-    'Task queue': workflow.taskQueue ?? '',
-    Namespace: workflow.namespace,
-    Status: <WorkflowStatusLabel status={workflow.status} />,
-    Started: formatTime(workflow.startTime),
-    Ended: formatTime(workflow.closeTime),
-    Duration: formatDuration(workflow.startTime, workflow.closeTime),
-    'History events': workflow.historyLength ?? '',
-  };
-  if (workflow.parent) {
-    metadata['Parent workflow'] = workflow.parent.workflowId;
-  }
-  if (workflow.entityRef) {
-    metadata['Catalog entity'] = (
-      <EntityRefLink entityRef={workflow.entityRef} />
-    );
-  }
-  return metadata;
-}
+import { tp } from './styles';
 
 /** Props of {@link WorkflowDetailPage}. */
 export interface WorkflowDetailPageProps {
@@ -83,17 +74,185 @@ export function EntityWorkflowDetailPage(props: WorkflowDetailPageProps) {
 }
 
 /**
- * Details of one workflow execution. With an entity, the backend checks the
- * permission on that entity; without one (the Workflows page), it checks
+ * Actions and sections from the props (legacy frontend system) and from
+ * the shared workflow extensions API (new frontend system).
+ */
+function useExtensions(props: WorkflowDetailPageProps) {
+  const apis = useApiHolder();
+  const shared = apis.get(temporalWorkflowExtensionsApiRef);
+  return useMemo(() => {
+    const unique = <T extends { id: string }>(items: T[]) =>
+      items.filter((item, i) => items.findIndex(o => o.id === item.id) === i);
+    return {
+      actions: unique([
+        ...(props.workflowActions ?? []),
+        ...(shared?.getActions() ?? []),
+      ]),
+      sections: unique([
+        ...(props.workflowSections ?? []),
+        ...(shared?.getSections() ?? []),
+      ]),
+    };
+  }, [props.workflowActions, props.workflowSections, shared]);
+}
+
+function SummaryItem(props: { label: string; children: React.ReactNode }) {
+  return (
+    <div className={tp('tp-summary-item')}>
+      <Text as="span" variant="body-x-small" color="secondary">
+        {props.label}
+      </Text>
+      <Text as="span" variant="body-medium">
+        {props.children}
+      </Text>
+    </div>
+  );
+}
+
+function detailItems(workflow: WorkflowDetail): [string, React.ReactNode][] {
+  return [
+    ['Workflow ID', workflow.workflowId],
+    ['Run ID', workflow.runId],
+    ['Type', workflow.workflowType],
+    ['Task queue', workflow.taskQueue],
+    ['Namespace', workflow.namespace],
+    ['Status', <WorkflowStatusLabel status={workflow.status} />],
+    ['Started', formatTime(workflow.startTime)],
+    ['Ended', formatTime(workflow.closeTime)],
+    ['Duration', formatDuration(workflow.startTime, workflow.closeTime)],
+    ['History events', workflow.historyLength],
+    ['Parent workflow', workflow.parent?.workflowId],
+    [
+      'Catalog entity',
+      workflow.entityRef ? (
+        <EntityRefLink entityRef={workflow.entityRef} />
+      ) : undefined,
+    ],
+  ];
+}
+
+/** The Details tab: the summary table, failure and pending activities. */
+function DetailsTab(props: { workflow: WorkflowDetail }) {
+  const { workflow } = props;
+  return (
+    <Flex direction="column" gap="4">
+      <DefinitionList items={detailItems(workflow)} />
+      {workflow.failure && (
+        <div>
+          <Text as="h3" variant="title-x-small">
+            Failure
+          </Text>
+          <FailureView failure={workflow.failure} />
+        </div>
+      )}
+      {workflow.pendingActivities.length > 0 && (
+        <div>
+          <Text as="h3" variant="title-x-small">
+            Pending activities
+          </Text>
+          <PendingActivities activities={workflow.pendingActivities} />
+        </div>
+      )}
+      {workflow.searchAttributes &&
+        Object.keys(workflow.searchAttributes).length > 0 && (
+          <div>
+            <Text as="h3" variant="title-x-small">
+              Search attributes
+            </Text>
+            <JsonView value={workflow.searchAttributes} />
+          </div>
+        )}
+      {workflow.memo && (
+        <div>
+          <Text as="h3" variant="title-x-small">
+            Memo
+          </Text>
+          <JsonView value={workflow.memo} />
+        </div>
+      )}
+    </Flex>
+  );
+}
+
+function currentLabel(workflow: WorkflowDetail) {
+  if (workflow.status === 'Running') return 'Now';
+  if (['Failed', 'TimedOut', 'Terminated'].includes(workflow.status)) {
+    return 'Stopped at';
+  }
+  return 'Result';
+}
+
+function GraphCard(props: {
+  graph?: WorkflowGraphResponse;
+  graphError?: Error;
+  selectedId?: string;
+  onSelect(id: string | undefined): void;
+  workflowHref(ref: WorkflowRef): string;
+}) {
+  const { graph, graphError, selectedId, onSelect } = props;
+  const selected = graph?.nodes.find(n => n.id === selectedId);
+  return (
+    <Card>
+      <CardHeader>
+        <Flex align="center" justify="between" gap="2">
+          <Text as="h3" variant="title-small" style={{ margin: 0 }}>
+            Steps
+          </Text>
+          {graph && graph.totalSteps > 0 && (
+            <Text variant="body-small" color="secondary">
+              {graph.completedSteps} of {graph.totalSteps} steps done
+            </Text>
+          )}
+        </Flex>
+      </CardHeader>
+      <CardBody>
+        {graphError && <ErrorAlert error={graphError} />}
+        {!graph && !graphError && <Loading label="Loading graph" />}
+        {graph?.truncated && (
+          <Alert
+            status="info"
+            icon
+            title="The history is long; the graph shows its first events."
+            style={{ marginBottom: 12 }}
+          />
+        )}
+        {graph && (
+          <div className={tp('tp-graph-layout')}>
+            <WorkflowGraph
+              graph={graph}
+              selectedId={selectedId}
+              onSelect={onSelect}
+            />
+            {selected && (
+              <StepDrawer
+                step={selected}
+                payloadsHidden={graph.payloadsHidden}
+                workflowHref={props.workflowHref}
+                onClose={() => onSelect(undefined)}
+              />
+            )}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+/**
+ * Details of one workflow execution: a summary line, the step graph with a
+ * panel for the selected step, and tabs with the steps, the events and the
+ * details. With an entity, the backend checks the permission on that
+ * entity; without one (the Workflows page), it checks
  * `temporal.workflow.list`.
  */
 export function WorkflowDetailPage(
   props: WorkflowDetailPageProps & { entity?: Entity },
 ) {
-  const { workflowActions = [], workflowSections = [], entity } = props;
+  const { entity } = props;
+  const { actions: workflowActions, sections: workflowSections } =
+    useExtensions(props);
   const params = useParams();
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
-  const temporalApi = useApi(temporalApiRef);
   const workflowRef = useMemo(
     () => ({
       namespace: params.namespace ?? '',
@@ -102,144 +261,201 @@ export function WorkflowDetailPage(
     }),
     [params.namespace, params.workflowId, params.runId],
   );
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const [tab, setTab] = useState<string>('steps');
+  const graphRef = useRef<HTMLDivElement>(null);
+  const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
+  const { workflow, graph } = data;
 
-  const {
-    value: workflow,
-    loading,
-    error,
-    retry,
-  } = useAsyncRetry(
-    () => temporalApi.getWorkflow(workflowRef, { entityRef }),
-    [temporalApi, workflowRef, entityRef],
+  // The list this page was opened from, and links to other runs next to it.
+  const rootPath = useResolvedPath(
+    params.runId ? '../../../../../..' : '../../../..',
+    { relative: 'path' },
+  ).pathname.replace(/\/+$/, '');
+  const workflowHref = useCallback(
+    (ref: WorkflowRef) => `${rootPath}/${workflowLink(ref)}`,
+    [rootPath],
   );
-
-  // History of the run that was loaded, also when the URL has no run ID.
-  const historyRef = useMemo(
-    () =>
-      workflow
-        ? {
-            namespace: workflow.namespace,
-            workflowId: workflow.workflowId,
-            runId: workflow.runId,
-          }
-        : undefined,
-    [workflow],
-  );
+  const selectFromTab = useCallback((id: string) => {
+    setSelectedId(id);
+    graphRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   const back = (
-    <Box mb={2}>
-      <Link
-        to={params.runId ? '../../../../../..' : '../../../..'}
-        relative="path"
-      >
-        ← All workflows
-      </Link>
-    </Box>
+    <Link href={rootPath || '/'} variant="body-medium">
+      ← All workflows
+    </Link>
   );
 
-  if (loading && !workflow) {
+  if (data.loading && !workflow) {
     return (
-      <>
+      <Flex direction="column" gap="4">
         {back}
-        <Progress />
-      </>
+        <Loading rows={5} label="Loading workflow" />
+      </Flex>
     );
   }
-  if (error || !workflow) {
+  if (!workflow) {
     return (
-      <>
+      <Flex direction="column" gap="4">
         {back}
-        <ResponseErrorPanel error={error ?? new Error('Workflow not found')} />
-      </>
+        <ErrorAlert error={data.error ?? new Error('Workflow not found')} />
+      </Flex>
     );
   }
 
-  const extensionProps = { workflow, entity, reload: retry };
+  const extensionProps = { workflow, entity, reload: data.reload };
   const actions = workflowActions.filter(a => !a.filter || a.filter(workflow));
   const sections = workflowSections.filter(
     s => !s.filter || s.filter(workflow),
   );
+  const running = workflow.status === 'Running';
+  const historyRef = {
+    namespace: workflow.namespace,
+    workflowId: workflow.workflowId,
+    runId: workflow.runId,
+  };
 
   return (
     <TemporalWorkflowProvider value={extensionProps}>
-      {back}
-      <Box display="flex" alignItems="center" flexWrap="wrap" mb={2}>
-        <Typography variant="h5" component="h2" style={{ marginRight: 16 }}>
-          {workflow.workflowId}
-        </Typography>
-        <WorkflowStatusLabel status={workflow.status} />
-        <Box flexGrow={1} />
-        <Box display="flex" alignItems="center" flexWrap="wrap">
-          {actions.map(({ id, component: Action }) => (
-            <Box key={id} ml={1} data-testid={`temporal-action-${id}`}>
-              <Action {...extensionProps} />
-            </Box>
-          ))}
-          {workflow.webUiUrl && (
-            <Box ml={1}>
-              <Button
-                variant="outlined"
-                color="primary"
-                href={workflow.webUiUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                endIcon={<OpenInNewIcon />}
-              >
-                Open in Temporal UI
-              </Button>
-            </Box>
-          )}
-          <Box ml={1}>
-            <Button onClick={retry}>Refresh</Button>
-          </Box>
-        </Box>
-      </Box>
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={workflow.failure ? 6 : 12}>
-          <InfoCard title="Summary">
-            <StructuredMetadataTable metadata={summaryMetadata(workflow)} />
-          </InfoCard>
-        </Grid>
-        {workflow.failure && (
-          <Grid item xs={12} md={6}>
-            <InfoCard title="Failure">
-              <FailureView failure={workflow.failure} />
-            </InfoCard>
-          </Grid>
-        )}
-        {workflow.pendingActivities.length > 0 && (
-          <Grid item xs={12}>
-            <InfoCard title="Pending activities">
-              <PendingActivities activities={workflow.pendingActivities} />
-            </InfoCard>
-          </Grid>
-        )}
-        <Grid item xs={12}>
-          <InfoCard title="Inputs and outputs">
-            {historyRef && (
-              <WorkflowSteps workflowRef={historyRef} entityRef={entityRef} />
-            )}
-          </InfoCard>
-        </Grid>
-        {sections.map(({ id, title, component: Section }) => (
-          <Grid item xs={12} key={id} data-testid={`temporal-section-${id}`}>
-            {title ? (
-              <InfoCard title={title}>
-                <Section {...extensionProps} />
-              </InfoCard>
-            ) : (
-              <Section {...extensionProps} />
-            )}
-          </Grid>
-        ))}
-        <Grid item xs={12}>
-          <InfoCard title="Event history">
-            {historyRef && (
-              <WorkflowHistory workflowRef={historyRef} entityRef={entityRef} />
-            )}
-          </InfoCard>
-        </Grid>
-      </Grid>
+      <Flex direction="column" gap="4">
+        {back}
+        <Card>
+          <CardBody>
+            <Flex direction="column" gap="3">
+              <Flex align="baseline" gap="3" style={{ flexWrap: 'wrap' }}>
+                <Text
+                  as="h2"
+                  variant="title-medium"
+                  style={{ margin: 0, wordBreak: 'break-all' }}
+                >
+                  {workflow.workflowId}
+                </Text>
+                <Text variant="body-small" color="secondary">
+                  Run {workflow.runId}
+                </Text>
+              </Flex>
+              <div className={tp('tp-summary')} data-testid="workflow-summary">
+                <SummaryItem label="Status">
+                  <WorkflowStatusLabel status={workflow.status} />
+                </SummaryItem>
+                {graph?.current && (
+                  <SummaryItem label={currentLabel(workflow)}>
+                    <span data-testid="workflow-current">{graph.current}</span>
+                  </SummaryItem>
+                )}
+                <SummaryItem label="Type">{workflow.workflowType}</SummaryItem>
+                <SummaryItem label="Duration">
+                  {formatDuration(workflow.startTime, workflow.closeTime) ||
+                    '—'}
+                </SummaryItem>
+                <SummaryItem label="Started">
+                  {formatTime(workflow.startTime) || '—'}
+                </SummaryItem>
+                <div className={tp('tp-summary-actions')}>
+                  {actions.map(({ id, component: Action }) => (
+                    <div key={id} data-testid={`temporal-action-${id}`}>
+                      <Action {...extensionProps} />
+                    </div>
+                  ))}
+                  {workflow.webUiUrl && (
+                    <ButtonLink
+                      variant="secondary"
+                      href={workflow.webUiUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      iconEnd={<RiExternalLinkLine />}
+                    >
+                      Open in Temporal UI
+                    </ButtonLink>
+                  )}
+                  <Button
+                    variant="secondary"
+                    iconStart={<RiRefreshLine />}
+                    isPending={data.refreshing && !running}
+                    onPress={data.reload}
+                  >
+                    Refresh
+                  </Button>
+                  {running && (
+                    <Switch
+                      label="Auto refresh"
+                      isSelected={autoRefresh}
+                      onChange={setAutoRefresh}
+                    />
+                  )}
+                </div>
+              </div>
+              {data.error && (
+                <ErrorAlert title="Could not refresh" error={data.error} />
+              )}
+            </Flex>
+          </CardBody>
+        </Card>
+
+        <div ref={graphRef}>
+          <GraphCard
+            graph={graph}
+            graphError={data.graphError}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            workflowHref={workflowHref}
+          />
+        </div>
+
+        <Card>
+          <CardBody>
+            <Tabs
+              selectedKey={tab}
+              onSelectionChange={key => setTab(String(key))}
+            >
+              <TabList aria-label="Workflow details">
+                <Tab id="steps">Steps</Tab>
+                <Tab id="events">Events</Tab>
+                <Tab id="details">Details</Tab>
+                {sections.map(s => (
+                  <Tab key={s.id} id={`section-${s.id}`}>
+                    {s.title ?? s.id}
+                  </Tab>
+                ))}
+              </TabList>
+              <TabPanel id="steps">
+                {graph ? (
+                  <StepsTable steps={graph.nodes} onSelect={selectFromTab} />
+                ) : (
+                  <Loading />
+                )}
+              </TabPanel>
+              <TabPanel id="events">
+                {graph ? (
+                  <WorkflowEvents
+                    steps={graph.nodes}
+                    workflowRef={historyRef}
+                    entityRef={entityRef}
+                    payloadsHidden={graph.payloadsHidden}
+                    onSelect={selectFromTab}
+                  />
+                ) : (
+                  <Loading />
+                )}
+              </TabPanel>
+              <TabPanel id="details">
+                <DetailsTab workflow={workflow} />
+              </TabPanel>
+              {sections.map(({ id, component: Section }) => (
+                <TabPanel
+                  key={id}
+                  id={`section-${id}`}
+                  data-testid={`temporal-section-${id}`}
+                >
+                  <Section {...extensionProps} />
+                </TabPanel>
+              ))}
+            </Tabs>
+          </CardBody>
+        </Card>
+      </Flex>
     </TemporalWorkflowProvider>
   );
 }

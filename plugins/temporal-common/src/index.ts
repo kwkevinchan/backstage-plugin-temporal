@@ -26,3 +26,4 @@ export * from './annotations';
 export * from './permissions';
 export * from './paths';
 export * from './workflowEntity';
+export * from './graph';

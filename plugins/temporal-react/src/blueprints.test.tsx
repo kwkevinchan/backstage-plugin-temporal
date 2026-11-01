@@ -30,8 +30,8 @@ describe('blueprints', () => {
       params: { loader: async () => () => null, filter },
     });
     expect((extension as unknown as { attachTo: unknown }).attachTo).toEqual({
-      id: 'entity-content:temporal',
-      input: 'workflowActions',
+      id: 'api:temporal/workflow-extensions',
+      input: 'actions',
     });
     const action = createExtensionTester(extension).get(
       temporalWorkflowActionDataRef,
@@ -47,8 +47,8 @@ describe('blueprints', () => {
       params: { title: 'Notes', loader: async () => () => null },
     });
     expect((extension as unknown as { attachTo: unknown }).attachTo).toEqual({
-      id: 'entity-content:temporal',
-      input: 'workflowSections',
+      id: 'api:temporal/workflow-extensions',
+      input: 'sections',
     });
     const section = createExtensionTester(extension).get(
       temporalWorkflowSectionDataRef,

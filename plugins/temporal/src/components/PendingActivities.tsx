@@ -15,44 +15,58 @@
  */
 
 import type { PendingActivity } from '@kwkevinchan/backstage-plugin-temporal-common';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
+import {
+  Cell,
+  Column,
+  Row,
+  TableBody,
+  TableHeader,
+  TableRoot,
+  Text,
+} from '@backstage/ui';
 import { formatTime } from './format';
 
 /** Activities that are scheduled, running or waiting for a retry. */
 export function PendingActivities(props: { activities: PendingActivity[] }) {
   return (
-    <Table size="small" aria-label="Pending activities">
-      <TableHead>
-        <TableRow>
-          <TableCell>Activity ID</TableCell>
-          <TableCell>Type</TableCell>
-          <TableCell>State</TableCell>
-          <TableCell>Attempt</TableCell>
-          <TableCell>Scheduled</TableCell>
-          <TableCell>Last failure</TableCell>
-        </TableRow>
-      </TableHead>
+    <TableRoot aria-label="Pending activities">
+      <TableHeader>
+        <Column isRowHeader>Activity ID</Column>
+        <Column>Type</Column>
+        <Column>State</Column>
+        <Column>Attempt</Column>
+        <Column>Scheduled</Column>
+        <Column>Last failure</Column>
+      </TableHeader>
       <TableBody>
         {props.activities.map(a => (
-          <TableRow key={a.activityId}>
-            <TableCell>{a.activityId}</TableCell>
-            <TableCell>{a.activityType}</TableCell>
-            <TableCell>{a.state}</TableCell>
-            <TableCell>
-              {a.attempt ?? ''}
-              {a.maximumAttempts ? ` / ${a.maximumAttempts}` : ''}
-            </TableCell>
-            <TableCell>{formatTime(a.scheduledTime)}</TableCell>
-            <TableCell style={{ wordBreak: 'break-word' }}>
-              {a.lastFailure?.message ?? ''}
-            </TableCell>
-          </TableRow>
+          <Row key={a.activityId} id={a.activityId}>
+            <Cell>
+              <Text variant="body-small">{a.activityId}</Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small">{a.activityType}</Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small">{a.state}</Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small">
+                {a.attempt ?? ''}
+                {a.maximumAttempts ? ` / ${a.maximumAttempts}` : ''}
+              </Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small">{formatTime(a.scheduledTime)}</Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small" style={{ wordBreak: 'break-word' }}>
+                {a.lastFailure?.message ?? ''}
+              </Text>
+            </Cell>
+          </Row>
         ))}
       </TableBody>
-    </Table>
+    </TableRoot>
   );
 }

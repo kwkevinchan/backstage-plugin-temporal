@@ -130,7 +130,7 @@ describe('Temporal tab of a component that depends on workflows', () => {
     });
     await render(checkoutEntity, api);
 
-    const workflows = await screen.findByRole('table', {
+    const workflows = await screen.findByRole('grid', {
       name: 'Workflow entities',
     });
     expect(
@@ -141,7 +141,7 @@ describe('Temporal tab of a component that depends on workflows', () => {
     );
     expect(within(workflows).getByText('orders')).toBeInTheDocument();
 
-    const runs = await screen.findByRole('table', { name: 'Workflows' });
+    const runs = await screen.findByRole('grid', { name: 'Workflows' });
     expect(within(runs).getByText('deploy-1')).toBeInTheDocument();
     expect(within(runs).getByText('Workflow entity')).toBeInTheDocument();
     expect(
