@@ -25,13 +25,16 @@ describe('WorkflowStatusLabel', () => {
       'Running',
     );
     const spinner = screen.getByTestId('workflow-status-running-spinner');
-    // The indeterminate variant is the animated one.
-    expect(spinner.className).toMatch(/MuiCircularProgress-indeterminate/);
+    // The spinner class carries the turning animation.
+    expect(spinner).toHaveClass('tp-spinner');
   });
 
   it('uses the status icons for other statuses', async () => {
     await renderInTestApp(<WorkflowStatusLabel status="Completed" />);
     expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText('Completed').parentElement).toHaveClass(
+      'tp-tone-success',
+    );
     expect(
       screen.queryByTestId('workflow-status-running'),
     ).not.toBeInTheDocument();

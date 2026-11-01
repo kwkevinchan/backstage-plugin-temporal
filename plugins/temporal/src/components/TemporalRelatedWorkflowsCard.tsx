@@ -16,11 +16,6 @@
 
 import { RELATION_DEPENDS_ON } from '@backstage/catalog-model';
 import {
-  InfoCard,
-  Progress,
-  ResponseErrorPanel,
-} from '@backstage/core-components';
-import {
   EntityRefLink,
   EntityRefLinks,
   getEntityRelations,
@@ -28,12 +23,17 @@ import {
   useRelatedEntities,
 } from '@backstage/plugin-catalog-react';
 import { TEMPORAL_WORKFLOW_KIND } from '@kwkevinchan/backstage-plugin-temporal-common';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import Typography from '@material-ui/core/Typography';
+import {
+  Cell,
+  Column,
+  Row,
+  TableBody,
+  TableHeader,
+  TableRoot,
+  Text,
+} from '@backstage/ui';
+import { ErrorAlert, Loading } from './feedback';
+import { PanelCard } from './PanelCard';
 
 /** The `TemporalWorkflow` entities that the current entity depends on. */
 export function TemporalRelatedWorkflowsCard() {
@@ -45,26 +45,24 @@ export function TemporalRelatedWorkflowsCard() {
 
   let body;
   if (loading) {
-    body = <Progress />;
+    body = <Loading />;
   } else if (error) {
-    body = <ResponseErrorPanel error={error} />;
+    body = <ErrorAlert error={error} />;
   } else if (!entities || entities.length === 0) {
     body = (
-      <Typography variant="body2">
+      <Text as="p" variant="body-medium">
         This entity does not depend on any TemporalWorkflow entity.
-      </Typography>
+      </Text>
     );
   } else {
     body = (
-      <Table size="small" aria-label="Workflow entities">
-        <TableHead>
-          <TableRow>
-            <TableCell>Workflow</TableCell>
-            <TableCell>Workflow type</TableCell>
-            <TableCell>Task queue</TableCell>
-            <TableCell>Owner</TableCell>
-          </TableRow>
-        </TableHead>
+      <TableRoot aria-label="Workflow entities">
+        <TableHeader>
+          <Column isRowHeader>Workflow</Column>
+          <Column>Workflow type</Column>
+          <Column>Task queue</Column>
+          <Column>Owner</Column>
+        </TableHeader>
         <TableBody>
           {entities.map(workflow => {
             const spec = (workflow.spec ?? {}) as {
@@ -72,32 +70,39 @@ export function TemporalRelatedWorkflowsCard() {
               taskQueue?: string;
             };
             return (
-              <TableRow key={workflow.metadata.uid ?? workflow.metadata.name}>
-                <TableCell>
+              <Row
+                key={workflow.metadata.uid ?? workflow.metadata.name}
+                id={workflow.metadata.uid ?? workflow.metadata.name}
+              >
+                <Cell>
                   <EntityRefLink entityRef={workflow} />
-                </TableCell>
-                <TableCell>{spec.workflowType}</TableCell>
-                <TableCell>{spec.taskQueue}</TableCell>
-                <TableCell>
+                </Cell>
+                <Cell>
+                  <Text variant="body-small">{spec.workflowType}</Text>
+                </Cell>
+                <Cell>
+                  <Text variant="body-small">{spec.taskQueue}</Text>
+                </Cell>
+                <Cell>
                   <EntityRefLinks
                     entityRefs={getEntityRelations(workflow, 'ownedBy')}
                     defaultKind="group"
                   />
-                </TableCell>
-              </TableRow>
+                </Cell>
+              </Row>
             );
           })}
         </TableBody>
-      </Table>
+      </TableRoot>
     );
   }
 
   return (
-    <InfoCard
+    <PanelCard
       title="Workflow entities"
-      subheader="TemporalWorkflow entities in spec.dependsOn; their runs are listed below."
+      subtitle="TemporalWorkflow entities in spec.dependsOn; their runs are listed below."
     >
       {body}
-    </InfoCard>
+    </PanelCard>
   );
 }

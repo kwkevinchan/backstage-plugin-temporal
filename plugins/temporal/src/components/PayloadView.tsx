@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import { useState } from 'react';
 import type { JsonValue } from '@backstage/types';
-import Typography from '@material-ui/core/Typography';
+import { ButtonIcon, Text } from '@backstage/ui';
+import { RiCheckLine, RiFileCopyLine } from '@remixicon/react';
+import { tp } from './styles';
 
 type Decoded =
   | { encoding: string; value: JsonValue }
@@ -36,67 +39,84 @@ function summary(value: JsonValue): string {
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
 
-function One(props: { payload: JsonValue }) {
-  const { payload } = props;
-  if (isDecoded(payload) && 'undecodable' in payload) {
-    return (
-      <Typography variant="body2" color="textSecondary">
-        {payload.encoding || 'unknown encoding'}, {payload.size} bytes (not
-        decoded)
-      </Typography>
-    );
-  }
-  const value: JsonValue =
-    isDecoded(payload) && 'value' in payload ? payload.value : payload;
+/** Copies text to the clipboard and shows a check mark for a moment. */
+export function CopyButton(props: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <ButtonIcon
+      size="small"
+      variant="tertiary"
+      aria-label={props.label ?? 'Copy'}
+      icon={copied ? <RiCheckLine /> : <RiFileCopyLine />}
+      onPress={async () => {
+        await window.navigator.clipboard
+          ?.writeText(props.text)
+          .catch(() => undefined);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1500);
+      }}
+    />
+  );
+}
+
+/** JSON that can be folded and copied. Objects start folded unless `open`. */
+export function JsonView(props: { value: JsonValue; open?: boolean }) {
+  const { value } = props;
+  const text = JSON.stringify(value, null, 2);
   if (value === null || typeof value !== 'object') {
     return (
-      <Typography
-        variant="body2"
-        component="span"
-        style={{ wordBreak: 'break-word' }}
-      >
+      <Text as="span" variant="body-small" style={{ wordBreak: 'break-word' }}>
         {JSON.stringify(value)}
-      </Typography>
+      </Text>
     );
   }
   return (
-    <details>
+    <details className={tp('tp-json')} open={props.open}>
       <summary>
-        <Typography variant="body2" component="span">
-          {summary(value)}
-        </Typography>
+        <span>{summary(value)}</span>
+        <CopyButton text={text} label="Copy JSON" />
       </summary>
-      <pre
-        style={{ fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}
-      >
-        {JSON.stringify(value, null, 2)}
-      </pre>
+      <pre className={tp('tp-pre')}>{text}</pre>
     </details>
   );
 }
 
+function One(props: { payload: JsonValue; open?: boolean }) {
+  const { payload } = props;
+  if (isDecoded(payload) && 'undecodable' in payload) {
+    return (
+      <Text as="p" variant="body-small" color="secondary">
+        {payload.encoding || 'unknown encoding'}, {payload.size} bytes (not
+        decoded)
+      </Text>
+    );
+  }
+  const value: JsonValue =
+    isDecoded(payload) && 'value' in payload ? payload.value : payload;
+  return <JsonView value={value} open={props.open} />;
+}
+
 /**
- * Shows a decoded payload (or a list of them, one per argument) as
- * collapsible JSON. Payloads that could not be decoded show their encoding
- * and size.
+ * A decoded payload, or an array of them (several arguments). Payloads that
+ * could not be decoded show their encoding and size.
  */
-export function PayloadView(props: { payload?: JsonValue }) {
+export function PayloadView(props: { payload?: JsonValue; open?: boolean }) {
   const { payload } = props;
   if (payload === undefined) {
     return (
-      <Typography variant="body2" color="textSecondary">
+      <Text as="span" variant="body-small" color="secondary">
         —
-      </Typography>
+      </Text>
     );
   }
   if (Array.isArray(payload) && payload.every(isDecoded)) {
     return (
-      <>
+      <div style={{ display: 'grid', gap: 4 }}>
         {payload.map((p, i) => (
-          <One key={i} payload={p} />
+          <One key={i} payload={p} open={props.open} />
         ))}
-      </>
+      </div>
     );
   }
-  return <One payload={payload} />;
+  return <One payload={payload} open={props.open} />;
 }

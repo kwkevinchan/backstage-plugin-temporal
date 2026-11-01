@@ -23,7 +23,9 @@ import {
   buildWorkflowPath,
   WORKFLOWS_PATH,
   WorkflowDetail,
+  WorkflowGraphResponse,
   WorkflowHistoryResponse,
+  WorkflowProgressResponse,
   WorkflowListResponse,
   WorkflowRef,
   WorkflowStatsResponse,
@@ -141,6 +143,28 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowStepsResponse> {
     return this.get(
       `${buildWorkflowPath(ref)}/steps${queryString({
+        entityRef: options?.entityRef,
+      })}`,
+    );
+  }
+
+  getWorkflowGraph(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowGraphResponse> {
+    return this.get(
+      `${buildWorkflowPath(ref)}/graph${queryString({
+        entityRef: options?.entityRef,
+      })}`,
+    );
+  }
+
+  getWorkflowProgress(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowProgressResponse> {
+    return this.get(
+      `${buildWorkflowPath(ref)}/progress${queryString({
         entityRef: options?.entityRef,
       })}`,
     );

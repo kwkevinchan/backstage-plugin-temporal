@@ -16,45 +16,20 @@
 
 import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  EmptyState,
-  InfoCard,
-  Link,
-  Progress,
-  ResponseErrorPanel,
-} from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
-import {
-  buildWorkflowPath,
-  WORKFLOW_STATUSES,
-  WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+import { useEntity } from '@backstage/plugin-catalog-react';
+import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
-import MenuItem from '@material-ui/core/MenuItem';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import TextField from '@material-ui/core/TextField';
+import { Button } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
-import { formatDuration, formatTime } from './format';
-import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
+import { ErrorAlert } from './feedback';
+import { PanelCard } from './PanelCard';
+import { Pager, StatusSelect, WorkflowRunsTable } from './WorkflowRunsTable';
+import { statusLabel } from './WorkflowStatusLabel';
+
+export { workflowLink } from './WorkflowRunsTable';
 
 const PAGE_SIZE = 20;
-
-/** Relative link from the entity tab to a workflow's details. */
-export function workflowLink(ref: {
-  namespace: string;
-  workflowId: string;
-  runId?: string;
-}): string {
-  // Same shape as the backend path, without the leading slash.
-  return buildWorkflowPath(ref).slice(1);
-}
 
 /** Workflow list of the current entity. */
 export function WorkflowList(props: { title?: string }) {
@@ -76,119 +51,51 @@ export function WorkflowList(props: { title?: string }) {
     [temporalApi, entityRef, status, pageToken],
   );
 
-  const filter = (
-    <TextField
-      select
-      size="small"
-      variant="outlined"
-      label="Status"
-      value={status}
-      style={{ minWidth: 160 }}
-      onChange={e => {
-        setStatus(e.target.value as WorkflowStatus | '');
-        setTokens([undefined]);
-      }}
-      SelectProps={{ inputProps: { 'aria-label': 'Status filter' } }}
-    >
-      <MenuItem value="">All</MenuItem>
-      {WORKFLOW_STATUSES.map(s => (
-        <MenuItem key={s} value={s}>
-          {statusLabel(s)}
-        </MenuItem>
-      ))}
-    </TextField>
-  );
-
-  let body;
-  if (loading) {
-    body = <Progress />;
-  } else if (error) {
-    body = <ResponseErrorPanel error={error} />;
-  } else if (!value || value.items.length === 0) {
-    body = (
-      <EmptyState
-        missing="data"
-        title="No workflows"
-        description={
-          status
-            ? `No workflows with status ${statusLabel(status)}.`
-            : 'No Temporal workflows were found for this entity.'
-        }
-      />
-    );
-  } else {
-    // Runs listed through a TemporalWorkflow entity the entity depends on.
-    const showWorkflowEntity = value.items.some(i => i.workflowEntityRef);
-    body = (
-      <Table size="small" aria-label="Workflows">
-        <TableHead>
-          <TableRow>
-            <TableCell>Workflow ID</TableCell>
-            <TableCell>Type</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell>Started</TableCell>
-            <TableCell>Ended</TableCell>
-            <TableCell>Duration</TableCell>
-            {showWorkflowEntity && <TableCell>Workflow entity</TableCell>}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {value.items.map(item => (
-            <TableRow key={`${item.workflowId}/${item.runId}`}>
-              <TableCell>
-                <Link to={workflowLink(item)}>{item.workflowId}</Link>
-              </TableCell>
-              <TableCell>{item.workflowType}</TableCell>
-              <TableCell>
-                <WorkflowStatusLabel status={item.status} />
-              </TableCell>
-              <TableCell>{formatTime(item.startTime)}</TableCell>
-              <TableCell>{formatTime(item.closeTime)}</TableCell>
-              <TableCell>
-                {formatDuration(item.startTime, item.closeTime)}
-              </TableCell>
-              {showWorkflowEntity && (
-                <TableCell>
-                  {item.workflowEntityRef && (
-                    <EntityRefLink entityRef={item.workflowEntityRef} />
-                  )}
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    );
-  }
+  // Runs listed through a TemporalWorkflow entity the entity depends on.
+  const showWorkflowEntity = value?.items.some(i => i.workflowEntityRef);
 
   return (
-    <InfoCard
+    <PanelCard
       title={props.title ?? 'Temporal workflows'}
-      subheader={value ? `Namespace: ${value.namespace}` : undefined}
-      action={
-        <Box display="flex" alignItems="center" mt={1} mr={1}>
-          {filter}
-          <Button style={{ marginLeft: 8 }} onClick={retry}>
+      subtitle={value ? `Namespace: ${value.namespace}` : undefined}
+      actions={
+        <>
+          <StatusSelect
+            value={status}
+            onChange={next => {
+              setStatus(next);
+              setTokens([undefined]);
+            }}
+          />
+          <Button variant="secondary" size="small" onPress={retry}>
             Refresh
           </Button>
-        </Box>
+        </>
       }
     >
-      {body}
-      <Box display="flex" justifyContent="flex-end" mt={2}>
-        <Button
-          disabled={tokens.length <= 1 || loading}
-          onClick={() => setTokens(t => t.slice(0, -1))}
-        >
-          Previous page
-        </Button>
-        <Button
-          disabled={!value?.nextPageToken || loading}
-          onClick={() => setTokens(t => [...t, value?.nextPageToken])}
-        >
-          Next page
-        </Button>
-      </Box>
-    </InfoCard>
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <WorkflowRunsTable
+          label="Workflows"
+          items={value?.items ?? []}
+          entityRef={entityRef}
+          entityColumn={showWorkflowEntity ? 'workflow' : undefined}
+          pending={loading}
+          emptyText={
+            status
+              ? `No workflows with status ${statusLabel(status)}.`
+              : 'No Temporal workflows were found for this entity.'
+          }
+        />
+      )}
+      <Pager
+        hasPrevious={tokens.length > 1}
+        hasNext={Boolean(value?.nextPageToken)}
+        disabled={loading}
+        onPrevious={() => setTokens(t => t.slice(0, -1))}
+        onNext={() => setTokens(t => [...t, value?.nextPageToken])}
+      />
+    </PanelCard>
   );
 }

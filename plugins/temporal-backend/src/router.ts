@@ -29,12 +29,14 @@ import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import { CatalogService } from '@backstage/plugin-catalog-node';
 import {
   AuthorizeResult,
+  BasicPermission,
   ResourcePermission,
 } from '@backstage/plugin-permission-common';
 import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
   parseTemporalWorkflowSpec,
+  temporalWorkflowHistoryListPermission,
   temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
   temporalWorkflowReadPermission,
@@ -134,10 +136,29 @@ export async function createRouter(
     }
   }
 
+  async function isAllowed(
+    permission: BasicPermission,
+    credentials: BackstageCredentials,
+  ) {
+    const [decision] = await permissions.authorize([{ permission }], {
+      credentials,
+    });
+    return decision.result === AuthorizeResult.ALLOW;
+  }
+
   /** True when the caller may list and open every workflow. */
   async function canListAll(credentials: BackstageCredentials) {
+    return isAllowed(temporalWorkflowListPermission, credentials);
+  }
+
+  /** True when the caller may read the entity's resource permission. */
+  async function isAllowedOn(
+    permission: ResourcePermission<'catalog-entity'>,
+    entityRef: string,
+    credentials: BackstageCredentials,
+  ) {
     const [decision] = await permissions.authorize(
-      [{ permission: temporalWorkflowListPermission }],
+      [{ permission, resourceRef: entityRef }],
       { credentials },
     );
     return decision.result === AuthorizeResult.ALLOW;
@@ -231,19 +252,30 @@ export async function createRouter(
     return reader.entityContext(entity, related);
   }
 
-  /** Loads a workflow and the entity it is shown for, with all checks. */
-  async function loadWorkflow(
-    req: Request,
-    permission: ResourcePermission<'catalog-entity'>,
-  ) {
+  /**
+   * Loads a workflow and the entity it is shown for, with all checks.
+   * `level` is `read` for details and the step graph, `history` for the
+   * event history, inputs and results.
+   */
+  async function loadWorkflow(req: Request, level: 'read' | 'history') {
     const credentials = await httpAuth.credentials(req);
     const ref = workflowRefFromParams(req);
     reader.checkNamespace(ref.namespace);
+    const permission =
+      level === 'history'
+        ? temporalWorkflowHistoryReadPermission
+        : temporalWorkflowReadPermission;
     let entityRef = parseEntityRefParam(req.query.entityRef);
     let workflow;
-    if (!entityRef && (await canListAll(credentials))) {
+    if (
+      !entityRef &&
+      (await canListAll(credentials)) &&
+      (level === 'read' ||
+        (await isAllowed(temporalWorkflowHistoryListPermission, credentials)))
+    ) {
       // Opened from the Workflows page: the list permission covers every
-      // workflow of the allowed namespaces.
+      // workflow of the allowed namespaces, the history list permission
+      // their history.
       workflow = await reader.describe(ref);
       return { credentials, ref, context: undefined, workflow };
     }
@@ -329,10 +361,7 @@ export async function createRouter(
   ];
 
   router.get(workflowPaths, async (req, res) => {
-    const { credentials, context, workflow } = await loadWorkflow(
-      req,
-      temporalWorkflowReadPermission,
-    );
+    const { credentials, context, workflow } = await loadWorkflow(req, 'read');
     res.json(
       context
         ? await reader.enrichDetail(workflow, context, credentials)
@@ -343,10 +372,7 @@ export async function createRouter(
   router.get(
     workflowPaths.map(p => `${p}/history`),
     async (req, res) => {
-      const { ref, workflow } = await loadWorkflow(
-        req,
-        temporalWorkflowHistoryReadPermission,
-      );
+      const { ref, workflow } = await loadWorkflow(req, 'history');
       res.json(
         await reader.history(
           { ...ref, runId: workflow.runId },
@@ -362,11 +388,36 @@ export async function createRouter(
   router.get(
     workflowPaths.map(p => `${p}/steps`),
     async (req, res) => {
-      const { ref, workflow } = await loadWorkflow(
-        req,
-        temporalWorkflowHistoryReadPermission,
-      );
+      const { ref, workflow } = await loadWorkflow(req, 'history');
       res.json(await reader.steps({ ...ref, runId: workflow.runId }));
+    },
+  );
+
+  router.get(
+    workflowPaths.map(p => `${p}/graph`),
+    async (req, res) => {
+      const { credentials, context, workflow } = await loadWorkflow(
+        req,
+        'read',
+      );
+      // Inputs and results need the history permission; without it the
+      // graph is shown without them.
+      const includePayloads = context
+        ? await isAllowedOn(
+            temporalWorkflowHistoryReadPermission,
+            context.entityRef,
+            credentials,
+          )
+        : await isAllowed(temporalWorkflowHistoryListPermission, credentials);
+      res.json(await reader.graph(workflow, { includePayloads }));
+    },
+  );
+
+  router.get(
+    workflowPaths.map(p => `${p}/progress`),
+    async (req, res) => {
+      const { workflow } = await loadWorkflow(req, 'read');
+      res.json(await reader.progress(workflow));
     },
   );
 

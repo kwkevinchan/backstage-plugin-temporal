@@ -25,4 +25,5 @@ export {
   TemporalWorkflowSectionBlueprint,
   temporalWorkflowActionDataRef,
   temporalWorkflowSectionDataRef,
+  TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
 } from './blueprints';

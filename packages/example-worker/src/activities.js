@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const { ApplicationFailure } = require('@temporalio/activity');
+const { ApplicationFailure, Context } = require('@temporalio/activity');
 
 async function reserveStock(order) {
   return { sku: order.sku, quantity: order.quantity, warehouse: 'example-1' };
@@ -40,4 +40,39 @@ async function waitForUpstream(deployment) {
   });
 }
 
-module.exports = { reserveStock, chargeCard, deploy, waitForUpstream };
+async function pickItems(order) {
+  await new Promise(r => setTimeout(r, 1500));
+  return { orderId: order.orderId, picked: order.items.length };
+}
+
+async function printLabel(order) {
+  await new Promise(r => setTimeout(r, 1000));
+  return { orderId: order.orderId, label: `LBL-${order.orderId}` };
+}
+
+/** Fails on the first two attempts, so the step shows its retries. */
+async function bookCourier(order) {
+  const { attempt } = Context.current().info;
+  if (attempt < 3) {
+    throw ApplicationFailure.create({
+      message: `Courier API busy (attempt ${attempt})`,
+      type: 'CourierBusy',
+    });
+  }
+  return { orderId: order.orderId, courier: 'example-post', attempt };
+}
+
+async function sendEmail(notice) {
+  return { to: notice.email, subject: `Order ${notice.orderId} shipped` };
+}
+
+module.exports = {
+  reserveStock,
+  chargeCard,
+  deploy,
+  waitForUpstream,
+  pickItems,
+  printLabel,
+  bookCourier,
+  sendEmail,
+};

@@ -33,7 +33,7 @@ import {
   fetchApiRef,
   PageBlueprint,
 } from '@backstage/frontend-plugin-api';
-import AccountTreeIcon from '@material-ui/icons/AccountTree';
+import { RiFlowChart } from '@remixicon/react';
 import {
   EntityCardBlueprint,
   EntityContentBlueprint,
@@ -43,7 +43,10 @@ import {
   isTemporalAvailable,
   isTemporalWorkflowEntity,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import {
+  temporalApiRef,
+  temporalWorkflowExtensionsApiRef,
+} from '@kwkevinchan/backstage-plugin-temporal-react';
 import {
   temporalWorkflowActionDataRef,
   temporalWorkflowSectionDataRef,
@@ -63,46 +66,63 @@ export const temporalApi = ApiBlueprint.make({
 });
 
 /**
- * Entity tab. Workflow actions and sections from
+ * Shared mount point of workflow actions and sections
+ * (`api:temporal/workflow-extensions`). Extensions of
  * `TemporalWorkflowActionBlueprint` and `TemporalWorkflowSectionBlueprint`
- * attach to its `workflowActions` and `workflowSections` inputs.
+ * attach to its `actions` and `sections` inputs; the entity tab and the
+ * Workflows page both show them.
  *
  * @alpha
  */
-export const temporalEntityContent = EntityContentBlueprint.makeWithOverrides({
+export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
+  name: 'workflow-extensions',
   inputs: {
-    workflowActions: createExtensionInput([temporalWorkflowActionDataRef]),
-    workflowSections: createExtensionInput([temporalWorkflowSectionDataRef]),
+    actions: createExtensionInput([temporalWorkflowActionDataRef]),
+    sections: createExtensionInput([temporalWorkflowSectionDataRef]),
   },
   factory(originalFactory, { inputs }) {
-    const workflowActions = inputs.workflowActions.map(i =>
+    const actions = inputs.actions.map(i =>
       i.get(temporalWorkflowActionDataRef),
     );
-    const workflowSections = inputs.workflowSections.map(i =>
+    const sections = inputs.sections.map(i =>
       i.get(temporalWorkflowSectionDataRef),
     );
-    return originalFactory({
-      path: 'temporal',
-      title: 'Temporal',
-      routeRef: convertLegacyRouteRef(entityContentRouteRef),
-      filter: isTemporalAvailable,
-      loader: () =>
-        import('./components/EntityTemporalContent').then(m =>
-          compatWrapper(
-            <m.EntityTemporalContentPage
-              workflowActions={workflowActions}
-              workflowSections={workflowSections}
-            />,
-          ),
-        ),
-    });
+    return originalFactory(defineParams =>
+      defineParams({
+        api: temporalWorkflowExtensionsApiRef,
+        deps: {},
+        factory: () => ({
+          getActions: () => actions,
+          getSections: () => sections,
+        }),
+      }),
+    );
+  },
+});
+
+/**
+ * Entity tab. Workflow actions and sections come from
+ * {@link temporalWorkflowExtensionsApi}.
+ *
+ * @alpha
+ */
+export const temporalEntityContent = EntityContentBlueprint.make({
+  params: {
+    path: 'temporal',
+    title: 'Temporal',
+    routeRef: convertLegacyRouteRef(entityContentRouteRef),
+    filter: isTemporalAvailable,
+    loader: () =>
+      import('./components/EntityTemporalContent').then(m =>
+        compatWrapper(<m.EntityTemporalContentPage />),
+      ),
   },
 });
 
 /**
  * Workflows page on `/temporal`. Its title and icon make the app list it in
- * the sidebar. Workflow actions and sections from the blueprints attach to
- * the entity tab only.
+ * the sidebar. Workflow actions and sections come from
+ * {@link temporalWorkflowExtensionsApi}, as on the entity tab.
  *
  * @alpha
  */
@@ -110,7 +130,7 @@ export const temporalPage = PageBlueprint.make({
   params: {
     path: '/temporal',
     title: 'Workflows',
-    icon: <AccountTreeIcon fontSize="inherit" />,
+    icon: <RiFlowChart size="1em" />,
     routeRef: convertLegacyRouteRef(rootRouteRef),
     loader: () =>
       import('./components/TemporalPage').then(m =>
@@ -161,6 +181,7 @@ export default createFrontendPlugin({
   pluginId: 'temporal',
   extensions: [
     temporalApi,
+    temporalWorkflowExtensionsApi,
     temporalPage,
     temporalEntityContent,
     temporalWorkflowSummaryCard,

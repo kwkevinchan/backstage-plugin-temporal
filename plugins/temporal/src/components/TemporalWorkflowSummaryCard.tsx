@@ -19,19 +19,16 @@ import {
   RELATION_OWNED_BY,
   RELATION_PART_OF,
 } from '@backstage/catalog-model';
-import {
-  InfoCard,
-  StructuredMetadataTable,
-  WarningPanel,
-} from '@backstage/core-components';
+import { Alert, ButtonLink } from '@backstage/ui';
 import {
   EntityRefLinks,
   getEntityRelations,
   useEntity,
 } from '@backstage/plugin-catalog-react';
 import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
-import Button from '@material-ui/core/Button';
-import OpenInNewIcon from '@material-ui/icons/OpenInNew';
+import { RiExternalLinkLine } from '@remixicon/react';
+import { PanelCard } from './PanelCard';
+import { DefinitionList } from './StepDrawer';
 import {
   useTemporalDefaultNamespace,
   useTemporalWebUiBaseUrl,
@@ -45,9 +42,12 @@ export function TemporalWorkflowSummaryCard() {
   const defaultNamespace = useTemporalDefaultNamespace();
   if (!isTemporalWorkflowEntity(entity)) {
     return (
-      <WarningPanel title="Not a TemporalWorkflow entity">
-        This card only works on entities of kind TemporalWorkflow.
-      </WarningPanel>
+      <Alert
+        status="warning"
+        icon
+        title="Not a TemporalWorkflow entity"
+        description="This card only works on entities of kind TemporalWorkflow."
+      />
     );
   }
   const spec = entity.spec ?? {};
@@ -68,46 +68,51 @@ export function TemporalWorkflowSummaryCard() {
   const none = '—';
 
   return (
-    <InfoCard
+    <PanelCard
       title="Temporal workflow"
-      action={
+      actions={
         webUiUrl && (
-          <Button
-            variant="outlined"
-            color="primary"
+          <ButtonLink
+            variant="secondary"
+            size="small"
             href={webUiUrl}
             target="_blank"
             rel="noopener noreferrer"
-            endIcon={<OpenInNewIcon />}
-            style={{ marginTop: 8, marginRight: 8 }}
+            iconEnd={<RiExternalLinkLine />}
           >
             Open in Temporal UI
-          </Button>
+          </ButtonLink>
         )
       }
     >
-      <StructuredMetadataTable
-        metadata={{
-          'Workflow type': spec.workflowType ?? none,
-          'Task queue': spec.taskQueue ?? none,
-          Namespace: namespace,
-          Owner:
+      <DefinitionList
+        items={[
+          ['Workflow type', spec.workflowType ?? none],
+          ['Task queue', spec.taskQueue ?? none],
+          ['Namespace', namespace],
+          [
+            'Owner',
             owners.length > 0 ? (
               <EntityRefLinks entityRefs={owners} defaultKind="group" />
             ) : (
               spec.owner ?? none
             ),
-          System:
+          ],
+          [
+            'System',
             systems.length > 0 ? (
               <EntityRefLinks entityRefs={systems} defaultKind="system" />
             ) : (
               none
             ),
-          Lifecycle: spec.lifecycle ?? none,
-          'Used by':
+          ],
+          ['Lifecycle', spec.lifecycle ?? none],
+          [
+            'Used by',
             usedBy.length > 0 ? <EntityRefLinks entityRefs={usedBy} /> : none,
-        }}
+          ],
+        ]}
       />
-    </InfoCard>
+    </PanelCard>
   );
 }

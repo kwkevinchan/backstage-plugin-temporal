@@ -15,20 +15,14 @@
  */
 
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  InfoCard,
-  Progress,
-  ResponseErrorPanel,
-} from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
-import Grid from '@material-ui/core/Grid';
-import Typography from '@material-ui/core/Typography';
+import { Button, Grid, Text } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
+import { ErrorAlert, Loading } from './feedback';
 import { formatMilliseconds } from './format';
+import { PanelCard } from './PanelCard';
 
 /** Props of the recent runs card. */
 export interface TemporalWorkflowStatsCardProps {
@@ -38,16 +32,14 @@ export interface TemporalWorkflowStatsCardProps {
 
 function Stat(props: { label: string; value: string | number }) {
   return (
-    <Grid item xs={6} sm={3}>
-      <Box role="group" aria-label={props.label} textAlign="center">
-        <Typography variant="h4" component="p">
-          {props.value}
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          {props.label}
-        </Typography>
-      </Box>
-    </Grid>
+    <div role="group" aria-label={props.label} style={{ textAlign: 'center' }}>
+      <Text as="p" variant="title-large" style={{ margin: 0 }}>
+        {props.value}
+      </Text>
+      <Text as="p" variant="body-small" color="secondary" style={{ margin: 0 }}>
+        {props.label}
+      </Text>
+    </div>
   );
 }
 
@@ -66,12 +58,12 @@ export function TemporalWorkflowStatsCard(
 
   let body;
   if (loading && !value) {
-    body = <Progress />;
+    body = <Loading />;
   } else if (error || !value) {
-    body = <ResponseErrorPanel error={error ?? new Error('No statistics')} />;
+    body = <ErrorAlert error={error ?? new Error('No statistics')} />;
   } else {
     body = (
-      <Grid container spacing={2}>
+      <Grid.Root columns={{ initial: '2', sm: '4' }} gap="4">
         <Stat label="Succeeded" value={value.succeeded} />
         <Stat label="Failed" value={value.failed} />
         <Stat label="Running" value={value.running} />
@@ -83,27 +75,27 @@ export function TemporalWorkflowStatsCard(
               : formatMilliseconds(value.averageDurationMs)
           }
         />
-      </Grid>
+      </Grid.Root>
     );
   }
 
   return (
-    <InfoCard
+    <PanelCard
       title="Recent runs"
-      subheader={
+      subtitle={
         value
           ? `Last ${value.sampleSize} run${
               value.sampleSize === 1 ? '' : 's'
             } (at most ${value.limit})`
           : undefined
       }
-      action={
-        <Box mt={1} mr={1}>
-          <Button onClick={retry}>Refresh</Button>
-        </Box>
+      actions={
+        <Button variant="secondary" size="small" onPress={retry}>
+          Refresh
+        </Button>
       }
     >
       {body}
-    </InfoCard>
+    </PanelCard>
   );
 }

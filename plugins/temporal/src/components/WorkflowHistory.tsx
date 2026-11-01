@@ -15,26 +15,30 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Progress, ResponseErrorPanel } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
 import type {
   WorkflowHistoryEvent,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Box from '@material-ui/core/Box';
-import Button from '@material-ui/core/Button';
-import Table from '@material-ui/core/Table';
-import TableBody from '@material-ui/core/TableBody';
-import TableCell from '@material-ui/core/TableCell';
-import TableHead from '@material-ui/core/TableHead';
-import TableRow from '@material-ui/core/TableRow';
-import Typography from '@material-ui/core/Typography';
+import {
+  Button,
+  Cell,
+  Column,
+  Flex,
+  Row,
+  TableBody,
+  TableHeader,
+  TableRoot,
+  Text,
+} from '@backstage/ui';
 import { formatTime } from './format';
+import { ErrorAlert } from './feedback';
+import { JsonView } from './PayloadView';
 
 const PAGE_SIZE = 50;
 
-/** Event history, loaded one page at a time. */
+/** Raw event history, loaded one page at a time. */
 export function WorkflowHistory(props: {
   workflowRef: WorkflowRef;
   entityRef?: string;
@@ -76,59 +80,56 @@ export function WorkflowHistory(props: {
   }, [load]);
 
   if (error && events.length === 0) {
-    return <ResponseErrorPanel error={error} />;
+    return <ErrorAlert error={error} />;
   }
 
   return (
-    <Box>
-      <Table size="small" aria-label="Event history">
-        <TableHead>
-          <TableRow>
-            <TableCell>ID</TableCell>
-            <TableCell>Time</TableCell>
-            <TableCell>Event</TableCell>
-            <TableCell>Details</TableCell>
-          </TableRow>
-        </TableHead>
+    <div>
+      <TableRoot
+        aria-label="Event history"
+        isPending={loading && events.length === 0}
+      >
+        <TableHeader>
+          <Column isRowHeader>ID</Column>
+          <Column>Time</Column>
+          <Column>Event</Column>
+          <Column>Details</Column>
+        </TableHeader>
         <TableBody>
           {events.map(event => (
-            <TableRow key={event.eventId}>
-              <TableCell>{event.eventId}</TableCell>
-              <TableCell style={{ whiteSpace: 'nowrap' }}>
-                {formatTime(event.eventTime)}
-              </TableCell>
-              <TableCell>{event.eventType}</TableCell>
-              <TableCell>
-                {event.attributes && (
-                  <details>
-                    <summary>
-                      <Typography variant="caption" component="span">
-                        Attributes
-                      </Typography>
-                    </summary>
-                    <pre
-                      style={{
-                        fontSize: 12,
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {JSON.stringify(event.attributes, null, 2)}
-                    </pre>
-                  </details>
-                )}
-              </TableCell>
-            </TableRow>
+            <Row key={event.eventId} id={event.eventId}>
+              <Cell>
+                <Text variant="body-small">{event.eventId}</Text>
+              </Cell>
+              <Cell>
+                <Text variant="body-small" style={{ whiteSpace: 'nowrap' }}>
+                  {formatTime(event.eventTime)}
+                </Text>
+              </Cell>
+              <Cell>
+                <Text variant="body-small">{event.eventType}</Text>
+              </Cell>
+              <Cell>
+                {event.attributes ? (
+                  <JsonView value={event.attributes} />
+                ) : null}
+              </Cell>
+            </Row>
           ))}
         </TableBody>
-      </Table>
-      {loading && <Progress />}
-      {error && <ResponseErrorPanel error={error} />}
-      <Box display="flex" justifyContent="flex-end" mt={1}>
-        <Button disabled={loading || done} onClick={() => load(nextPageToken)}>
+      </TableRoot>
+      {error && <ErrorAlert error={error} />}
+      <Flex justify="end" mt="2">
+        <Button
+          variant="secondary"
+          size="small"
+          isDisabled={loading || done}
+          isPending={loading}
+          onPress={() => load(nextPageToken)}
+        >
           {done ? 'All events loaded' : 'Load more events'}
         </Button>
-      </Box>
-    </Box>
+      </Flex>
+    </div>
   );
 }

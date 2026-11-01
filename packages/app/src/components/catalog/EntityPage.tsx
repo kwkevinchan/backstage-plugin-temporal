@@ -44,7 +44,7 @@ import {
 import { TemporalWorkflowActionDef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 
-const temporalWorkflowActions: TemporalWorkflowActionDef[] = [
+export const temporalWorkflowActions: TemporalWorkflowActionDef[] = [
   { id: 'copy-workflow-id', component: CopyWorkflowIdAction },
 ];
 

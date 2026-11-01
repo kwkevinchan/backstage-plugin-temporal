@@ -362,6 +362,71 @@ describe('temporal backend plugin', () => {
       .expect(403);
   });
 
+  it('returns the step graph, with payloads when the history may be read', async () => {
+    const { server, permissions } = await start();
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'Failed',
+      payloadsHidden: false,
+      truncated: false,
+      nodes: [
+        {
+          id: 'start',
+          kind: 'workflowStarted',
+          input: { encoding: 'json/plain', value: 42 },
+        },
+      ],
+      edges: [],
+    });
+    expect(permissions.authorize).toHaveBeenLastCalledWith(
+      [
+        expect.objectContaining({
+          permission: expect.objectContaining({
+            name: 'temporal.workflow.history.read',
+          }),
+          resourceRef: ref,
+        }),
+      ],
+      expect.anything(),
+    );
+
+    const noHistory = await start({ deny: ['temporal.workflow.history.read'] });
+    const hidden = await request(noHistory.server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+    );
+    expect(hidden.status).toBe(200);
+    expect(hidden.body.payloadsHidden).toBe(true);
+    expect(hidden.body.nodes[0].input).toBeUndefined();
+
+    const denied = await start({ deny: ['temporal.workflow.read'] });
+    await request(denied.server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+      )
+      .expect(403);
+  });
+
+  it('returns the progress of a run and caches closed runs', async () => {
+    const { server, workflowService } = await start();
+    const path = `/api/temporal/namespaces/default/workflows/wf-1/progress?entityRef=${ref}`;
+    const res = await request(server).get(path);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      status: 'Failed',
+      completedSteps: 0,
+      totalSteps: 0,
+      current: 'outer',
+      truncated: false,
+    });
+    await request(server).get(path).expect(200);
+    expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledTimes(
+      1,
+    );
+  });
+
   it('lists workflows for entities of any kind', async () => {
     const { server, workflowService } = await start();
     await request(server)
@@ -644,16 +709,40 @@ describe('temporal backend plugin', () => {
       await request(server)
         .get('/api/temporal/namespaces/default/workflows/wf-1/steps')
         .expect(200);
-      // Only the list permission was checked, no entity.
+      // Only basic permissions were checked, no entity.
       for (const [requests] of permissions.authorize.mock.calls as any[]) {
         expect(requests).toEqual([
           {
             permission: expect.objectContaining({
-              name: 'temporal.workflow.list',
+              name: expect.stringMatching(
+                /^temporal\.workflow\.(list|history\.list)$/,
+              ),
             }),
           },
         ]);
       }
+    });
+
+    it('needs the history list permission for history without an entity', async () => {
+      const { server } = await start({
+        deny: ['temporal.workflow.history.list'],
+      });
+      await request(server)
+        .get('/api/temporal/namespaces/default/workflows/wf-1')
+        .expect(200);
+      // The workflow has no entity reference attribute to fall back to.
+      for (const path of ['history', 'steps']) {
+        await request(server)
+          .get(`/api/temporal/namespaces/default/workflows/wf-1/${path}`)
+          .expect(403);
+      }
+      // The graph is shown without inputs and results.
+      const graph = await request(server).get(
+        '/api/temporal/namespaces/default/workflows/wf-1/graph',
+      );
+      expect(graph.status).toBe(200);
+      expect(graph.body.payloadsHidden).toBe(true);
+      expect(graph.body.nodes[0]).not.toHaveProperty('input');
     });
 
     it('still checks the entity when entityRef is given', async () => {

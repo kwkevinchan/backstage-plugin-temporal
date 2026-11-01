@@ -47,7 +47,7 @@ export interface TemporalWorkflowActionDef {
 }
 
 /**
- * A card on the workflow details page, below the summary.
+ * A tab on the workflow details page, next to Steps, Events and Details.
  * Used directly by the legacy frontend system (`workflowSections` prop of
  * `EntityTemporalContent`); the new frontend system uses
  * `TemporalWorkflowSectionBlueprint`.
@@ -56,8 +56,21 @@ export interface TemporalWorkflowActionDef {
  */
 export interface TemporalWorkflowSectionDef {
   id: string;
+  /** Tab label; defaults to the extension ID. */
   title?: string;
   component: ComponentType<TemporalWorkflowExtensionProps>;
   /** Show the section only when this returns true. */
   filter?: (workflow: WorkflowDetail) => boolean;
+}
+
+/**
+ * Workflow actions and sections contributed by other plugins in the new
+ * frontend system. The entity tab and the Workflows page both read it, so
+ * blueprint extensions show on every workflow details page.
+ *
+ * @public
+ */
+export interface TemporalWorkflowExtensionsApi {
+  getActions(): TemporalWorkflowActionDef[];
+  getSections(): TemporalWorkflowSectionDef[];
 }

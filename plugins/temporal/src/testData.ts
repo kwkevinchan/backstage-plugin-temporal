@@ -17,6 +17,8 @@
 import { Entity } from '@backstage/catalog-model';
 import type {
   WorkflowDetail,
+  WorkflowGraphResponse,
+  WorkflowProgressResponse,
   WorkflowStatsResponse,
   WorkflowHistoryResponse,
   WorkflowListResponse,
@@ -171,6 +173,110 @@ export const stepsResponse: WorkflowStepsResponse = {
   ],
 };
 
+export const graphResponse: WorkflowGraphResponse = {
+  status: 'Failed',
+  current: 'Failed at chargeCard',
+  completedSteps: 1,
+  totalSteps: 2,
+  truncated: false,
+  payloadsHidden: false,
+  nodes: [
+    {
+      id: 'start',
+      kind: 'workflowStarted',
+      name: 'Start',
+      status: 'Completed',
+      startTime: '2026-01-01T11:00:00.000Z',
+      endTime: '2026-01-01T11:00:00.000Z',
+      input: {
+        encoding: 'json/plain',
+        value: { paymentId: 'pay-1', amount: 42 },
+      },
+      events: [{ eventId: '1', eventType: 'WorkflowExecutionStarted' }],
+    },
+    {
+      id: 'workflowTask-2',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      events: [
+        { eventId: '2', eventType: 'WorkflowTaskScheduled' },
+        { eventId: '3', eventType: 'WorkflowTaskStarted' },
+        { eventId: '4', eventType: 'WorkflowTaskCompleted' },
+      ],
+    },
+    {
+      id: 'activity-5',
+      kind: 'activity',
+      name: 'reserveStock',
+      stepId: '1',
+      status: 'Completed',
+      attempt: 1,
+      startTime: '2026-01-01T11:00:00.100Z',
+      endTime: '2026-01-01T11:00:00.300Z',
+      input: { encoding: 'json/plain', value: { sku: 'BOOK-1' } },
+      result: { encoding: 'json/plain', value: { reserved: true } },
+      events: [
+        { eventId: '5', eventType: 'ActivityTaskScheduled' },
+        { eventId: '6', eventType: 'ActivityTaskStarted' },
+        { eventId: '7', eventType: 'ActivityTaskCompleted' },
+      ],
+    },
+    {
+      id: 'activity-11',
+      kind: 'activity',
+      name: 'chargeCard',
+      stepId: '2',
+      status: 'Failed',
+      attempt: 2,
+      maximumAttempts: 2,
+      startTime: '2026-01-01T11:00:00.400Z',
+      endTime: '2026-01-01T11:00:00.900Z',
+      input: { encoding: 'binary/encrypted', size: 64, undecodable: true },
+      failure: { message: 'Card declined', kind: 'ApplicationFailure' },
+      attempts: [
+        { attempt: 1, status: 'Failed', failure: { message: 'Bank timeout' } },
+        {
+          attempt: 2,
+          status: 'Failed',
+          failure: { message: 'Card declined', kind: 'ApplicationFailure' },
+        },
+      ],
+      events: [
+        { eventId: '11', eventType: 'ActivityTaskScheduled' },
+        { eventId: '12', eventType: 'ActivityTaskStarted' },
+        { eventId: '13', eventType: 'ActivityTaskFailed' },
+      ],
+    },
+    {
+      id: 'end',
+      kind: 'workflowClosed',
+      name: 'End',
+      status: 'Failed',
+      failure: { message: 'Payment could not be completed' },
+      events: [{ eventId: '17', eventType: 'WorkflowExecutionFailed' }],
+    },
+  ],
+  edges: [
+    { id: 'start->activity-5', source: 'start', target: 'activity-5' },
+    {
+      id: 'activity-5->activity-11',
+      source: 'activity-5',
+      target: 'activity-11',
+    },
+    { id: 'activity-11->end', source: 'activity-11', target: 'end' },
+  ],
+};
+
+export const progressResponse: WorkflowProgressResponse = {
+  status: 'Failed',
+  completedSteps: 1,
+  totalSteps: 2,
+  current: 'Failed at chargeCard',
+  truncated: false,
+};
+
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
@@ -179,5 +285,7 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
     getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),
+    getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
+    getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
   };
 }

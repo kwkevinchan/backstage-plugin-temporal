@@ -17,13 +17,16 @@
 import { createApiRef } from '@backstage/core-plugin-api';
 import type {
   WorkflowDetail,
+  WorkflowGraphResponse,
   WorkflowHistoryResponse,
+  WorkflowProgressResponse,
   WorkflowListResponse,
   WorkflowRef,
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { TemporalWorkflowExtensionsApi } from './extensions';
 
 /**
  * Client of the Temporal backend plugin.
@@ -88,6 +91,22 @@ export interface TemporalApi {
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowStepsResponse>;
+
+  /**
+   * Gets the steps of a run grouped from its history, with the arrows
+   * between them. Inputs and results are left out when the caller may not
+   * read the history (`payloadsHidden`).
+   */
+  getWorkflowGraph(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowGraphResponse>;
+
+  /** Gets the completed steps and the current step of a run, for lists. */
+  getWorkflowProgress(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowProgressResponse>;
 }
 
 /**
@@ -99,3 +118,16 @@ export interface TemporalApi {
 export const temporalApiRef = createApiRef<TemporalApi>({
   id: 'plugin.temporal.api',
 });
+
+/**
+ * API reference of {@link TemporalWorkflowExtensionsApi}: the shared mount
+ * point of workflow actions and sections. The Temporal frontend plugin
+ * provides it in the new frontend system and collects the extensions of
+ * `TemporalWorkflowActionBlueprint` and `TemporalWorkflowSectionBlueprint`.
+ *
+ * @public
+ */
+export const temporalWorkflowExtensionsApiRef =
+  createApiRef<TemporalWorkflowExtensionsApi>({
+    id: 'plugin.temporal.workflow-extensions',
+  });

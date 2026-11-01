@@ -15,19 +15,29 @@
  */
 
 import type { ReactNode } from 'react';
+import type {
+  WorkflowNodeStatus,
+  WorkflowStatus,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
-  StatusAborted,
-  StatusError,
-  StatusOK,
-  StatusPending,
-  StatusWarning,
-} from '@backstage/core-components';
-import Box from '@material-ui/core/Box';
-import CircularProgress from '@material-ui/core/CircularProgress';
-import useMediaQuery from '@material-ui/core/useMediaQuery';
-import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal-common';
+  RiCheckboxCircleFill,
+  RiCloseCircleFill,
+  RiErrorWarningFill,
+  RiForbidLine,
+  RiHourglassLine,
+  RiLoopRightLine,
+  RiTimeLine,
+  RiArrowRightCircleLine,
+  RiQuestionLine,
+} from '@remixicon/react';
+import { tp } from './styles';
 
-const LABELS: Record<WorkflowStatus, string> = {
+/** Color tone of a status, mapped to the @backstage/ui status tokens. */
+export type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
+
+type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
+
+const LABELS: Record<AnyStatus, string> = {
   Running: 'Running',
   Completed: 'Completed',
   Failed: 'Failed',
@@ -36,73 +46,103 @@ const LABELS: Record<WorkflowStatus, string> = {
   ContinuedAsNew: 'Continued as new',
   TimedOut: 'Timed out',
   Unknown: 'Unknown',
+  Scheduled: 'Scheduled',
+  Retrying: 'Retrying',
+  Waiting: 'Waiting',
+  Rejected: 'Rejected',
 };
 
-export function statusLabel(status: WorkflowStatus): string {
+export function statusLabel(status: AnyStatus): string {
   return LABELS[status] ?? status;
+}
+
+export function statusTone(status: AnyStatus): Tone {
+  switch (status) {
+    case 'Completed':
+      return 'success';
+    case 'Failed':
+    case 'TimedOut':
+    case 'Rejected':
+      return 'danger';
+    case 'Terminated':
+    case 'Retrying':
+      return 'warning';
+    case 'Running':
+    case 'ContinuedAsNew':
+      return 'info';
+    default:
+      return 'neutral';
+  }
+}
+
+/** True for statuses that are still in progress. */
+export function isActiveStatus(status: AnyStatus): boolean {
+  return status === 'Running' || status === 'Retrying';
+}
+
+export function StatusIcon(props: { status: AnyStatus; size?: number }) {
+  const size = props.size ?? 16;
+  switch (props.status) {
+    case 'Running':
+      return (
+        <span
+          className={tp('tp-spinner')}
+          aria-hidden
+          data-testid="workflow-status-running-spinner"
+        />
+      );
+    case 'Completed':
+      return <RiCheckboxCircleFill size={size} aria-hidden />;
+    case 'Failed':
+    case 'Rejected':
+      return <RiCloseCircleFill size={size} aria-hidden />;
+    case 'TimedOut':
+      return <RiTimeLine size={size} aria-hidden />;
+    case 'Terminated':
+      return <RiErrorWarningFill size={size} aria-hidden />;
+    case 'Canceled':
+      return <RiForbidLine size={size} aria-hidden />;
+    case 'Retrying':
+      return <RiLoopRightLine size={size} aria-hidden />;
+    case 'Waiting':
+    case 'Scheduled':
+      return <RiHourglassLine size={size} aria-hidden />;
+    case 'ContinuedAsNew':
+      return <RiArrowRightCircleLine size={size} aria-hidden />;
+    default:
+      return <RiQuestionLine size={size} aria-hidden />;
+  }
 }
 
 /**
  * Running status with a spinner that turns. With reduced motion requested,
- * the spinner stands still as a three-quarter circle.
+ * the spinner stands still as a full ring.
  */
 export function RunningStatus(props: { children?: ReactNode }) {
-  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   return (
-    <Box
-      component="span"
-      display="inline-flex"
-      alignItems="center"
+    <span
+      className={tp('tp-status', 'tp-tone-info')}
       data-testid="workflow-status-running"
     >
-      <Box
-        component="span"
-        position="relative"
-        display="inline-flex"
-        mr={1}
-        aria-hidden
-      >
-        {/* Faint full ring, so the icon is visible at every frame. */}
-        <CircularProgress
-          size={14}
-          thickness={5}
-          variant="determinate"
-          value={100}
-          style={{ opacity: 0.25 }}
-        />
-        <CircularProgress
-          size={14}
-          thickness={5}
-          variant={reducedMotion ? 'determinate' : 'indeterminate'}
-          value={reducedMotion ? 75 : undefined}
-          disableShrink
-          data-testid="workflow-status-running-spinner"
-          style={{ position: 'absolute', left: 0, top: 0 }}
-        />
-      </Box>
-      {props.children}
-    </Box>
+      <StatusIcon status="Running" />
+      <span className={tp('tp-status-text')}>{props.children}</span>
+    </span>
   );
 }
 
-/**
- * Status with the Backstage status icons; every list and page uses it.
- */
-export function WorkflowStatusLabel(props: { status: WorkflowStatus }) {
+/** Status with an icon in the status color; every list and page uses it. */
+export function WorkflowStatusLabel(props: { status: AnyStatus }) {
   const label = statusLabel(props.status);
-  switch (props.status) {
-    case 'Completed':
-      return <StatusOK>{label}</StatusOK>;
-    case 'Running':
-      return <RunningStatus>{label}</RunningStatus>;
-    case 'Failed':
-    case 'TimedOut':
-      return <StatusError>{label}</StatusError>;
-    case 'Terminated':
-      return <StatusWarning>{label}</StatusWarning>;
-    case 'Canceled':
-      return <StatusAborted>{label}</StatusAborted>;
-    default:
-      return <StatusPending>{label}</StatusPending>;
+  if (props.status === 'Running') {
+    return <RunningStatus>{label}</RunningStatus>;
   }
+  return (
+    <span
+      className={tp('tp-status', `tp-tone-${statusTone(props.status)}`)}
+      data-status={props.status}
+    >
+      <StatusIcon status={props.status} />
+      <span className={tp('tp-status-text')}>{label}</span>
+    </span>
+  );
 }

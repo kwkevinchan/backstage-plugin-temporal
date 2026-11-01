@@ -28,7 +28,7 @@ import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowSectionDef,
 } from '@kwkevinchan/backstage-plugin-temporal-react';
-import Grid from '@material-ui/core/Grid';
+import { Flex, Grid } from '@backstage/ui';
 import { TemporalRelatedWorkflowsCard } from './TemporalRelatedWorkflowsCard';
 import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';
 import { TemporalWorkflowSummaryCard } from './TemporalWorkflowSummaryCard';
@@ -43,7 +43,7 @@ import { WorkflowList } from './WorkflowList';
 export interface EntityTemporalContentProps {
   /** Controls in the action bar of the workflow details page. */
   workflowActions?: TemporalWorkflowActionDef[];
-  /** Cards on the workflow details page. */
+  /** Tabs on the workflow details page. */
   workflowSections?: TemporalWorkflowSectionDef[];
 }
 
@@ -56,29 +56,25 @@ function TemporalOverview() {
   const { entity } = useEntity();
   if (isTemporalWorkflowEntity(entity)) {
     return (
-      <Grid container spacing={3} alignItems="stretch">
-        <Grid item xs={12} md={6}>
+      <Grid.Root columns={{ initial: '1', md: '2' }} gap="4">
+        <Grid.Item>
           <TemporalWorkflowSummaryCard />
-        </Grid>
-        <Grid item xs={12} md={6}>
+        </Grid.Item>
+        <Grid.Item>
           <TemporalWorkflowStatsCard />
-        </Grid>
-        <Grid item xs={12}>
+        </Grid.Item>
+        <Grid.Item colSpan={{ initial: '1', md: '2' }}>
           <WorkflowList title="Runs" />
-        </Grid>
-      </Grid>
+        </Grid.Item>
+      </Grid.Root>
     );
   }
   if (getDependsOnTemporalWorkflowRefs(entity).length > 0) {
     return (
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <TemporalRelatedWorkflowsCard />
-        </Grid>
-        <Grid item xs={12}>
-          <WorkflowList />
-        </Grid>
-      </Grid>
+      <Flex direction="column" gap="4">
+        <TemporalRelatedWorkflowsCard />
+        <WorkflowList />
+      </Flex>
     );
   }
   return <WorkflowList />;

@@ -15,13 +15,20 @@
  */
 
 import { screen } from '@testing-library/react';
-import { coreExtensionData } from '@backstage/frontend-plugin-api';
+import {
+  ApiBlueprint,
+  coreExtensionData,
+} from '@backstage/frontend-plugin-api';
 import {
   createExtensionTester,
   renderInTestApp,
 } from '@backstage/frontend-test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import {
+  temporalApiRef,
+  TemporalWorkflowExtensionsApi,
+  temporalWorkflowExtensionsApiRef,
+} from '@kwkevinchan/backstage-plugin-temporal-react';
 import {
   TemporalWorkflowActionBlueprint,
   TemporalWorkflowSectionBlueprint,
@@ -63,7 +70,7 @@ describe('temporal (new frontend system)', () => {
     expect(related(entity)).toBe(false);
   });
 
-  it('renders actions and sections from the blueprints on the details page', async () => {
+  it('collects blueprint actions and sections in the shared extensions API', () => {
     const action = TemporalWorkflowActionBlueprint.make({
       name: 'approve',
       params: {
@@ -78,25 +85,61 @@ describe('temporal (new frontend system)', () => {
         loader: async () => () => <div>No approvals yet</div>,
       },
     });
-    const element = createExtensionTester(
-      temporalPlugin.getExtension('entity-content:temporal'),
+    const factory = createExtensionTester(
+      temporalPlugin.getExtension('api:temporal/workflow-extensions'),
     )
       .add(action)
       .add(section)
-      .get(coreExtensionData.reactElement);
+      .get(ApiBlueprint.dataRefs.factory);
+    expect(factory.api.id).toBe(temporalWorkflowExtensionsApiRef.id);
+    const api = factory.factory({}) as TemporalWorkflowExtensionsApi;
+    expect(api.getActions().map(a => a.id)).toEqual([
+      'temporal-workflow-action:approve',
+    ]);
+    expect(api.getSections().map(s => [s.id, s.title])).toEqual([
+      ['temporal-workflow-section:approvals', 'Approvals'],
+    ]);
+  });
 
-    renderInTestApp(
-      <EntityProvider entity={entity}>{element}</EntityProvider>,
-      {
-        apis: [[temporalApiRef, mockTemporalApi()]],
-        initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
-      },
-    );
-
-    expect(
-      await screen.findByRole('button', { name: 'Approve payment-1' }),
-    ).toBeInTheDocument();
-    expect(await screen.findByText('No approvals yet')).toBeInTheDocument();
-    expect(screen.getByText('Approvals')).toBeInTheDocument();
+  it('shows the shared actions and sections on the entity tab and the Workflows page', async () => {
+    const extensions: TemporalWorkflowExtensionsApi = {
+      getActions: () => [
+        {
+          id: 'approve',
+          component: props => (
+            <button type="button">Approve {props.workflow.workflowId}</button>
+          ),
+        },
+      ],
+      getSections: () => [
+        {
+          id: 'approvals',
+          title: 'Approvals',
+          component: () => <div>No approvals yet</div>,
+        },
+      ],
+    };
+    for (const id of ['entity-content:temporal', 'page:temporal']) {
+      const element = createExtensionTester(
+        temporalPlugin.getExtension(id as 'page:temporal'),
+      ).get(coreExtensionData.reactElement);
+      const { unmount } = renderInTestApp(
+        <EntityProvider entity={entity}>{element}</EntityProvider>,
+        {
+          apis: [
+            [temporalApiRef, mockTemporalApi()],
+            [temporalWorkflowExtensionsApiRef, extensions],
+          ],
+          initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
+        },
+      );
+      expect(
+        await screen.findByRole('button', { name: 'Approve payment-1' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('tab', { name: 'Approvals' }),
+      ).toBeInTheDocument();
+      unmount();
+    }
   });
 });
