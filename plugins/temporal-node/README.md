@@ -1,0 +1,5 @@
+# @kwkevinchan/backstage-plugin-temporal-node
+
+Welcome to the Node.js library package for the temporal plugin!
+
+_This plugin was created through the Backstage CLI_

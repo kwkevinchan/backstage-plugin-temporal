@@ -1,0 +1,6 @@
+node scripts/check-boundaries.mjs --staged
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner
+else
+  echo "pre-commit: gitleaks not installed; skipping (CI runs it)"
+fi

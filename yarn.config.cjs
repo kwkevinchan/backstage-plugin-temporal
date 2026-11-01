@@ -1,0 +1,158 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// @ts-check
+/** @type {import('@yarnpkg/types')} */
+const { defineConfig } = require('@yarnpkg/types');
+
+const REPO_URL = 'https://github.com/kwkevinchan/backstage-plugin-temporal';
+const SCOPE = '@kwkevinchan/';
+const NPMJS = 'https://registry.npmjs.org/';
+
+const BACKEND_ROLES = new Set([
+  'backend',
+  'backend-plugin',
+  'backend-plugin-module',
+  'node-library',
+]);
+const FRONTEND_ROLES = new Set([
+  'frontend',
+  'frontend-plugin',
+  'frontend-plugin-module',
+  'web-library',
+]);
+
+/** Packages that only make sense on the Node side. */
+const isNodeOnlyDep = name =>
+  /^@backstage\/backend-/.test(name) ||
+  /^@backstage\/plugin-[a-z-]+-node$/.test(name) ||
+  /^@temporalio\//.test(name);
+
+/** Packages that only make sense in the browser. */
+const isWebOnlyDep = name =>
+  /^@backstage\/(core-|frontend-|app-|ui$)/.test(name) ||
+  /^@backstage\/plugin-[a-z-]+-react$/.test(name) ||
+  /^(react|react-dom|react-router|react-router-dom)$/.test(name) ||
+  /^@material-ui\//.test(name) ||
+  /^@mui\//.test(name);
+
+const roleOf = workspace => workspace.manifest.backstage?.role;
+
+module.exports = defineConfig({
+  async constraints({ Yarn }) {
+    const byIdent = new Map(Yarn.workspaces().map(w => [w.ident, w]));
+
+    for (const workspace of Yarn.workspaces()) {
+      const isPrivate = workspace.manifest.private === true;
+      const isRoot = workspace.cwd === '.';
+
+      // Every workspace is Apache-2.0.
+      workspace.set('license', 'Apache-2.0');
+
+      if (isRoot || isPrivate) continue;
+
+      // Published packages: npmjs only, under our scope, pointing at this repo.
+      if (!workspace.ident?.startsWith(SCOPE)) {
+        workspace.error(`Published packages must use the ${SCOPE} scope`);
+      }
+      workspace.set('repository.type', 'git');
+      workspace.set('repository.url', REPO_URL);
+      workspace.set('repository.directory', workspace.cwd);
+      const registry = workspace.manifest.publishConfig?.registry;
+      if (registry !== undefined && registry !== NPMJS) {
+        workspace.error(`publishConfig.registry must be ${NPMJS} or unset`);
+      }
+    }
+
+    for (const dep of Yarn.dependencies()) {
+      const workspace = dep.workspace;
+      const isPublished =
+        workspace.manifest.private !== true && workspace.cwd !== '.';
+      const target = byIdent.get(dep.ident);
+
+      // Packages from our scope must come from this workspace (no private packages).
+      if (dep.ident.startsWith(SCOPE) && !target) {
+        dep.error(
+          `${dep.ident} is not part of this repository; depending on packages outside it is not allowed`,
+        );
+      }
+
+      // Published packages must not use local or git protocols.
+      if (
+        isPublished &&
+        /^(link|portal|file|git|github|https?):/.test(dep.range)
+      ) {
+        dep.error(`Published packages must not use ${dep.range}`);
+      }
+      // Never resolve anything from GitHub Packages.
+      if (/npm\.pkg\.github\.com/.test(dep.range)) {
+        dep.error('Dependencies must not come from GitHub Packages');
+      }
+
+      const role = roleOf(workspace);
+      const targetRole = target ? roleOf(target) : undefined;
+
+      // common-library: no Node-only, no web-only, no backend/frontend workspaces.
+      if (role === 'common-library' && dep.type !== 'devDependencies') {
+        if (
+          (targetRole &&
+            (BACKEND_ROLES.has(targetRole) ||
+              FRONTEND_ROLES.has(targetRole))) ||
+          isNodeOnlyDep(dep.ident) ||
+          isWebOnlyDep(dep.ident)
+        ) {
+          dep.error(`common-library packages must not depend on ${dep.ident}`);
+        }
+      }
+
+      // Frontend packages: no Node-side workspaces or Node-only packages.
+      if (
+        FRONTEND_ROLES.has(role) &&
+        role !== 'frontend' &&
+        dep.type !== 'devDependencies'
+      ) {
+        if (
+          (targetRole && BACKEND_ROLES.has(targetRole)) ||
+          isNodeOnlyDep(dep.ident)
+        ) {
+          dep.error(`frontend packages must not depend on ${dep.ident}`);
+        }
+      }
+
+      // Workspace dependencies use the workspace protocol.
+      if (
+        target &&
+        dep.type !== 'peerDependencies' &&
+        !dep.range.startsWith('workspace:')
+      ) {
+        dep.update('workspace:^');
+      }
+    }
+
+    // One range for each external runtime dependency across published packages.
+    const ranges = new Map();
+    for (const dep of Yarn.dependencies({ type: 'dependencies' })) {
+      if (byIdent.has(dep.ident)) continue;
+      if (dep.workspace.manifest.private === true || dep.workspace.cwd === '.')
+        continue;
+      const seen = ranges.get(dep.ident);
+      if (seen === undefined) ranges.set(dep.ident, dep.range);
+      else if (seen !== dep.range) {
+        dep.error(`${dep.ident} uses ${dep.range} here but ${seen} elsewhere`);
+      }
+    }
+  },
+});

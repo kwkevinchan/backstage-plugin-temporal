@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  boundaries:
+    name: Boundaries and secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Boundary scanner self test
+        run: node scripts/check-boundaries.test.mjs
+
+      - name: Scan tracked files
+        env:
+          BOUNDARY_DENYLIST: ${{ secrets.BOUNDARY_DENYLIST }}
+        run: node scripts/check-boundaries.mjs --tracked
+
+      - name: Scan commits and diff
+        env:
+          BOUNDARY_DENYLIST: ${{ secrets.BOUNDARY_DENYLIST }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "No usable base commit; scanning the head commit only"
+            BASE_SHA="$(git rev-parse "$HEAD_SHA^")"
+          fi
+          node scripts/check-boundaries.mjs --range "$BASE_SHA..$HEAD_SHA"
+
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  verify:
+    name: Verify (Backstage ${{ matrix.backstage }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # compat-1.51 is the main line pinned in backstage.json.
+        # TODO(M4): add compat-1.56 (versions:bump --release 1.56.x + Playwright
+        # smoke) and consumer-1.56 (yarn pack into a fixed 1.56 app).
+        backstage: ['1.51']
+    env:
+      CI: true
+      NODE_OPTIONS: --max-old-space-size=8192
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Cache yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - name: Install
+        run: yarn install --immutable
+        env:
+          HUSKY: 0
+
+      - name: Constraints
+        run: yarn constraints
+
+      - name: Backstage release pin
+        run: node scripts/pin-backstage-release.mjs --check
+
+      - name: Prettier
+        run: yarn prettier:check
+
+      - name: Type check
+        run: yarn tsc:full
+
+      - name: Lint
+        run: yarn backstage-cli repo lint
+
+      - name: Test
+        run: yarn backstage-cli repo test
+
+      - name: Build
+        run: yarn backstage-cli repo build --all
