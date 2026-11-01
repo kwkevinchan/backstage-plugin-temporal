@@ -57,10 +57,14 @@ module.exports = defineConfig({
 
     // Published packages of one plugin list each other in
     // backstage.pluginPackages (used by the Backstage CLI and tooling).
+    // Modules of other plugins (for example the catalog module) belong to
+    // that plugin and are left out.
+    const isModule = workspace => /-module$/.test(roleOf(workspace) ?? '');
     const packagesByPluginId = new Map();
     for (const workspace of Yarn.workspaces()) {
       const pluginId = workspace.manifest.backstage?.pluginId;
       if (!pluginId || workspace.manifest.private === true) continue;
+      if (isModule(workspace)) continue;
       const list = packagesByPluginId.get(pluginId) ?? [];
       list.push(workspace.ident);
       packagesByPluginId.set(pluginId, list);
@@ -68,6 +72,7 @@ module.exports = defineConfig({
     for (const workspace of Yarn.workspaces()) {
       const pluginId = workspace.manifest.backstage?.pluginId;
       if (!pluginId || workspace.manifest.private === true) continue;
+      if (isModule(workspace)) continue;
       workspace.set(
         'backstage.pluginPackages',
         [...packagesByPluginId.get(pluginId)].sort(),

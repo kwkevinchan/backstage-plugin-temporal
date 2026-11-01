@@ -21,6 +21,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   buildEntityWorkflowQuery,
+  matchingWorkflowEntity,
   parseStatus,
   workflowBelongsToEntity,
 } from './query';
@@ -171,5 +172,68 @@ describe('workflowBelongsToEntity', () => {
         entityRefAttribute: 'BackstageEntityRef',
       }),
     ).toBe(true);
+  });
+});
+
+describe('related TemporalWorkflow entities', () => {
+  const filter = {
+    annotations: { workflowTypes: [] },
+    entityRef: ref,
+    related: [
+      {
+        entityRef: 'temporalworkflow:default/order',
+        taskQueue: 'orders',
+        workflowTypes: ['orderWorkflow'],
+      },
+    ],
+  };
+
+  it('adds each related entity as an alternative', () => {
+    expect(buildEntityWorkflowQuery(filter)).toBe(
+      "TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow'",
+    );
+    expect(
+      buildEntityWorkflowQuery({
+        ...filter,
+        entityRefAttribute: 'BackstageEntityRef',
+      }),
+    ).toBe(
+      "(TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow') OR (BackstageEntityRef IN ('component:default/orders', 'temporalworkflow:default/order'))",
+    );
+  });
+
+  it('rejects injected values in related entities', () => {
+    expect(() =>
+      buildEntityWorkflowQuery({
+        ...filter,
+        related: [
+          {
+            entityRef: 'temporalworkflow:default/x',
+            workflowTypes: ["a' OR '1"],
+          },
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it('finds the related entity a run matches', () => {
+    expect(
+      matchingWorkflowEntity(
+        { taskQueue: 'orders', workflowType: 'orderWorkflow' },
+        filter,
+      ),
+    ).toBe('temporalworkflow:default/order');
+    expect(
+      workflowBelongsToEntity(
+        { taskQueue: 'orders', workflowType: 'orderWorkflow' },
+        filter,
+      ),
+    ).toBe(true);
+    expect(
+      matchingWorkflowEntity(
+        { taskQueue: 'other', workflowType: 'orderWorkflow' },
+        filter,
+      ),
+    ).toBeUndefined();
   });
 });

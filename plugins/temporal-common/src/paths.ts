@@ -44,3 +44,26 @@ export function buildEntityWorkflowsPath(entity: CompoundEntityRef): string {
     entity.namespace.toLocaleLowerCase('en-US'),
   )}/${encodeURIComponent(entity.name.toLocaleLowerCase('en-US'))}/workflows`;
 }
+
+/**
+ * Path of the list of every workflow in a namespace, relative to the backend
+ * plugin root.
+ *
+ * @public
+ */
+export const WORKFLOWS_PATH = '/workflows';
+
+/**
+ * Builds the path of an entity's workflow statistics, relative to the backend
+ * plugin root: `/entities/:kind/:namespace/:name/workflow-stats`.
+ *
+ * @public
+ */
+export function buildEntityWorkflowStatsPath(
+  entity: CompoundEntityRef,
+): string {
+  return buildEntityWorkflowsPath(entity).replace(
+    /\/workflows$/,
+    '/workflow-stats',
+  );
+}

@@ -78,6 +78,11 @@ export interface WorkflowSummary {
   historyLength?: number;
   /** Catalog entity reference from the configured search attribute. */
   entityRef?: string;
+  /**
+   * The `TemporalWorkflow` entity this run matches, when it is listed for an
+   * entity that depends on one.
+   */
+  workflowEntityRef?: string;
   /** Link to the execution in the Temporal Web UI, when configured. */
   webUiUrl?: string;
   /** Data added by backend workflow enrichers, keyed by enricher. */
@@ -143,6 +148,29 @@ export interface WorkflowListResponse {
   /** Opaque token for the next page, absent on the last page. */
   nextPageToken?: string;
   namespace: string;
+}
+
+/**
+ * Summary of an entity's most recent workflow runs.
+ *
+ * @public
+ */
+export interface WorkflowStatsResponse {
+  namespace: string;
+  /** Number of most recent runs the numbers are computed from. */
+  sampleSize: number;
+  /** The requested maximum of runs. */
+  limit: number;
+  /** Runs by status. */
+  byStatus: Partial<Record<WorkflowStatus, number>>;
+  /** Completed runs. */
+  succeeded: number;
+  /** Failed, timed out or terminated runs. */
+  failed: number;
+  /** Running runs. */
+  running: number;
+  /** Mean duration of the closed runs in the sample, in milliseconds. */
+  averageDurationMs?: number;
 }
 
 /**

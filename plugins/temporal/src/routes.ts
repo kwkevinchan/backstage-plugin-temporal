@@ -16,6 +16,11 @@
 
 import { createRouteRef } from '@backstage/core-plugin-api';
 
+/** Root of the Workflows page. */
+export const rootRouteRef = createRouteRef({
+  id: 'temporal:root',
+});
+
 /** Mount point of the entity tab. */
 export const entityContentRouteRef = createRouteRef({
   id: 'temporal:entity-content',

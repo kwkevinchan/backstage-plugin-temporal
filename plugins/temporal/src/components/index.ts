@@ -16,3 +16,5 @@
 
 export { EntityTemporalContentPage } from './EntityTemporalContent';
 export type { EntityTemporalContentProps } from './EntityTemporalContent';
+export type { TemporalPageProps } from './TemporalPage';
+export type { TemporalWorkflowStatsCardProps } from './TemporalWorkflowStatsCard';

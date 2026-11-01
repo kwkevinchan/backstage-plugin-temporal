@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import type { Entity } from '@backstage/catalog-model';
+import { Entity, RELATION_DEPENDS_ON } from '@backstage/catalog-model';
+
+/** Lower-case `TemporalWorkflow` kind, as in entity references. */
+const TEMPORAL_WORKFLOW_KIND_LOWER = 'temporalworkflow';
 
 /**
  * Annotation with the Temporal namespace of an entity's workflows. When it is
@@ -41,10 +44,28 @@ export const TEMPORAL_WORKFLOW_TYPE_ANNOTATION = 'temporal.io/workflow-type';
 /**
  * Allowed characters for annotation values. Values end up inside a Temporal
  * visibility query, so quotes, backslashes, spaces and brackets are rejected.
+ * The same patterns validate the `TemporalWorkflow` spec.
+ *
+ * @public
  */
-const NAMESPACE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$/;
-const TASK_QUEUE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$/;
-const WORKFLOW_TYPE_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$/;
+export const NAME_PATTERN_SOURCES = {
+  namespace: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$',
+  taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$',
+  workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$',
+} as const;
+const NAMESPACE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.namespace);
+const TASK_QUEUE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.taskQueue);
+const WORKFLOW_TYPE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.workflowType);
+
+/**
+ * True for a workflow ID prefix that can be used in a search: letters,
+ * digits and `_ . : / -`.
+ *
+ * @public
+ */
+export function isValidWorkflowIdPrefix(value: string): boolean {
+  return /^[A-Za-z0-9_.:/-]{1,255}$/.test(value);
+}
 
 /** @public */
 export function isValidNamespaceName(value: string): boolean {
@@ -132,16 +153,41 @@ export function parseTemporalAnnotations(entity: Entity): TemporalAnnotations {
 }
 
 /**
- * True when the entity has at least one Temporal annotation. Use it as the
- * condition of the entity tab.
+ * References of the `TemporalWorkflow` entities that an entity depends on
+ * (`spec.dependsOn`, read from the `dependsOn` relations).
+ *
+ * @public
+ */
+export function getDependsOnTemporalWorkflowRefs(entity: Entity): string[] {
+  const refs = (entity.relations ?? [])
+    .filter(
+      r =>
+        r.type === RELATION_DEPENDS_ON &&
+        r.targetRef
+          .toLocaleLowerCase('en-US')
+          .startsWith(`${TEMPORAL_WORKFLOW_KIND_LOWER}:`),
+    )
+    .map(r => r.targetRef.toLocaleLowerCase('en-US'));
+  return [...new Set(refs)];
+}
+
+/**
+ * True when the entity has Temporal workflows to show: it is a
+ * `TemporalWorkflow` entity, has at least one Temporal annotation, or depends
+ * on a `TemporalWorkflow` entity. Use it as the condition of the entity tab.
  *
  * @public
  */
 export function isTemporalAvailable(entity: Entity): boolean {
+  if (entity.kind.toLocaleLowerCase('en-US') === TEMPORAL_WORKFLOW_KIND_LOWER) {
+    return true;
+  }
   const annotations = entity.metadata.annotations ?? {};
-  return Boolean(
-    annotations[TEMPORAL_NAMESPACE_ANNOTATION] ||
-      annotations[TEMPORAL_TASK_QUEUE_ANNOTATION] ||
-      annotations[TEMPORAL_WORKFLOW_TYPE_ANNOTATION],
+  return (
+    Boolean(
+      annotations[TEMPORAL_NAMESPACE_ANNOTATION] ||
+        annotations[TEMPORAL_TASK_QUEUE_ANNOTATION] ||
+        annotations[TEMPORAL_WORKFLOW_TYPE_ANNOTATION],
+    ) || getDependsOnTemporalWorkflowRefs(entity).length > 0
   );
 }

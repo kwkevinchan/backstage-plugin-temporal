@@ -35,7 +35,11 @@ import {
 } from '@backstage/plugin-org';
 import {
   EntityTemporalContent,
+  EntityTemporalRelatedWorkflowsCard,
+  EntityTemporalWorkflowSummaryCard,
   isTemporalAvailable,
+  getDependsOnTemporalWorkflowRefs,
+  isTemporalWorkflowEntity,
 } from '@kwkevinchan/backstage-plugin-temporal';
 import { TemporalWorkflowActionDef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
@@ -72,6 +76,15 @@ const overviewContent = (
     <Grid item md={6} xs={12}>
       <EntityLinksCard />
     </Grid>
+    <EntitySwitch>
+      <EntitySwitch.Case
+        if={e => getDependsOnTemporalWorkflowRefs(e).length > 0}
+      >
+        <Grid item md={12} xs={12}>
+          <EntityTemporalRelatedWorkflowsCard />
+        </Grid>
+      </EntitySwitch.Case>
+    </EntitySwitch>
     <Grid item md={12} xs={12}>
       <EntityHasSubcomponentsCard />
     </Grid>
@@ -93,6 +106,25 @@ const componentPage = (
   <EntityLayout>
     <EntityLayout.Route path="/" title="Overview">
       {overviewContent}
+    </EntityLayout.Route>
+    {temporalRoute}
+  </EntityLayout>
+);
+
+// TemporalWorkflow entities: overview with the workflow summary, and the
+// Temporal tab with recent run statistics and the runs.
+const temporalWorkflowPage = (
+  <EntityLayout>
+    <EntityLayout.Route path="/" title="Overview">
+      <Grid container spacing={3} alignItems="stretch">
+        {entityWarningContent}
+        <Grid item md={6} xs={12}>
+          <EntityAboutCard />
+        </Grid>
+        <Grid item md={6} xs={12}>
+          <EntityTemporalWorkflowSummaryCard />
+        </Grid>
+      </Grid>
     </EntityLayout.Route>
     {temporalRoute}
   </EntityLayout>
@@ -145,6 +177,10 @@ const defaultEntityPage = (
 export const entityPage = (
   <EntitySwitch>
     <EntitySwitch.Case if={isKind('component')} children={componentPage} />
+    <EntitySwitch.Case
+      if={isTemporalWorkflowEntity}
+      children={temporalWorkflowPage}
+    />
     <EntitySwitch.Case if={isKind('group')} children={groupPage} />
     <EntitySwitch.Case if={isKind('user')} children={userPage} />
     <EntitySwitch.Case>{defaultEntityPage}</EntitySwitch.Case>

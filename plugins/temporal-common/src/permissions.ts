@@ -43,6 +43,18 @@ export const temporalWorkflowHistoryReadPermission = createPermission({
 });
 
 /**
+ * List every workflow of a namespace on the Workflows page, and open any of
+ * them (details, inputs and outputs, event history) without an entity. A
+ * basic permission: it does not depend on a catalog entity.
+ *
+ * @public
+ */
+export const temporalWorkflowListPermission = createPermission({
+  name: 'temporal.workflow.list',
+  attributes: { action: 'read' },
+});
+
+/**
  * Every permission of the Temporal plugin.
  *
  * @public
@@ -50,4 +62,5 @@ export const temporalWorkflowHistoryReadPermission = createPermission({
 export const temporalPermissions = [
   temporalWorkflowReadPermission,
   temporalWorkflowHistoryReadPermission,
+  temporalWorkflowListPermission,
 ];

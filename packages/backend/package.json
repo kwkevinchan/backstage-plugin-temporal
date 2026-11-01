@@ -33,6 +33,7 @@
     "@backstage/plugin-permission-backend-module-allow-all-policy": "backstage:^",
     "@backstage/plugin-permission-common": "backstage:^",
     "@backstage/plugin-permission-node": "backstage:^",
+    "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
     "app": "workspace:^",
     "better-sqlite3": "^12.0.0",

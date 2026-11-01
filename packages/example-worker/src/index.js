@@ -44,11 +44,20 @@ async function startAll(client, withSearchAttributes) {
       ? { [entityRefAttribute]: [entityRef] }
       : undefined;
   const common = { taskQueue, searchAttributes };
+  // The TemporalWorkflow entities example-order-workflow and
+  // example-payment-workflow (examples/entities.yaml) match these runs by
+  // workflow type and task queue. Two orders give the statistics card more
+  // than one run.
   return Promise.all([
     client.workflow.start('orderWorkflow', {
       ...common,
       workflowId: `example-order-${suffix}`,
       args: [{ orderId: `order-${suffix}`, sku: 'BOOK-1', quantity: 2 }],
+    }),
+    client.workflow.start('orderWorkflow', {
+      ...common,
+      workflowId: `example-order-${suffix}-b`,
+      args: [{ orderId: `order-${suffix}-b`, sku: 'PEN-2', quantity: 1 }],
     }),
     client.workflow.start('paymentWorkflow', {
       ...common,
@@ -77,7 +86,7 @@ async function main() {
     );
     handles = await startAll(client, false);
   }
-  const [order, payment, deployment] = handles;
+  const [order, secondOrder, payment, deployment] = handles;
   for (const h of handles) console.log(`Started ${h.workflowId}`);
 
   const workerConnection = await NativeConnection.connect({ address });
@@ -90,9 +99,9 @@ async function main() {
   });
 
   await worker.runUntil(async () => {
-    console.log(
-      `orderWorkflow result: ${JSON.stringify(await order.result())}`,
-    );
+    for (const o of [order, secondOrder]) {
+      console.log(`orderWorkflow result: ${JSON.stringify(await o.result())}`);
+    }
     await payment.result().then(
       () => console.log('paymentWorkflow unexpectedly succeeded'),
       err =>

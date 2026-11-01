@@ -25,3 +25,4 @@ export * from './types';
 export * from './annotations';
 export * from './permissions';
 export * from './paths';
+export * from './workflowEntity';

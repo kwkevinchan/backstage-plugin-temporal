@@ -17,6 +17,7 @@
 import { PropsWithChildren } from 'react';
 import { makeStyles } from '@material-ui/core';
 import HomeIcon from '@material-ui/icons/Home';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
 import LogoFull from './LogoFull';
 import LogoIcon from './LogoIcon';
 import {
@@ -70,6 +71,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
       <SidebarLogo />
       <SidebarGroup label="Menu" icon={<MenuIcon />}>
         <SidebarItem icon={HomeIcon} to="catalog" text="Home" />
+        <SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />
       </SidebarGroup>
       <SidebarSpace />
       <SidebarDivider />

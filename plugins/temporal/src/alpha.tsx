@@ -31,16 +31,25 @@ import {
   createFrontendPlugin,
   discoveryApiRef,
   fetchApiRef,
+  PageBlueprint,
 } from '@backstage/frontend-plugin-api';
-import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
-import { isTemporalAvailable } from '@kwkevinchan/backstage-plugin-temporal-common';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
+import {
+  EntityCardBlueprint,
+  EntityContentBlueprint,
+} from '@backstage/plugin-catalog-react/alpha';
+import {
+  getDependsOnTemporalWorkflowRefs,
+  isTemporalAvailable,
+  isTemporalWorkflowEntity,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import {
   temporalWorkflowActionDataRef,
   temporalWorkflowSectionDataRef,
 } from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
 import { TemporalClient } from './api';
-import { entityContentRouteRef } from './routes';
+import { entityContentRouteRef, rootRouteRef } from './routes';
 
 /** @alpha */
 export const temporalApi = ApiBlueprint.make({
@@ -91,14 +100,74 @@ export const temporalEntityContent = EntityContentBlueprint.makeWithOverrides({
 });
 
 /**
+ * Workflows page on `/temporal`. Its title and icon make the app list it in
+ * the sidebar. Workflow actions and sections from the blueprints attach to
+ * the entity tab only.
+ *
+ * @alpha
+ */
+export const temporalPage = PageBlueprint.make({
+  params: {
+    path: '/temporal',
+    title: 'Workflows',
+    icon: <AccountTreeIcon fontSize="inherit" />,
+    routeRef: convertLegacyRouteRef(rootRouteRef),
+    loader: () =>
+      import('./components/TemporalPage').then(m =>
+        compatWrapper(<m.TemporalPageContent />),
+      ),
+  },
+});
+
+/**
+ * Summary card on the overview of `TemporalWorkflow` entities.
+ *
+ * @alpha
+ */
+export const temporalWorkflowSummaryCard = EntityCardBlueprint.make({
+  name: 'workflow-summary',
+  params: {
+    filter: isTemporalWorkflowEntity,
+    loader: () =>
+      import('./components/TemporalWorkflowSummaryCard').then(m =>
+        compatWrapper(<m.TemporalWorkflowSummaryCard />),
+      ),
+  },
+});
+
+/**
+ * Card with the `TemporalWorkflow` entities an entity depends on, on the
+ * overview of entities that have any.
+ *
+ * @alpha
+ */
+export const temporalRelatedWorkflowsCard = EntityCardBlueprint.make({
+  name: 'related-workflows',
+  params: {
+    filter: entity => getDependsOnTemporalWorkflowRefs(entity).length > 0,
+    loader: () =>
+      import('./components/TemporalRelatedWorkflowsCard').then(m =>
+        compatWrapper(<m.TemporalRelatedWorkflowsCard />),
+      ),
+  },
+});
+
+/**
  * The Temporal plugin for the new frontend system.
  *
  * @alpha
  */
 export default createFrontendPlugin({
   pluginId: 'temporal',
-  extensions: [temporalApi, temporalEntityContent],
+  extensions: [
+    temporalApi,
+    temporalPage,
+    temporalEntityContent,
+    temporalWorkflowSummaryCard,
+    temporalRelatedWorkflowsCard,
+  ],
   routes: convertLegacyRouteRefs({
+    root: rootRouteRef,
     entityContent: entityContentRouteRef,
   }),
 });

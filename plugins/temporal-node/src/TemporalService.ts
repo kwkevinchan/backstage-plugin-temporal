@@ -60,12 +60,25 @@ export interface TemporalService {
 }
 
 /**
+ * Authentication of the Temporal connection. `bearer` sends
+ * `Authorization: Bearer <token>` with every call, as the JWT authorizer of a
+ * self-hosted Temporal server expects. The connection does not use TLS.
+ *
+ * @public
+ */
+export type TemporalConnectionAuth =
+  | { type: 'none' }
+  | { type: 'bearer'; token: string };
+
+/**
  * Options of {@link DefaultTemporalService}, mostly read from config.
  *
  * @public
  */
 export interface TemporalServiceOptions {
   address: string;
+  /** Defaults to no authentication. */
+  auth?: TemporalConnectionAuth;
   defaultNamespace: string;
   namespaces: string[];
   webUiBaseUrl?: string;
@@ -74,11 +87,32 @@ export interface TemporalServiceOptions {
 
 const SEARCH_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-/**
- * Authentication methods for the connection. Only `none` exists today; the
- * `auth` block is reserved for a simple authentication method later.
- */
-const AUTH_TYPES = ['none'];
+/** Authentication methods for the connection. */
+const AUTH_TYPES = ['none', 'bearer'];
+
+function readAuth(connection: Config): TemporalConnectionAuth {
+  const authType = connection.getOptionalString('auth.type') ?? 'none';
+  if (!AUTH_TYPES.includes(authType)) {
+    throw new Error(
+      `Unsupported temporal.connection.auth.type: ${authType} (supported: ${AUTH_TYPES.join(
+        ', ',
+      )})`,
+    );
+  }
+  if (authType === 'none') {
+    return { type: 'none' };
+  }
+  const token = connection.getOptionalString('auth.token')?.trim();
+  if (!token) {
+    throw new Error(
+      'temporal.connection.auth.token is required when auth.type is bearer',
+    );
+  }
+  if (/\s/.test(token)) {
+    throw new Error('temporal.connection.auth.token must not contain spaces');
+  }
+  return { type: 'bearer', token };
+}
 
 /**
  * Reads {@link TemporalServiceOptions} from the root config.
@@ -103,14 +137,7 @@ export function readTemporalServiceOptions(
   if (!namespaces.includes(defaultNamespace)) {
     namespaces.push(defaultNamespace);
   }
-  const authType = connection.getOptionalString('auth.type') ?? 'none';
-  if (!AUTH_TYPES.includes(authType)) {
-    throw new Error(
-      `Unsupported temporal.connection.auth.type: ${authType} (supported: ${AUTH_TYPES.join(
-        ', ',
-      )})`,
-    );
-  }
+  const auth = readAuth(connection);
   const searchAttributes: TemporalSearchAttributeNames = {
     entityRef: temporal.getOptionalString('searchAttributes.entityRef'),
     initiator: temporal.getOptionalString('searchAttributes.initiator'),
@@ -122,6 +149,7 @@ export function readTemporalServiceOptions(
   }
   return {
     address: connection.getString('address'),
+    auth,
     defaultNamespace,
     namespaces,
     webUiBaseUrl: temporal
@@ -160,9 +188,20 @@ export class DefaultTemporalService implements TemporalService {
 
   getConnection(): Promise<Connection> {
     if (!this.#connection) {
-      const { address } = this.#options;
-      this.#logger?.info(`Connecting to Temporal at ${address}`);
-      this.#connection = Connection.connect({ address }).catch(error => {
+      const { address, auth } = this.#options;
+      const bearer = auth?.type === 'bearer';
+      this.#logger?.info(
+        `Connecting to Temporal at ${address}${
+          bearer ? ' with a bearer token' : ''
+        }`,
+      );
+      this.#connection = Connection.connect({
+        address,
+        // `apiKey` sends `Authorization: Bearer <token>`. The client turns on
+        // TLS for an API key unless `tls` is false; this plugin connects
+        // without TLS.
+        ...(auth?.type === 'bearer' ? { apiKey: auth.token, tls: false } : {}),
+      }).catch(error => {
         this.#connection = undefined;
         throw error;
       });

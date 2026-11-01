@@ -24,7 +24,7 @@ import {
   ResponseErrorPanel,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { useEntity } from '@backstage/plugin-catalog-react';
+import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
 import {
   buildWorkflowPath,
   WORKFLOW_STATUSES,
@@ -57,7 +57,7 @@ export function workflowLink(ref: {
 }
 
 /** Workflow list of the current entity. */
-export function WorkflowList() {
+export function WorkflowList(props: { title?: string }) {
   const { entity } = useEntity();
   const temporalApi = useApi(temporalApiRef);
   const entityRef = stringifyEntityRef(entity);
@@ -117,6 +117,8 @@ export function WorkflowList() {
       />
     );
   } else {
+    // Runs listed through a TemporalWorkflow entity the entity depends on.
+    const showWorkflowEntity = value.items.some(i => i.workflowEntityRef);
     body = (
       <Table size="small" aria-label="Workflows">
         <TableHead>
@@ -127,6 +129,7 @@ export function WorkflowList() {
             <TableCell>Started</TableCell>
             <TableCell>Ended</TableCell>
             <TableCell>Duration</TableCell>
+            {showWorkflowEntity && <TableCell>Workflow entity</TableCell>}
           </TableRow>
         </TableHead>
         <TableBody>
@@ -144,6 +147,13 @@ export function WorkflowList() {
               <TableCell>
                 {formatDuration(item.startTime, item.closeTime)}
               </TableCell>
+              {showWorkflowEntity && (
+                <TableCell>
+                  {item.workflowEntityRef && (
+                    <EntityRefLink entityRef={item.workflowEntityRef} />
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
@@ -153,7 +163,7 @@ export function WorkflowList() {
 
   return (
     <InfoCard
-      title="Temporal workflows"
+      title={props.title ?? 'Temporal workflows'}
       subheader={value ? `Namespace: ${value.namespace}` : undefined}
       action={
         <Box display="flex" alignItems="center" mt={1} mr={1}>

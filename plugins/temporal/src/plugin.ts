@@ -16,6 +16,7 @@
 
 import {
   createApiFactory,
+  createComponentExtension,
   createPlugin,
   createRoutableExtension,
   discoveryApiRef,
@@ -23,7 +24,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { TemporalClient } from './api';
-import { entityContentRouteRef } from './routes';
+import { entityContentRouteRef, rootRouteRef } from './routes';
 
 /**
  * The Temporal plugin for the legacy frontend system.
@@ -41,6 +42,7 @@ export const temporalPlugin = createPlugin({
     }),
   ],
   routes: {
+    root: rootRouteRef,
     entityContent: entityContentRouteRef,
   },
 });
@@ -59,5 +61,74 @@ export const EntityTemporalContent = temporalPlugin.provide(
         m => m.EntityTemporalContentPage,
       ),
     mountPoint: entityContentRouteRef,
+  }),
+);
+
+/**
+ * Workflows page: every workflow of the default namespace, with filters,
+ * and the workflow details. Needs the `temporal.workflow.list` permission.
+ * Mount it on `/temporal` and add a sidebar item.
+ *
+ * @public
+ */
+export const TemporalPage = temporalPlugin.provide(
+  createRoutableExtension({
+    name: 'TemporalPage',
+    component: () =>
+      import('./components/TemporalPage').then(m => m.TemporalPageWithHeader),
+    mountPoint: rootRouteRef,
+  }),
+);
+
+/**
+ * Card with the workflow type, task queue, namespace, owner, system and users
+ * of a `TemporalWorkflow` entity, with a link to the Temporal UI.
+ *
+ * @public
+ */
+export const EntityTemporalWorkflowSummaryCard = temporalPlugin.provide(
+  createComponentExtension({
+    name: 'EntityTemporalWorkflowSummaryCard',
+    component: {
+      lazy: () =>
+        import('./components/TemporalWorkflowSummaryCard').then(
+          m => m.TemporalWorkflowSummaryCard,
+        ),
+    },
+  }),
+);
+
+/**
+ * Card with succeeded, failed and running counts and the mean duration of an
+ * entity's most recent runs.
+ *
+ * @public
+ */
+export const EntityTemporalWorkflowStatsCard = temporalPlugin.provide(
+  createComponentExtension({
+    name: 'EntityTemporalWorkflowStatsCard',
+    component: {
+      lazy: () =>
+        import('./components/TemporalWorkflowStatsCard').then(
+          m => m.TemporalWorkflowStatsCard,
+        ),
+    },
+  }),
+);
+
+/**
+ * Card with the `TemporalWorkflow` entities an entity depends on.
+ *
+ * @public
+ */
+export const EntityTemporalRelatedWorkflowsCard = temporalPlugin.provide(
+  createComponentExtension({
+    name: 'EntityTemporalRelatedWorkflowsCard',
+    component: {
+      lazy: () =>
+        import('./components/TemporalRelatedWorkflowsCard').then(
+          m => m.TemporalRelatedWorkflowsCard,
+        ),
+    },
   }),
 );

@@ -26,6 +26,10 @@ backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
+// The TemporalWorkflow kind.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-catalog-backend-module-temporal'),
+);
 
 backend.add(import('@backstage/plugin-permission-backend'));
 // Development only: every permission is allowed. Temporal permissions are

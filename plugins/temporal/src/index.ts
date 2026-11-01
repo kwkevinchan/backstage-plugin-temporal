@@ -21,11 +21,26 @@
  * @packageDocumentation
  */
 
-export { temporalPlugin, EntityTemporalContent } from './plugin';
-export type { EntityTemporalContentProps } from './components';
+export {
+  temporalPlugin,
+  EntityTemporalContent,
+  TemporalPage,
+  EntityTemporalWorkflowSummaryCard,
+  EntityTemporalWorkflowStatsCard,
+  EntityTemporalRelatedWorkflowsCard,
+} from './plugin';
+export type {
+  EntityTemporalContentProps,
+  TemporalPageProps,
+  TemporalWorkflowStatsCardProps,
+} from './components';
 export { TemporalClient } from './api';
 export {
+  getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
+  isTemporalWorkflowEntity,
+  TEMPORAL_WORKFLOW_API_VERSION,
+  TEMPORAL_WORKFLOW_KIND,
   TEMPORAL_NAMESPACE_ANNOTATION,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,

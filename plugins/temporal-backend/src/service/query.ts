@@ -17,6 +17,7 @@
 import { InputError } from '@backstage/errors';
 import {
   isValidTaskQueueName,
+  isValidWorkflowIdPrefix,
   isValidWorkflowTypeName,
   TemporalAnnotations,
   WORKFLOW_STATUSES,
@@ -49,57 +50,84 @@ function quote(value: string): string {
   return `'${value}'`;
 }
 
+/** Workflows of a `TemporalWorkflow` entity that the entity depends on. */
+export interface RelatedWorkflowSource {
+  entityRef: string;
+  taskQueue?: string;
+  workflowTypes: string[];
+}
+
 export interface EntityWorkflowFilter {
+  /** Filter of the entity itself: annotations, or the TemporalWorkflow spec. */
   annotations: TemporalAnnotations;
   entityRef: string;
   /** Name of the entity reference search attribute, if configured. */
   entityRefAttribute?: string;
+  /** TemporalWorkflow entities the entity depends on, in the same namespace. */
+  related?: RelatedWorkflowSource[];
+}
+
+/** `TaskQueue = 'q' AND WorkflowType IN (...)`, or undefined without both. */
+function sourceCondition(source: {
+  taskQueue?: string;
+  workflowTypes: string[];
+}): string | undefined {
+  const parts: string[] = [];
+  if (source.taskQueue) {
+    if (!isValidTaskQueueName(source.taskQueue)) {
+      throw new InputError('Invalid task queue');
+    }
+    parts.push(`TaskQueue = ${quote(source.taskQueue)}`);
+  }
+  if (source.workflowTypes.length > 0) {
+    for (const type of source.workflowTypes) {
+      if (!isValidWorkflowTypeName(type)) {
+        throw new InputError('Invalid workflow type');
+      }
+    }
+    parts.push(
+      source.workflowTypes.length === 1
+        ? `WorkflowType = ${quote(source.workflowTypes[0])}`
+        : `WorkflowType IN (${source.workflowTypes.map(quote).join(', ')})`,
+    );
+  }
+  return parts.length > 0 ? parts.join(' AND ') : undefined;
 }
 
 /**
  * Builds the visibility query for an entity's workflows:
  * `(TaskQueue = 'q' AND WorkflowType IN ('a', 'b')) OR (BackstageEntityRef = 'ref')`,
- * plus an optional status condition.
+ * with one more alternative for each related TemporalWorkflow entity, plus an
+ * optional status condition.
  */
 export function buildEntityWorkflowQuery(
   filter: EntityWorkflowFilter,
   options?: { status?: WorkflowStatus },
 ): string {
   const { annotations, entityRef, entityRefAttribute } = filter;
-  const byAnnotations: string[] = [];
-  if (annotations.taskQueue) {
-    if (!isValidTaskQueueName(annotations.taskQueue)) {
-      throw new InputError('Invalid task queue');
-    }
-    byAnnotations.push(`TaskQueue = ${quote(annotations.taskQueue)}`);
-  }
-  if (annotations.workflowTypes.length > 0) {
-    for (const type of annotations.workflowTypes) {
-      if (!isValidWorkflowTypeName(type)) {
-        throw new InputError('Invalid workflow type');
-      }
-    }
-    byAnnotations.push(
-      annotations.workflowTypes.length === 1
-        ? `WorkflowType = ${quote(annotations.workflowTypes[0])}`
-        : `WorkflowType IN (${annotations.workflowTypes
-            .map(quote)
-            .join(', ')})`,
-    );
-  }
-
+  const related = filter.related ?? [];
   const alternatives: string[] = [];
-  if (byAnnotations.length > 0) {
-    alternatives.push(byAnnotations.join(' AND '));
+  for (const source of [annotations, ...related]) {
+    const condition = sourceCondition(source);
+    if (condition && !alternatives.includes(condition)) {
+      alternatives.push(condition);
+    }
   }
   if (entityRefAttribute) {
     if (!SEARCH_ATTRIBUTE_PATTERN.test(entityRefAttribute)) {
       throw new InputError('Invalid search attribute name');
     }
-    if (!ENTITY_REF_PATTERN.test(entityRef)) {
-      throw new InputError('Invalid entity reference');
+    const refs = [entityRef, ...related.map(r => r.entityRef)];
+    for (const ref of refs) {
+      if (!ENTITY_REF_PATTERN.test(ref)) {
+        throw new InputError('Invalid entity reference');
+      }
     }
-    alternatives.push(`${entityRefAttribute} = ${quote(entityRef)}`);
+    alternatives.push(
+      refs.length === 1
+        ? `${entityRefAttribute} = ${quote(refs[0])}`
+        : `${entityRefAttribute} IN (${refs.map(quote).join(', ')})`,
+    );
   }
   if (alternatives.length === 0) {
     throw new InputError(
@@ -117,6 +145,81 @@ export function buildEntityWorkflowQuery(
   return query;
 }
 
+function matchesSource(
+  workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType'>,
+  source: { taskQueue?: string; workflowTypes: string[] },
+): boolean {
+  const hasFilter =
+    Boolean(source.taskQueue) || source.workflowTypes.length > 0;
+  if (!hasFilter) return false;
+  if (source.taskQueue && workflow.taskQueue !== source.taskQueue) {
+    return false;
+  }
+  if (
+    source.workflowTypes.length > 0 &&
+    !source.workflowTypes.includes(workflow.workflowType)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The related TemporalWorkflow entity that a workflow matches, by its spec
+ * or by the entity reference search attribute.
+ */
+export function matchingWorkflowEntity(
+  workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType' | 'entityRef'>,
+  filter: EntityWorkflowFilter,
+): string | undefined {
+  for (const source of filter.related ?? []) {
+    if (
+      (filter.entityRefAttribute && workflow.entityRef === source.entityRef) ||
+      matchesSource(workflow, source)
+    ) {
+      return source.entityRef;
+    }
+  }
+  return undefined;
+}
+
+/** Filters of the list of every workflow in a namespace. */
+export interface NamespaceWorkflowFilter {
+  status?: WorkflowStatus;
+  workflowType?: string;
+  /** Start of the workflow ID. */
+  workflowIdPrefix?: string;
+}
+
+/**
+ * Builds the visibility query of the namespace-wide list, for example
+ * `WorkflowType = 'a' AND WorkflowId STARTS_WITH 'order-'`. Empty without
+ * filters (every workflow).
+ */
+export function buildNamespaceWorkflowQuery(
+  filter: NamespaceWorkflowFilter,
+): string {
+  const parts: string[] = [];
+  if (filter.workflowType) {
+    if (!isValidWorkflowTypeName(filter.workflowType)) {
+      throw new InputError('Invalid workflow type');
+    }
+    parts.push(`WorkflowType = ${quote(filter.workflowType)}`);
+  }
+  if (filter.workflowIdPrefix) {
+    if (!isValidWorkflowIdPrefix(filter.workflowIdPrefix)) {
+      throw new InputError(
+        'The workflow ID search may only contain letters, digits and _ . : / -',
+      );
+    }
+    parts.push(`WorkflowId STARTS_WITH ${quote(filter.workflowIdPrefix)}`);
+  }
+  if (filter.status) {
+    parts.push(`ExecutionStatus = ${quote(filter.status)}`);
+  }
+  return parts.join(' AND ');
+}
+
 /**
  * True when a workflow belongs to the entity by the same rules as
  * {@link buildEntityWorkflowQuery}. Used before showing a single workflow.
@@ -129,17 +232,8 @@ export function workflowBelongsToEntity(
   if (entityRefAttribute && workflow.entityRef === entityRef) {
     return true;
   }
-  const hasAnnotationFilter =
-    Boolean(annotations.taskQueue) || annotations.workflowTypes.length > 0;
-  if (!hasAnnotationFilter) return false;
-  if (annotations.taskQueue && workflow.taskQueue !== annotations.taskQueue) {
-    return false;
-  }
-  if (
-    annotations.workflowTypes.length > 0 &&
-    !annotations.workflowTypes.includes(workflow.workflowType)
-  ) {
-    return false;
-  }
-  return true;
+  return (
+    matchesSource(workflow, annotations) ||
+    matchingWorkflowEntity(workflow, filter) !== undefined
+  );
 }

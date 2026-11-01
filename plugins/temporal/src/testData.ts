@@ -17,6 +17,7 @@
 import { Entity } from '@backstage/catalog-model';
 import type {
   WorkflowDetail,
+  WorkflowStatsResponse,
   WorkflowHistoryResponse,
   WorkflowListResponse,
   WorkflowStepsResponse,
@@ -32,6 +33,55 @@ export const entity: Entity = {
     annotations: { 'temporal.io/task-queue': 'orders' },
   },
   spec: { type: 'service', owner: 'guests' },
+};
+
+/** A TemporalWorkflow entity, as the catalog returns it. */
+export const workflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'order-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'orderWorkflow',
+    taskQueue: 'orders',
+    system: 'shop',
+    lifecycle: 'production',
+  },
+  relations: [
+    { type: 'ownedBy', targetRef: 'group:default/team-a' },
+    { type: 'partOf', targetRef: 'system:default/shop' },
+    { type: 'dependencyOf', targetRef: 'component:default/checkout' },
+  ],
+};
+
+/** A component with an annotation that depends on a TemporalWorkflow entity. */
+export const checkoutEntity: Entity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Component',
+  metadata: {
+    name: 'checkout',
+    namespace: 'default',
+    annotations: { 'temporal.io/workflow-type': 'deploymentWorkflow' },
+  },
+  spec: {
+    type: 'service',
+    owner: 'group:default/team-a',
+    dependsOn: ['temporalworkflow:default/order-workflow'],
+  },
+  relations: [
+    { type: 'dependsOn', targetRef: 'temporalworkflow:default/order-workflow' },
+  ],
+};
+
+export const statsResponse: WorkflowStatsResponse = {
+  namespace: 'default',
+  sampleSize: 7,
+  limit: 50,
+  byStatus: { Completed: 4, Failed: 2, Running: 1 },
+  succeeded: 4,
+  failed: 2,
+  running: 1,
+  averageDurationMs: 2500,
 };
 
 export const listResponse: WorkflowListResponse = {
@@ -124,6 +174,8 @@ export const stepsResponse: WorkflowStepsResponse = {
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
+    listWorkflows: jest.fn().mockResolvedValue(listResponse),
+    getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
     getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),

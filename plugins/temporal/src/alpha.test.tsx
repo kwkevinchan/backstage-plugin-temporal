@@ -27,11 +27,40 @@ import {
   TemporalWorkflowSectionBlueprint,
 } from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
 import temporalPlugin from './alpha';
-import { entity, mockTemporalApi } from './testData';
+import { EntityCardBlueprint } from '@backstage/plugin-catalog-react/alpha';
+import {
+  checkoutEntity,
+  entity,
+  mockTemporalApi,
+  workflowEntity,
+} from './testData';
 
 describe('temporal (new frontend system)', () => {
   it('exports a frontend plugin', () => {
     expect(temporalPlugin.id).toBe('temporal');
+  });
+
+  it('adds the Workflows page with a title and icon for the sidebar', () => {
+    const tester = createExtensionTester(
+      temporalPlugin.getExtension('page:temporal'),
+    );
+    expect(tester.get(coreExtensionData.routePath)).toBe('/temporal');
+    expect(tester.get(coreExtensionData.title)).toBe('Workflows');
+    expect(tester.get(coreExtensionData.icon)).toBeTruthy();
+  });
+
+  it('shows the workflow summary card on TemporalWorkflow entities only', () => {
+    const card = createExtensionTester(
+      temporalPlugin.getExtension('entity-card:temporal/workflow-summary'),
+    );
+    const filter = card.get(EntityCardBlueprint.dataRefs.filterFunction)!;
+    expect(filter(workflowEntity)).toBe(true);
+    expect(filter(entity)).toBe(false);
+    const related = createExtensionTester(
+      temporalPlugin.getExtension('entity-card:temporal/related-workflows'),
+    ).get(EntityCardBlueprint.dataRefs.filterFunction)!;
+    expect(related(checkoutEntity)).toBe(true);
+    expect(related(entity)).toBe(false);
   });
 
   it('renders actions and sections from the blueprints on the details page', async () => {

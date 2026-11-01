@@ -15,6 +15,7 @@
  */
 
 import { ConfigReader } from '@backstage/config';
+import * as grpc from '@grpc/grpc-js';
 import {
   DefaultTemporalService,
   readTemporalServiceOptions,
@@ -29,6 +30,7 @@ describe('readTemporalServiceOptions', () => {
     );
     expect(options).toEqual({
       address: 'localhost:7233',
+      auth: { type: 'none' },
       defaultNamespace: 'default',
       namespaces: ['default'],
       webUiBaseUrl: undefined,
@@ -81,6 +83,115 @@ describe('readTemporalServiceOptions', () => {
         }),
       ),
     ).toThrow(/Unsupported temporal.connection.auth.type/);
+  });
+
+  it('reads a bearer token', () => {
+    const read = (auth: object) =>
+      readTemporalServiceOptions(
+        new ConfigReader({
+          temporal: { connection: { address: 'x:1', auth } },
+        }),
+      );
+    expect(read({ type: 'bearer', token: ' abc.def ' }).auth).toEqual({
+      type: 'bearer',
+      token: 'abc.def',
+    });
+    expect(() => read({ type: 'bearer' })).toThrow(/auth.token is required/);
+    expect(() => read({ type: 'bearer', token: 'a b' })).toThrow(
+      /must not contain spaces/,
+    );
+    expect(read({ type: 'none', token: 'ignored' }).auth).toEqual({
+      type: 'none',
+    });
+  });
+});
+
+/**
+ * A plain-text gRPC server that records the metadata of every call. Every
+ * call fails with UNIMPLEMENTED, which the client accepts on connect (as from
+ * an old server).
+ */
+async function startRecordingServer() {
+  const calls: { path: string; authorization: grpc.MetadataValue[] }[] = [];
+  const server = new grpc.Server();
+  const unimplemented = (path: string) => (call: any, callback: any) => {
+    calls.push({ path, authorization: call.metadata.get('authorization') });
+    callback({ code: grpc.status.UNIMPLEMENTED, details: 'test server' });
+  };
+  const method = (name: string) => {
+    const path = `/temporal.api.workflowservice.v1.WorkflowService/${name}`;
+    return {
+      path,
+      requestStream: false,
+      responseStream: false,
+      requestSerialize: (v: Buffer) => v,
+      requestDeserialize: (v: Buffer) => v,
+      responseSerialize: (v: Buffer) => v,
+      responseDeserialize: (v: Buffer) => v,
+    };
+  };
+  const names = ['GetSystemInfo', 'ListWorkflowExecutions'];
+  server.addService(
+    Object.fromEntries(names.map(n => [n, method(n)])) as any,
+    Object.fromEntries(
+      names.map(n => [n, unimplemented(method(n).path)]),
+    ) as any,
+  );
+  const port = await new Promise<number>((resolve, reject) =>
+    server.bindAsync(
+      '127.0.0.1:0',
+      grpc.ServerCredentials.createInsecure(),
+      (error, p) => (error ? reject(error) : resolve(p)),
+    ),
+  );
+  return { calls, address: `127.0.0.1:${port}`, server };
+}
+
+describe('connection authentication', () => {
+  let recording: Awaited<ReturnType<typeof startRecordingServer>>;
+  beforeEach(async () => {
+    recording = await startRecordingServer();
+  });
+  afterEach(() => {
+    recording.server.forceShutdown();
+  });
+
+  function service(
+    auth?: { type: 'none' } | { type: 'bearer'; token: string },
+  ) {
+    return new DefaultTemporalService({
+      address: recording.address,
+      auth,
+      defaultNamespace: 'default',
+      namespaces: ['default'],
+      searchAttributes: {},
+    });
+  }
+
+  it('sends the bearer token in the Authorization header, without TLS', async () => {
+    const temporal = service({ type: 'bearer', token: 'test-token' });
+    const connection = await temporal.getConnection();
+    await expect(
+      connection.workflowService.listWorkflowExecutions({
+        namespace: 'default',
+      }),
+    ).rejects.toThrow();
+    await temporal.close();
+    expect(recording.calls.map(c => c.path)).toEqual([
+      expect.stringMatching(/GetSystemInfo$/),
+      expect.stringMatching(/ListWorkflowExecutions$/),
+    ]);
+    for (const call of recording.calls) {
+      expect(call.authorization).toEqual(['Bearer test-token']);
+    }
+  });
+
+  it('sends no Authorization header without authentication', async () => {
+    const temporal = service();
+    await temporal.getConnection();
+    await temporal.close();
+    expect(recording.calls).toHaveLength(1);
+    expect(recording.calls[0].authorization).toEqual([]);
   });
 });
 

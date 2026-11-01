@@ -58,6 +58,71 @@ export const customKindEntity: Entity = {
   spec: {},
 };
 
+/** A TemporalWorkflow entity: its runs come from the spec. */
+export const orderWorkflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'order-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'orderWorkflow',
+    taskQueue: 'orders',
+  },
+};
+
+export const paymentWorkflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'payment-workflow', namespace: 'default' },
+  spec: { owner: 'group:default/team-a', workflowType: 'paymentWorkflow' },
+};
+
+/** A TemporalWorkflow entity in a namespace other than the component's. */
+export const otherNamespaceWorkflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'audit-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'auditWorkflow',
+    namespace: 'audit',
+  },
+};
+
+/**
+ * A component with its own annotation that also depends on TemporalWorkflow
+ * entities (relations as the catalog would add them for spec.dependsOn).
+ */
+export const checkoutEntity: Entity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Component',
+  metadata: {
+    name: 'checkout',
+    namespace: 'default',
+    annotations: { 'temporal.io/workflow-type': 'deploymentWorkflow' },
+  },
+  spec: {
+    type: 'service',
+    owner: 'group:default/team-a',
+    dependsOn: [
+      'temporalworkflow:default/order-workflow',
+      'temporalworkflow:default/payment-workflow',
+      'temporalworkflow:default/audit-workflow',
+      'temporalworkflow:default/missing',
+    ],
+  },
+  relations: [
+    { type: 'dependsOn', targetRef: 'temporalworkflow:default/order-workflow' },
+    {
+      type: 'dependsOn',
+      targetRef: 'temporalworkflow:default/payment-workflow',
+    },
+    { type: 'dependsOn', targetRef: 'temporalworkflow:default/audit-workflow' },
+    { type: 'dependsOn', targetRef: 'temporalworkflow:default/missing' },
+    { type: 'dependsOn', targetRef: 'resource:default/orders-db' },
+  ],
+};
+
 export const badEntity: Entity = {
   apiVersion: 'backstage.io/v1alpha1',
   kind: 'Component',

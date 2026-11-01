@@ -33,7 +33,7 @@ auth:
 
 catalog:
   rules:
-    - allow: [Component, System, API, Resource, Location]
+    - allow: [Component, System, API, Resource, Location, TemporalWorkflow]
   locations:
     # File locations are relative to the backend process (packages/backend).
     - type: file
