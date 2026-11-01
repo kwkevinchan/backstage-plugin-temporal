@@ -18,12 +18,15 @@ import { parseEntityRef } from '@backstage/catalog-model';
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 import { ResponseError } from '@backstage/errors';
 import {
+  buildEntityWorkflowStatsPath,
   buildEntityWorkflowsPath,
   buildWorkflowPath,
+  WORKFLOWS_PATH,
   WorkflowDetail,
   WorkflowHistoryResponse,
   WorkflowListResponse,
   WorkflowRef,
+  WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -76,6 +79,37 @@ export class TemporalClient implements TemporalApi {
           pageSize: options?.pageSize,
           pageToken: options?.pageToken,
         }),
+    );
+  }
+
+  listWorkflows(options?: {
+    namespace?: string;
+    status?: WorkflowStatus;
+    workflowType?: string;
+    workflowIdPrefix?: string;
+    pageSize?: number;
+    pageToken?: string;
+  }): Promise<WorkflowListResponse> {
+    return this.get(
+      WORKFLOWS_PATH +
+        queryString({
+          namespace: options?.namespace,
+          status: options?.status,
+          workflowType: options?.workflowType,
+          workflowId: options?.workflowIdPrefix,
+          pageSize: options?.pageSize,
+          pageToken: options?.pageToken,
+        }),
+    );
+  }
+
+  getEntityWorkflowStats(
+    entityRef: string,
+    options?: { limit?: number },
+  ): Promise<WorkflowStatsResponse> {
+    return this.get(
+      buildEntityWorkflowStatsPath(parseEntityRef(entityRef)) +
+        queryString({ limit: options?.limit }),
     );
   }
 

@@ -46,7 +46,8 @@
   },
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",
-    "@backstage/cli": "backstage:^"
+    "@backstage/cli": "backstage:^",
+    "@grpc/grpc-js": "^1.12.4"
   },
   "files": [
     "dist",

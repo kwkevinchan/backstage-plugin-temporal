@@ -25,6 +25,54 @@ spec:
   owner: guests
   system: examples
 ---
+# TemporalWorkflow entities (kind from the catalog module). Their runs are
+# the executions that match the workflow type and task queue.
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: example-order-workflow
+  title: Example order workflow
+  description: Reserves stock for an order. Completes successfully.
+spec:
+  owner: guests
+  workflowType: orderWorkflow
+  taskQueue: backstage-example
+  system: examples
+  lifecycle: experimental
+---
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: example-payment-workflow
+  title: Example payment workflow
+  description: Charges a card. Fails with a cause chain (card declined).
+spec:
+  owner: guests
+  workflowType: paymentWorkflow
+  taskQueue: backstage-example
+  system: examples
+  lifecycle: experimental
+---
+# A component that uses the two workflows (spec.dependsOn) and also carries
+# an annotation for its own deployment workflow. Its Temporal tab merges both.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: example-checkout
+  title: Example checkout service
+  description: Uses the order and payment workflows, and runs its own deployments.
+  annotations:
+    temporal.io/task-queue: backstage-example
+    temporal.io/workflow-type: deploymentWorkflow
+spec:
+  type: service
+  lifecycle: experimental
+  owner: guests
+  system: examples
+  dependsOn:
+    - temporalworkflow:default/example-order-workflow
+    - temporalworkflow:default/example-payment-workflow
+---
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:

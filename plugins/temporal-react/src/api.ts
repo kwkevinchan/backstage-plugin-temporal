@@ -20,6 +20,7 @@ import type {
   WorkflowHistoryResponse,
   WorkflowListResponse,
   WorkflowRef,
+  WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -39,6 +40,29 @@ export interface TemporalApi {
       pageToken?: string;
     },
   ): Promise<WorkflowListResponse>;
+
+  /**
+   * Lists every workflow of a namespace (default namespace when omitted),
+   * newest first. Needs the `temporal.workflow.list` permission.
+   * `workflowIdPrefix` matches the start of the workflow ID.
+   */
+  listWorkflows(options?: {
+    namespace?: string;
+    status?: WorkflowStatus;
+    workflowType?: string;
+    workflowIdPrefix?: string;
+    pageSize?: number;
+    pageToken?: string;
+  }): Promise<WorkflowListResponse>;
+
+  /**
+   * Counts by status and mean duration of the entity's most recent runs
+   * (`limit`, default 50, at most 100).
+   */
+  getEntityWorkflowStats(
+    entityRef: string,
+    options?: { limit?: number },
+  ): Promise<WorkflowStatsResponse>;
 
   /**
    * Gets one workflow execution. `entityRef` is the entity it is shown for;

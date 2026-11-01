@@ -25,7 +25,20 @@ export function formatDuration(start?: string, end?: string): string {
   const from = new Date(start).getTime();
   const to = end ? new Date(end).getTime() : Date.now();
   if (Number.isNaN(from) || Number.isNaN(to) || to < from) return '';
-  let seconds = Math.round((to - from) / 1000);
+  return formatSeconds(Math.round((to - from) / 1000));
+}
+
+/** A mean duration like `1m 5s`; below ten seconds with tenths, like `2.5s`. */
+export function formatMilliseconds(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  if (ms < 10_000) {
+    return `${Math.round(ms / 100) / 10}s`;
+  }
+  return formatSeconds(Math.round(ms / 1000));
+}
+
+function formatSeconds(totalSeconds: number): string {
+  let seconds = totalSeconds;
   const days = Math.floor(seconds / 86400);
   seconds -= days * 86400;
   const hours = Math.floor(seconds / 3600);

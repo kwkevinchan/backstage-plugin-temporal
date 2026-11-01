@@ -57,10 +57,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # compat-1.51 is the main line pinned in backstage.json.
-        # TODO(M4): add compat-1.56 (versions:bump --release 1.56.x + Playwright
-        # smoke) and consumer-1.56 (yarn pack into a fixed 1.56 app).
-        backstage: ['1.51']
+        # The main line pinned in backstage.json.
+        backstage: ['1.56']
     env:
       CI: true
       NODE_OPTIONS: --max-old-space-size=8192

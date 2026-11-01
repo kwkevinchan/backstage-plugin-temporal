@@ -10,18 +10,21 @@ first usable release is planned as `0.1.0`.
 The plugin shows [Temporal](https://temporal.io) workflows next to the catalog
 entities that own them in [Backstage](https://backstage.io): a list of workflow
 executions per entity, execution details with failures and pending activities,
-and the event history. This version is read-only; permission-checked controls
-(signal, cancel, re-run) are planned.
+and the event history. Workflows can be catalog entities of their own (the
+`TemporalWorkflow` kind), and a **Workflows** page lists every workflow of a
+namespace. This version is read-only; permission-checked controls (signal,
+cancel, re-run) are planned.
 
 ## Packages
 
-| Package                                                                      | Role            | Description                                                                                    |
-| ---------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                 | frontend-plugin | Entity tab and workflow details. Legacy entry point and `./alpha` for the new frontend system. |
-| [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)     | web-library     | Frontend extension points: API ref, workflow actions and sections, blueprints.                 |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend) | backend-plugin  | Read-only REST API under `/api/temporal`, permission checks.                                   |
-| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)   | common-library  | Shared types, permissions and annotation constants.                                            |
-| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)       | node-library    | Shared Temporal client service and backend extension point.                                    |
+| Package                                                                                                    | Role                  | Description                                                                                    |
+| ---------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
+| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Entity tab and workflow details. Legacy entry point and `./alpha` for the new frontend system. |
+| [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)                                   | web-library           | Frontend extension points: API ref, workflow actions and sections, blueprints.                 |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Read-only REST API under `/api/temporal`, permission checks.                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | Shared types, permissions and annotation constants.                                            |
+| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Shared Temporal client service and backend extension point.                                    |
+| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Catalog module with the `TemporalWorkflow` kind.                                               |
 
 Plugins that add buttons or cards to the workflow page depend on
 `@kwkevinchan/backstage-plugin-temporal-react` only.
@@ -38,6 +41,10 @@ Backend (`packages/backend/src/index.ts`):
 
 ```ts
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Optional: the TemporalWorkflow kind.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-catalog-backend-module-temporal'),
+);
 ```
 
 The backend plugin needs the catalog and the permission framework. It only
@@ -53,7 +60,12 @@ export default createApp({ features: [temporalPlugin /* ... */] });
 ```
 
 This adds a **Temporal** tab to entities of any kind that have Temporal
-annotations.
+annotations, to `TemporalWorkflow` entities and to entities that depend on
+them; a summary card on the overview of `TemporalWorkflow` entities; a card
+with the workflow entities on the overview of entities that depend on them;
+and the **Workflows** page on `/temporal`. The page has a title and an icon,
+so the app lists it in the sidebar with the nav items it discovers from pages
+(`navItems` of `NavContentBlueprint`).
 
 Frontend, legacy system (`EntityPage.tsx`):
 
@@ -71,6 +83,59 @@ import {
 Add the route to the entity page of every kind that can carry the
 annotations; the plugin does not depend on the entity kind.
 
+For `TemporalWorkflow` entities, add a page to the `EntitySwitch`:
+
+```tsx
+import {
+  EntityTemporalRelatedWorkflowsCard,
+  EntityTemporalWorkflowSummaryCard,
+  getDependsOnTemporalWorkflowRefs,
+  isTemporalWorkflowEntity,
+} from '@kwkevinchan/backstage-plugin-temporal';
+
+const temporalWorkflowPage = (
+  <EntityLayout>
+    <EntityLayout.Route path="/" title="Overview">
+      <Grid container spacing={3}>
+        <Grid item md={6} xs={12}>
+          <EntityAboutCard />
+        </Grid>
+        <Grid item md={6} xs={12}>
+          <EntityTemporalWorkflowSummaryCard />
+        </Grid>
+      </Grid>
+    </EntityLayout.Route>
+    <EntityLayout.Route path="/temporal" title="Temporal">
+      <EntityTemporalContent />
+    </EntityLayout.Route>
+  </EntityLayout>
+);
+
+<EntitySwitch>
+  <EntitySwitch.Case
+    if={isTemporalWorkflowEntity}
+    children={temporalWorkflowPage}
+  />
+  {/* ... */}
+</EntitySwitch>;
+```
+
+`EntityTemporalRelatedWorkflowsCard` lists the workflow entities of a
+component (use it with
+`if={e => getDependsOnTemporalWorkflowRefs(e).length > 0}`), and
+`EntityTemporalWorkflowStatsCard` shows the recent run statistics on its own.
+
+The Workflows page (`App.tsx` and the sidebar in `Root.tsx`):
+
+```tsx
+import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal';
+import AccountTreeIcon from '@material-ui/icons/AccountTree';
+
+<Route path="/temporal" element={<TemporalPage />} />;
+
+<SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />;
+```
+
 ## Configuration
 
 ```yaml
@@ -82,8 +147,7 @@ temporal:
     # parameter.
     namespaces: [default]
     defaultNamespace: default
-    # Reserved for authentication. Only `none` (no authentication) is
-    # supported in this version.
+    # `none` (default) or `bearer`, see Authentication below.
     auth:
       type: none
   # Optional: adds "Open in Temporal UI" links.
@@ -95,6 +159,88 @@ temporal:
     entityRef: BackstageEntityRef
     initiator: BackstageInitiator
 ```
+
+### Authentication
+
+With `auth.type: bearer`, every call to Temporal carries
+`Authorization: Bearer <token>`:
+
+```yaml
+temporal:
+  connection:
+    address: temporal-frontend.temporal.svc:7233
+    auth:
+      type: bearer
+      token: ${TEMPORAL_TOKEN}
+```
+
+The token is a secret (it is never sent to the browser); read it from an
+environment variable or a mounted secret. The connection does not use TLS,
+for a Temporal server inside a private network. The plugin passes the token
+as the `apiKey` connection option of `@temporalio/client` and turns TLS off,
+which the client otherwise turns on for an API key.
+
+A self-hosted Temporal server checks such tokens when its `global.authorization`
+config sets `jwtKeyProvider.keySourceURIs` (the public keys of the token
+issuer, as JWKS), `authorizer: default` and `claimMapper: default`. The
+default claim mapper reads the permissions claim (`permissionsClaimName`,
+by default `permissions`) with values like `default:read`, meaning the read
+role on the `default` namespace. The plugin only reads workflows, so a token
+with the read role on the namespaces in `connection.namespaces` is enough.
+See the Temporal documentation on server security for the details. The token
+is read at startup; restart the backend after it is replaced.
+
+## Workflow entities
+
+The catalog module adds the `TemporalWorkflow` kind for one workflow type:
+
+```yaml
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: order-workflow
+  description: Reserves stock and confirms an order.
+spec:
+  owner: group:default/orders-team # required
+  workflowType: orderWorkflow # required
+  taskQueue: orders
+  namespace: default # optional, defaults to connection.defaultNamespace
+  system: shop
+  lifecycle: production
+  dependsOn: [resource:default/orders-db]
+```
+
+| Field       | Relations                    |
+| ----------- | ---------------------------- |
+| `owner`     | `ownedBy` / `ownerOf`        |
+| `system`    | `partOf` / `hasPart`         |
+| `dependsOn` | `dependsOn` / `dependencyOf` |
+
+The runs of the entity are the executions with that workflow type (and task
+queue, when set), or with the entity reference
+(`temporalworkflow:default/order-workflow`) in the `searchAttributes.entityRef`
+attribute. `workflowType`, `taskQueue` and `namespace` follow the same rules
+as the annotations. Allow the kind in `catalog.rules`.
+
+A component (or any entity) that uses a workflow lists it in the standard
+`spec.dependsOn`:
+
+```yaml
+kind: Component
+spec:
+  dependsOn:
+    - temporalworkflow:default/order-workflow
+```
+
+The catalog adds `dependsOn` / `dependencyOf`. The component's Temporal tab
+then lists the workflow entities, and its runs are its own (from the
+annotations, if any) together with the runs of each workflow entity; runs of
+a workflow entity link to it. Workflow entities in another Temporal
+namespace than the component's, or that the user may not read
+(`temporal.workflow.read`), are left out. `dependsOn` is used rather than a
+new relation type because it means what the link means ("needs this to
+work"), the catalog graph and the about card already show it, and it needs
+no processor for other kinds.
 
 ## Annotations
 
@@ -127,9 +273,15 @@ rejected so they cannot change the visibility query.
 | -------------------------------- | ---------------- | ------------------------------- |
 | `temporal.workflow.read`         | `catalog-entity` | Workflow list and details       |
 | `temporal.workflow.history.read` | `catalog-entity` | Event history (inputs, results) |
+| `temporal.workflow.list`         | none (basic)     | Workflows page                  |
 
-The plugin registers both permissions and checks them on every request, with
-the entity as the resource. Access is open by default: with the permission
+The plugin registers the permissions and checks them on every request. The
+entity permissions use the entity as the resource. `temporal.workflow.list`
+is a basic permission: it allows the Workflows page, which lists every
+workflow of the allowed namespaces, and opening any of those workflows
+without an entity (details, inputs and outputs, and event history). Give it
+only to users who may read every workflow. When a request names an entity
+(`entityRef`), the entity permissions are checked as before. Access is open by default: with the permission
 framework disabled, or with the allow-all policy (as in the development
 backend), every signed-in user can read every entity's workflows. To restrict
 it, handle these permissions in your Backstage permission policy. Both are
@@ -190,9 +342,9 @@ Backend modules can add data to workflow summaries with
 
 ## Compatibility
 
-The main line targets Backstage **1.51.x** (see `backstage.json`), which is the
-minimum supported version. Newer releases will be tested in CI before the first
-release.
+The main line targets Backstage **1.56.x** (see `backstage.json`), which is the
+minimum supported version. Both frontend systems are supported: the legacy
+system (`EntityPage.tsx`) and the new frontend system (`./alpha`).
 
 ## Development
 
@@ -226,7 +378,9 @@ yarn workspace example-worker start
 ```
 
 Smoke tests sign in as the guest user, open the Temporal tab and two workflows,
-and save a screenshot of every step:
+a `TemporalWorkflow` entity and its runs, a component that depends on workflow
+entities, and the Workflows page from the sidebar, and save a screenshot of
+every step:
 
 ```sh
 npx playwright install chromium

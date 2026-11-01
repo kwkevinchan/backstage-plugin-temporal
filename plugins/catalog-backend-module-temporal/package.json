@@ -1,0 +1,56 @@
+{
+  "name": "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal",
+  "version": "0.0.0",
+  "description": "Catalog module with the TemporalWorkflow kind for the unofficial Backstage Temporal plugin",
+  "license": "Apache-2.0",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "temporal",
+    "workflow"
+  ],
+  "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/catalog-backend-module-temporal",
+  "bugs": {
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
+    "directory": "plugins/catalog-backend-module-temporal"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.cjs.js",
+    "types": "dist/index.d.ts"
+  },
+  "backstage": {
+    "role": "backend-plugin-module",
+    "pluginId": "catalog",
+    "pluginPackage": "@backstage/plugin-catalog-backend"
+  },
+  "scripts": {
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "dependencies": {
+    "@backstage/backend-plugin-api": "backstage:^",
+    "@backstage/catalog-model": "backstage:^",
+    "@backstage/plugin-catalog-common": "backstage:^",
+    "@backstage/plugin-catalog-node": "backstage:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+  },
+  "devDependencies": {
+    "@backstage/backend-test-utils": "backstage:^",
+    "@backstage/cli": "backstage:^",
+    "@backstage/types": "backstage:^"
+  },
+  "files": [
+    "dist"
+  ]
+}

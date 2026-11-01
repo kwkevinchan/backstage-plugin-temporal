@@ -29,21 +29,32 @@ export interface Config {
       namespaces?: string[];
       /**
        * Namespace used when an entity has no `temporal.io/namespace`
-       * annotation. Defaults to `default`.
+       * annotation or `spec.namespace`. Defaults to `default`.
+       * @visibility frontend
        */
       defaultNamespace?: string;
       /**
-       * Authentication of the connection. Only `none` (no authentication)
-       * is supported in this version; the block is reserved for a simple
-       * authentication method.
+       * Authentication of the connection. `none` (the default) sends no
+       * credentials. `bearer` sends `Authorization: Bearer <token>` with
+       * every call, for example for the JWT authorizer of a self-hosted
+       * Temporal server. The connection does not use TLS.
        */
       auth?: {
-        type?: 'none';
+        type?: 'none' | 'bearer';
+        /**
+         * Token for `bearer`, for example a JWT. Read it from an
+         * environment variable: `token: ${TEMPORAL_TOKEN}`.
+         * @visibility secret
+         */
+        token?: string;
       };
     };
     /** Temporal Web UI, used for "Open in Temporal UI" links. */
     webUi?: {
-      /** For example `http://localhost:8080`. */
+      /**
+       * For example `http://localhost:8080`.
+       * @visibility frontend
+       */
       baseUrl: string;
     };
     /** Names of custom search attributes registered in Temporal. */

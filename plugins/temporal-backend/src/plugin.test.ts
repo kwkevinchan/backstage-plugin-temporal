@@ -34,16 +34,31 @@ import {
   executionInfo,
   fakeTemporalServiceFactory,
   FakeWorkflowService,
+  checkoutEntity,
   customKindEntity,
+  orderWorkflowEntity,
   ordersEntity,
   otherEntity,
+  otherNamespaceWorkflowEntity,
+  paymentWorkflowEntity,
 } from './testUtils';
 
-const entities = [ordersEntity, otherEntity, badEntity, customKindEntity];
+const entities = [
+  ordersEntity,
+  otherEntity,
+  badEntity,
+  customKindEntity,
+  checkoutEntity,
+  orderWorkflowEntity,
+  paymentWorkflowEntity,
+  otherNamespaceWorkflowEntity,
+];
 const ref = 'component:default/orders';
 
 async function start(options?: {
   permission?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
+  /** Entity references or permission names denied regardless of `permission`. */
+  deny?: string[];
   enricher?: TemporalWorkflowEnricher;
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
@@ -52,8 +67,12 @@ async function start(options?: {
     options?.workflowService ?? createFakeWorkflowService();
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
-      requests.map(() => ({
-        result: options?.permission ?? AuthorizeResult.ALLOW,
+      requests.map((r: any) => ({
+        result:
+          options?.deny?.includes(r.resourceRef) ||
+          options?.deny?.includes(r.permission.name)
+            ? AuthorizeResult.DENY
+            : options?.permission ?? AuthorizeResult.ALLOW,
       })),
     ) as any,
   });
@@ -252,9 +271,12 @@ describe('temporal backend plugin', () => {
       } as any,
       pendingActivities: [],
     });
+    // Without the list permission, the entity from the search attribute
+    // decides.
     const { server, permissions } = await start({
       workflowService,
       entityRefAttribute: 'BackstageEntityRef',
+      deny: ['temporal.workflow.list'],
     });
     const res = await request(server).get(
       '/api/temporal/namespaces/default/workflows/wf-sa',
@@ -266,7 +288,10 @@ describe('temporal backend plugin', () => {
       expect.anything(),
     );
 
-    const { server: server2 } = await start({ workflowService });
+    const { server: server2 } = await start({
+      workflowService,
+      deny: ['temporal.workflow.list'],
+    });
     await request(server2)
       .get('/api/temporal/namespaces/default/workflows/wf-sa')
       .expect(403);
@@ -384,5 +409,258 @@ describe('temporal backend plugin', () => {
     await request(server)
       .get('/api/temporal/entities/component/default/orders/workflows')
       .expect(200);
+  });
+
+  it('lists the runs of a TemporalWorkflow entity from its spec', async () => {
+    const { server, workflowService } = await start();
+    await request(server)
+      .get(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .expect(200);
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: 'default',
+        query: "TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow'",
+      }),
+    );
+  });
+
+  it('merges the annotations with the TemporalWorkflow entities a component depends on', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.listWorkflowExecutions.mockResolvedValue({
+      executions: [
+        executionInfo({ workflowId: 'wf-order' }),
+        executionInfo({ workflowId: 'wf-pay', type: 'paymentWorkflow' }),
+        executionInfo({ workflowId: 'wf-deploy', type: 'deploymentWorkflow' }),
+      ],
+      nextPageToken: new Uint8Array(),
+    });
+    const { server } = await start({
+      workflowService,
+      entityRefAttribute: 'BackstageEntityRef',
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/checkout/workflows',
+    );
+    expect(res.status).toBe(200);
+    // The workflow in another namespace and the missing entity are left out.
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query:
+          "(WorkflowType = 'deploymentWorkflow') OR " +
+          "(TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow') OR " +
+          "(WorkflowType = 'paymentWorkflow') OR " +
+          "(BackstageEntityRef IN ('component:default/checkout', " +
+          "'temporalworkflow:default/order-workflow', " +
+          "'temporalworkflow:default/payment-workflow'))",
+      }),
+    );
+    expect(
+      res.body.items.map((i: any) => [i.workflowId, i.workflowEntityRef]),
+    ).toEqual([
+      ['wf-order', 'temporalworkflow:default/order-workflow'],
+      ['wf-pay', 'temporalworkflow:default/payment-workflow'],
+      ['wf-deploy', undefined],
+    ]);
+  });
+
+  it('leaves out TemporalWorkflow entities the user may not read', async () => {
+    const { server, workflowService } = await start({
+      deny: ['temporalworkflow:default/payment-workflow'],
+    });
+    await request(server)
+      .get('/api/temporal/entities/component/default/checkout/workflows')
+      .expect(200);
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query:
+          "(WorkflowType = 'deploymentWorkflow') OR " +
+          "(TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow')",
+      }),
+    );
+  });
+
+  it('shows a run of a related TemporalWorkflow entity on the component', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-pay',
+        type: 'paymentWorkflow',
+        taskQueue: 'payments',
+      }),
+      pendingActivities: [],
+    });
+    const { server } = await start({ workflowService });
+    await request(server)
+      .get(
+        '/api/temporal/namespaces/default/workflows/wf-pay?entityRef=component:default/checkout',
+      )
+      .expect(200);
+    await request(server)
+      .get(`/api/temporal/namespaces/default/workflows/wf-pay?entityRef=${ref}`)
+      .expect(404);
+  });
+
+  it('computes statistics of the most recent runs', async () => {
+    const workflowService = createFakeWorkflowService();
+    const closed = (id: string, status: string, seconds: number) => ({
+      ...executionInfo({ workflowId: id, status }),
+      closeTime: { seconds: String(1700000000 + seconds), nanos: 0 },
+    });
+    workflowService.listWorkflowExecutions.mockResolvedValue({
+      executions: [
+        closed('a', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 2),
+        closed('b', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 4),
+        closed('c', 'WORKFLOW_EXECUTION_STATUS_FAILED', 6),
+        closed('d', 'WORKFLOW_EXECUTION_STATUS_TIMED_OUT', 8),
+        executionInfo({
+          workflowId: 'e',
+          status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+        }),
+      ] as any,
+      nextPageToken: new Uint8Array(),
+    });
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=10',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      namespace: 'default',
+      sampleSize: 5,
+      limit: 10,
+      byStatus: { Completed: 2, Failed: 1, TimedOut: 1, Running: 1 },
+      succeeded: 2,
+      failed: 2,
+      running: 1,
+      averageDurationMs: 5000,
+    });
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow'",
+        pageSize: 10,
+      }),
+    );
+    await request(server)
+      .get(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=1000',
+      )
+      .expect(400);
+    const denied = await start({ permission: AuthorizeResult.DENY });
+    await request(denied.server)
+      .get(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats',
+      )
+      .expect(403);
+  });
+
+  describe('Workflows page', () => {
+    it('lists every workflow of the namespace with filters', async () => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.listWorkflowExecutions.mockResolvedValue({
+        executions: [
+          executionInfo({ workflowId: 'order-1' }),
+          executionInfo({ workflowId: 'order-2', taskQueue: 'other' }),
+          executionInfo({ workflowId: 'pay-1', type: 'paymentWorkflow' }),
+        ],
+        nextPageToken: new Uint8Array(),
+      });
+      const { server, permissions } = await start({ workflowService });
+      const res = await request(server).get(
+        '/api/temporal/workflows?status=Failed&workflowType=orderWorkflow&workflowId=order-&pageSize=10',
+      );
+      expect(res.status).toBe(200);
+      expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith({
+        namespace: 'default',
+        query:
+          "WorkflowType = 'orderWorkflow' AND WorkflowId STARTS_WITH 'order-' AND ExecutionStatus = 'Failed'",
+        pageSize: 10,
+        nextPageToken: undefined,
+      });
+      // Runs that match a TemporalWorkflow entity link to it.
+      expect(
+        res.body.items.map((i: any) => [i.workflowId, i.workflowEntityRef]),
+      ).toEqual([
+        ['order-1', 'temporalworkflow:default/order-workflow'],
+        ['order-2', undefined],
+        ['pay-1', 'temporalworkflow:default/payment-workflow'],
+      ]);
+      expect(permissions.authorize).toHaveBeenCalledWith(
+        [
+          {
+            permission: expect.objectContaining({
+              name: 'temporal.workflow.list',
+            }),
+          },
+        ],
+        expect.anything(),
+      );
+    });
+
+    it('lists without filters', async () => {
+      const { server, workflowService } = await start();
+      await request(server).get('/api/temporal/workflows').expect(200);
+      expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+        expect.objectContaining({ namespace: 'default', query: '' }),
+      );
+    });
+
+    it('rejects injection and other namespaces', async () => {
+      const { server, workflowService } = await start();
+      for (const query of [
+        `workflowId=${encodeURIComponent("x' OR WorkflowId != '")}`,
+        `workflowType=${encodeURIComponent('a b')}`,
+        `status=${encodeURIComponent("Running' OR '1")}`,
+      ]) {
+        await request(server)
+          .get(`/api/temporal/workflows?${query}`)
+          .expect(400);
+      }
+      await request(server)
+        .get('/api/temporal/workflows?namespace=secret')
+        .expect(400);
+      expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
+    });
+
+    it('needs the list permission', async () => {
+      const { server, workflowService } = await start({
+        deny: ['temporal.workflow.list'],
+      });
+      await request(server).get('/api/temporal/workflows').expect(403);
+      expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
+    });
+
+    it('opens any workflow without an entity with the list permission', async () => {
+      const { server, permissions } = await start();
+      const detail = await request(server).get(
+        '/api/temporal/namespaces/default/workflows/wf-1',
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowId).toBe('wf-1');
+      await request(server)
+        .get('/api/temporal/namespaces/default/workflows/wf-1/history')
+        .expect(200);
+      await request(server)
+        .get('/api/temporal/namespaces/default/workflows/wf-1/steps')
+        .expect(200);
+      // Only the list permission was checked, no entity.
+      for (const [requests] of permissions.authorize.mock.calls as any[]) {
+        expect(requests).toEqual([
+          {
+            permission: expect.objectContaining({
+              name: 'temporal.workflow.list',
+            }),
+          },
+        ]);
+      }
+    });
+
+    it('still checks the entity when entityRef is given', async () => {
+      const { server } = await start({ deny: [ref] });
+      await request(server)
+        .get(`/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`)
+        .expect(403);
+    });
   });
 });

@@ -26,11 +26,16 @@ import {
 } from '@backstage/errors';
 import {
   InvalidTemporalAnnotationError,
+  InvalidTemporalWorkflowSpecError,
+  isTemporalWorkflowEntity,
   parseTemporalAnnotations,
+  parseTemporalWorkflowSpec,
+  TemporalAnnotations,
   WorkflowDetail,
   WorkflowHistoryResponse,
   WorkflowListResponse,
   WorkflowRef,
+  WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
@@ -50,14 +55,40 @@ import {
 } from './convert';
 import {
   buildEntityWorkflowQuery,
+  buildNamespaceWorkflowQuery,
   EntityWorkflowFilter,
+  NamespaceWorkflowFilter,
+  matchingWorkflowEntity,
+  RelatedWorkflowSource,
   workflowBelongsToEntity,
 } from './query';
 
 export const LIST_PAGE_SIZE = { default: 20, max: 100 };
+/** Number of most recent runs the statistics are computed from. */
+export const STATS_LIMIT = { default: 50, max: 100 };
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
 /** Most history events read to build the steps of one run. */
 export const MAX_STEP_EVENTS = 5000;
+
+/**
+ * Reads the workflow filter of an entity: the spec of a `TemporalWorkflow`
+ * entity, the annotations of any other entity.
+ */
+export function readEntityWorkflowFilter(entity: Entity): TemporalAnnotations {
+  try {
+    return isTemporalWorkflowEntity(entity)
+      ? parseTemporalWorkflowSpec(entity)
+      : parseTemporalAnnotations(entity);
+  } catch (error) {
+    if (
+      error instanceof InvalidTemporalAnnotationError ||
+      error instanceof InvalidTemporalWorkflowSpecError
+    ) {
+      throw new InputError(error.message);
+    }
+    throw error;
+  }
+}
 
 const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
   'Failed',
@@ -101,23 +132,50 @@ export class WorkflowReader {
     private readonly logger: LoggerService,
   ) {}
 
-  /** Validates the entity's annotations and resolves its namespace. */
-  entityContext(entity: Entity): EntityContext {
-    let annotations;
-    try {
-      annotations = parseTemporalAnnotations(entity);
-    } catch (error) {
-      if (error instanceof InvalidTemporalAnnotationError) {
-        throw new InputError(error.message);
-      }
-      throw error;
-    }
+  /**
+   * Validates the entity's annotations (or `TemporalWorkflow` spec) and
+   * resolves its namespace. `relatedEntities` are the `TemporalWorkflow`
+   * entities it depends on; the ones in another namespace or with an invalid
+   * spec are left out.
+   */
+  entityContext(entity: Entity, relatedEntities: Entity[] = []): EntityContext {
+    const annotations = readEntityWorkflowFilter(entity);
     const namespace =
       annotations.namespace ?? this.temporal.getDefaultNamespace();
     if (!this.temporal.isNamespaceAllowed(namespace)) {
       throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
     }
     const entityRef = stringifyEntityRef(entity);
+    const related: RelatedWorkflowSource[] = [];
+    for (const relatedEntity of relatedEntities) {
+      const relatedRef = stringifyEntityRef(relatedEntity);
+      if (
+        !isTemporalWorkflowEntity(relatedEntity) ||
+        relatedRef === entityRef
+      ) {
+        continue;
+      }
+      let spec;
+      try {
+        spec = parseTemporalWorkflowSpec(relatedEntity);
+      } catch (error) {
+        this.logger.warn(`Skipping ${relatedRef}: ${error}`);
+        continue;
+      }
+      const relatedNamespace =
+        spec.namespace ?? this.temporal.getDefaultNamespace();
+      if (relatedNamespace !== namespace) {
+        this.logger.debug(
+          `Skipping ${relatedRef}: namespace ${relatedNamespace} differs from ${namespace}`,
+        );
+        continue;
+      }
+      related.push({
+        entityRef: relatedRef,
+        taskQueue: spec.taskQueue,
+        workflowTypes: spec.workflowTypes,
+      });
+    }
     return {
       entity,
       entityRef,
@@ -126,8 +184,13 @@ export class WorkflowReader {
         annotations,
         entityRef,
         entityRefAttribute: this.temporal.getSearchAttributeNames().entityRef,
+        related,
       },
     };
+  }
+
+  defaultNamespace(): string {
+    return this.temporal.getDefaultNamespace();
   }
 
   checkNamespace(namespace: string) {
@@ -193,13 +256,97 @@ export class WorkflowReader {
       })
       .catch(mapTemporalError);
     const convert = this.convertOptions(context.namespace);
-    const items = (response.executions ?? []).map(e =>
-      toWorkflowSummary(toJson(e), convert),
-    );
+    const items = (response.executions ?? []).map(e => {
+      const item = toWorkflowSummary(toJson(e), convert);
+      const workflowEntityRef = matchingWorkflowEntity(item, context.filter);
+      return workflowEntityRef ? { ...item, workflowEntityRef } : item;
+    });
     return {
       items: await this.enrich(items, context, options.credentials),
       nextPageToken: encodePageToken(response.nextPageToken),
       namespace: context.namespace,
+    };
+  }
+
+  /**
+   * Every workflow of a namespace, newest first, with optional filters.
+   * Enrichers do not run here: they need an entity.
+   */
+  async listNamespaceWorkflows(
+    namespace: string,
+    filter: NamespaceWorkflowFilter,
+    options: { pageSize: number; pageToken?: string },
+  ): Promise<WorkflowListResponse> {
+    this.checkNamespace(namespace);
+    const query = buildNamespaceWorkflowQuery(filter);
+    let nextPageToken: Uint8Array | undefined;
+    try {
+      nextPageToken = decodePageToken(options.pageToken);
+    } catch {
+      throw new InputError('Invalid page token');
+    }
+    const connection = await this.temporal.getConnection();
+    const response = await connection.workflowService
+      .listWorkflowExecutions({
+        namespace,
+        query,
+        pageSize: options.pageSize,
+        nextPageToken,
+      })
+      .catch(mapTemporalError);
+    const convert = this.convertOptions(namespace);
+    return {
+      items: (response.executions ?? []).map(e =>
+        toWorkflowSummary(toJson(e), convert),
+      ),
+      nextPageToken: encodePageToken(response.nextPageToken),
+      namespace,
+    };
+  }
+
+  /** Counts and mean duration of the entity's most recent runs. */
+  async stats(
+    context: EntityContext,
+    options: { limit: number },
+  ): Promise<WorkflowStatsResponse> {
+    const query = buildEntityWorkflowQuery(context.filter);
+    const connection = await this.temporal.getConnection();
+    const response = await connection.workflowService
+      .listWorkflowExecutions({
+        namespace: context.namespace,
+        query,
+        pageSize: options.limit,
+      })
+      .catch(mapTemporalError);
+    const convert = this.convertOptions(context.namespace);
+    const items = (response.executions ?? [])
+      .slice(0, options.limit)
+      .map(e => toWorkflowSummary(toJson(e), convert));
+    const byStatus: Partial<Record<WorkflowStatus, number>> = {};
+    let durationSum = 0;
+    let durationCount = 0;
+    for (const item of items) {
+      byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
+      if (item.startTime && item.closeTime) {
+        const ms = Date.parse(item.closeTime) - Date.parse(item.startTime);
+        if (Number.isFinite(ms) && ms >= 0) {
+          durationSum += ms;
+          durationCount += 1;
+        }
+      }
+    }
+    const count = (...statuses: WorkflowStatus[]) =>
+      statuses.reduce((sum, st) => sum + (byStatus[st] ?? 0), 0);
+    return {
+      namespace: context.namespace,
+      sampleSize: items.length,
+      limit: options.limit,
+      byStatus,
+      succeeded: count('Completed'),
+      failed: count(...CLOSED_WITH_FAILURE),
+      running: count('Running'),
+      averageDurationMs:
+        durationCount > 0 ? Math.round(durationSum / durationCount) : undefined,
     };
   }
 

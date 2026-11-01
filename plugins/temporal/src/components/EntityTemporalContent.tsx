@@ -18,7 +18,9 @@ import { Route, Routes } from 'react-router-dom';
 import { MissingAnnotationEmptyState } from '@backstage/core-components';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import {
+  getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
+  isTemporalWorkflowEntity,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -26,7 +28,11 @@ import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowSectionDef,
 } from '@kwkevinchan/backstage-plugin-temporal-react';
-import { WorkflowDetailPage } from './WorkflowDetailPage';
+import Grid from '@material-ui/core/Grid';
+import { TemporalRelatedWorkflowsCard } from './TemporalRelatedWorkflowsCard';
+import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';
+import { TemporalWorkflowSummaryCard } from './TemporalWorkflowSummaryCard';
+import { EntityWorkflowDetailPage } from './WorkflowDetailPage';
 import { WorkflowList } from './WorkflowList';
 
 /**
@@ -39,6 +45,43 @@ export interface EntityTemporalContentProps {
   workflowActions?: TemporalWorkflowActionDef[];
   /** Cards on the workflow details page. */
   workflowSections?: TemporalWorkflowSectionDef[];
+}
+
+/**
+ * Start of the tab. A `TemporalWorkflow` entity gets its summary and recent
+ * run statistics above the runs; an entity that depends on
+ * `TemporalWorkflow` entities gets the list of those entities.
+ */
+function TemporalOverview() {
+  const { entity } = useEntity();
+  if (isTemporalWorkflowEntity(entity)) {
+    return (
+      <Grid container spacing={3} alignItems="stretch">
+        <Grid item xs={12} md={6}>
+          <TemporalWorkflowSummaryCard />
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <TemporalWorkflowStatsCard />
+        </Grid>
+        <Grid item xs={12}>
+          <WorkflowList title="Runs" />
+        </Grid>
+      </Grid>
+    );
+  }
+  if (getDependsOnTemporalWorkflowRefs(entity).length > 0) {
+    return (
+      <Grid container spacing={3}>
+        <Grid item xs={12}>
+          <TemporalRelatedWorkflowsCard />
+        </Grid>
+        <Grid item xs={12}>
+          <WorkflowList />
+        </Grid>
+      </Grid>
+    );
+  }
+  return <WorkflowList />;
 }
 
 /** Entity tab: workflow list, and workflow details on a nested route. */
@@ -55,14 +98,14 @@ export function EntityTemporalContentPage(props: EntityTemporalContentProps) {
     );
   }
   const detail = (
-    <WorkflowDetailPage
+    <EntityWorkflowDetailPage
       workflowActions={props.workflowActions}
       workflowSections={props.workflowSections}
     />
   );
   return (
     <Routes>
-      <Route path="/" element={<WorkflowList />} />
+      <Route path="/" element={<TemporalOverview />} />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
         element={detail}

@@ -16,7 +16,7 @@
 
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { stringifyEntityRef } from '@backstage/catalog-model';
+import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import {
   InfoCard,
   Link,
@@ -25,7 +25,7 @@ import {
   StructuredMetadataTable,
 } from '@backstage/core-components';
 import { useApi } from '@backstage/core-plugin-api';
-import { useEntity } from '@backstage/plugin-catalog-react';
+import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   temporalApiRef,
@@ -62,18 +62,37 @@ function summaryMetadata(workflow: WorkflowDetail) {
   if (workflow.parent) {
     metadata['Parent workflow'] = workflow.parent.workflowId;
   }
+  if (workflow.entityRef) {
+    metadata['Catalog entity'] = (
+      <EntityRefLink entityRef={workflow.entityRef} />
+    );
+  }
   return metadata;
 }
 
-/** Details of one workflow execution, inside the entity tab. */
-export function WorkflowDetailPage(props: {
+/** Props of {@link WorkflowDetailPage}. */
+export interface WorkflowDetailPageProps {
   workflowActions?: TemporalWorkflowActionDef[];
   workflowSections?: TemporalWorkflowSectionDef[];
-}) {
-  const { workflowActions = [], workflowSections = [] } = props;
-  const params = useParams();
+}
+
+/** Details of one workflow execution, inside the entity tab. */
+export function EntityWorkflowDetailPage(props: WorkflowDetailPageProps) {
   const { entity } = useEntity();
-  const entityRef = stringifyEntityRef(entity);
+  return <WorkflowDetailPage {...props} entity={entity} />;
+}
+
+/**
+ * Details of one workflow execution. With an entity, the backend checks the
+ * permission on that entity; without one (the Workflows page), it checks
+ * `temporal.workflow.list`.
+ */
+export function WorkflowDetailPage(
+  props: WorkflowDetailPageProps & { entity?: Entity },
+) {
+  const { workflowActions = [], workflowSections = [], entity } = props;
+  const params = useParams();
+  const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   const temporalApi = useApi(temporalApiRef);
   const workflowRef = useMemo(
     () => ({

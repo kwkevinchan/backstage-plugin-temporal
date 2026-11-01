@@ -29,7 +29,10 @@ import {
 } from '@backstage/core-components';
 import { createApp } from '@backstage/app-defaults';
 import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
-import { temporalPlugin } from '@kwkevinchan/backstage-plugin-temporal';
+import {
+  TemporalPage,
+  temporalPlugin,
+} from '@kwkevinchan/backstage-plugin-temporal';
 import { apis } from './apis';
 import { entityPage } from './components/catalog/EntityPage';
 import { Root } from './components/Root';
@@ -57,6 +60,7 @@ const routes = (
     >
       {entityPage}
     </Route>
+    <Route path="/temporal" element={<TemporalPage />} />
     <Route path="/settings" element={<UserSettingsPage />} />
   </FlatRoutes>
 );

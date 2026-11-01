@@ -67,9 +67,15 @@ describe('temporal common', () => {
   });
 
   it('defines catalog-entity permissions', () => {
-    expect(temporalPermissions.map(p => [p.name, p.resourceType])).toEqual([
+    expect(
+      temporalPermissions.map(p => [
+        p.name,
+        'resourceType' in p ? p.resourceType : undefined,
+      ]),
+    ).toEqual([
       ['temporal.workflow.read', 'catalog-entity'],
       ['temporal.workflow.history.read', 'catalog-entity'],
+      ['temporal.workflow.list', undefined],
     ]);
   });
 });

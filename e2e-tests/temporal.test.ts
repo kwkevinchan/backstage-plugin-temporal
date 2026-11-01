@@ -41,6 +41,17 @@ function isIgnoredConsoleError(text: string): boolean {
   return text.startsWith('Warning: ') && !fromOurCode;
 }
 
+/**
+ * An entity page tab. In Backstage 1.56 the new frontend system renders the
+ * entity tabs as links in the page header; the legacy system keeps tabs.
+ */
+function entityTab(page: Page, name: string) {
+  return page
+    .getByRole('tab', { name, exact: true })
+    .or(page.getByRole('link', { name, exact: true }))
+    .first();
+}
+
 function watchPage(page: Page) {
   const consoleErrors: string[] = [];
   const serverErrors: string[] = [];
@@ -83,6 +94,8 @@ test('sign in, open the Temporal tab and a workflow', async ({ page }) => {
 
   // 2. Guest sign-in lands on the catalog.
   await enter.click();
+  await page.waitForURL(/\/catalog|\/$/);
+  const catalogPath = new URL(page.url()).pathname;
   const entityLink = page.getByRole('link', {
     name: /example-orders|Example orders service/,
   });
@@ -92,7 +105,7 @@ test('sign in, open the Temporal tab and a workflow', async ({ page }) => {
 
   // 3. Entity page.
   await entityLink.first().click();
-  const temporalTab = page.getByRole('tab', { name: 'Temporal' });
+  const temporalTab = entityTab(page, 'Temporal');
   await expect(temporalTab).toBeVisible();
   await shot('03-entity');
 
@@ -114,7 +127,7 @@ test('sign in, open the Temporal tab and a workflow', async ({ page }) => {
   await expect(page.getByText('Summary')).toBeVisible();
   await expect(page.getByText('Caused by').first()).toBeVisible();
   await expect(
-    page.getByText('Card ending 4242 was declined', { exact: true }),
+    page.getByText('Card ending 4242 was declined', { exact: true }).first(),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: 'Copy workflow ID' }),
@@ -157,7 +170,7 @@ test('sign in, open the Temporal tab and a workflow', async ({ page }) => {
 
   // 8. The tab does not depend on the kind: a Resource with the annotations.
   await page.goto('/catalog/default/resource/example-order-jobs');
-  await page.getByRole('tab', { name: 'Temporal' }).click();
+  await entityTab(page, 'Temporal').click();
   const resourceTable = page.getByRole('table', {
     name: 'Workflows',
     exact: true,
@@ -165,4 +178,85 @@ test('sign in, open the Temporal tab and a workflow', async ({ page }) => {
   await expect(resourceTable.getByText('orderWorkflow').first()).toBeVisible();
   await expect(resourceTable).not.toContainText('paymentWorkflow');
   await shot('08-resource-temporal-tab');
+
+  // 9. Catalog, kind picker set to TemporalWorkflow, then a workflow entity.
+  await page.goto(catalogPath);
+  await page.getByRole('button', { name: 'Component', exact: true }).click();
+  await page.getByRole('option', { name: 'TemporalWorkflow' }).click();
+  const workflowLink = page.getByRole('link', {
+    name: /Example order workflow|example-order-workflow/,
+  });
+  await expect(workflowLink.first()).toBeVisible();
+  await shot('09-catalog-temporal-workflows');
+  await workflowLink.first().click();
+  await expect(
+    page.getByText('Temporal workflow', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText('orderWorkflow').first()).toBeVisible();
+  await shot('10-temporal-workflow-entity');
+
+  // 10. Its Temporal tab: summary, recent run statistics and the runs.
+  await entityTab(page, 'Temporal').click();
+  await expect(page.getByText('Recent runs')).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Succeeded' })).toBeVisible();
+  const runs = page.getByRole('table', { name: 'Workflows', exact: true });
+  await expect(runs.getByText('orderWorkflow').first()).toBeVisible();
+  await expect(runs).not.toContainText('paymentWorkflow');
+  await shot('11-temporal-workflow-runs');
+
+  // 11. A run of the workflow entity.
+  await runs.getByRole('row').nth(1).getByRole('link').first().click();
+  await expect(page.getByText('Summary')).toBeVisible();
+  await expect(
+    page.getByRole('table', { name: 'Activities', exact: true }),
+  ).toContainText('reserveStock');
+  await shot('12-temporal-workflow-run');
+
+  // 12. A component that depends on the workflow entities: the entities and
+  // the merged runs (its own annotation and the two workflow entities).
+  await page.goto('/catalog/default/component/example-checkout');
+  await entityTab(page, 'Temporal').click();
+  const workflowEntities = page.getByRole('table', {
+    name: 'Workflow entities',
+  });
+  await expect(
+    workflowEntities.getByRole('link', {
+      name: /example-order-workflow|Example order workflow/,
+    }),
+  ).toBeVisible();
+  await expect(
+    workflowEntities.getByRole('link', {
+      name: /example-payment-workflow|Example payment workflow/,
+    }),
+  ).toBeVisible();
+  const merged = page.getByRole('table', { name: 'Workflows', exact: true });
+  await expect(merged.getByText('deploymentWorkflow').first()).toBeVisible();
+  await expect(merged.getByText('paymentWorkflow').first()).toBeVisible();
+  await expect(merged.getByText('orderWorkflow').first()).toBeVisible();
+  await shot('13-component-related-workflows');
+
+  // 13. Workflows page from the sidebar: every workflow, then one of them.
+  await page
+    .getByRole('link', { name: 'Workflows', exact: true })
+    .first()
+    .click();
+  const all = page.getByRole('table', { name: 'All workflows' });
+  await expect(all.getByText('paymentWorkflow').first()).toBeVisible();
+  await shot('14-workflows-page');
+  await page
+    .getByRole('textbox', { name: 'Workflow ID search' })
+    .fill('example-payment-');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await expect(all).not.toContainText('orderWorkflow');
+  await all
+    .getByRole('row')
+    .filter({ hasText: 'paymentWorkflow' })
+    .first()
+    .getByRole('link')
+    .first()
+    .click();
+  await expect(
+    page.getByText('Card ending 4242 was declined', { exact: true }).first(),
+  ).toBeVisible();
+  await shot('15-workflows-page-detail');
 });

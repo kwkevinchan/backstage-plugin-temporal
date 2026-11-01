@@ -1,0 +1,243 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import type { Entity } from '@backstage/catalog-model';
+import {
+  isValidNamespaceName,
+  isValidTaskQueueName,
+  isValidWorkflowTypeName,
+  NAME_PATTERN_SOURCES,
+  TemporalAnnotations,
+} from './annotations';
+
+/**
+ * API version of the `TemporalWorkflow` kind.
+ *
+ * @public
+ */
+export const TEMPORAL_WORKFLOW_API_VERSION = 'temporal.io/v1alpha1';
+
+/**
+ * Kind of catalog entities that describe one Temporal workflow type.
+ *
+ * @public
+ */
+export const TEMPORAL_WORKFLOW_KIND = 'TemporalWorkflow';
+
+/**
+ * A `TemporalWorkflow` entity: one workflow type, run by a task queue and
+ * owned by a group or user.
+ *
+ * @public
+ */
+export interface TemporalWorkflowEntityV1alpha1 extends Entity {
+  apiVersion: typeof TEMPORAL_WORKFLOW_API_VERSION;
+  kind: typeof TEMPORAL_WORKFLOW_KIND;
+  spec: {
+    /** Entity reference to the owner, for example `group:default/team-a`. */
+    owner: string;
+    /** Temporal workflow type name. */
+    workflowType: string;
+    /** Task queue the workflow runs on. */
+    taskQueue?: string;
+    /** Temporal namespace; defaults to `temporal.connection.defaultNamespace`. */
+    namespace?: string;
+    /** Entity reference to the system the workflow belongs to. */
+    system?: string;
+    /** Lifecycle, like on components: `experimental`, `production`. */
+    lifecycle?: string;
+    /** Entity references of what the workflow needs, like resources. */
+    dependsOn?: string[];
+  };
+}
+
+/**
+ * JSON schema of the `TemporalWorkflow` kind, for
+ * `entityKindSchemaValidator` from `@backstage/catalog-model`. Name patterns
+ * are the same as for the Temporal annotations.
+ *
+ * @public
+ */
+export const temporalWorkflowEntityV1alpha1Schema = {
+  $schema: 'http://json-schema.org/draft-07/schema',
+  $id: 'TemporalWorkflowV1alpha1',
+  description:
+    'A TemporalWorkflow describes one Temporal workflow type: what runs it and who owns it.',
+  examples: [
+    {
+      apiVersion: TEMPORAL_WORKFLOW_API_VERSION,
+      kind: TEMPORAL_WORKFLOW_KIND,
+      metadata: { name: 'order-workflow' },
+      spec: {
+        owner: 'group:default/orders-team',
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+        system: 'shop',
+      },
+    },
+  ],
+  allOf: [
+    { $ref: 'Entity' },
+    {
+      type: 'object',
+      required: ['spec'],
+      properties: {
+        apiVersion: { enum: [TEMPORAL_WORKFLOW_API_VERSION] },
+        kind: { enum: [TEMPORAL_WORKFLOW_KIND] },
+        spec: {
+          type: 'object',
+          required: ['owner', 'workflowType'],
+          additionalProperties: false,
+          properties: {
+            owner: {
+              type: 'string',
+              description: 'An entity reference to the owner.',
+              minLength: 1,
+            },
+            workflowType: {
+              type: 'string',
+              description: 'The Temporal workflow type name.',
+              pattern: NAME_PATTERN_SOURCES.workflowType,
+            },
+            taskQueue: {
+              type: 'string',
+              description: 'The task queue the workflow runs on.',
+              pattern: NAME_PATTERN_SOURCES.taskQueue,
+            },
+            namespace: {
+              type: 'string',
+              description:
+                'The Temporal namespace. Defaults to the configured default namespace.',
+              pattern: NAME_PATTERN_SOURCES.namespace,
+            },
+            system: {
+              type: 'string',
+              description:
+                'An entity reference to the system the workflow belongs to.',
+              minLength: 1,
+            },
+            lifecycle: {
+              type: 'string',
+              description: 'The lifecycle state of the workflow.',
+              minLength: 1,
+            },
+            dependsOn: {
+              type: 'array',
+              description:
+                'Entity references of what the workflow needs, like resources.',
+              items: { type: 'string', minLength: 1 },
+            },
+          },
+        },
+      },
+    },
+  ],
+} as const;
+
+/**
+ * True for entities of the `TemporalWorkflow` kind (any case).
+ *
+ * @public
+ */
+export function isTemporalWorkflowEntity(
+  entity: Entity,
+): entity is TemporalWorkflowEntityV1alpha1 {
+  return (
+    entity.kind.toLocaleLowerCase('en-US') ===
+    TEMPORAL_WORKFLOW_KIND.toLocaleLowerCase('en-US')
+  );
+}
+
+/**
+ * True for an entity reference that points at a `TemporalWorkflow` entity.
+ *
+ * @public
+ */
+export function isTemporalWorkflowEntityRef(entityRef: string): boolean {
+  return entityRef
+    .toLocaleLowerCase('en-US')
+    .startsWith(`${TEMPORAL_WORKFLOW_KIND.toLocaleLowerCase('en-US')}:`);
+}
+
+/**
+ * Thrown by {@link parseTemporalWorkflowSpec} for a spec that is not valid.
+ *
+ * @public
+ */
+export class InvalidTemporalWorkflowSpecError extends Error {
+  readonly field: string;
+
+  constructor(field: string, message: string) {
+    super(message);
+    this.name = 'InvalidTemporalWorkflowSpecError';
+    this.field = field;
+  }
+}
+
+function optionalSpecString(
+  spec: Record<string, unknown>,
+  field: string,
+): string | undefined {
+  const value = spec[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string') {
+    throw new InvalidTemporalWorkflowSpecError(
+      field,
+      `spec.${field} must be a string`,
+    );
+  }
+  return value.trim() || undefined;
+}
+
+/**
+ * Reads the workflow filter of a `TemporalWorkflow` entity from its spec, with
+ * the same name rules as the annotations.
+ *
+ * @throws {@link InvalidTemporalWorkflowSpecError} for a missing workflow type
+ * or a name with characters that are not allowed.
+ * @public
+ */
+export function parseTemporalWorkflowSpec(entity: Entity): TemporalAnnotations {
+  const spec = (entity.spec ?? {}) as Record<string, unknown>;
+  const workflowType = optionalSpecString(spec, 'workflowType');
+  const taskQueue = optionalSpecString(spec, 'taskQueue');
+  const namespace = optionalSpecString(spec, 'namespace');
+  if (!workflowType) {
+    throw new InvalidTemporalWorkflowSpecError(
+      'workflowType',
+      'spec.workflowType is required',
+    );
+  }
+  if (!isValidWorkflowTypeName(workflowType)) {
+    throw new InvalidTemporalWorkflowSpecError(
+      'workflowType',
+      'Invalid value in spec.workflowType',
+    );
+  }
+  if (taskQueue && !isValidTaskQueueName(taskQueue)) {
+    throw new InvalidTemporalWorkflowSpecError(
+      'taskQueue',
+      'Invalid value in spec.taskQueue',
+    );
+  }
+  if (namespace && !isValidNamespaceName(namespace)) {
+    throw new InvalidTemporalWorkflowSpecError(
+      'namespace',
+      'Invalid value in spec.namespace',
+    );
+  }
+  return { namespace, taskQueue, workflowTypes: [workflowType] };
+}
