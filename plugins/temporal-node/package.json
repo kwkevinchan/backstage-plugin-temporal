@@ -32,7 +32,8 @@
       "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
       "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node"
+      "@kwkevinchan/backstage-plugin-temporal-node",
+      "@kwkevinchan/backstage-plugin-temporal-react"
     ]
   },
   "scripts": {
@@ -48,6 +49,17 @@
     "@backstage/cli": "backstage:^"
   },
   "files": [
-    "dist"
-  ]
+    "dist",
+    "config.d.ts"
+  ],
+  "dependencies": {
+    "@backstage/backend-plugin-api": "backstage:^",
+    "@backstage/catalog-model": "backstage:^",
+    "@backstage/config": "backstage:^",
+    "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/types": "backstage:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
+    "@temporalio/client": "~1.24.0"
+  },
+  "configSchema": "config.d.ts"
 }

@@ -33,7 +33,8 @@
       "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
       "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node"
+      "@kwkevinchan/backstage-plugin-temporal-node",
+      "@kwkevinchan/backstage-plugin-temporal-react"
     ]
   },
   "sideEffects": false,
@@ -50,5 +51,10 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "@backstage/catalog-model": "backstage:^",
+    "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/types": "backstage:^"
+  }
 }

@@ -32,11 +32,11 @@
       "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
       "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node"
+      "@kwkevinchan/backstage-plugin-temporal-node",
+      "@kwkevinchan/backstage-plugin-temporal-react"
     ]
   },
   "scripts": {
-    "start": "backstage-cli package start",
     "build": "backstage-cli package build",
     "lint": "backstage-cli package lint",
     "test": "backstage-cli package test",
@@ -45,19 +45,25 @@
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
-    "@backstage/backend-defaults": "backstage:^",
     "@backstage/backend-plugin-api": "backstage:^",
-    "@backstage/catalog-client": "backstage:^",
+    "@backstage/catalog-model": "backstage:^",
     "@backstage/errors": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
+    "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/plugin-permission-node": "backstage:^",
     "@backstage/types": "backstage:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",
+    "@temporalio/client": "~1.24.0",
     "express": "^4.14.0",
-    "express-promise-router": "^4.1.0",
-    "zod": "^3.25.76 || ^4.0.0"
+    "express-promise-router": "^4.1.0"
   },
   "devDependencies": {
+    "@backstage/backend-defaults": "backstage:^",
     "@backstage/backend-test-utils": "backstage:^",
     "@backstage/cli": "backstage:^",
+    "@backstage/plugin-catalog-backend": "backstage:^",
+    "@backstage/plugin-permission-backend": "backstage:^",
     "@types/express": "^4.17.6",
     "@types/supertest": "^2.0.12",
     "supertest": "^6.2.4"

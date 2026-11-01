@@ -108,3 +108,72 @@ jobs:
 
       - name: Build
         run: yarn backstage-cli repo build --all
+
+  e2e:
+    name: Smoke (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [app, app-next]
+    env:
+      CI: true
+      NODE_OPTIONS: --max-old-space-size=8192
+      SMOKE_APP: ${{ matrix.app }}
+      SMOKE_SHOT_DIR: e2e-test-results/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Cache yarn
+        uses: actions/cache@v4
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - name: Install
+        run: yarn install --immutable
+        env:
+          HUSKY: 0
+
+      - name: Install Temporal CLI
+        run: |
+          curl -sSf https://temporal.download/cli.sh | sh
+          echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
+
+      - name: Start Temporal development server
+        run: |
+          temporal server start-dev --headless --port 7233 \
+            --search-attribute BackstageEntityRef=Keyword > temporal.log 2>&1 &
+          for i in $(seq 1 60); do
+            temporal operator cluster health 2>/dev/null | grep -q SERVING && break
+            sleep 2
+          done
+          temporal operator cluster health
+
+      - name: Start example workflows
+        run: yarn workspace example-worker start
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke test
+        run: yarn test:e2e
+
+      - name: Upload screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.app }}
+          path: |
+            e2e-test-results/
+            e2e-test-report/
+            temporal.log
+          retention-days: 7

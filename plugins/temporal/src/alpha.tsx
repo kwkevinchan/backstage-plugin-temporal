@@ -26,20 +26,67 @@ import {
   convertLegacyRouteRefs,
 } from '@backstage/core-compat-api';
 import {
+  ApiBlueprint,
+  createExtensionInput,
   createFrontendPlugin,
-  PageBlueprint,
+  discoveryApiRef,
+  fetchApiRef,
 } from '@backstage/frontend-plugin-api';
-import { rootRouteRef } from './routes';
+import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
+import { isTemporalAvailable } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import {
+  temporalWorkflowActionDataRef,
+  temporalWorkflowSectionDataRef,
+} from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
+import { TemporalClient } from './api';
+import { entityContentRouteRef } from './routes';
 
 /** @alpha */
-export const temporalPage = PageBlueprint.make({
-  params: {
-    path: '/temporal',
-    routeRef: convertLegacyRouteRef(rootRouteRef),
-    loader: () =>
-      import('./components/ExampleComponent').then(m =>
-        compatWrapper(<m.ExampleComponent />),
-      ),
+export const temporalApi = ApiBlueprint.make({
+  params: defineParams =>
+    defineParams({
+      api: temporalApiRef,
+      deps: { discoveryApi: discoveryApiRef, fetchApi: fetchApiRef },
+      factory: ({ discoveryApi, fetchApi }) =>
+        new TemporalClient({ discoveryApi, fetchApi }),
+    }),
+});
+
+/**
+ * Entity tab. Workflow actions and sections from
+ * `TemporalWorkflowActionBlueprint` and `TemporalWorkflowSectionBlueprint`
+ * attach to its `workflowActions` and `workflowSections` inputs.
+ *
+ * @alpha
+ */
+export const temporalEntityContent = EntityContentBlueprint.makeWithOverrides({
+  inputs: {
+    workflowActions: createExtensionInput([temporalWorkflowActionDataRef]),
+    workflowSections: createExtensionInput([temporalWorkflowSectionDataRef]),
+  },
+  factory(originalFactory, { inputs }) {
+    const workflowActions = inputs.workflowActions.map(i =>
+      i.get(temporalWorkflowActionDataRef),
+    );
+    const workflowSections = inputs.workflowSections.map(i =>
+      i.get(temporalWorkflowSectionDataRef),
+    );
+    return originalFactory({
+      path: 'temporal',
+      title: 'Temporal',
+      routeRef: convertLegacyRouteRef(entityContentRouteRef),
+      filter: isTemporalAvailable,
+      loader: () =>
+        import('./components/EntityTemporalContent').then(m =>
+          compatWrapper(
+            <m.EntityTemporalContentPage
+              workflowActions={workflowActions}
+              workflowSections={workflowSections}
+            />,
+          ),
+        ),
+    });
   },
 });
 
@@ -50,8 +97,8 @@ export const temporalPage = PageBlueprint.make({
  */
 export default createFrontendPlugin({
   pluginId: 'temporal',
-  extensions: [temporalPage],
+  extensions: [temporalApi, temporalEntityContent],
   routes: convertLegacyRouteRefs({
-    root: rootRouteRef,
+    entityContent: entityContentRouteRef,
   }),
 });

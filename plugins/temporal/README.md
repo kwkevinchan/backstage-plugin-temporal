@@ -1,13 +1,14 @@
-# temporal
+# @kwkevinchan/backstage-plugin-temporal
 
-Welcome to the temporal plugin!
+Unofficial Backstage frontend plugin for [Temporal](https://temporal.io). Adds
+a **Temporal** tab to catalog entities with Temporal annotations: the workflow
+list (status filter, paging) and workflow details (summary, failure with its
+cause chain, pending activities, event history, link to the Temporal UI).
 
-_This plugin was created through the Backstage CLI_
+- Legacy frontend system: `temporalPlugin`, `EntityTemporalContent`,
+  `isTemporalAvailable`.
+- New frontend system: the default export of `./alpha`.
 
-## Getting started
-
-Your plugin has been added to the example app in this repository, meaning you'll be able to access it by running `yarn start` in the root directory, and then navigating to [/temporal](http://localhost:3000/temporal).
-
-You can also serve the plugin in isolation by running `yarn start` in the plugin directory.
-This method of serving the plugin provides quicker iteration speed and a faster startup and hot reloads.
-It is only meant for local development, and the setup for it can be found inside the [/dev](./dev) directory.
+Extensions for the workflow page come from
+`@kwkevinchan/backstage-plugin-temporal-react`. See the
+[repository README](../../README.md) for installation and configuration.

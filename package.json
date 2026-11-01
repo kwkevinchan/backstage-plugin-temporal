@@ -30,7 +30,8 @@
     "boundaries": "node scripts/check-boundaries.mjs",
     "boundaries:selftest": "node scripts/check-boundaries.test.mjs",
     "changeset": "changeset",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:e2e:next": "SMOKE_APP=app-next playwright test"
   },
   "workspaces": [
     "packages/*",
@@ -50,7 +51,6 @@
   "devDependencies": {
     "@backstage/cli": "backstage:^",
     "@backstage/cli-defaults": "backstage:^",
-    "@backstage/e2e-test-utils": "backstage:^",
     "@changesets/cli": "^2.29.0",
     "@jest/environment-jsdom-abstract": "~30.2.0",
     "@playwright/test": "^1.32.3",
