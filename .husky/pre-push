@@ -1,0 +1,4 @@
+base="$(git merge-base HEAD origin/main 2>/dev/null || true)"
+if [ -n "$base" ]; then
+  node scripts/check-boundaries.mjs --range "$base..HEAD"
+fi
