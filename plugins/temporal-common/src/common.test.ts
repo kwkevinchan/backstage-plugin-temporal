@@ -76,6 +76,7 @@ describe('temporal common', () => {
       ['temporal.workflow.read', 'catalog-entity'],
       ['temporal.workflow.history.read', 'catalog-entity'],
       ['temporal.workflow.list', undefined],
+      ['temporal.workflow.history.list', undefined],
     ]);
   });
 });

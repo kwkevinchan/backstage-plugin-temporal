@@ -153,7 +153,9 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
 
   // 4. Temporal tab with the workflow list and the progress of each run.
   await temporalTab.click();
-  await expect(page.getByText('Temporal workflows')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Temporal workflows' }),
+  ).toBeVisible();
   const runs = table(page, 'Workflows');
   await expect(runs).toBeVisible();
   await expect(runs.getByText('Failed').first()).toBeVisible();
@@ -267,7 +269,9 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
 
   // 12. Its Temporal tab: summary, recent run statistics and the runs.
   await entityTab(page, 'Temporal').click();
-  await expect(page.getByText('Recent runs')).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Recent runs' }),
+  ).toBeVisible();
   await expect(page.getByRole('group', { name: 'Succeeded' })).toBeVisible();
   const entityRuns = table(page, 'Workflows');
   await expect(entityRuns.getByText('orderWorkflow').first()).toBeVisible();
