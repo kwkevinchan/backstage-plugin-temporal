@@ -5,3 +5,5 @@ coverage
 .yarn
 yarn.lock
 .changeset/*.md
+e2e-test-report
+e2e-test-results

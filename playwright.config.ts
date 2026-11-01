@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Backstage Authors
+ * Copyright 2026 The backstage-plugin-temporal Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,52 +15,51 @@
  */
 
 import { defineConfig } from '@playwright/test';
-import { generateProjects } from '@backstage/e2e-test-utils/playwright';
 
 /**
- * See https://playwright.dev/docs/test-configuration.
+ * Smoke test of one development app against the development backend.
+ *
+ *   SMOKE_APP=app yarn test:e2e        # legacy frontend system
+ *   SMOKE_APP=app-next yarn test:e2e   # new frontend system
+ *
+ * The backend needs a reachable Temporal server with the example workflows
+ * (`yarn workspace example-worker start`). Screenshots of every step go to
+ * SMOKE_SHOT_DIR (default e2e-test-results/<app>).
  */
+const app = process.env.SMOKE_APP ?? 'app';
+const ci = Boolean(process.env.CI);
+
 export default defineConfig({
-  timeout: 60_000,
-
-  expect: {
-    timeout: 30_000,
-  },
-
-  // Run your local dev server before starting the tests
-  webServer: process.env.CI
-    ? []
-    : [
-        {
-          command: 'yarn start app',
-          url: 'http://localhost:3000',
-          reuseExistingServer: true,
-          timeout: 120_000,
-        },
-        {
-          command: 'yarn start backend',
-          port: 7007,
-          reuseExistingServer: true,
-          timeout: 60_000,
-        },
-      ],
-
-  forbidOnly: !!process.env.CI,
-
-  retries: process.env.CI ? 2 : 0,
-
-  reporter: [['html', { open: 'never', outputFolder: 'e2e-test-report' }]],
-
+  testDir: 'e2e-tests',
+  timeout: 180_000,
+  expect: { timeout: 30_000 },
+  workers: 1,
+  forbidOnly: ci,
+  retries: ci ? 1 : 0,
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: `e2e-test-report/${app}` }],
+  ],
+  webServer: [
+    {
+      command: `yarn workspace ${app} start`,
+      url: 'http://localhost:3000',
+      reuseExistingServer: !ci,
+      timeout: 600_000,
+    },
+    {
+      command: 'yarn workspace backend start',
+      url: 'http://localhost:7007/.backstage/health/v1/readiness',
+      reuseExistingServer: !ci,
+      timeout: 600_000,
+    },
+  ],
   use: {
-    actionTimeout: 0,
-    baseURL:
-      process.env.PLAYWRIGHT_URL ??
-      (process.env.CI ? 'http://localhost:7007' : 'http://localhost:3000'),
+    baseURL: 'http://localhost:3000',
+    viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
-
-  outputDir: 'node_modules/.cache/e2e-test-results',
-
-  projects: generateProjects(), // Find all packages with e2e-test folders
+  outputDir: `node_modules/.cache/e2e-test-results/${app}`,
+  projects: [{ name: app }],
 });

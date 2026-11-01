@@ -55,6 +55,25 @@ module.exports = defineConfig({
   async constraints({ Yarn }) {
     const byIdent = new Map(Yarn.workspaces().map(w => [w.ident, w]));
 
+    // Published packages of one plugin list each other in
+    // backstage.pluginPackages (used by the Backstage CLI and tooling).
+    const packagesByPluginId = new Map();
+    for (const workspace of Yarn.workspaces()) {
+      const pluginId = workspace.manifest.backstage?.pluginId;
+      if (!pluginId || workspace.manifest.private === true) continue;
+      const list = packagesByPluginId.get(pluginId) ?? [];
+      list.push(workspace.ident);
+      packagesByPluginId.set(pluginId, list);
+    }
+    for (const workspace of Yarn.workspaces()) {
+      const pluginId = workspace.manifest.backstage?.pluginId;
+      if (!pluginId || workspace.manifest.private === true) continue;
+      workspace.set(
+        'backstage.pluginPackages',
+        [...packagesByPluginId.get(pluginId)].sort(),
+      );
+    }
+
     for (const workspace of Yarn.workspaces()) {
       const isPrivate = workspace.manifest.private === true;
       const isRoot = workspace.cwd === '.';
@@ -130,6 +149,55 @@ module.exports = defineConfig({
         ) {
           dep.error(`frontend packages must not depend on ${dep.ident}`);
         }
+      }
+
+      // Backend packages: no frontend workspaces or browser-only packages.
+      // (A backend may bundle the app it serves.)
+      const servesApp = role === 'backend' && targetRole === 'frontend';
+      if (
+        BACKEND_ROLES.has(role) &&
+        dep.type !== 'devDependencies' &&
+        !servesApp
+      ) {
+        if (
+          (targetRole && FRONTEND_ROLES.has(targetRole)) ||
+          isWebOnlyDep(dep.ident)
+        ) {
+          dep.error(`backend packages must not depend on ${dep.ident}`);
+        }
+      }
+
+      // Libraries stay below plugins: a web-library (for example the
+      // extension points in temporal-react) must not depend on a frontend
+      // plugin, and a node-library must not depend on a backend plugin.
+      if (
+        role === 'web-library' &&
+        dep.type !== 'devDependencies' &&
+        (targetRole === 'frontend-plugin' ||
+          targetRole === 'frontend-plugin-module')
+      ) {
+        dep.error(`web-library packages must not depend on ${dep.ident}`);
+      }
+      if (
+        role === 'node-library' &&
+        dep.type !== 'devDependencies' &&
+        (targetRole === 'backend-plugin' ||
+          targetRole === 'backend-plugin-module')
+      ) {
+        dep.error(`node-library packages must not depend on ${dep.ident}`);
+      }
+
+      // Published packages talk to Temporal through the client only; the
+      // worker and workflow packages (native code, sandbox) stay out.
+      if (
+        isPublished &&
+        dep.type !== 'devDependencies' &&
+        /^@temporalio\//.test(dep.ident) &&
+        dep.ident !== '@temporalio/client'
+      ) {
+        dep.error(
+          `Published packages may only use @temporalio/client, not ${dep.ident}`,
+        );
       }
 
       // Workspace dependencies use the workspace protocol.

@@ -7,7 +7,24 @@ metadata:
 spec:
   owner: guests
 ---
-# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-component
+# A component whose workflows run on the `backstage-example` task queue.
+# Start the example workflows with `yarn workspace example-worker start`.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: example-orders
+  title: Example orders service
+  description: Example service with Temporal workflows (success, failure, running).
+  annotations:
+    temporal.io/namespace: default
+    temporal.io/task-queue: backstage-example
+    temporal.io/workflow-type: orderWorkflow,paymentWorkflow,deploymentWorkflow
+spec:
+  type: service
+  lifecycle: experimental
+  owner: guests
+  system: examples
+---
 apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
@@ -17,25 +34,19 @@ spec:
   lifecycle: experimental
   owner: guests
   system: examples
-  providesApis: [example-grpc-api]
 ---
-# https://backstage.io/docs/features/software-catalog/descriptor-format#kind-api
+# The Temporal tab does not depend on the kind: any entity with the
+# annotations gets it.
 apiVersion: backstage.io/v1alpha1
-kind: API
+kind: Resource
 metadata:
-  name: example-grpc-api
+  name: example-order-jobs
+  title: Example order jobs
+  description: Example resource that shows only the order workflows.
+  annotations:
+    temporal.io/task-queue: backstage-example
+    temporal.io/workflow-type: orderWorkflow
 spec:
-  type: grpc
-  lifecycle: experimental
+  type: workflow
   owner: guests
   system: examples
-  definition: |
-    syntax = "proto3";
-
-    service Exampler {
-      rpc Example (ExampleMessage) returns (ExampleMessage) {};
-    }
-
-    message ExampleMessage {
-      string example = 1;
-    };

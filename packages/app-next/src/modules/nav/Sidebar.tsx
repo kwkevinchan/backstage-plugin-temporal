@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import {
   Sidebar,
   SidebarDivider,
@@ -9,10 +25,7 @@ import {
 import { NavContentBlueprint } from '@backstage/plugin-app-react';
 import { SidebarLogo } from './SidebarLogo';
 import MenuIcon from '@material-ui/icons/Menu';
-import SearchIcon from '@material-ui/icons/Search';
-import { SidebarSearchModal } from '@backstage/plugin-search';
 import { UserSettingsSignInAvatar } from '@backstage/plugin-user-settings';
-import { NotificationsSidebarItem } from '@backstage/plugin-notifications';
 
 export const SidebarContent = NavContentBlueprint.make({
   params: {
@@ -21,19 +34,11 @@ export const SidebarContent = NavContentBlueprint.make({
         <SidebarItem icon={() => item.icon} to={item.href} text={item.title} />
       ));
 
-      // Skipped items
-      nav.take('page:search'); // Using search modal instead
-
       return (
         <Sidebar>
           <SidebarLogo />
-          <SidebarGroup label="Search" icon={<SearchIcon />} to="/search">
-            <SidebarSearchModal />
-          </SidebarGroup>
-          <SidebarDivider />
           <SidebarGroup label="Menu" icon={<MenuIcon />}>
             {nav.take('page:catalog')}
-            {nav.take('page:scaffolder')}
             <SidebarDivider />
             <SidebarScrollWrapper>
               {nav.rest({ sortBy: 'title' })}
@@ -41,14 +46,11 @@ export const SidebarContent = NavContentBlueprint.make({
           </SidebarGroup>
           <SidebarSpace />
           <SidebarDivider />
-          <NotificationsSidebarItem />
-          <SidebarDivider />
           <SidebarGroup
             label="Settings"
             icon={<UserSettingsSignInAvatar />}
             to="/settings"
           >
-            {nav.take('page:app-visualizer')}
             {nav.take('page:user-settings')}
           </SidebarGroup>
         </Sidebar>

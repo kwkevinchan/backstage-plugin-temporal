@@ -1,28 +1,21 @@
-# temporal
+# @kwkevinchan/backstage-plugin-temporal-backend
 
-This plugin backend was templated using the Backstage CLI. You should replace this text with a description of your plugin backend.
+Unofficial Backstage backend plugin for [Temporal](https://temporal.io).
+Serves a read-only API under `/api/temporal`:
 
-## Installation
+| Method | Path                                                                 | Permission                       |
+| ------ | -------------------------------------------------------------------- | -------------------------------- |
+| GET    | `/entities/:kind/:namespace/:name/workflows`                         | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`         | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history` | `temporal.workflow.history.read` |
 
-This plugin is installed via the `@kwkevinchan/backstage-plugin-temporal-backend` package. To install it to your backend package, run the following command:
-
-```bash
-# From your root directory
-yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-temporal-backend
-```
-
-Then add the plugin to your backend in `packages/backend/src/index.ts`:
+Query parameters: `status`, `pageSize`, `pageToken` (list); `entityRef`
+(details and history; without it the entity comes from the
+`searchAttributes.entityRef` search attribute); `pageSize`, `pageToken`
+(history).
 
 ```ts
-const backend = createBackend();
-// ...
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
 ```
 
-## Development
-
-This plugin backend can be started in a standalone mode from directly in this
-package with `yarn start`. It is a limited setup that is most convenient when
-developing the plugin backend itself.
-
-If you want to run the entire project, including the frontend, run `yarn start` from the root directory.
+See the [repository README](../../README.md) for configuration.

@@ -45,12 +45,12 @@
       "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
       "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node"
+      "@kwkevinchan/backstage-plugin-temporal-node",
+      "@kwkevinchan/backstage-plugin-temporal-react"
     ]
   },
   "sideEffects": false,
   "scripts": {
-    "start": "backstage-cli package start",
     "build": "backstage-cli package build",
     "lint": "backstage-cli package lint",
     "test": "backstage-cli package test",
@@ -59,11 +59,16 @@
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
+    "@backstage/catalog-model": "backstage:^",
     "@backstage/core-compat-api": "backstage:^",
     "@backstage/core-components": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
+    "@backstage/errors": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
-    "@backstage/theme": "backstage:^",
+    "@backstage/plugin-catalog-react": "backstage:^",
+    "@backstage/types": "backstage:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-react": "workspace:^",
     "@material-ui/core": "^4.9.13",
     "@material-ui/icons": "^4.9.1",
     "@material-ui/lab": "^4.0.0-alpha.61",
@@ -78,11 +83,11 @@
     "@backstage/cli": "backstage:^",
     "@backstage/core-app-api": "backstage:^",
     "@backstage/dev-utils": "backstage:^",
+    "@backstage/frontend-test-utils": "backstage:^",
     "@backstage/test-utils": "backstage:^",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
     "@testing-library/user-event": "^14.0.0",
-    "msw": "^1.0.0",
     "react": "^16.13.1 || ^17.0.0 || ^18.0.0",
     "react-dom": "^16.13.1 || ^17.0.0 || ^18.0.0",
     "react-router-dom": "^6.0.0"

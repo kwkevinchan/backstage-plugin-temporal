@@ -1,0 +1,21 @@
+{
+  "name": "example-worker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Starts example Temporal workflows for local development of the plugin",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
+    "directory": "packages/example-worker"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@temporalio/activity": "~1.24.0",
+    "@temporalio/client": "~1.24.0",
+    "@temporalio/worker": "~1.24.0",
+    "@temporalio/workflow": "~1.24.0"
+  }
+}
