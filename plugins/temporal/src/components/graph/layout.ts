@@ -28,7 +28,7 @@ const COLUMN_GAP = 56;
 const ROW_GAP = 24;
 const MARGIN = 16;
 /** Space between two rows of a wrapped graph. */
-const WRAP_GAP = 48;
+const WRAP_GAP = 40;
 
 /** Smallest font size of a step box, in pixels at zoom 1. */
 export const NODE_FONT_SIZE = 13;
@@ -38,7 +38,7 @@ export const NODE_FONT_SIZE = 13;
  */
 export const READABLE_ZOOM = 0.93;
 export const MIN_GRAPH_HEIGHT = 160;
-export const MAX_GRAPH_HEIGHT = 640;
+export const MAX_GRAPH_HEIGHT = 720;
 
 /**
  * Steps shown in the graph. Internal steps are left out, and so are
@@ -286,6 +286,27 @@ export function panIntoView(
   return {
     x: viewport.x + shift(left, NODE_WIDTH * zoom, canvas.width),
     y: viewport.y + shift(top, NODE_HEIGHT * zoom, canvas.height),
+    zoom,
+  };
+}
+
+/**
+ * The view moved back as little as needed so the graph does not leave
+ * empty space where steps could be: a graph wider (or taller) than the
+ * canvas covers it from edge to edge, one that fits stays inside it. So the
+ * first column keeps its margin and is never cut off.
+ */
+export function keepInGraph(
+  viewport: Viewport,
+  layout: { width: number; height: number },
+  canvas: { width: number; height: number },
+): Viewport {
+  const { zoom } = viewport;
+  const clamp = (value: number, spare: number) =>
+    Math.min(Math.max(value, Math.min(0, spare)), Math.max(0, spare));
+  return {
+    x: clamp(viewport.x, canvas.width - layout.width * zoom),
+    y: clamp(viewport.y, canvas.height - layout.height * zoom),
     zoom,
   };
 }

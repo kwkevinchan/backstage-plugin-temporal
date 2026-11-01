@@ -111,6 +111,14 @@ function shooter(page: Page, watched: ReturnType<typeof watchPage>) {
   };
 }
 
+/** A screenshot of the whole graph with the step panel next to it. */
+async function graphShot(page: Page, name: string) {
+  mkdirSync(shotDir, { recursive: true });
+  await page
+    .getByTestId('workflow-graph-layout')
+    .screenshot({ path: join(shotDir, `${name}.png`) });
+}
+
 /**
  * Font sizes of the step boxes as drawn on screen: the CSS font size times
  * the zoom of the graph.
@@ -141,6 +149,64 @@ async function insideGraph(page: Page, name: RegExp): Promise<boolean> {
     box.x + box.width <= graph.x + graph.width + 1 &&
     box.y + box.height <= graph.y + graph.height + 1
   );
+}
+
+/**
+ * Names of the step boxes that are not fully inside the visible graph area:
+ * cut off at an edge or under the step panel.
+ */
+async function stepsOutsideGraph(page: Page): Promise<string[]> {
+  const graph = await page.getByTestId('workflow-graph').boundingBox();
+  const drawerLocator = page.getByTestId('step-drawer');
+  const drawer = (await drawerLocator.count())
+    ? await drawerLocator.boundingBox()
+    : null;
+  if (!graph) return ['(no graph)'];
+  const outside: string[] = [];
+  for (const box of await stepBoxes(page).all()) {
+    const b = await box.boundingBox();
+    const name = (await box.getAttribute('aria-label')) ?? '?';
+    if (!b) {
+      outside.push(name);
+      continue;
+    }
+    const inside =
+      b.x >= graph.x - 1 &&
+      b.y >= graph.y - 1 &&
+      b.x + b.width <= graph.x + graph.width + 1 &&
+      b.y + b.height <= graph.y + graph.height + 1;
+    const underPanel =
+      drawer !== null &&
+      b.x + b.width > drawer.x + 1 &&
+      b.x < drawer.x + drawer.width - 1 &&
+      b.y + b.height > drawer.y + 1 &&
+      b.y < drawer.y + drawer.height - 1;
+    if (!inside || underPanel) outside.push(name);
+  }
+  return outside;
+}
+
+/** The step box farthest to the right in the graph. */
+async function rightmostStep(page: Page) {
+  const boxes = await stepBoxes(page).all();
+  let best = boxes[0];
+  let bestRight = -Infinity;
+  for (const box of boxes) {
+    const b = await box.boundingBox();
+    if (b && b.x + b.width > bestRight) {
+      bestRight = b.x + b.width;
+      best = box;
+    }
+  }
+  return best;
+}
+
+/** The step boxes of the graph (not its zoom buttons). */
+function stepBoxes(page: Page) {
+  return page
+    .getByTestId('workflow-graph')
+    .locator('.react-flow__node')
+    .getByRole('button');
 }
 
 /** Waits until the graph has stopped moving (pan and zoom animations). */
@@ -298,6 +364,17 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   );
   await graphSettled(page);
   await shot('11-workflow-waiting');
+  // With the panel open the graph is laid out again for the narrower area:
+  // every step stays in view.
+  await step(page, /^Waiting for approval, Waiting/).click();
+  await expect(page.getByTestId('step-drawer')).toBeVisible();
+  // The graph is laid out again once the width of its area has settled.
+  await expect.poll(() => stepsOutsideGraph(page)).toEqual([]);
+  await graphSettled(page);
+  expect(await stepsOutsideGraph(page)).toEqual([]);
+  await shot('11-workflow-waiting-panel');
+  await graphShot(page, '11-workflow-waiting-panel-graph');
+  await page.getByRole('button', { name: 'Close step details' }).click();
 
   // 10. A long run: twelve stages with a patch marker before each one. It
   // opens at a readable size from its first step, without the markers.
@@ -314,7 +391,19 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     expect(size).toBeGreaterThanOrEqual(12);
   }
   await shot('20-long-workflow');
-  // The panel opens without shrinking the graph; the step stays in view.
+  // The panel opens on a step of the rightmost column: the graph wraps
+  // again for the narrower area, every step is in view (none under the
+  // panel, the first column not cut off) and stays readable.
+  await (await rightmostStep(page)).click();
+  await expect(page.getByTestId('step-drawer')).toBeVisible();
+  // The graph is laid out again once the width of its area has settled.
+  await expect.poll(() => stepsOutsideGraph(page)).toEqual([]);
+  await graphSettled(page);
+  expect(await stepsOutsideGraph(page)).toEqual([]);
+  for (const size of await drawnFontSizes(page)) {
+    expect(size).toBeGreaterThanOrEqual(12);
+  }
+  await graphShot(page, '21-long-workflow-panel-graph');
   await step(page, /^notifyTeam, Completed/).click();
   await expect(page.getByTestId('step-drawer')).toContainText('notifyTeam');
   await graphSettled(page);
@@ -505,15 +594,19 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await expect(step(page, /^waitForUpstream/)).toBeVisible();
   await shot('dark-05-workflows-page-running');
   await openRunFromWorkflowsPage(page, 'pipelineWorkflow');
-  await step(page, /^deployProduction, Completed/).click();
-  await expect(page.getByTestId('step-drawer')).toContainText(
-    'deployProduction',
-  );
+  await expect(step(page, /^notifyTeam, Completed/)).toBeVisible();
   await graphSettled(page);
+  await (await rightmostStep(page)).click();
+  await expect(page.getByTestId('step-drawer')).toBeVisible();
+  // The graph is laid out again once the width of its area has settled.
+  await expect.poll(() => stepsOutsideGraph(page)).toEqual([]);
+  await graphSettled(page);
+  expect(await stepsOutsideGraph(page)).toEqual([]);
   for (const size of await drawnFontSizes(page)) {
     expect(size).toBeGreaterThanOrEqual(12);
   }
   await shot('dark-06-long-workflow-panel');
+  await graphShot(page, 'dark-06-long-workflow-panel-graph');
   await openRunFromWorkflowsPage(page, 'approvalWorkflow');
   await expect(page.getByTestId('workflow-current')).toContainText(
     'Waiting for approval',

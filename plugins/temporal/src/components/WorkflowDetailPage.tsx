@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { useApiHolder } from '@backstage/core-plugin-api';
@@ -218,22 +218,6 @@ function currentLabel(workflow: WorkflowDetail) {
   return 'Result';
 }
 
-/** A ref callback and the width of its element, followed as it changes. */
-function useWidth(): [(element: HTMLElement | null) => void, number?] {
-  const [element, setElement] = useState<HTMLElement | null>(null);
-  const [width, setWidth] = useState<number>();
-  useEffect(() => {
-    if (!element) return undefined;
-    const update = () => setWidth(element.clientWidth || undefined);
-    update();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element]);
-  return [setElement, width];
-}
-
 function GraphCard(props: {
   graph?: WorkflowGraphResponse;
   graphError?: Error;
@@ -245,9 +229,6 @@ function GraphCard(props: {
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
-  // The graph is laid out for the whole width, so opening the step panel
-  // does not move the steps.
-  const [layoutRef, layoutWidth] = useWidth();
   return (
     <Card>
       <CardHeader>
@@ -274,12 +255,14 @@ function GraphCard(props: {
           />
         )}
         {graph && (
-          <div className={tp('tp-graph-layout')} ref={layoutRef}>
+          <div
+            className={tp('tp-graph-layout')}
+            data-testid="workflow-graph-layout"
+          >
             <WorkflowGraph
               graph={graph}
               selectedId={selectedId}
               onSelect={onSelect}
-              layoutWidth={layoutWidth}
               showMarkers={props.showMarkers}
               onShowMarkersChange={props.onShowMarkersChange}
             />
