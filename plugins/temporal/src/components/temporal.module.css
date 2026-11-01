@@ -319,9 +319,11 @@
   background: var(--tp-fg, var(--bui-fg-info));
 }
 .tp-progress-text {
+  /* Two lines at most; the full text is in the title. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: var(--bui-font-size-2, 12px);
   color: var(--bui-fg-secondary);
 }

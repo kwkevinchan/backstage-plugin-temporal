@@ -49,6 +49,9 @@ export function isOpenStep(node: WorkflowGraphNode): boolean {
 export function stepSubtitle(node: WorkflowGraphNode): string {
   if (node.waitingFor && isOpenStep(node)) return node.waitingFor;
   if (node.failure) return node.failure.message;
+  if (node.kind === 'workflowStarted' || node.kind === 'workflowClosed') {
+    return node.workflow?.runId ? `Next run ${node.workflow.runId}` : '';
+  }
   const duration =
     node.startTime && node.endTime && node.startTime !== node.endTime
       ? formatDuration(node.startTime, node.endTime)

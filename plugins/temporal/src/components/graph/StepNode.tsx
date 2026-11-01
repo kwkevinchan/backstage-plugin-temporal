@@ -120,7 +120,9 @@ export const StepNode = memo(function StepNodeView(
         <span className={tp('tp-node-sub')}>
           {isOpenStep(step)
             ? stepSubtitle(step)
-            : `${statusLabel(step.status)} · ${stepSubtitle(step)}`}
+            : [statusLabel(step.status), stepSubtitle(step)]
+                .filter(Boolean)
+                .join(' · ')}
         </span>
       </button>
       <Handle

@@ -32,6 +32,9 @@ import { tp } from '../styles';
 
 const nodeTypes = { step: StepNode };
 
+/** Fits the steps, but not smaller than half size so names stay readable. */
+const FIT_VIEW = { padding: 0.15, maxZoom: 1, minZoom: 0.5 };
+
 export interface WorkflowGraphProps {
   graph: WorkflowGraphResponse;
   selectedId?: string;
@@ -78,11 +81,17 @@ function GraphCanvas(props: WorkflowGraphProps) {
     }));
   }, [structure]);
 
-  // Fit the view again when steps are added (auto refresh).
+  // Fit the view again when steps are added (auto refresh) and when the
+  // step panel opens or closes, since the canvas changes its width.
   const count = structure.nodes.length;
+  const panelOpen = selectedId !== undefined;
   useEffect(() => {
-    instance.current?.fitView({ padding: 0.15, maxZoom: 1.25 });
-  }, [count]);
+    const timer = window.setTimeout(
+      () => instance.current?.fitView({ ...FIT_VIEW, duration: 200 }),
+      50,
+    );
+    return () => window.clearTimeout(timer);
+  }, [count, panelOpen]);
 
   return (
     <ReactFlow<StepFlowNode, Edge>
@@ -93,7 +102,7 @@ function GraphCanvas(props: WorkflowGraphProps) {
         instance.current = i;
       }}
       fitView
-      fitViewOptions={{ padding: 0.15, maxZoom: 1.25 }}
+      fitViewOptions={FIT_VIEW}
       minZoom={0.1}
       maxZoom={2}
       nodesDraggable={false}
