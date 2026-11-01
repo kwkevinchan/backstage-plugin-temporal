@@ -37,6 +37,21 @@ export function formatMilliseconds(ms: number): string {
   return formatSeconds(Math.round(ms / 1000));
 }
 
+/**
+ * How long until a timer fires, in words: `fires in 2m 30s`, or for the
+ * time limit of a wait `times out in 23h 40m`.
+ */
+export function deadlineText(
+  deadline: { time: string; kind: 'fires' | 'timeout' },
+  now: number = Date.now(),
+): string {
+  const at = new Date(deadline.time).getTime();
+  if (Number.isNaN(at)) return '';
+  const verb = deadline.kind === 'timeout' ? 'times out' : 'fires';
+  const left = Math.ceil((at - now) / 1000);
+  return left > 0 ? `${verb} in ${formatSeconds(left)}` : `${verb} now`;
+}
+
 function formatSeconds(totalSeconds: number): string {
   let seconds = totalSeconds;
   const days = Math.floor(seconds / 86400);

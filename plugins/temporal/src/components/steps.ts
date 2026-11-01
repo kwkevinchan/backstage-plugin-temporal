@@ -18,7 +18,7 @@ import type {
   WorkflowGraphNode,
   WorkflowNodeKind,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { formatDuration } from './format';
+import { deadlineText, formatDuration } from './format';
 
 const KIND_LABELS: Record<WorkflowNodeKind, string> = {
   workflowStarted: 'Start',
@@ -40,14 +40,32 @@ export function kindLabel(kind: WorkflowNodeKind): string {
   return KIND_LABELS[kind] ?? kind;
 }
 
+/**
+ * Markers that are not steps of their own: side effects, version and patch
+ * markers. They are left out of the graph and the step list by default.
+ * Local activities are recorded as markers too, but count as steps.
+ */
+export function isMarkerStep(node: WorkflowGraphNode): boolean {
+  if (node.kind !== 'marker') return false;
+  const name = node.details?.markerName;
+  return !/local_?activity/i.test(typeof name === 'string' ? name : node.name);
+}
+
 /** True for steps that are not closed yet. */
 export function isOpenStep(node: WorkflowGraphNode): boolean {
   return ['Scheduled', 'Running', 'Retrying', 'Waiting'].includes(node.status);
 }
 
 /** Second line of a step: what it waits for, or its duration. */
-export function stepSubtitle(node: WorkflowGraphNode): string {
-  if (node.waitingFor && isOpenStep(node)) return node.waitingFor;
+export function stepSubtitle(
+  node: WorkflowGraphNode,
+  now: number = Date.now(),
+): string {
+  if (isOpenStep(node) && (node.waitingFor || node.deadline)) {
+    const deadline = node.deadline ? deadlineText(node.deadline, now) : '';
+    const text = [node.waitingFor, deadline].filter(Boolean).join(' · ');
+    return text.charAt(0).toLocaleUpperCase('en-US') + text.slice(1);
+  }
   if (node.failure) return node.failure.message;
   if (node.kind === 'workflowStarted' || node.kind === 'workflowClosed') {
     return node.workflow?.runId ? `Next run ${node.workflow.runId}` : '';
@@ -57,6 +75,34 @@ export function stepSubtitle(node: WorkflowGraphNode): string {
       ? formatDuration(node.startTime, node.endTime)
       : '';
   return [kindLabel(node.kind), duration].filter(Boolean).join(' · ');
+}
+
+/**
+ * Title and subtitle of a step box. A timer that is the time limit of a
+ * wait is titled with what the run waits for, and its subtitle says when
+ * the wait times out.
+ */
+export function stepBoxText(
+  node: WorkflowGraphNode,
+  now: number = Date.now(),
+): { title: string; subtitle: string } {
+  if (
+    isOpenStep(node) &&
+    node.deadline?.kind === 'timeout' &&
+    node.waitingFor
+  ) {
+    const left = deadlineText(node.deadline, now);
+    return {
+      title: node.waitingFor,
+      subtitle: [
+        left.charAt(0).toLocaleUpperCase('en-US') + left.slice(1),
+        node.name,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    };
+  }
+  return { title: node.name, subtitle: stepSubtitle(node, now) };
 }
 
 /** Retries of an activity, as `×3` for the third attempt. */

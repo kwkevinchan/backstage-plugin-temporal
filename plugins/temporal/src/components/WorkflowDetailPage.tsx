@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { useApiHolder } from '@backstage/core-plugin-api';
@@ -23,6 +23,7 @@ import type {
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowRef,
+  WorkflowRunChain,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   TemporalWorkflowActionDef,
@@ -49,11 +50,12 @@ import {
 import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
 import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
-import { formatDuration, formatTime } from './format';
+import { deadlineText, formatDuration, formatTime } from './format';
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
 import { DefinitionList, StepDrawer } from './StepDrawer';
+import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
@@ -174,6 +176,40 @@ function DetailsTab(props: { workflow: WorkflowDetail }) {
   );
 }
 
+/** "Run 3 of 5", with links to the run before and after this one. */
+function RunChainLinks(props: {
+  chain: WorkflowRunChain;
+  workflow: WorkflowDetail;
+  workflowHref(ref: WorkflowRef): string;
+}) {
+  const { chain, workflow, workflowHref } = props;
+  const href = (runId: string) =>
+    workflowHref({
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId,
+    });
+  return (
+    <span className={tp('tp-run-chain')} data-testid="workflow-run-chain">
+      <span>
+        {chain.index && chain.total
+          ? `Run ${chain.index} of ${chain.total}`
+          : 'One of several runs'}
+      </span>
+      {chain.previousRunId && (
+        <Link href={href(chain.previousRunId)} variant="body-medium">
+          ← Previous run
+        </Link>
+      )}
+      {chain.nextRunId && (
+        <Link href={href(chain.nextRunId)} variant="body-medium">
+          Next run →
+        </Link>
+      )}
+    </span>
+  );
+}
+
 function currentLabel(workflow: WorkflowDetail) {
   if (workflow.status === 'Running') return 'Now';
   if (['Failed', 'TimedOut', 'Terminated'].includes(workflow.status)) {
@@ -182,15 +218,36 @@ function currentLabel(workflow: WorkflowDetail) {
   return 'Result';
 }
 
+/** A ref callback and the width of its element, followed as it changes. */
+function useWidth(): [(element: HTMLElement | null) => void, number?] {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const [width, setWidth] = useState<number>();
+  useEffect(() => {
+    if (!element) return undefined;
+    const update = () => setWidth(element.clientWidth || undefined);
+    update();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [element]);
+  return [setElement, width];
+}
+
 function GraphCard(props: {
   graph?: WorkflowGraphResponse;
   graphError?: Error;
   selectedId?: string;
   onSelect(id: string | undefined): void;
   workflowHref(ref: WorkflowRef): string;
+  showMarkers: boolean;
+  onShowMarkersChange(show: boolean): void;
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
+  // The graph is laid out for the whole width, so opening the step panel
+  // does not move the steps.
+  const [layoutRef, layoutWidth] = useWidth();
   return (
     <Card>
       <CardHeader>
@@ -217,11 +274,14 @@ function GraphCard(props: {
           />
         )}
         {graph && (
-          <div className={tp('tp-graph-layout')}>
+          <div className={tp('tp-graph-layout')} ref={layoutRef}>
             <WorkflowGraph
               graph={graph}
               selectedId={selectedId}
               onSelect={onSelect}
+              layoutWidth={layoutWidth}
+              showMarkers={props.showMarkers}
+              onShowMarkersChange={props.onShowMarkersChange}
             />
             {selected && (
               <StepDrawer
@@ -264,6 +324,7 @@ export function WorkflowDetailPage(
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [tab, setTab] = useState<string>('steps');
+  const [showMarkers, setShowMarkers] = useState(false);
   const graphRef = useRef<HTMLDivElement>(null);
   const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
   const { workflow, graph } = data;
@@ -277,10 +338,20 @@ export function WorkflowDetailPage(
     (ref: WorkflowRef) => `${rootPath}/${workflowLink(ref)}`,
     [rootPath],
   );
-  const selectFromTab = useCallback((id: string) => {
-    setSelectedId(id);
-    graphRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  }, []);
+  const nodes = data.graph?.nodes;
+  const selectFromTab = useCallback(
+    (id: string) => {
+      // A marker picked in the events is shown in the graph.
+      const node = nodes?.find(n => n.id === id);
+      if (node && isMarkerStep(node)) setShowMarkers(true);
+      setSelectedId(id);
+      graphRef.current?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    },
+    [nodes],
+  );
 
   const back = (
     <Link href={rootPath || '/'} variant="body-medium">
@@ -342,7 +413,27 @@ export function WorkflowDetailPage(
                 </SummaryItem>
                 {graph?.current && (
                   <SummaryItem label={currentLabel(workflow)}>
-                    <span data-testid="workflow-current">{graph.current}</span>
+                    <span data-testid="workflow-current">
+                      {graph.current}
+                      {graph.currentDeadline && (
+                        <span
+                          title={formatTime(graph.currentDeadline.time)}
+                          data-testid="workflow-deadline"
+                        >
+                          {' · '}
+                          {deadlineText(graph.currentDeadline)}
+                        </span>
+                      )}
+                    </span>
+                  </SummaryItem>
+                )}
+                {graph?.runChain && (
+                  <SummaryItem label="Continue as new">
+                    <RunChainLinks
+                      chain={graph.runChain}
+                      workflow={workflow}
+                      workflowHref={workflowHref}
+                    />
                   </SummaryItem>
                 )}
                 <SummaryItem label="Type">{workflow.workflowType}</SummaryItem>
@@ -401,6 +492,8 @@ export function WorkflowDetailPage(
             selectedId={selectedId}
             onSelect={setSelectedId}
             workflowHref={workflowHref}
+            showMarkers={showMarkers}
+            onShowMarkersChange={setShowMarkers}
           />
         </div>
 

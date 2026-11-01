@@ -28,7 +28,7 @@ import {
   ToggleButtonGroup,
 } from '@backstage/ui';
 import { formatTime } from './format';
-import { kindLabel } from './steps';
+import { isMarkerStep, kindLabel } from './steps';
 import { WorkflowHistory } from './WorkflowHistory';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { tp } from './styles';
@@ -37,10 +37,16 @@ import { tp } from './styles';
 export function GroupedEvents(props: {
   steps: WorkflowGraphNode[];
   showInternal: boolean;
+  /** Shows markers (side effects, version and patch markers); default on. */
+  showMarkers?: boolean;
   onSelect(id: string): void;
 }) {
+  const showMarkers = props.showMarkers ?? true;
   const steps = props.steps.filter(
-    s => s.events.length > 0 && (props.showInternal || !s.internal),
+    s =>
+      s.events.length > 0 &&
+      (props.showInternal || !s.internal) &&
+      (showMarkers || !isMarkerStep(s)),
   );
   return (
     <div role="list" aria-label="Grouped events" data-testid="grouped-events">
@@ -98,6 +104,8 @@ export function WorkflowEvents(props: {
 }) {
   const [view, setView] = useState<'grouped' | 'raw'>('grouped');
   const [showInternal, setShowInternal] = useState(false);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const hasMarkers = props.steps.some(isMarkerStep);
   return (
     <div>
       <Flex align="center" gap="4" mb="3">
@@ -125,11 +133,19 @@ export function WorkflowEvents(props: {
             onChange={setShowInternal}
           />
         )}
+        {view === 'grouped' && hasMarkers && (
+          <Switch
+            label="Show markers"
+            isSelected={showMarkers}
+            onChange={setShowMarkers}
+          />
+        )}
       </Flex>
       {view === 'grouped' ? (
         <GroupedEvents
           steps={props.steps}
           showInternal={showInternal}
+          showMarkers={showMarkers}
           onSelect={props.onSelect}
         />
       ) : (

@@ -14,8 +14,57 @@
  * limitations under the License.
  */
 
+import type { WorkflowGraphNode } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { graphResponse } from '../../testData';
-import { layoutSteps, NODE_WIDTH, visibleSteps } from './layout';
+import {
+  graphHeight,
+  initialViewport,
+  layoutSteps,
+  MAX_GRAPH_HEIGHT,
+  MIN_GRAPH_HEIGHT,
+  NODE_FONT_SIZE,
+  NODE_WIDTH,
+  panIntoView,
+  READABLE_ZOOM,
+  visibleSteps,
+} from './layout';
+
+const node = (
+  id: string,
+  extra: Partial<WorkflowGraphNode> = {},
+): WorkflowGraphNode => ({
+  id,
+  kind: 'activity',
+  name: id,
+  status: 'Completed',
+  events: [],
+  ...extra,
+});
+const marker = (id: string, markerName: string) =>
+  node(id, { kind: 'marker', name: markerName, details: { markerName } });
+const edgesOf = (...pairs: [string, string][]) =>
+  pairs.map(([source, target]) => ({
+    id: `${source}->${target}`,
+    source,
+    target,
+  }));
+const pairs = (edges: { source: string; target: string }[]) =>
+  edges.map(e => `${e.source}>${e.target}`);
+
+/** A chain start > s1 > ... > sN > end. */
+function chain(count: number) {
+  const ids = [
+    'start',
+    ...Array.from({ length: count }, (_, i) => `s${i + 1}`),
+    'end',
+  ];
+  return {
+    nodes: ids.map(id => node(id)),
+    edges: edgesOf(
+      ...ids.slice(1).map((id, i) => [ids[i], id] as [string, string]),
+    ),
+  };
+}
 
 describe('layoutSteps', () => {
   it('lays out steps left to right and leaves out internal steps', () => {
@@ -24,7 +73,7 @@ describe('layoutSteps', () => {
       graphResponse.edges,
     );
     expect(nodes.map(n => n.id)).not.toContain('workflowTask-2');
-    const positions = layoutSteps(nodes, edges);
+    const { positions } = layoutSteps(nodes, edges);
     const xs = ['start', 'activity-5', 'activity-11', 'end'].map(
       id => positions.get(id)!.x,
     );
@@ -33,26 +82,148 @@ describe('layoutSteps', () => {
   });
 
   it('puts parallel steps in the same column', () => {
-    const node = (id: string) => ({
-      id,
-      kind: 'activity' as const,
-      name: id,
-      status: 'Completed' as const,
-      events: [],
-    });
-    const nodes = ['start', 'a', 'b', 'end'].map(node);
-    const edges = [
+    const nodes = ['start', 'a', 'b', 'end'].map(id => node(id));
+    const edges = edgesOf(
       ['start', 'a'],
       ['start', 'b'],
       ['a', 'end'],
       ['b', 'end'],
-    ].map(([source, target]) => ({
-      id: `${source}->${target}`,
-      source,
-      target,
-    }));
-    const positions = layoutSteps(nodes, edges);
+    );
+    const { positions } = layoutSteps(nodes, edges);
     expect(positions.get('a')!.x).toBe(positions.get('b')!.x);
     expect(positions.get('a')!.y).not.toBe(positions.get('b')!.y);
+  });
+
+  it('keeps a graph that fits in one row', () => {
+    const { nodes, edges } = chain(2);
+    const layout = layoutSteps(nodes, edges, 1200);
+    expect(layout.wrapped).toBe(false);
+    const ys = new Set([...layout.positions.values()].map(p => p.y));
+    expect(ys.size).toBe(1);
+  });
+
+  it('wraps a long run into rows that fit the width', () => {
+    const { nodes, edges } = chain(12);
+    const layout = layoutSteps(nodes, edges, 1000);
+    expect(layout.wrapped).toBe(true);
+    expect(layout.width).toBeLessThanOrEqual(1000);
+    const at = (id: string) => layout.positions.get(id)!;
+    // Reads like text: left to right, then the next row.
+    expect(at('s1').x).toBeGreaterThan(at('start').x);
+    expect(at('s1').y).toBe(at('start').y);
+    const rows = [...new Set([...layout.positions.values()].map(p => p.y))];
+    expect(rows.length).toBeGreaterThan(1);
+    expect(at('end').y).toBe(Math.max(...rows));
+    for (const p of layout.positions.values()) {
+      expect(p.x + NODE_WIDTH).toBeLessThanOrEqual(layout.width);
+    }
+    // Opens at full size: every step readable, no panning sideways.
+    const view = initialViewport(layout, {
+      width: 1000,
+      height: graphHeight(layout, 1000),
+    });
+    expect(view.zoom).toBe(1);
+  });
+
+  it('opens a narrow canvas at a readable size from the first step', () => {
+    const { nodes, edges } = chain(12);
+    const layout = layoutSteps(nodes, edges);
+    const view = initialViewport(layout, { width: 600, height: 300 });
+    expect(view.zoom).toBeGreaterThanOrEqual(READABLE_ZOOM);
+    expect(NODE_FONT_SIZE * view.zoom).toBeGreaterThanOrEqual(12);
+    expect(view.x).toBe(0);
+    // A small graph is centered at most at zoom 1.
+    const short = chain(0);
+    const small = layoutSteps(short.nodes, short.edges);
+    const centered = initialViewport(small, { width: 1000, height: 300 });
+    expect(centered.zoom).toBe(1);
+    expect(centered.x).toBeGreaterThan(0);
+  });
+});
+
+describe('graphHeight', () => {
+  it('follows the graph within limits', () => {
+    const row = chain(2);
+    const one = layoutSteps(row.nodes, row.edges, 1200);
+    expect(graphHeight(one, 1200)).toBe(MIN_GRAPH_HEIGHT);
+    const parallel = Array.from({ length: 20 }, (_, i) => `p${i}`);
+    const nodes = ['start', ...parallel, 'end'].map(id => node(id));
+    const edges = edgesOf(
+      ...parallel.flatMap(
+        id =>
+          [
+            ['start', id],
+            [id, 'end'],
+          ] as [string, string][],
+      ),
+    );
+    const tall = layoutSteps(nodes, edges, 1200);
+    expect(graphHeight(tall, 1200)).toBe(MAX_GRAPH_HEIGHT);
+    const two = layoutSteps(nodes.slice(0, 3), edges.slice(0, 2), 1200);
+    expect(graphHeight(two, 1200)).toBeGreaterThan(MIN_GRAPH_HEIGHT);
+    expect(graphHeight(two, 1200)).toBeLessThan(MAX_GRAPH_HEIGHT);
+  });
+});
+
+describe('panIntoView', () => {
+  it('moves a step outside the canvas into view and keeps the zoom', () => {
+    const view = { x: 0, y: 0, zoom: 1 };
+    const canvas = { width: 600, height: 300 };
+    const next = panIntoView(view, { x: 900, y: 20 }, canvas);
+    expect(next.zoom).toBe(1);
+    expect(next.y).toBe(0);
+    expect(900 + next.x + NODE_WIDTH).toBeLessThanOrEqual(canvas.width);
+    expect(900 + next.x).toBeGreaterThanOrEqual(0);
+    // Already in view: nothing moves.
+    expect(panIntoView(view, { x: 100, y: 20 }, canvas)).toEqual(view);
+  });
+});
+
+describe('visibleSteps', () => {
+  it('leaves out markers and joins the arrows around them', () => {
+    const nodes = [
+      node('start'),
+      marker('m1', 'SideEffect'),
+      node('a'),
+      marker('m2', 'Version'),
+      marker('m3', 'core_patch'),
+      node('b'),
+      node('end'),
+    ];
+    const edges = edgesOf(
+      ['start', 'm1'],
+      ['m1', 'a'],
+      ['a', 'm2'],
+      ['m2', 'm3'],
+      ['m3', 'b'],
+      ['b', 'end'],
+    );
+    const hidden = visibleSteps(nodes, edges);
+    expect(hidden.nodes.map(n => n.id)).toEqual(['start', 'a', 'b', 'end']);
+    expect(pairs(hidden.edges)).toEqual(['start>a', 'a>b', 'b>end']);
+
+    const shown = visibleSteps(nodes, edges, { showMarkers: true });
+    expect(shown.nodes).toHaveLength(7);
+    expect(pairs(shown.edges)).toEqual(pairs(edges));
+  });
+
+  it('keeps local activities, which are recorded as markers', () => {
+    const nodes = [
+      node('start'),
+      node('la', {
+        kind: 'marker',
+        name: 'Local activity',
+        details: { markerName: 'core_local_activity' },
+      }),
+    ];
+    const edges = edgesOf(['start', 'la']);
+    expect(visibleSteps(nodes, edges).nodes).toHaveLength(2);
+  });
+
+  it('drops a joined arrow when another path leads there', () => {
+    // a > m > c and a > b > c: without m, a > c is not needed.
+    const nodes = [node('a'), marker('m', 'SideEffect'), node('b'), node('c')];
+    const edges = edgesOf(['a', 'm'], ['a', 'b'], ['m', 'c'], ['b', 'c']);
+    expect(pairs(visibleSteps(nodes, edges).edges)).toEqual(['a>b', 'b>c']);
   });
 });

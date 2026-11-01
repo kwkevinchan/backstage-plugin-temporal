@@ -134,7 +134,7 @@ export const temporalPage = PageBlueprint.make({
     routeRef: convertLegacyRouteRef(rootRouteRef),
     loader: () =>
       import('./components/TemporalPage').then(m =>
-        compatWrapper(<m.TemporalPageContent />),
+        compatWrapper(<m.TemporalPageInContainer />),
       ),
   },
 });

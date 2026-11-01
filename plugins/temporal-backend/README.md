@@ -11,7 +11,9 @@ Serves a read-only API under `/api/temporal`:
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`         | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history` | `temporal.workflow.history.read` |
 
-Query parameters: `status`, `pageSize`, `pageToken` (lists); `namespace`,
+Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
+without `allRuns=true` or a `status`, runs that continued as new are left out,
+so a workflow that keeps continuing as new is listed once); `namespace`,
 `workflowType`, `workflowId` (start of the workflow ID) on `/workflows`;
 `limit` (stats, default 50, at most 100); `entityRef` (details and history;
 without it, `temporal.workflow.list` allows any workflow, otherwise the entity

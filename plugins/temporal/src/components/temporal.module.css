@@ -75,11 +75,24 @@
   }
 }
 
-/* Workflow graph. */
+/* Workflow graph: a toolbar above the canvas. The canvas height follows
+   the graph (min-height set inline) and grows with the step panel. */
+.tp-graph-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-2, 8px);
+  min-width: 0;
+}
+.tp-graph-toolbar {
+  flex-wrap: wrap;
+}
+.tp-graph-canvas {
+  position: absolute;
+  inset: 0;
+}
 .tp-graph {
   position: relative;
-  height: 480px;
-  min-height: 320px;
+  flex: 1 0 auto;
   border-radius: var(--bui-radius-3, 8px);
   overflow: hidden;
   --xy-background-color: var(--bui-bg-neutral-1);
@@ -163,7 +176,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--bui-font-size-2, 12px);
+  /* At least 12px at the smallest zoom the graph opens with. */
+  font-size: 13px;
   color: var(--bui-fg-secondary);
 }
 .tp-badge {
@@ -188,14 +202,15 @@
   gap: var(--bui-space-4, 16px);
   align-items: stretch;
 }
-.tp-graph-layout > .tp-graph {
+.tp-graph-layout > .tp-graph-column {
   flex: 1 1 auto;
   min-width: 0;
 }
 .tp-drawer {
   flex: 0 0 420px;
   max-width: 45%;
-  max-height: 480px;
+  max-height: 640px;
+  align-self: flex-start;
   overflow: auto;
   box-sizing: border-box;
   padding: var(--bui-space-4, 16px);
@@ -350,4 +365,14 @@
   .tp-node[data-active='true'] {
     animation: none;
   }
+}
+.tp-run-chain {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--bui-space-3, 12px);
+}
+
+/* Workflows page in the new frontend system: space below the app header. */
+.tp-page {
+  padding-top: var(--bui-space-5, 20px);
 }

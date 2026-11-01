@@ -205,6 +205,7 @@ export function buildWorkflowGraph(
     const time = toIsoTime(event.eventTime);
     if (time) node.endTime = time;
     delete node.waitingFor;
+    delete node.deadline;
   };
   const instant = (node: Building, event: Json) => {
     node.last = node.first;
@@ -389,10 +390,10 @@ export function buildWorkflowGraph(
         stepId: a.timerId || undefined,
         status: 'Waiting',
         startTime: time,
-        waitingFor: fires ? `Timer fires at ${fires}` : 'Timer',
+        // The time is formatted in the browser, in the user's time zone.
+        deadline: fires ? { time: fires, kind: 'fires' } : undefined,
         details: dropUndefined({
           duration: ms !== undefined ? formatMs(ms) : undefined,
-          firesAt: fires,
         }),
       });
       attach(node, event);
@@ -747,6 +748,16 @@ export function buildWorkflowGraph(
   const open = visible.filter(
     n => n.last === undefined && OPEN_STATUSES.has(n.status),
   );
+  const hint = running ? waitingHint(options.searchAttributes) : undefined;
+  // A wait with a time limit, like `condition(fn, '24h')`, leaves only a
+  // timer open. With a waiting hint, the timer is the time limit of that
+  // wait: the hint is what the run waits for.
+  if (hint && open.length > 0 && open.every(n => n.kind === 'timer')) {
+    for (const timer of open) {
+      timer.waitingFor = hint;
+      if (timer.deadline) timer.deadline.kind = 'timeout';
+    }
+  }
   const latest = visible.reduce<Building | undefined>(
     (found, n) => (!found || n.first > found.first ? n : found),
     undefined,
@@ -755,8 +766,7 @@ export function buildWorkflowGraph(
     latest?.kind === 'workflowTask' && latest.status === 'Failed';
   if (running && !options.truncated && open.length === 0 && !blockedByTask) {
     const waitingFor =
-      waitingHint(options.searchAttributes) ??
-      'Waiting for an external event (signal or update)';
+      hint ?? 'Waiting for an external event (signal or update)';
     const node: Building = {
       id: 'waiting',
       kind: 'waiting',
@@ -773,15 +783,30 @@ export function buildWorkflowGraph(
   const edges = buildEdges(visible);
 
   const steps = visible.filter(n => STEP_KINDS.has(n.kind));
+  const startNode = nodes.find(n => n.kind === 'workflowStarted');
+  const endNode = nodes.find(n => n.kind === 'workflowClosed');
+  const previousRunId = startNode?.details?.continuedFromRunId;
+  const nextRunId =
+    endNode?.status === 'ContinuedAsNew' ? endNode.workflow?.runId : undefined;
+  const current = currentStep(visible, options);
   const response: WorkflowGraphResponse = {
     status: options.status,
     nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
     edges,
-    current: currentText(visible, options),
+    current: current.text,
+    currentDeadline: current.deadline,
     completedSteps: steps.filter(n => n.status === 'Completed').length,
     totalSteps: steps.length,
     truncated: options.truncated,
     payloadsHidden: !options.includePayloads,
+    runChain:
+      typeof previousRunId === 'string' || nextRunId
+        ? dropUndefined({
+            previousRunId:
+              typeof previousRunId === 'string' ? previousRunId : undefined,
+            nextRunId,
+          })
+        : undefined,
   };
   return dropUndefined(response);
 }
@@ -821,6 +846,32 @@ function buildEdges(nodes: Building[]): WorkflowGraphEdge[] {
   return edges;
 }
 
+/** Text of the open step in `current`: what it waits for, in words. */
+function openStepText(node: Building): string {
+  if (node.kind === 'waiting') return node.waitingFor ?? 'Waiting';
+  if (node.deadline?.kind === 'timeout' && node.waitingFor) {
+    return node.waitingFor;
+  }
+  if (node.kind === 'timer') return node.name;
+  return `${node.name}: ${node.waitingFor ?? node.status}`;
+}
+
+function currentStep(
+  nodes: Building[],
+  options: BuildGraphOptions,
+): { text?: string; deadline?: WorkflowGraphNode['deadline'] } {
+  const open = nodes.filter(
+    n =>
+      options.status === 'Running' &&
+      ((n.last === undefined && OPEN_STATUSES.has(n.status)) ||
+        n.kind === 'waiting'),
+  );
+  return {
+    text: currentText(nodes, options),
+    deadline: open.length === 1 ? open[0].deadline : undefined,
+  };
+}
+
 function currentText(
   nodes: Building[],
   options: BuildGraphOptions,
@@ -844,13 +895,7 @@ function currentText(
         ? 'History is long; showing the start'
         : undefined;
     }
-    const texts = open
-      .slice(0, 2)
-      .map(n =>
-        n.kind === 'waiting'
-          ? n.waitingFor ?? 'Waiting'
-          : `${n.name}: ${n.waitingFor ?? n.status}`,
-      );
+    const texts = open.slice(0, 2).map(openStepText);
     const more = open.length > 2 ? ` (+${open.length - 2} more)` : '';
     return `${texts.join('; ')}${more}`;
   }

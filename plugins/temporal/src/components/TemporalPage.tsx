@@ -16,11 +16,13 @@
 
 import { Route, Routes } from 'react-router-dom';
 import { Content, Header, Page } from '@backstage/core-components';
+import { Container } from '@backstage/ui';
 import { AllWorkflowsList } from './AllWorkflowsList';
 import {
   WorkflowDetailPage,
   WorkflowDetailPageProps,
 } from './WorkflowDetailPage';
+import { tp } from './styles';
 
 /**
  * Props of {@link TemporalPage}.
@@ -49,6 +51,18 @@ export function TemporalPageContent(props: TemporalPageProps) {
         element={detail}
       />
     </Routes>
+  );
+}
+
+/**
+ * Workflows page content with the page margins of the new frontend
+ * system, under the page header of the app.
+ */
+export function TemporalPageInContainer(props: TemporalPageProps) {
+  return (
+    <Container className={tp('tp-page')}>
+      <TemporalPageContent {...props} />
+    </Container>
   );
 }
 

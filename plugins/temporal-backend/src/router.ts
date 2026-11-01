@@ -84,6 +84,13 @@ function optionalString(value: unknown, name: string): string | undefined {
   return value;
 }
 
+/** `true` or `false`; absent is false. */
+function parseFlag(value: unknown, name: string): boolean {
+  if (value === undefined || value === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  throw new InputError(`${name} must be true or false`);
+}
+
 function parseEntityRefParam(value: unknown): string | undefined {
   const raw = optionalString(value, 'entityRef');
   if (!raw) return undefined;
@@ -305,6 +312,7 @@ export async function createRouter(
     );
     const result = await reader.listEntityWorkflows(context, {
       status: parseStatus(req.query.status),
+      allRuns: parseFlag(req.query.allRuns, 'allRuns'),
       pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
       pageToken: optionalString(req.query.pageToken, 'pageToken'),
       credentials,
@@ -324,6 +332,7 @@ export async function createRouter(
       namespace,
       {
         status: parseStatus(req.query.status),
+        allRuns: parseFlag(req.query.allRuns, 'allRuns'),
         workflowType:
           optionalString(req.query.workflowType, 'workflowType') || undefined,
         workflowIdPrefix:
@@ -409,7 +418,11 @@ export async function createRouter(
             credentials,
           )
         : await isAllowed(temporalWorkflowHistoryListPermission, credentials);
-      res.json(await reader.graph(workflow, { includePayloads }));
+      const graph = await reader.graph(workflow, { includePayloads });
+      if (graph.runChain) {
+        graph.runChain = await reader.runPosition(workflow, graph.runChain);
+      }
+      res.json(graph);
     },
   );
 

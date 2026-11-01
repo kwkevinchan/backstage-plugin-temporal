@@ -25,18 +25,24 @@ import {
   Text,
 } from '@backstage/ui';
 import { formatDuration, formatTime } from './format';
-import { kindLabel, retryBadge } from './steps';
+import {
+  isMarkerStep,
+  isOpenStep,
+  kindLabel,
+  retryBadge,
+  stepSubtitle,
+} from './steps';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /**
  * The steps of a run as a table, in event order. Selecting a row opens the
- * step next to the graph.
+ * step next to the graph. Markers are listed in the events only.
  */
 export function StepsTable(props: {
   steps: WorkflowGraphNode[];
   onSelect(id: string): void;
 }) {
-  const steps = props.steps.filter(s => !s.internal);
+  const steps = props.steps.filter(s => !s.internal && !isMarkerStep(s));
   return (
     <TableRoot
       aria-label="Steps"
@@ -82,7 +88,8 @@ export function StepsTable(props: {
             </Cell>
             <Cell>
               <Text variant="body-small" color="secondary">
-                {step.failure?.message ?? step.waitingFor ?? ''}
+                {step.failure?.message ??
+                  (isOpenStep(step) ? stepSubtitle(step) : '')}
               </Text>
             </Cell>
           </Row>

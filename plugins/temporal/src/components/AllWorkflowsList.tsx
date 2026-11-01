@@ -27,6 +27,7 @@ import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { ErrorAlert } from './feedback';
 import { PanelCard } from './PanelCard';
 import { Pager, StatusSelect, WorkflowRunsTable } from './WorkflowRunsTable';
+import { AllRunsSwitch } from './WorkflowList';
 
 const PAGE_SIZE = 20;
 
@@ -45,6 +46,8 @@ export function AllWorkflowsList() {
   const [draft, setDraft] = useState<Filters>(EMPTY);
   const [filters, setFilters] = useState<Filters>(EMPTY);
   const [tokens, setTokens] = useState<(string | undefined)[]>([undefined]);
+  // A workflow that continues as new is listed once, with its latest run.
+  const [allRuns, setAllRuns] = useState(false);
   const pageToken = tokens[tokens.length - 1];
 
   const typeError =
@@ -57,12 +60,13 @@ export function AllWorkflowsList() {
     () =>
       temporalApi.listWorkflows({
         status: filters.status || undefined,
+        allRuns: allRuns || undefined,
         workflowType: filters.workflowType || undefined,
         workflowIdPrefix: filters.workflowIdPrefix || undefined,
         pageSize: PAGE_SIZE,
         pageToken,
       }),
-    [temporalApi, filters, pageToken],
+    [temporalApi, filters, allRuns, pageToken],
   );
 
   const apply = (next: Filters) => {
@@ -118,6 +122,13 @@ export function AllWorkflowsList() {
       <Button variant="secondary" size="small" onPress={retry}>
         Refresh
       </Button>
+      <AllRunsSwitch
+        isSelected={allRuns}
+        onChange={next => {
+          setAllRuns(next);
+          setTokens([undefined]);
+        }}
+      />
       {(idError || typeError) && (
         <Text as="p" variant="body-small" color="danger" role="alert">
           {idError ? 'Workflow ID: letters, digits and _ . : / - only. ' : ''}

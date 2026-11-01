@@ -248,9 +248,16 @@ describe('buildWorkflowGraph', () => {
       status: 'Waiting',
       details: { duration: '30s' },
     });
-    expect(timer.waitingFor).toMatch(/^Timer fires at 2026-01-01T00:00:/);
+    // The time stays a timestamp; the browser shows it in the user's zone.
+    expect(timer.waitingFor).toBeUndefined();
+    expect(timer.deadline).toEqual({
+      time: '2026-01-01T00:00:35.000Z',
+      kind: 'fires',
+    });
+    expect(timer.details).not.toHaveProperty('firesAt');
     expect(graph.nodes.some(n => n.kind === 'waiting')).toBe(false);
-    expect(graph.current).toMatch(/^Timer 30s: Timer fires at/);
+    expect(graph.current).toBe('Timer 30s');
+    expect(graph.currentDeadline).toEqual(timer.deadline);
 
     h.add('TimerFired', { timerId: '1', startedEventId: String(t) });
     const fired = buildWorkflowGraph(h.events, options({ status: 'Running' }));
@@ -262,6 +269,73 @@ describe('buildWorkflowGraph', () => {
       waitingFor: 'Waiting for an external event (signal or update)',
     });
     expect(edgePairs(fired)).toContain(`timer-${t}>waiting`);
+  });
+
+  it('shows a waiting hint before the timer of a wait with a time limit', () => {
+    // condition(() => approved, '24 hours') with ApprovalPending = true.
+    const h = history();
+    h.start();
+    h.task();
+    const t = h.add('TimerStarted', {
+      timerId: '1',
+      startToFireTimeout: { seconds: String(24 * 3600) },
+    });
+
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Running',
+        searchAttributes: { ApprovalPending: true },
+      }),
+    );
+    const timer = graph.nodes.find(n => n.id === `timer-${t}`)!;
+    expect(timer).toMatchObject({
+      name: 'Timer 24h',
+      status: 'Waiting',
+      waitingFor: 'Waiting for approval',
+      deadline: { time: '2026-01-02T00:00:05.000Z', kind: 'timeout' },
+    });
+    expect(graph.current).toBe('Waiting for approval');
+    expect(graph.currentDeadline).toEqual(timer.deadline);
+    expect(graph.nodes.some(n => n.kind === 'waiting')).toBe(false);
+
+    // Without the hint the timer is a plain timer.
+    const plain = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Running',
+        searchAttributes: { ApprovalPending: false },
+      }),
+    );
+    expect(plain.current).toBe('Timer 24h');
+    expect(plain.currentDeadline?.kind).toBe('fires');
+
+    // An open activity next to the timer keeps its own text.
+    const a = h.schedule('notify', '2');
+    const busy = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Running',
+        searchAttributes: { ApprovalPending: true },
+      }),
+    );
+    expect(busy.nodes.find(n => n.id === `timer-${t}`)!.waitingFor).toBe(
+      undefined,
+    );
+    expect(busy.nodes.find(n => n.id === `activity-${a}`)!.status).toBe(
+      'Scheduled',
+    );
+    expect(busy.currentDeadline).toBeUndefined();
+
+    // A fired timer has no deadline any more.
+    h.add('TimerFired', { timerId: '1', startedEventId: String(t) });
+    const fired = buildWorkflowGraph(
+      h.events,
+      options({ searchAttributes: { ApprovalPending: true } }),
+    );
+    expect(fired.nodes.find(n => n.id === `timer-${t}`)!.deadline).toBe(
+      undefined,
+    );
   });
 
   it('groups updates by update ID, including rejected ones', () => {
@@ -382,6 +456,24 @@ describe('buildWorkflowGraph', () => {
     });
     expect(graph.current).toBe('Continued as new');
     expect(edgePairs(graph)).toEqual(['start>end']);
+    expect(graph.runChain).toEqual({ nextRunId: 'run-2' });
+  });
+
+  it('links a run to the run it continued from', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {
+      workflowType: { name: 'pollWorkflow' },
+      continuedExecutionRunId: 'run-1',
+    });
+    h.task();
+    const graph = buildWorkflowGraph(h.events, options({ status: 'Running' }));
+    expect(graph.runChain).toEqual({ previousRunId: 'run-1' });
+
+    const single = history();
+    single.start();
+    expect(
+      buildWorkflowGraph(single.events, options()).runChain,
+    ).toBeUndefined();
   });
 
   it('marks a truncated history and adds no waiting step', () => {

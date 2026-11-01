@@ -34,11 +34,15 @@ import type { TemporalWorkflowExtensionsApi } from './extensions';
  * @public
  */
 export interface TemporalApi {
-  /** Lists the workflows of an entity, newest first. */
+  /**
+   * Lists the workflows of an entity, newest first. Runs that continued as
+   * new are left out unless `allRuns` is set or a status is chosen.
+   */
   listEntityWorkflows(
     entityRef: string,
     options?: {
       status?: WorkflowStatus;
+      allRuns?: boolean;
       pageSize?: number;
       pageToken?: string;
     },
@@ -47,11 +51,14 @@ export interface TemporalApi {
   /**
    * Lists every workflow of a namespace (default namespace when omitted),
    * newest first. Needs the `temporal.workflow.list` permission.
-   * `workflowIdPrefix` matches the start of the workflow ID.
+   * `workflowIdPrefix` matches the start of the workflow ID. Runs that
+   * continued as new are left out unless `allRuns` is set or a status is
+   * chosen.
    */
   listWorkflows(options?: {
     namespace?: string;
     status?: WorkflowStatus;
+    allRuns?: boolean;
     workflowType?: string;
     workflowIdPrefix?: string;
     pageSize?: number;
