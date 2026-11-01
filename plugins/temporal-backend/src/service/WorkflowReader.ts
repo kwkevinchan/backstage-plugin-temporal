@@ -33,6 +33,7 @@ import {
   TemporalAnnotations,
   WorkflowDetail,
   WorkflowGraphResponse,
+  WorkflowRunChain,
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
   WorkflowListResponse,
@@ -239,6 +240,8 @@ export class WorkflowReader {
     context: EntityContext,
     options: {
       status?: WorkflowStatus;
+      /** False lists only the latest run of a workflow that continues as new. */
+      allRuns?: boolean;
       pageSize: number;
       pageToken?: string;
       credentials: BackstageCredentials;
@@ -246,6 +249,7 @@ export class WorkflowReader {
   ): Promise<WorkflowListResponse> {
     const query = buildEntityWorkflowQuery(context.filter, {
       status: options.status,
+      allRuns: options.allRuns,
     });
     let nextPageToken: Uint8Array | undefined;
     try {
@@ -498,6 +502,42 @@ export class WorkflowReader {
     });
   }
 
+  /**
+   * Adds the position of the run among the runs of its workflow ID (runs
+   * that started before it, and all runs) to the links of `chain`. When
+   * counting fails, the links are returned as they are.
+   */
+  async runPosition(
+    workflow: WorkflowDetail,
+    chain: WorkflowRunChain,
+  ): Promise<WorkflowRunChain> {
+    const start = workflow.startTime ? Date.parse(workflow.startTime) : NaN;
+    // Workflow IDs are free text; IDs that need escaping are not counted.
+    if (Number.isNaN(start) || /['"\\]/.test(workflow.workflowId)) {
+      return chain;
+    }
+    const byId = `WorkflowId = '${workflow.workflowId}'`;
+    // The start time of describe is cut to milliseconds.
+    const until = new Date(start + 1).toISOString();
+    try {
+      const connection = await this.temporal.getConnection();
+      const count = async (query: string) => {
+        const response = await connection.workflowService
+          .countWorkflowExecutions({ namespace: workflow.namespace, query })
+          .catch(mapTemporalError);
+        return Number(response.count ?? 0);
+      };
+      const [index, total] = await Promise.all([
+        count(`${byId} AND StartTime < '${until}'`),
+        count(byId),
+      ]);
+      return index > 0 && total >= index ? { ...chain, index, total } : chain;
+    } catch (error) {
+      this.logger.debug(`Could not count the runs of a workflow: ${error}`);
+      return chain;
+    }
+  }
+
   private readonly progressCache = new Map<string, WorkflowProgressResponse>();
 
   /**
@@ -519,6 +559,7 @@ export class WorkflowReader {
       truncated: graph.truncated,
     };
     if (graph.current) progress.current = graph.current;
+    if (graph.currentDeadline) progress.currentDeadline = graph.currentDeadline;
     if (workflow.status !== 'Running') {
       if (this.progressCache.size >= PROGRESS_CACHE_SIZE) {
         const oldest = this.progressCache.keys().next().value;

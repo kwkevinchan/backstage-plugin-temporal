@@ -409,6 +409,50 @@ describe('temporal backend plugin', () => {
       .expect(403);
   });
 
+  it('places a continued run among the runs of its workflow ID', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.getWorkflowExecutionHistory.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '1',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+            workflowExecutionStartedEventAttributes: {
+              continuedExecutionRunId: 'run-before',
+            },
+          },
+        ],
+      },
+      nextPageToken: new Uint8Array(),
+    } as any);
+    workflowService.countWorkflowExecutions.mockImplementation(
+      async (req: any) => ({ count: req.query.includes('StartTime') ? 3 : 5 }),
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.runChain).toEqual({
+      previousRunId: 'run-before',
+      index: 3,
+      total: 5,
+    });
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledWith({
+      namespace: 'default',
+      query: expect.stringMatching(/^WorkflowId = 'wf-1' AND StartTime < '/),
+    });
+
+    // A failing count leaves only the links.
+    workflowService.countWorkflowExecutions.mockRejectedValue(
+      new Error('not supported'),
+    );
+    const failed = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+    );
+    expect(failed.body.runChain).toEqual({ previousRunId: 'run-before' });
+  });
+
   it('returns the progress of a run and caches closed runs', async () => {
     const { server, workflowService } = await start();
     const path = `/api/temporal/namespaces/default/workflows/wf-1/progress?entityRef=${ref}`;
@@ -432,9 +476,26 @@ describe('temporal backend plugin', () => {
     await request(server)
       .get('/api/temporal/entities/workflow/default/nightly/workflows')
       .expect(200);
+    // Only the latest run of a workflow that continues as new, by default.
     expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query:
+          "(WorkflowType = 'nightly') AND ExecutionStatus != 'ContinuedAsNew'",
+      }),
+    );
+    await request(server)
+      .get(
+        '/api/temporal/entities/workflow/default/nightly/workflows?allRuns=true',
+      )
+      .expect(200);
+    expect(workflowService.listWorkflowExecutions).toHaveBeenLastCalledWith(
       expect.objectContaining({ query: "WorkflowType = 'nightly'" }),
     );
+    await request(server)
+      .get(
+        '/api/temporal/entities/workflow/default/nightly/workflows?allRuns=yes',
+      )
+      .expect(400);
   });
 
   it('runs workflow enrichers on lists and details', async () => {
@@ -480,7 +541,7 @@ describe('temporal backend plugin', () => {
     const { server, workflowService } = await start();
     await request(server)
       .get(
-        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows?allRuns=true',
       )
       .expect(200);
     expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
@@ -506,7 +567,7 @@ describe('temporal backend plugin', () => {
       entityRefAttribute: 'BackstageEntityRef',
     });
     const res = await request(server).get(
-      '/api/temporal/entities/component/default/checkout/workflows',
+      '/api/temporal/entities/component/default/checkout/workflows?allRuns=true',
     );
     expect(res.status).toBe(200);
     // The workflow in another namespace and the missing entity are left out.
@@ -535,7 +596,9 @@ describe('temporal backend plugin', () => {
       deny: ['temporalworkflow:default/payment-workflow'],
     });
     await request(server)
-      .get('/api/temporal/entities/component/default/checkout/workflows')
+      .get(
+        '/api/temporal/entities/component/default/checkout/workflows?allRuns=true',
+      )
       .expect(200);
     expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -667,6 +730,15 @@ describe('temporal backend plugin', () => {
       const { server, workflowService } = await start();
       await request(server).get('/api/temporal/workflows').expect(200);
       expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          namespace: 'default',
+          query: "ExecutionStatus != 'ContinuedAsNew'",
+        }),
+      );
+      await request(server)
+        .get('/api/temporal/workflows?allRuns=true')
+        .expect(200);
+      expect(workflowService.listWorkflowExecutions).toHaveBeenLastCalledWith(
         expect.objectContaining({ namespace: 'default', query: '' }),
       );
     });

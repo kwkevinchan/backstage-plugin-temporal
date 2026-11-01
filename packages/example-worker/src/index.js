@@ -15,7 +15,7 @@
  */
 
 /*
- * Starts three example workflows on the `backstage-example` task queue and
+ * Starts example workflows on the `backstage-example` task queue and
  * runs a worker until the finished ones are done:
  *
  *   - orderWorkflow       completes
@@ -24,6 +24,10 @@
  *   - fulfillmentWorkflow completes, with parallel activities, retries, a
  *                         timer and a child workflow (notifyCustomerWorkflow)
  *   - approvalWorkflow    stays running, waiting for an `approve` update
+ *                         for at most a day
+ *   - pipelineWorkflow    completes after twelve stages, with a patch marker
+ *                         before each stage
+ *   - pollWorkflow        continues as new three times, then completes
  *
  * Environment: TEMPORAL_ADDRESS (default localhost:7233), TEMPORAL_NAMESPACE
  * (default `default`), ENTITY_REF_ATTRIBUTE (default BackstageEntityRef; set
@@ -85,6 +89,16 @@ async function startAll(client, withSearchAttributes) {
         },
       ],
     }),
+    client.workflow.start('pipelineWorkflow', {
+      ...common,
+      workflowId: `example-pipeline-${suffix}`,
+      args: [{ buildId: `build-${suffix}`, commit: 'abc1234' }],
+    }),
+    client.workflow.start('pollWorkflow', {
+      ...common,
+      workflowId: `example-poll-${suffix}`,
+      args: [{ source: 'inventory-feed', rounds: 4 }],
+    }),
   ]);
 }
 
@@ -132,7 +146,15 @@ async function main() {
     handles = await startAll(client, false);
     handles.withSearchAttributes = false;
   }
-  const [order, secondOrder, payment, deployment, fulfillment] = handles;
+  const [
+    order,
+    secondOrder,
+    payment,
+    deployment,
+    fulfillment,
+    pipelineRun,
+    poll,
+  ] = handles;
   const approval = await startApproval(client, handles.withSearchAttributes);
   for (const h of [...handles, approval])
     console.log(`Started ${h.workflowId}`);
@@ -162,6 +184,11 @@ async function main() {
         await fulfillment.result(),
       )}`,
     );
+    console.log(
+      `pipelineWorkflow result: ${JSON.stringify(await pipelineRun.result())}`,
+    );
+    // Follows the runs of the workflow ID to the last one.
+    console.log(`pollWorkflow result: ${JSON.stringify(await poll.result())}`);
     // A comment on the approval; the workflow keeps waiting for approval.
     await approval.signal('comment', 'Please check the amount');
     // Give the running workflow time to schedule its retrying activity.

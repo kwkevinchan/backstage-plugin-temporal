@@ -100,9 +100,16 @@ function sourceCondition(source: {
  * with one more alternative for each related TemporalWorkflow entity, plus an
  * optional status condition.
  */
+/**
+ * Runs that continued as new are left out unless `allRuns` is set or a
+ * status is chosen: a workflow that keeps continuing as new is listed once,
+ * with its latest run.
+ */
+const LATEST_RUNS = `ExecutionStatus != 'ContinuedAsNew'`;
+
 export function buildEntityWorkflowQuery(
   filter: EntityWorkflowFilter,
-  options?: { status?: WorkflowStatus },
+  options?: { status?: WorkflowStatus; allRuns?: boolean },
 ): string {
   const { annotations, entityRef, entityRefAttribute } = filter;
   const related = filter.related ?? [];
@@ -141,6 +148,8 @@ export function buildEntityWorkflowQuery(
       : alternatives.map(a => `(${a})`).join(' OR ');
   if (options?.status) {
     query = `(${query}) AND ExecutionStatus = ${quote(options.status)}`;
+  } else if (options?.allRuns === false) {
+    query = `(${query}) AND ${LATEST_RUNS}`;
   }
   return query;
 }
@@ -189,6 +198,8 @@ export interface NamespaceWorkflowFilter {
   workflowType?: string;
   /** Start of the workflow ID. */
   workflowIdPrefix?: string;
+  /** False leaves out runs that continued as new. */
+  allRuns?: boolean;
 }
 
 /**
@@ -216,6 +227,8 @@ export function buildNamespaceWorkflowQuery(
   }
   if (filter.status) {
     parts.push(`ExecutionStatus = ${quote(filter.status)}`);
+  } else if (filter.allRuns === false) {
+    parts.push(LATEST_RUNS);
   }
   return parts.join(' AND ');
 }

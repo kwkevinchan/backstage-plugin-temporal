@@ -21,6 +21,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   buildEntityWorkflowQuery,
+  buildNamespaceWorkflowQuery,
   matchingWorkflowEntity,
   parseStatus,
   workflowBelongsToEntity,
@@ -66,6 +67,26 @@ describe('buildEntityWorkflowQuery', () => {
     ).toBe(
       "((WorkflowType = 'orderWorkflow') OR (BackstageEntityRef = 'component:default/orders')) AND ExecutionStatus = 'Failed'",
     );
+  });
+
+  it('lists only the latest run of a workflow that continues as new', () => {
+    const annotations = parseTemporalAnnotations(
+      entity({ 'temporal.io/task-queue': 'orders' }),
+    );
+    const filter = { annotations, entityRef: ref };
+    expect(buildEntityWorkflowQuery(filter, { allRuns: false })).toBe(
+      "(TaskQueue = 'orders') AND ExecutionStatus != 'ContinuedAsNew'",
+    );
+    expect(buildEntityWorkflowQuery(filter, { allRuns: true })).toBe(
+      "TaskQueue = 'orders'",
+    );
+    // A chosen status replaces the filter, so continued runs can be listed.
+    expect(
+      buildEntityWorkflowQuery(filter, {
+        allRuns: false,
+        status: 'ContinuedAsNew',
+      }),
+    ).toBe("(TaskQueue = 'orders') AND ExecutionStatus = 'ContinuedAsNew'");
   });
 
   it('uses only the search attribute when there is no filter annotation', () => {
@@ -235,5 +256,38 @@ describe('related TemporalWorkflow entities', () => {
         filter,
       ),
     ).toBeUndefined();
+  });
+});
+
+describe('buildNamespaceWorkflowQuery', () => {
+  it('combines the filters', () => {
+    expect(buildNamespaceWorkflowQuery({})).toBe('');
+    expect(
+      buildNamespaceWorkflowQuery({
+        workflowType: 'orderWorkflow',
+        workflowIdPrefix: 'order-',
+        status: 'Running',
+      }),
+    ).toBe(
+      "WorkflowType = 'orderWorkflow' AND WorkflowId STARTS_WITH 'order-' AND ExecutionStatus = 'Running'",
+    );
+  });
+
+  it('lists only the latest run of a workflow that continues as new', () => {
+    expect(buildNamespaceWorkflowQuery({ allRuns: false })).toBe(
+      "ExecutionStatus != 'ContinuedAsNew'",
+    );
+    expect(
+      buildNamespaceWorkflowQuery({
+        allRuns: false,
+        workflowIdPrefix: 'poll-',
+      }),
+    ).toBe(
+      "WorkflowId STARTS_WITH 'poll-' AND ExecutionStatus != 'ContinuedAsNew'",
+    );
+    expect(buildNamespaceWorkflowQuery({ allRuns: true })).toBe('');
+    expect(
+      buildNamespaceWorkflowQuery({ allRuns: false, status: 'Completed' }),
+    ).toBe("ExecutionStatus = 'Completed'");
   });
 });

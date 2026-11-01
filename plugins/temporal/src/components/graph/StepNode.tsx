@@ -39,7 +39,7 @@ import {
   statusLabel,
   statusTone,
 } from '../WorkflowStatusLabel';
-import { isOpenStep, retryBadge, stepSubtitle } from '../steps';
+import { isOpenStep, retryBadge, stepBoxText } from '../steps';
 import { tp } from '../styles';
 
 export type StepNodeData = {
@@ -89,6 +89,7 @@ export const StepNode = memo(function StepNodeView(
   const { step, selected, onSelect } = props.data;
   const badge = retryBadge(step);
   const dashed = step.kind === 'waiting' || step.status === 'Waiting';
+  const text = stepBoxText(step);
   return (
     <>
       <Handle
@@ -105,22 +106,22 @@ export const StepNode = memo(function StepNodeView(
         data-active={isActiveStatus(step.status)}
         data-status={step.status}
         data-testid={`step-${step.id}`}
-        aria-label={`${step.name}, ${statusLabel(step.status)}${
+        aria-label={`${text.title}, ${statusLabel(step.status)}${
           badge ? `, attempt ${step.attempt}` : ''
         }`}
         aria-pressed={selected}
-        title={`${step.name}: ${stepSubtitle(step)}`}
+        title={`${text.title}: ${text.subtitle}`}
         onClick={() => onSelect(step.id)}
       >
         <span className={tp('tp-node-title')}>
           <KindIcon kind={step.kind} ended={step.status === 'ContinuedAsNew'} />
-          <span>{step.name}</span>
+          <span>{text.title}</span>
           {badge && <span className={tp('tp-badge')}>{badge}</span>}
         </span>
         <span className={tp('tp-node-sub')}>
           {isOpenStep(step)
-            ? stepSubtitle(step)
-            : [statusLabel(step.status), stepSubtitle(step)]
+            ? text.subtitle
+            : [statusLabel(step.status), text.subtitle]
                 .filter(Boolean)
                 .join(' · ')}
         </span>

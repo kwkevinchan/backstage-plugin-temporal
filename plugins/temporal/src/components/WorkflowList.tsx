@@ -20,7 +20,7 @@ import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
-import { Button } from '@backstage/ui';
+import { Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { ErrorAlert } from './feedback';
 import { PanelCard } from './PanelCard';
@@ -31,12 +31,31 @@ export { workflowLink } from './WorkflowRunsTable';
 
 const PAGE_SIZE = 20;
 
+/**
+ * Switch of the workflow lists: off lists only the latest run of a workflow
+ * that continues as new.
+ */
+export function AllRunsSwitch(props: {
+  isSelected: boolean;
+  onChange(next: boolean): void;
+}) {
+  return (
+    <Switch
+      label="Show all runs"
+      isSelected={props.isSelected}
+      onChange={props.onChange}
+    />
+  );
+}
+
 /** Workflow list of the current entity. */
 export function WorkflowList(props: { title?: string }) {
   const { entity } = useEntity();
   const temporalApi = useApi(temporalApiRef);
   const entityRef = stringifyEntityRef(entity);
   const [status, setStatus] = useState<WorkflowStatus | ''>('');
+  // A workflow that continues as new is listed once, with its latest run.
+  const [allRuns, setAllRuns] = useState(false);
   // Page tokens of the pages seen so far; the last one is the current page.
   const [tokens, setTokens] = useState<(string | undefined)[]>([undefined]);
   const pageToken = tokens[tokens.length - 1];
@@ -45,10 +64,11 @@ export function WorkflowList(props: { title?: string }) {
     () =>
       temporalApi.listEntityWorkflows(entityRef, {
         status: status || undefined,
+        allRuns: allRuns || undefined,
         pageSize: PAGE_SIZE,
         pageToken,
       }),
-    [temporalApi, entityRef, status, pageToken],
+    [temporalApi, entityRef, status, allRuns, pageToken],
   );
 
   // Runs listed through a TemporalWorkflow entity the entity depends on.
@@ -60,6 +80,13 @@ export function WorkflowList(props: { title?: string }) {
       subtitle={value ? `Namespace: ${value.namespace}` : undefined}
       actions={
         <>
+          <AllRunsSwitch
+            isSelected={allRuns}
+            onChange={next => {
+              setAllRuns(next);
+              setTokens([undefined]);
+            }}
+          />
           <StatusSelect
             value={status}
             onChange={next => {

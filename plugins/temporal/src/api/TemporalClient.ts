@@ -70,6 +70,7 @@ export class TemporalClient implements TemporalApi {
     entityRef: string,
     options?: {
       status?: WorkflowStatus;
+      allRuns?: boolean;
       pageSize?: number;
       pageToken?: string;
     },
@@ -78,6 +79,7 @@ export class TemporalClient implements TemporalApi {
       buildEntityWorkflowsPath(parseEntityRef(entityRef)) +
         queryString({
           status: options?.status,
+          allRuns: options?.allRuns ? 'true' : undefined,
           pageSize: options?.pageSize,
           pageToken: options?.pageToken,
         }),
@@ -87,6 +89,7 @@ export class TemporalClient implements TemporalApi {
   listWorkflows(options?: {
     namespace?: string;
     status?: WorkflowStatus;
+    allRuns?: boolean;
     workflowType?: string;
     workflowIdPrefix?: string;
     pageSize?: number;
@@ -97,6 +100,7 @@ export class TemporalClient implements TemporalApi {
         queryString({
           namespace: options?.namespace,
           status: options?.status,
+          allRuns: options?.allRuns ? 'true' : undefined,
           workflowType: options?.workflowType,
           workflowId: options?.workflowIdPrefix,
           pageSize: options?.pageSize,

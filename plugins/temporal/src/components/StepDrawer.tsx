@@ -22,7 +22,7 @@ import type {
 import { ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiCloseLine } from '@remixicon/react';
 import { FailureView } from './FailureView';
-import { formatDuration, formatTime } from './format';
+import { deadlineText, formatDuration, formatTime } from './format';
 import { JsonView, PayloadView } from './PayloadView';
 import { kindLabel } from './steps';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
@@ -122,6 +122,14 @@ export function StepDrawer(props: StepDrawerProps) {
         <DefinitionList
           items={[
             ['Waiting for', step.waitingFor],
+            [
+              step.deadline?.kind === 'timeout' ? 'Times out' : 'Fires',
+              step.deadline && step.endTime === undefined
+                ? `${formatTime(step.deadline.time)} (${deadlineText(
+                    step.deadline,
+                  )})`
+                : undefined,
+            ],
             ['ID', step.stepId],
             ['Started', formatTime(step.startTime)],
             [

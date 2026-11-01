@@ -111,6 +111,54 @@ function shooter(page: Page, watched: ReturnType<typeof watchPage>) {
   };
 }
 
+/**
+ * Font sizes of the step boxes as drawn on screen: the CSS font size times
+ * the zoom of the graph.
+ */
+async function drawnFontSizes(page: Page): Promise<number[]> {
+  return page.getByTestId('workflow-graph').evaluate(graph => {
+    const viewport = graph.querySelector('.react-flow__viewport');
+    const transform = viewport ? getComputedStyle(viewport).transform : '';
+    const scale =
+      transform && transform !== 'none'
+        ? new DOMMatrixReadOnly(transform).a
+        : 1;
+    const texts = graph.querySelectorAll('button span');
+    return [...texts]
+      .filter(t => t.textContent?.trim())
+      .map(t => parseFloat(getComputedStyle(t).fontSize) * scale);
+  });
+}
+
+/** True when the element is fully inside the graph area. */
+async function insideGraph(page: Page, name: RegExp): Promise<boolean> {
+  const graph = await page.getByTestId('workflow-graph').boundingBox();
+  const box = await step(page, name).boundingBox();
+  if (!graph || !box) return false;
+  return (
+    box.x >= graph.x - 1 &&
+    box.y >= graph.y - 1 &&
+    box.x + box.width <= graph.x + graph.width + 1 &&
+    box.y + box.height <= graph.y + graph.height + 1
+  );
+}
+
+/** Waits until the graph has stopped moving (pan and zoom animations). */
+async function graphSettled(page: Page) {
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = await page
+        .locator('.react-flow__viewport')
+        .first()
+        .evaluate(v => getComputedStyle(v).transform);
+      const same = now === last;
+      last = now;
+      return same;
+    })
+    .toBe(true);
+}
+
 /** Opens the run of a workflow type from a workflow list. */
 async function openRun(list: ReturnType<typeof table>, workflowType: string) {
   await list
@@ -237,13 +285,58 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   // 9. A workflow that waits for approval.
   await page.getByRole('link', { name: '← All workflows' }).click();
   await openRun(runs, 'approvalWorkflow');
-  await expect(page.getByTestId('workflow-current')).toContainText(
-    /Waiting for (approval|an external event)/,
-  );
+  // The wait has a time limit: the hint comes first, the timer is the
+  // time limit, in words and not as a UTC timestamp.
+  const current = page.getByTestId('workflow-current');
+  await expect(current).toContainText('Waiting for approval');
+  await expect(current).toContainText(/times out in 23h \d+m/);
+  await expect(current).not.toContainText(/Timer fires at|\d{4}-\d\d-\d\dT/);
   await expect(step(page, /^comment, Completed/)).toBeVisible();
+  // The timer box is titled with the wait and says when it times out.
+  await expect(step(page, /^Waiting for approval, Waiting/)).toContainText(
+    /Times out in 23h \d+m/,
+  );
+  await graphSettled(page);
   await shot('11-workflow-waiting');
 
-  // 10. The tab does not depend on the kind: a Resource with the annotations.
+  // 10. A long run: twelve stages with a patch marker before each one. It
+  // opens at a readable size from its first step, without the markers.
+  await page.getByRole('link', { name: '← All workflows' }).click();
+  await openRun(runs, 'pipelineWorkflow');
+  await expect(step(page, /^notifyTeam, Completed/)).toBeVisible();
+  await graphSettled(page);
+  expect(await insideGraph(page, /^Start, Completed/)).toBe(true);
+  // Start, twelve stages and the end; no markers.
+  await expect(
+    page.getByTestId('workflow-graph').locator('.react-flow__node'),
+  ).toHaveCount(14);
+  for (const size of await drawnFontSizes(page)) {
+    expect(size).toBeGreaterThanOrEqual(12);
+  }
+  await shot('20-long-workflow');
+  // The panel opens without shrinking the graph; the step stays in view.
+  await step(page, /^notifyTeam, Completed/).click();
+  await expect(page.getByTestId('step-drawer')).toContainText('notifyTeam');
+  await graphSettled(page);
+  for (const size of await drawnFontSizes(page)) {
+    expect(size).toBeGreaterThanOrEqual(12);
+  }
+  expect(await insideGraph(page, /^notifyTeam, Completed/)).toBe(true);
+  await shot('21-long-workflow-panel');
+  // "Whole graph" zooms out to every step; markers can be shown.
+  await page.getByRole('button', { name: 'Whole graph' }).click();
+  await graphSettled(page);
+  expect(await insideGraph(page, /^Start, Completed/)).toBe(true);
+  expect(await insideGraph(page, /^End, Completed/)).toBe(true);
+  await page.getByRole('button', { name: 'Close step details' }).click();
+  await page.getByText('Show markers', { exact: true }).click();
+  await expect(step(page, /^core_patch, Completed/).first()).toBeVisible();
+  await graphSettled(page);
+  await shot('22-long-workflow-markers');
+  await page.getByRole('tab', { name: 'Events' }).click();
+  await expect(page.getByTestId('grouped-events')).toContainText('core_patch');
+
+  // 11. The tab does not depend on the kind: a Resource with the annotations.
   await page.goto('/catalog/default/resource/example-order-jobs');
   await entityTab(page, 'Temporal').click();
   const resourceTable = table(page, 'Workflows');
@@ -251,7 +344,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(resourceTable).not.toContainText('paymentWorkflow');
   await shot('12-resource-temporal-tab');
 
-  // 11. Catalog, kind picker set to TemporalWorkflow, then a workflow entity.
+  // 12. Catalog, kind picker set to TemporalWorkflow, then a workflow entity.
   await page.goto(catalogPath);
   await page.getByRole('button', { name: 'Component', exact: true }).click();
   await page.getByRole('option', { name: 'TemporalWorkflow' }).click();
@@ -267,7 +360,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(page.getByText('orderWorkflow').first()).toBeVisible();
   await shot('14-temporal-workflow-entity');
 
-  // 12. Its Temporal tab: summary, recent run statistics and the runs.
+  // 13. Its Temporal tab: summary, recent run statistics and the runs.
   await entityTab(page, 'Temporal').click();
   await expect(
     page.getByRole('heading', { name: 'Recent runs' }),
@@ -278,12 +371,12 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(entityRuns).not.toContainText('paymentWorkflow');
   await shot('15-temporal-workflow-runs');
 
-  // 13. A run of the workflow entity.
+  // 14. A run of the workflow entity.
   await openRun(entityRuns, 'orderWorkflow');
   await expect(step(page, /^reserveStock, Completed/)).toBeVisible();
   await shot('16-temporal-workflow-run');
 
-  // 14. A component that depends on the workflow entities: the entities and
+  // 15. A component that depends on the workflow entities: the entities and
   // the merged runs (its own annotation and the two workflow entities).
   await page.goto('/catalog/default/component/example-checkout');
   await entityTab(page, 'Temporal').click();
@@ -304,7 +397,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(merged.getByText('orderWorkflow').first()).toBeVisible();
   await shot('17-component-related-workflows');
 
-  // 15. Workflows page from the sidebar: every workflow, then one of them,
+  // 16. Workflows page from the sidebar: every workflow, then one of them,
   // with the shared workflow action.
   await page
     .getByRole('link', { name: 'Workflows', exact: true })
@@ -313,6 +406,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   const all = table(page, 'All workflows');
   await expect(all.getByText('paymentWorkflow').first()).toBeVisible();
   await expect(all.getByTestId('workflow-progress').first()).toBeVisible();
+  await expectPageMargins(page, all);
   await shot('18-workflows-page');
   await page
     .getByRole('textbox', { name: 'Workflow ID starts with' })
@@ -330,8 +424,55 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(page.getByTestId('step-error')).toContainText(
     'Card ending 4242 was declined',
   );
+  await expectPageMargins(page, page.getByTestId('workflow-summary'));
   await shot('19-workflows-page-detail');
+
+  // 17. A workflow that continues as new is listed once, with its latest
+  // run; the switch lists every run.
+  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page
+    .getByRole('textbox', { name: 'Workflow ID starts with' })
+    .fill('example-poll-');
+  await page.getByRole('button', { name: 'Search' }).click();
+  const pollRows = all.getByRole('row').filter({ hasText: 'pollWorkflow' });
+  await expect(pollRows).toHaveCount(1);
+  await expect(pollRows.first()).toContainText('Completed');
+  await shot('23-continue-as-new-latest');
+  await page.getByText('Show all runs', { exact: true }).click();
+  await expect(pollRows).toHaveCount(4);
+  await expect(all.getByText('Continued as new').first()).toBeVisible();
+  await shot('24-continue-as-new-all-runs');
+  await page.getByText('Show all runs', { exact: true }).click();
+  await expect(pollRows).toHaveCount(1);
+  await openRun(all, 'pollWorkflow');
+  const chain = page.getByTestId('workflow-run-chain');
+  await expect(chain).toContainText('Run 4 of 4');
+  await chain.getByRole('link', { name: /Previous run/ }).click();
+  await expect(chain).toContainText('Run 3 of 4');
+  await expect(chain.getByRole('link', { name: /Next run/ })).toBeVisible();
+  await graphSettled(page);
+  await shot('25-continue-as-new-run');
 });
+
+/**
+ * The content of a page is not flush with the sidebar or the right edge of
+ * the window.
+ */
+async function expectPageMargins(
+  page: Page,
+  content: ReturnType<Page['locator']>,
+) {
+  const sidebar = await page
+    .getByRole('link', { name: 'Workflows', exact: true })
+    .first()
+    .boundingBox();
+  const box = await content.boundingBox();
+  const width = page.viewportSize()!.width;
+  expect(sidebar).not.toBeNull();
+  expect(box).not.toBeNull();
+  expect(box!.x - (sidebar!.x + sidebar!.width)).toBeGreaterThanOrEqual(16);
+  expect(width - (box!.x + box!.width)).toBeGreaterThanOrEqual(16);
+}
 
 test('shows the details page in the dark theme', async ({ page }) => {
   // The app theme API keeps the chosen theme in local storage.
@@ -363,6 +504,31 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await openRunFromWorkflowsPage(page, 'deploymentWorkflow');
   await expect(step(page, /^waitForUpstream/)).toBeVisible();
   await shot('dark-05-workflows-page-running');
+  await openRunFromWorkflowsPage(page, 'pipelineWorkflow');
+  await step(page, /^deployProduction, Completed/).click();
+  await expect(page.getByTestId('step-drawer')).toContainText(
+    'deployProduction',
+  );
+  await graphSettled(page);
+  for (const size of await drawnFontSizes(page)) {
+    expect(size).toBeGreaterThanOrEqual(12);
+  }
+  await shot('dark-06-long-workflow-panel');
+  await openRunFromWorkflowsPage(page, 'approvalWorkflow');
+  await expect(page.getByTestId('workflow-current')).toContainText(
+    'Waiting for approval',
+  );
+  await graphSettled(page);
+  await shot('dark-07-workflow-waiting');
+  await page
+    .getByRole('link', { name: 'Workflows', exact: true })
+    .first()
+    .click();
+  await page.getByText('Show all runs', { exact: true }).click();
+  await expect(
+    table(page, 'All workflows').getByText('Continued as new').first(),
+  ).toBeVisible();
+  await shot('dark-08-workflows-page-all-runs');
 });
 
 /** Opens a run from the Workflows page in the sidebar. */

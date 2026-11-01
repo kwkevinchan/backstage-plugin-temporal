@@ -162,6 +162,7 @@ export function createFakeWorkflowService() {
       executions: [executionInfo({ workflowId: 'wf-1' })],
       nextPageToken: new Uint8Array([7, 7]),
     })),
+    countWorkflowExecutions: jest.fn(async (_req: any) => ({ count: 1 })),
     describeWorkflowExecution: jest.fn(async (req: any) => ({
       workflowExecutionInfo: executionInfo({
         workflowId: req.execution.workflowId,

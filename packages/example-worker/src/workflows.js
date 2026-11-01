@@ -22,9 +22,11 @@ const {
   proxyActivities,
   ApplicationFailure,
   condition,
+  continueAsNew,
   defineSignal,
   defineUpdate,
   executeChild,
+  patched,
   setHandler,
   sleep,
   upsertSearchAttributes,
@@ -135,9 +137,66 @@ async function approvalWorkflow(request) {
   );
   const hasAttribute =
     'ApprovalPending' in (workflowInfo().searchAttributes ?? {});
-  await condition(() => approver !== undefined);
+  // Waits at most a day; the open timer is the time limit of the wait.
+  const approved = await condition(() => approver !== undefined, '24 hours');
   if (hasAttribute) upsertSearchAttributes({ ApprovalPending: [false] });
+  if (!approved) {
+    throw ApplicationFailure.create({
+      message: `Request ${request.requestId} was not approved in time`,
+      type: 'ApprovalTimedOut',
+      nonRetryable: true,
+    });
+  }
   return { request: request.requestId, approver, comments };
+}
+
+/** Stages of pipelineWorkflow, one activity each. */
+const PIPELINE_STAGES = [
+  'checkoutSource',
+  'installDependencies',
+  'runLinters',
+  'runUnitTests',
+  'buildPackage',
+  'scanDependencies',
+  'buildImage',
+  'pushImage',
+  'deployStaging',
+  'runSmokeTests',
+  'deployProduction',
+  'notifyTeam',
+];
+
+const pipeline = proxyActivities({ startToCloseTimeout: '10 seconds' });
+
+/**
+ * Completes after twelve stages in a row. A patch marker is recorded
+ * before each stage, the way DSL runners record markers between their
+ * steps; the plugin leaves markers out of the graph by default.
+ */
+async function pipelineWorkflow(build) {
+  const results = [];
+  for (const stage of PIPELINE_STAGES) {
+    // Records a marker the first time each patch ID is seen.
+    patched(`pipeline-${stage}`);
+    results.push(await pipeline[stage](build));
+  }
+  return { build: build.buildId, stages: results.length };
+}
+
+const { checkSource } = proxyActivities({ startToCloseTimeout: '10 seconds' });
+
+/**
+ * Polls a source in rounds and continues as new after each round, so one
+ * workflow ID has several runs. The last round completes.
+ */
+async function pollWorkflow(poll) {
+  const round = poll.round ?? 1;
+  await checkSource({ ...poll, round });
+  await sleep('1 second');
+  if (round < poll.rounds) {
+    await continueAsNew({ ...poll, round: round + 1 });
+  }
+  return { source: poll.source, rounds: round };
 }
 
 module.exports = {
@@ -147,4 +206,6 @@ module.exports = {
   fulfillmentWorkflow,
   notifyCustomerWorkflow,
   approvalWorkflow,
+  pipelineWorkflow,
+  pollWorkflow,
 };

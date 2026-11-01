@@ -22,6 +22,7 @@ import type {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { Skeleton } from '@backstage/ui';
+import { deadlineText } from './format';
 import { statusTone } from './WorkflowStatusLabel';
 import { tp } from './styles';
 
@@ -76,7 +77,10 @@ export function progressText(progress: WorkflowProgressResponse): string {
     progress.totalSteps > 0
       ? `${progress.completedSteps}/${progress.totalSteps} steps`
       : 'No steps';
-  return progress.current ? `${steps} · ${progress.current}` : steps;
+  const deadline = progress.currentDeadline
+    ? deadlineText(progress.currentDeadline)
+    : '';
+  return [steps, progress.current, deadline].filter(Boolean).join(' · ');
 }
 
 /**

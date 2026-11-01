@@ -91,6 +91,34 @@ export interface WorkflowNodeAttempt {
 }
 
 /**
+ * When an open timer fires.
+ *
+ * @public
+ */
+export interface WorkflowDeadline {
+  /** ISO 8601 timestamp. */
+  time: string;
+  /** `fires`: a plain timer; `timeout`: the time limit of a wait. */
+  kind: 'fires' | 'timeout';
+}
+
+/**
+ * The run's place among the runs of a workflow ID that continues as new.
+ *
+ * @public
+ */
+export interface WorkflowRunChain {
+  /** The run this one continued from. */
+  previousRunId?: string;
+  /** The run this one continued as. */
+  nextRunId?: string;
+  /** Position of the run among the runs of the workflow ID, from 1. */
+  index?: number;
+  /** Runs of the workflow ID. */
+  total?: number;
+}
+
+/**
  * One step of a workflow run: the events of one activity, timer, signal,
  * update or child workflow grouped together.
  *
@@ -107,6 +135,12 @@ export interface WorkflowGraphNode {
   internal?: boolean;
   /** What a running or waiting step waits for, in words. */
   waitingFor?: string;
+  /**
+   * When an open timer fires. With `kind` `timeout`, the timer is the time
+   * limit of a wait (for example `condition(fn, '24h')`) and `waitingFor`
+   * says what the run waits for.
+   */
+  deadline?: WorkflowDeadline;
   startTime?: string;
   endTime?: string;
   /** Activity ID, timer ID or update ID. */
@@ -151,6 +185,8 @@ export interface WorkflowGraphResponse {
   edges: WorkflowGraphEdge[];
   /** Short text of where the run is now: what it waits for or where it failed. */
   current?: string;
+  /** Deadline of the step in `current`, shown in the user's time zone. */
+  currentDeadline?: WorkflowDeadline;
   /** Steps that are done (completed activities, timers, children, updates). */
   completedSteps: number;
   /** Activities, timers, children and updates in the graph. */
@@ -159,6 +195,8 @@ export interface WorkflowGraphResponse {
   truncated: boolean;
   /** True when inputs and results were left out for lack of permission. */
   payloadsHidden: boolean;
+  /** The run's place among the runs of a workflow that continues as new. */
+  runChain?: WorkflowRunChain;
 }
 
 /**
@@ -171,5 +209,6 @@ export interface WorkflowProgressResponse {
   completedSteps: number;
   totalSteps: number;
   current?: string;
+  currentDeadline?: WorkflowDeadline;
   truncated: boolean;
 }

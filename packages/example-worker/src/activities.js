@@ -66,7 +66,37 @@ async function sendEmail(notice) {
   return { to: notice.email, subject: `Order ${notice.orderId} shipped` };
 }
 
+async function checkSource(poll) {
+  return { source: poll.source, round: poll.round, changes: 0 };
+}
+
+/** One activity per stage of pipelineWorkflow. */
+const pipelineStages = Object.fromEntries(
+  [
+    'checkoutSource',
+    'installDependencies',
+    'runLinters',
+    'runUnitTests',
+    'buildPackage',
+    'scanDependencies',
+    'buildImage',
+    'pushImage',
+    'deployStaging',
+    'runSmokeTests',
+    'deployProduction',
+    'notifyTeam',
+  ].map(stage => [
+    stage,
+    async build => {
+      await new Promise(r => setTimeout(r, 200));
+      return { stage, build: build.buildId, ok: true };
+    },
+  ]),
+);
+
 module.exports = {
+  ...pipelineStages,
+  checkSource,
   reserveStock,
   chargeCard,
   deploy,
