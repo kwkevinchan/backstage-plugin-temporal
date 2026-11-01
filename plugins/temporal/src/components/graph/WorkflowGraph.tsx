@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
   Controls,
@@ -31,6 +31,7 @@ import { isMarkerStep, isOpenStep } from '../steps';
 import {
   graphHeight,
   initialViewport,
+  keepInGraph,
   layoutSteps,
   NODE_HEIGHT,
   NODE_WIDTH,
@@ -45,16 +46,17 @@ const nodeTypes = { step: StepNode };
 /** Zoom limits for zooming by hand; the views the graph opens with stay readable. */
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 2;
+/**
+ * Time the graph area keeps its width before the graph is laid out again
+ * for it, so resizing the window or the step panel does not re-layout on
+ * every frame.
+ */
+export const RELAYOUT_DELAY_MS = 150;
 
 export interface WorkflowGraphProps {
   graph: WorkflowGraphResponse;
   selectedId?: string;
   onSelect(id: string | undefined): void;
-  /**
-   * Width the graph is laid out for, usually the width of the graph area
-   * without the step panel. Wider graphs wrap into more rows.
-   */
-  layoutWidth?: number;
   /** Shows markers (side effects, version and patch markers). */
   showMarkers?: boolean;
   onShowMarkersChange?(show: boolean): void;
@@ -78,7 +80,9 @@ function useStructure(
   }, [graph, showMarkers, layoutWidth]);
 }
 
-function GraphCanvas(props: WorkflowGraphProps & { structure: Structure }) {
+function GraphCanvas(
+  props: WorkflowGraphProps & { structure: Structure; layoutWidth?: number },
+) {
   const { structure, selectedId, onSelect } = props;
   const { layout } = structure;
   const flow = useReactFlow<StepFlowNode, Edge>();
@@ -116,37 +120,65 @@ function GraphCanvas(props: WorkflowGraphProps & { structure: Structure }) {
     }));
   }, [structure]);
 
-  // The view the graph opens with, again when steps are added (auto
-  // refresh) or the layout changes. With the step panel open the view is
-  // left alone; the selected step is moved into view below.
-  const applied = useRef<string>();
-  const panelOpen = selectedId !== undefined;
-  useEffect(() => {
-    if (!width || !height || applied.current === structure.key) return;
-    const first = applied.current === undefined;
-    applied.current = structure.key;
-    if (panelOpen && !first) return;
-    flow.setViewport(initialViewport(layout, { width, height }), {
-      duration: first ? 0 : 200,
-    });
-  }, [flow, structure.key, layout, width, height, panelOpen]);
-
-  // Opening the panel makes the canvas narrower: the zoom stays and the
-  // selected step is panned into view.
+  // The view the graph opens with, again when the layout changes (steps
+  // added by auto refresh) or the graph area gets narrower or wider (the
+  // step panel opened or closed). The selected step is moved into view, without
+  // cutting off the first column. While the area changes width a new layout
+  // follows, so the view waits for it.
+  const applied = useRef<{
+    key?: string;
+    selectedId?: string;
+    width?: number;
+  }>({});
   const selectedPosition = selectedId
     ? layout.positions.get(selectedId)
     : undefined;
+  const relayoutPending =
+    props.layoutWidth !== undefined && Math.abs(width - props.layoutWidth) > 1;
   useEffect(() => {
-    if (!selectedPosition || !width || !height) return undefined;
-    const timer = window.setTimeout(() => {
+    if (!width || !height || relayoutPending) return undefined;
+    const last = applied.current;
+    // A new layout, or the same one in an area of another width.
+    const relayout =
+      last.key !== structure.key ||
+      last.width === undefined ||
+      Math.abs(last.width - width) > 1;
+    if (!relayout && last.selectedId === selectedId) return undefined;
+    const first = last.key === undefined;
+    const run = () => {
+      applied.current = { key: structure.key, selectedId, width };
+      const canvas = { width, height };
       const current = flow.getViewport();
-      const next = panIntoView(current, selectedPosition, { width, height });
-      if (next.x !== current.x || next.y !== current.y) {
-        flow.setViewport(next, { duration: 200 });
+      let next = relayout ? initialViewport(layout, canvas) : current;
+      if (selectedPosition) {
+        next = panIntoView(next, selectedPosition, canvas);
       }
-    }, 50);
+      next = keepInGraph(next, layout, canvas);
+      if (
+        next.x !== current.x ||
+        next.y !== current.y ||
+        next.zoom !== current.zoom
+      ) {
+        flow.setViewport(next, { duration: first ? 0 : 200 });
+      }
+    };
+    if (first) {
+      run();
+      return undefined;
+    }
+    // The canvas height follows the new layout a moment later.
+    const timer = window.setTimeout(run, 50);
     return () => window.clearTimeout(timer);
-  }, [flow, selectedPosition, width, height]);
+  }, [
+    flow,
+    structure.key,
+    layout,
+    width,
+    height,
+    selectedId,
+    selectedPosition,
+    relayoutPending,
+  ]);
 
   // Wheel scrolling pans a graph larger than its area; otherwise it
   // scrolls the page.
@@ -214,8 +246,13 @@ function GraphToolbar(props: {
           const position = props.selectedId
             ? structure.layout.positions.get(props.selectedId)
             : undefined;
+          const canvas = { width, height };
           flow.setViewport(
-            position ? panIntoView(view, position, { width, height }) : view,
+            keepInGraph(
+              position ? panIntoView(view, position, canvas) : view,
+              structure.layout,
+              canvas,
+            ),
             { duration: 200 },
           );
         }}
@@ -249,11 +286,12 @@ function GraphToolbar(props: {
  */
 export function WorkflowGraph(props: WorkflowGraphProps) {
   const showMarkers = props.showMarkers ?? false;
-  const structure = useStructure(props.graph, showMarkers, props.layoutWidth);
+  const [areaRef, layoutWidth] = useSettledWidth(RELAYOUT_DELAY_MS);
+  const structure = useStructure(props.graph, showMarkers, layoutWidth);
   const hasMarkers = props.graph.nodes.some(isMarkerStep);
   const minHeight = graphHeight(
     structure.layout,
-    props.layoutWidth ?? structure.layout.width,
+    layoutWidth ?? structure.layout.width,
   );
   return (
     <ReactFlowProvider>
@@ -266,6 +304,7 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           selectedId={props.selectedId}
         />
         <div
+          ref={areaRef}
           className={tp('tp-graph')}
           style={{ minHeight }}
           role="region"
@@ -273,10 +312,51 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           data-testid="workflow-graph"
         >
           <div className={tp('tp-graph-canvas')}>
-            <GraphCanvas {...props} structure={structure} />
+            <GraphCanvas
+              {...props}
+              structure={structure}
+              layoutWidth={layoutWidth}
+            />
           </div>
         </div>
       </div>
     </ReactFlowProvider>
   );
+}
+
+/**
+ * A ref callback and the width of its element. The first width is taken
+ * at once; later changes once the width has stayed the same for `delay`
+ * milliseconds, so a width that is still changing (window resize, the step
+ * panel opening) is laid out only once.
+ */
+export function useSettledWidth(
+  delay: number,
+): [(element: HTMLElement | null) => void, number?] {
+  const [element, setElement] = useState<HTMLElement | null>(null);
+  const [width, setWidth] = useState<number>();
+  useEffect(() => {
+    if (!element) return undefined;
+    const read = () => element.clientWidth || undefined;
+    setWidth(read());
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    let timer: number | undefined;
+    const observer = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const next = read();
+        setWidth(last =>
+          next !== undefined && last !== undefined && Math.abs(next - last) < 1
+            ? last
+            : next,
+        );
+      }, delay);
+    });
+    observer.observe(element);
+    return () => {
+      window.clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [element, delay]);
+  return [setElement, width];
 }

@@ -19,6 +19,7 @@ import { graphResponse } from '../../testData';
 import {
   graphHeight,
   initialViewport,
+  keepInGraph,
   layoutSteps,
   MAX_GRAPH_HEIGHT,
   MIN_GRAPH_HEIGHT,
@@ -176,6 +177,44 @@ describe('panIntoView', () => {
     expect(900 + next.x).toBeGreaterThanOrEqual(0);
     // Already in view: nothing moves.
     expect(panIntoView(view, { x: 100, y: 20 }, canvas)).toEqual(view);
+  });
+});
+
+describe('keepInGraph', () => {
+  it('keeps the first column in view after the panel narrows the canvas', () => {
+    const { nodes, edges } = chain(12);
+    // Laid out again for the canvas next to the panel.
+    const canvas = { width: 700, height: 600 };
+    const layout = layoutSteps(nodes, edges, canvas.width);
+    expect(layout.width).toBeLessThanOrEqual(canvas.width);
+    const last = layout.positions.get('end')!;
+    const view = keepInGraph(
+      panIntoView(initialViewport(layout, canvas), last, canvas),
+      layout,
+      canvas,
+    );
+    expect(view.zoom).toBeGreaterThanOrEqual(READABLE_ZOOM);
+    for (const p of layout.positions.values()) {
+      const left = p.x * view.zoom + view.x;
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + NODE_WIDTH * view.zoom).toBeLessThanOrEqual(canvas.width);
+    }
+    // The first column keeps its margin.
+    expect(view.x).toBeGreaterThanOrEqual(0);
+  });
+
+  it('does not pan past the edges of a graph larger than the canvas', () => {
+    const layout = { width: 2000, height: 200 };
+    const canvas = { width: 600, height: 300 };
+    expect(keepInGraph({ x: 50, y: 0, zoom: 1 }, layout, canvas).x).toBe(0);
+    expect(keepInGraph({ x: -1800, y: 0, zoom: 1 }, layout, canvas).x).toBe(
+      -1400,
+    );
+    expect(keepInGraph({ x: -300, y: 0, zoom: 1 }, layout, canvas).x).toBe(
+      -300,
+    );
+    // A graph that fits stays inside the canvas.
+    expect(keepInGraph({ x: 0, y: 150, zoom: 1 }, layout, canvas).y).toBe(100);
   });
 });
 
