@@ -16,7 +16,7 @@
 
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, Page, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 
 /*
  * The Definition tab of TemporalWorkflow entities: the YAML of
@@ -55,6 +55,19 @@ async function openDefinition(page: Page, name: string) {
     .or(page.getByRole('link', { name: 'Definition', exact: true }))
     .first()
     .click();
+}
+
+/** True when the whole box is inside the area of the graph. */
+async function insideGraph(page: Page, box: Locator) {
+  const area = await page.getByTestId('definition-graph').boundingBox();
+  const rect = await box.boundingBox();
+  if (!area || !rect) return false;
+  return (
+    rect.x >= area.x - 1 &&
+    rect.y >= area.y - 1 &&
+    rect.x + rect.width <= area.x + area.width + 1 &&
+    rect.y + rect.height <= area.y + area.height + 1
+  );
 }
 
 /** Font size of the smallest text in the graph, on screen. */
@@ -219,8 +232,13 @@ test.describe('definition with a Zigflow run', () => {
         'aria-pressed',
         'true',
       );
-      // The graph pans to the box (an animation of 200 ms).
-      await expect(node('/do/4/charge/try/0/chargeCard')).toBeInViewport();
+      // The graph pans to the box (an animation of 200 ms): the box ends up
+      // inside the graph area. The area itself may be below the fold of the
+      // window, so the window viewport is not checked.
+      await expect
+        .poll(() => insideGraph(page, node('/do/4/charge/try/0/chargeCard')))
+        .toBe(true);
+      await page.getByTestId('definition-graph').scrollIntoViewIfNeeded();
       await expect(page.getByTestId('definition-task')).toContainText(
         'Not reached',
       );
