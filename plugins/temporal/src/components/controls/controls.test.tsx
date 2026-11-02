@@ -219,7 +219,12 @@ describe('WorkflowControls', () => {
     expect(
       await screen.findByTestId('workflow-update-result'),
     ).toHaveTextContent('priority');
-    api.updateWorkflow.mockRejectedValueOnce(new Error('priority is invalid'));
+    // A ResponseError: the backend's message is shown, not the status.
+    api.updateWorkflow.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with 400 Bad Request'), {
+        body: { error: { message: 'priority is invalid' } },
+      }),
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Send update' }));
     expect(await screen.findByText('priority is invalid')).toBeInTheDocument();
   });

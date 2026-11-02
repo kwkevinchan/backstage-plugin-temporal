@@ -40,6 +40,7 @@ import {
 import { RiPlayLine } from '@remixicon/react';
 import { ErrorAlert } from '../feedback';
 import {
+  controlError,
   JsonArgsField,
   parseArgs,
   useControlConfig,
@@ -100,7 +101,7 @@ function StartWorkflowDialog(props: {
       );
       props.onStarted(started);
     } catch (e) {
-      setError(e as Error);
+      setError(controlError(e));
       setPending(false);
     }
   };

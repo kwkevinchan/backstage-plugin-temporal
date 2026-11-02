@@ -77,6 +77,12 @@ describe('temporal common', () => {
       ['temporal.workflow.history.read', 'catalog-entity'],
       ['temporal.workflow.list', undefined],
       ['temporal.workflow.history.list', undefined],
+      ['temporal.workflow.start', 'catalog-entity'],
+      ['temporal.workflow.signal', 'catalog-entity'],
+      ['temporal.workflow.update', 'catalog-entity'],
+      ['temporal.workflow.cancel', 'catalog-entity'],
+      ['temporal.workflow.terminate', 'catalog-entity'],
+      ['temporal.workflow.rerun', 'catalog-entity'],
     ]);
   });
 });

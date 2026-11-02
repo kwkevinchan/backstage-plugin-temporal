@@ -23,7 +23,9 @@ import { expect, Page, test } from '@playwright/test';
  * entity, signal it, query it, update it, run the custom Escalate action,
  * cancel it, rerun it and terminate the rerun; then start a workflow from
  * the Workflows page. Needs a running example worker
- * (`yarn workspace example-worker serve`).
+ * (`yarn workspace example-worker serve`). Runs after temporal.test.ts
+ * (files run in name order), so the workflows it starts do not push the
+ * example workflows off the first page of the Workflows list.
  */
 const app = process.env.SMOKE_APP ?? 'app';
 const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
@@ -58,6 +60,8 @@ function watch(page: Page) {
     await page.screenshot({
       path: join(shotDir, `${name}.png`),
       fullPage: true,
+      // Dialogs open with an animation; take them when they are in place.
+      animations: 'disabled',
     });
     expect(errors, `errors before ${name}`).toEqual([]);
   };
@@ -117,7 +121,19 @@ async function closeDialog(page: Page) {
 
 async function startTicket(page: Page, workflowId: string) {
   await page.goto('/catalog/default/temporalworkflow/example-ticket-workflow');
-  await entityTab(page, 'Temporal').click();
+  const tab = entityTab(page, 'Temporal');
+  const enter = page.getByRole('button', { name: 'Enter' });
+  // A full page load can show the sign-in page again before the session
+  // is restored; the catalog may still be reading the example entities.
+  await expect(tab.or(enter)).toBeVisible({ timeout: 120_000 });
+  if (await enter.isVisible()) {
+    await enter.click();
+    await page.goto(
+      '/catalog/default/temporalworkflow/example-ticket-workflow',
+    );
+  }
+  await expect(tab).toBeVisible({ timeout: 120_000 });
+  await tab.click();
   await page.getByRole('button', { name: 'Start workflow' }).click();
   const input = dialog(page).getByRole('textbox', { name: 'Input (JSON)' });
   await expect(input).toHaveValue(/Printer is out of paper/);

@@ -48,6 +48,7 @@ import { ErrorAlert } from '../feedback';
 import { JsonView } from '../PayloadView';
 import { tp } from '../styles';
 import {
+  controlError,
   JsonArgsField,
   parseArgs,
   useControlConfig,
@@ -117,22 +118,35 @@ function useHandlerNames(
 
 const MESSAGE_TEXT: Record<
   MessageKind,
-  { title: string; label: string; submit: string; help: string }
+  {
+    title: string;
+    label: string;
+    done: string;
+    doneSuffix: string;
+    submit: string;
+    help: string;
+  }
 > = {
   signal: {
     label: 'Signal name',
+    done: 'Signal',
+    doneSuffix: ' sent',
     title: 'Send a signal',
     submit: 'Send signal',
     help: 'The workflow gets the signal the next time it runs; there is no result.',
   },
   update: {
     label: 'Update name',
+    done: 'Update',
+    doneSuffix: ' done',
     title: 'Send an update',
     submit: 'Send update',
     help: 'The workflow handles the update and returns a result, or rejects it.',
   },
   query: {
     label: 'Query name',
+    done: 'Query',
+    doneSuffix: ' answered',
     title: 'Query the workflow',
     submit: 'Run query',
     help: 'A query reads the state of the workflow without changing it.',
@@ -186,7 +200,7 @@ function MessageDialog(props: {
       }
       if (kind !== 'query') props.onSent();
     } catch (e) {
-      setError(e as Error);
+      setError(controlError(e));
     } finally {
       setPending(false);
     }
@@ -216,13 +230,7 @@ function MessageDialog(props: {
               <Alert
                 status="success"
                 icon
-                title={
-                  kind === 'signal'
-                    ? `Signal ${name} sent`
-                    : kind === 'update'
-                    ? `Update ${name} done`
-                    : `Query ${name} answered`
-                }
+                title={`${text.done} ${name}${text.doneSuffix}`}
               />
               {kind !== 'signal' && (
                 <div className={tp('tp-dialog-result')}>
@@ -282,7 +290,7 @@ function ConfirmDialog(props: {
       await props.onConfirm(reason.trim());
       props.onClose();
     } catch (e) {
-      setError(e as Error);
+      setError(controlError(e));
       setPending(false);
     }
   };
@@ -298,7 +306,6 @@ function ConfirmDialog(props: {
               value={reason}
               onChange={setReason}
               isRequired
-              autoFocus
             />
           )}
           {error && <ErrorAlert error={error} />}
@@ -386,12 +393,12 @@ export function WorkflowControls(props: {
   const close = () => setOpen(undefined);
 
   const messageOptions = (kind: MessageKind): [string[], boolean] => {
-    const allowed =
-      kind === 'signal'
-        ? config.allowedSignals
-        : kind === 'update'
-        ? config.allowedUpdates
-        : [];
+    const allowedByKind: Record<MessageKind, string[]> = {
+      signal: config.allowedSignals,
+      update: config.allowedUpdates,
+      query: [],
+    };
+    const allowed = allowedByKind[kind];
     if (allowed.length > 0) return [allowed, false];
     return [handlers?.[kind] ?? [], true];
   };

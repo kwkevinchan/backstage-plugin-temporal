@@ -21,8 +21,10 @@ import {
 } from '@backstage/frontend-plugin-api';
 import {
   createExtensionTester,
+  mockApis,
   renderInTestApp,
 } from '@backstage/frontend-test-utils';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import {
   temporalApiRef,
@@ -129,12 +131,18 @@ describe('temporal (new frontend system)', () => {
           apis: [
             [temporalApiRef, mockTemporalApi()],
             [temporalWorkflowExtensionsApiRef, extensions],
+            [permissionApiRef, mockApis.permission()],
           ],
           initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
         },
       );
+      // The page loads its parts lazily; slow under a full parallel run.
       expect(
-        await screen.findByRole('button', { name: 'Approve payment-1' }),
+        await screen.findByRole(
+          'button',
+          { name: 'Approve payment-1' },
+          { timeout: 10_000 },
+        ),
       ).toBeInTheDocument();
       expect(
         screen.getByRole('tab', { name: 'Approvals' }),

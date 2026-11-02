@@ -122,3 +122,14 @@ export function WithReason(props: { reason?: string; children: ReactNode }) {
     </span>
   );
 }
+
+/**
+ * The error to show for a failed operation: the backend's message (for
+ * example the message of an update validator) rather than the HTTP status.
+ */
+export function controlError(error: unknown): Error {
+  const message = (error as { body?: { error?: { message?: unknown } } })?.body
+    ?.error?.message;
+  if (typeof message === 'string' && message) return new Error(message);
+  return error instanceof Error ? error : new Error(String(error));
+}

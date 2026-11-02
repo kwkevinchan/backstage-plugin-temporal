@@ -36,7 +36,7 @@ import {
 import { ErrorAlert } from '../feedback';
 import { JsonView } from '../PayloadView';
 import { tp } from '../styles';
-import { useControlPermission, WithReason } from './shared';
+import { controlError, useControlPermission, WithReason } from './shared';
 
 type Outcome = { result?: JsonValue } | { error: Error };
 
@@ -94,7 +94,7 @@ export function ControlActionButton(props: {
       setOutcome({ result: response.result });
       props.reload();
     } catch (error) {
-      setOutcome({ error: error as Error });
+      setOutcome({ error: controlError(error) });
     } finally {
       setPending(false);
       setConfirming(false);

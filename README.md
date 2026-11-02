@@ -668,7 +668,7 @@ switch to the grouped events, open a running workflow, a `TemporalWorkflow`
 entity and its runs, a component that depends on workflow entities, and the
 Workflows page from the sidebar, and save a screenshot of every step. A
 second test takes the details page in the dark theme. The control tests
-(`e2e-tests/controls.test.ts`, with `example-worker serve` running) start a
+(`e2e-tests/workflow-controls.test.ts`, with `example-worker serve` running) start a
 ticket workflow, signal, query and update it, run the custom Escalate
 action, cancel it, rerun it and terminate the rerun, in both themes:
 
