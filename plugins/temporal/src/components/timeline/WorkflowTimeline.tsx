@@ -26,7 +26,12 @@ import {
 } from 'react';
 import type { WorkflowGraphResponse, WorkflowStatus } from '../../common';
 import { Button, Flex, Text } from '@backstage/ui';
-import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react';
+import {
+  RiArrowDownSLine,
+  RiArrowRightSLine,
+  RiSparkling2Line,
+  RiToolsLine,
+} from '@remixicon/react';
 import { formatTime } from '../format';
 import { decisionText, roundLabel } from '../loopText';
 import { kindLabel } from '../steps';
@@ -112,6 +117,7 @@ function retryText(retries: number): string {
 /** Name of a row: the step, or `Run` for the row of the whole run. */
 function rowName(row: TimelineRow): string {
   if (row.node.kind === 'workflowStarted') return 'Run';
+  if (row.node.tool?.name) return row.node.tool.name;
   return row.node.name || kindLabel(row.node.kind);
 }
 
@@ -206,6 +212,12 @@ function Tooltip(props: {
 
 type Hover = { row: TimelineRow; x: number; y: number; above: boolean };
 
+/** `call` for a model call, `tool` for a tool call. */
+function llmKind(row: TimelineRow): 'call' | 'tool' | undefined {
+  if (row.node.llm) return 'call';
+  return row.node.tool ? 'tool' : undefined;
+}
+
 function Bar(props: {
   row: TimelineRow;
   win: Span;
@@ -224,6 +236,7 @@ function Bar(props: {
     'data-dashed': row.dashed,
     'data-tone': row.tone,
     'data-shape': row.shape,
+    'data-llm': llmKind(row),
     onClick: () => props.onSelect(row.id),
     onMouseEnter: (e: ReactMouseEvent) =>
       props.onHover(row, e.currentTarget, e),
@@ -299,6 +312,21 @@ function RowLabel(props: {
       onClick={() => props.onSelect(row.id)}
       title={`${name} · ${kindLabel(row.node.kind)}`}
     >
+      {row.node.llm && (
+        <RiSparkling2Line
+          size={14}
+          aria-label="Model call"
+          className={tp('tp-llm-icon')}
+          data-testid={`timeline-llm-${row.id}`}
+        />
+      )}
+      {row.node.tool && (
+        <RiToolsLine
+          size={14}
+          aria-label="Tool call"
+          className={tp('tp-llm-icon')}
+        />
+      )}
       <span className={tp('tp-tl-name')}>{name}</span>
       {row.retries > 0 && (
         <span

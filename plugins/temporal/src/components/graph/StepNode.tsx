@@ -30,13 +30,21 @@ import {
   RiStopCircleLine,
   RiTimerLine,
   RiForbidLine,
+  RiSparkling2Line,
+  RiToolsLine,
 } from '@remixicon/react';
+import {
+  formatCallDuration,
+  llmStatsText,
+  modelText,
+  toolName,
+} from '../llm/llmText';
 import {
   isActiveStatus,
   statusLabel,
   statusTone,
 } from '../WorkflowStatusLabel';
-import { isOpenStep, retryBadge, stepBoxText } from '../steps';
+import { isOpenStep, retryBadge, stepBoxText, stepSubtitle } from '../steps';
 import { tp } from '../styles';
 
 export type StepNodeData = {
@@ -79,12 +87,114 @@ function KindIcon(props: { kind: WorkflowNodeKind; ended?: boolean }) {
   }
 }
 
+/** Status and duration of a tool box, or what it waits for. */
+function toolSubtitle(step: WorkflowGraphNode): string {
+  if (isOpenStep(step)) return stepSubtitle(step) || statusLabel(step.status);
+  const ms =
+    step.startTime && step.endTime
+      ? Date.parse(step.endTime) - Date.parse(step.startTime)
+      : undefined;
+  return [
+    statusLabel(step.status),
+    step.kind === 'marker' ? 'Local activity' : '',
+    step.kind !== 'marker' && ms !== undefined ? formatCallDuration(ms) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+/** The lines of a model call box: name, model and status, numbers. */
+function LlmLines(props: { step: WorkflowGraphNode; badge?: string }) {
+  const { step, badge } = props;
+  const llm = step.llm!;
+  const status = step.status === 'Completed' ? '' : statusLabel(step.status);
+  return (
+    <>
+      <span className={tp('tp-node-title')}>
+        <RiSparkling2Line
+          size={16}
+          className={tp('tp-node-icon', 'tp-llm-icon')}
+          aria-hidden
+        />
+        <span>{step.name}</span>
+        {badge && <span className={tp('tp-badge')}>{badge}</span>}
+      </span>
+      <span className={tp('tp-node-sub', 'tp-llm-model')}>
+        {[modelText(llm), status].filter(Boolean).join(' · ')}
+      </span>
+      <span className={tp('tp-node-sub')} data-testid="llm-stats">
+        {llmStatsText(llm) || (llm.reasoning ? 'Reasoning' : '')}
+      </span>
+    </>
+  );
+}
+
 /** One step in the graph: a button with name, status and retries. */
 export const StepNode = memo(function StepNodeView(
   props: NodeProps<StepFlowNode>,
 ) {
   const { step, selected, onSelect } = props.data;
   const badge = retryBadge(step);
+  if (step.llm || step.tool) {
+    const text = step.llm
+      ? `Model call ${step.name}, ${modelText(step.llm)}, ${llmStatsText(
+          step.llm,
+        )}`
+      : `Tool call ${toolName(step)}`;
+    return (
+      <>
+        <Handle
+          type="target"
+          position={Position.Left}
+          className={tp('tp-handle')}
+          isConnectable={false}
+        />
+        <button
+          type="button"
+          className={tp(
+            'tp-node',
+            'tp-llm',
+            `tp-tone-${statusTone(step.status)}`,
+          )}
+          data-llm={step.llm ? 'call' : 'tool'}
+          data-selected={selected}
+          data-dashed={step.status === 'Waiting'}
+          data-active={isActiveStatus(step.status)}
+          data-status={step.status}
+          data-testid={`step-${step.id}`}
+          aria-label={`${text}, ${statusLabel(step.status)}${
+            badge ? `, attempt ${step.attempt}` : ''
+          }`}
+          aria-pressed={selected}
+          title={text}
+          onClick={() => onSelect(step.id)}
+        >
+          {step.llm ? (
+            <LlmLines step={step} badge={badge} />
+          ) : (
+            <>
+              <span className={tp('tp-node-title')}>
+                <RiToolsLine
+                  size={14}
+                  className={tp('tp-node-icon', 'tp-llm-icon')}
+                  aria-hidden
+                />
+                <span>{toolName(step)}</span>
+                {badge && <span className={tp('tp-badge')}>{badge}</span>}
+              </span>
+              <span className={tp('tp-node-sub')}>{toolSubtitle(step)}</span>
+            </>
+          )}
+        </button>
+        <Handle
+          type="source"
+          position={Position.Right}
+          className={tp('tp-handle')}
+          isConnectable={false}
+        />
+      </>
+    );
+  }
   const dashed = step.kind === 'waiting' || step.status === 'Waiting';
   const text = stepBoxText(step);
   return (

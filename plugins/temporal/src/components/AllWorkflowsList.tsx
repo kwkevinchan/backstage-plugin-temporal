@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import {
   isValidWorkflowIdPrefix,
@@ -33,9 +33,8 @@ import {
   workflowLink,
   WorkflowRunsTable,
 } from './WorkflowRunsTable';
-import { AllRunsSwitch } from './WorkflowList';
-
-const PAGE_SIZE = 20;
+import { useListScroll, useWorkflowListState } from './listState';
+import { AllRunsSwitch, LostPageNotice } from './WorkflowList';
 
 interface Filters {
   status: WorkflowStatus | '';
@@ -43,18 +42,26 @@ interface Filters {
   workflowIdPrefix: string;
 }
 
-const EMPTY: Filters = { status: '', workflowType: '', workflowIdPrefix: '' };
-
 /** Every workflow of the default namespace, with filters. */
 export function AllWorkflowsList() {
   const temporalApi = useApi(temporalApiRef);
+  // Filters, page and page size live in the URL, so they are kept when a
+  // workflow is opened and the user comes back.
+  const list = useWorkflowListState();
+  const filters: Filters = {
+    status: list.filters.status,
+    workflowType: list.filters.workflowType,
+    workflowIdPrefix: list.filters.workflowId,
+  };
+  const allRuns = list.filters.allRuns;
   // Text fields are applied with the Search button or the Enter key.
-  const [draft, setDraft] = useState<Filters>(EMPTY);
-  const [filters, setFilters] = useState<Filters>(EMPTY);
-  const [tokens, setTokens] = useState<(string | undefined)[]>([undefined]);
-  // A workflow that continues as new is listed once, with its latest run.
-  const [allRuns, setAllRuns] = useState(false);
-  const pageToken = tokens[tokens.length - 1];
+  const [draft, setDraft] = useState<Filters>(filters);
+  const applied = JSON.stringify(filters);
+  useEffect(() => {
+    // Back and forward change the filters in the URL.
+    setDraft(JSON.parse(applied));
+  }, [applied]);
+  const pageToken = list.pageToken;
 
   const typeError =
     draft.workflowType !== '' && !isValidWorkflowTypeName(draft.workflowType);
@@ -69,11 +76,12 @@ export function AllWorkflowsList() {
         allRuns: allRuns || undefined,
         workflowType: filters.workflowType || undefined,
         workflowIdPrefix: filters.workflowIdPrefix || undefined,
-        pageSize: PAGE_SIZE,
+        pageSize: list.pageSize,
         pageToken,
       }),
-    [temporalApi, filters, allRuns, pageToken],
+    [temporalApi, applied, allRuns, list.pageSize, pageToken],
   );
+  const scrollRef = useListScroll(Boolean(value) && !loading);
 
   const apply = (next: Filters) => {
     if (
@@ -82,8 +90,12 @@ export function AllWorkflowsList() {
     ) {
       return;
     }
-    setFilters(next);
-    setTokens([undefined]);
+    list.setFilters({
+      status: next.status,
+      allRuns,
+      workflowType: next.workflowType,
+      workflowId: next.workflowIdPrefix,
+    });
   };
   const onEnter = (e: { key: string }) => {
     if (e.key === 'Enter') apply(draft);
@@ -130,10 +142,7 @@ export function AllWorkflowsList() {
       </Button>
       <AllRunsSwitch
         isSelected={allRuns}
-        onChange={next => {
-          setAllRuns(next);
-          setTokens([undefined]);
-        }}
+        onChange={next => list.setFilters({ ...list.filters, allRuns: next })}
       />
       <div style={{ marginLeft: 'auto' }}>
         <StartWorkflowButton workflowHref={workflowLink} />
@@ -148,30 +157,36 @@ export function AllWorkflowsList() {
   );
 
   return (
-    <PanelCard
-      title="All workflows"
-      subtitle={value ? `Namespace: ${value.namespace}` : undefined}
-    >
-      {filterBar}
-      {error ? (
-        <ErrorAlert error={error} />
-      ) : (
-        <WorkflowRunsTable
-          label="All workflows"
-          items={value?.items ?? []}
-          showTaskQueue
-          entityColumn="any"
-          pending={loading}
-          emptyText="No Temporal workflows match these filters."
+    <div ref={scrollRef}>
+      <PanelCard
+        title="All workflows"
+        subtitle={value ? `Namespace: ${value.namespace}` : undefined}
+      >
+        {filterBar}
+        <LostPageNotice page={list.lostPage} />
+        {error ? (
+          <ErrorAlert error={error} />
+        ) : (
+          <WorkflowRunsTable
+            label="All workflows"
+            items={value?.items ?? []}
+            showTaskQueue
+            entityColumn="any"
+            pending={loading}
+            emptyText="No Temporal workflows match these filters."
+          />
+        )}
+        <Pager
+          page={list.page}
+          pageSize={list.pageSize}
+          onPageSizeChange={list.setPageSize}
+          hasPrevious={list.page > 1}
+          hasNext={Boolean(value?.nextPageToken)}
+          disabled={loading}
+          onPrevious={list.previousPage}
+          onNext={() => list.nextPage(value?.nextPageToken)}
         />
-      )}
-      <Pager
-        hasPrevious={tokens.length > 1}
-        hasNext={Boolean(value?.nextPageToken)}
-        disabled={loading}
-        onPrevious={() => setTokens(t => t.slice(0, -1))}
-        onNext={() => setTokens(t => [...t, value?.nextPageToken])}
-      />
-    </PanelCard>
+      </PanelCard>
+    </div>
   );
 }

@@ -26,10 +26,12 @@ import {
   WorkflowStartRequest,
   WorkflowStartResponse,
   buildEntityWorkflowsPath,
+  buildLlmCallPath,
   buildWorkflowPath,
   WORKFLOWS_PATH,
   WorkflowDetail,
   WorkflowGraphResponse,
+  WorkflowLlmCallResponse,
   WorkflowLoopsResponse,
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
@@ -189,6 +191,18 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowLoopsResponse> {
     return this.get(
       `${buildWorkflowPath(ref)}/loops${queryString({
+        entityRef: options?.entityRef,
+      })}`,
+    );
+  }
+
+  getLlmCall(
+    ref: WorkflowRef,
+    nodeId: string,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowLlmCallResponse> {
+    return this.get(
+      `${buildWorkflowPath(ref)}${buildLlmCallPath(nodeId)}${queryString({
         entityRef: options?.entityRef,
       })}`,
     );

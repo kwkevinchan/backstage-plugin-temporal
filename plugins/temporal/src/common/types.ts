@@ -18,6 +18,7 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
 
 /**
  * Status of a workflow execution, named like the Temporal visibility
@@ -292,6 +293,10 @@ export interface ActivityStep {
   /** Decoded result of a completed activity. */
   result?: JsonValue;
   failure?: WorkflowFailure;
+  /** A model call (activity ID `llm/...`). */
+  llm?: WorkflowLlmSummary;
+  /** A tool call of a model call (activity ID `tool/...`). */
+  tool?: WorkflowToolLink;
 }
 
 /**

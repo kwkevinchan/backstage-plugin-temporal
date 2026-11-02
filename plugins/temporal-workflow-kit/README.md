@@ -4,12 +4,13 @@ Helpers for Temporal workers whose workflows are shown by the unofficial
 [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md).
 It is not a Backstage package: install it in your worker, not in Backstage.
 
-| Entry point                               | What it is                                                                                  | Needs                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `@kwkevinchan/temporal-workflow-kit/s3`   | Payload codec: large payloads in S3-compatible storage, a claim check in the history.       | `@aws-sdk/client-s3` 3.350 or later                |
-| `@kwkevinchan/temporal-workflow-kit/loop` | Loop markers, a loop state query and continue-as-new helpers. Runs in the workflow sandbox. | `@temporalio/workflow` 1.12 or later (tested 1.24) |
+| Entry point                               | What it is                                                                                                                                                     | Needs                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `@kwkevinchan/temporal-workflow-kit/s3`   | Payload codec: large payloads in S3-compatible storage, a claim check in the history.                                                                          | `@aws-sdk/client-s3` 3.350 or later                |
+| `@kwkevinchan/temporal-workflow-kit/loop` | Loop markers, a loop state query and continue-as-new helpers. Runs in the workflow sandbox.                                                                    | `@temporalio/workflow` 1.12 or later (tested 1.24) |
+| `@kwkevinchan/temporal-workflow-kit/llm`  | LLM steps: markers for model calls and tool calls, a recorder of model calls (OpenTelemetry GenAI attributes) and converters for OpenAI, Anthropic and Ollama. | Nothing (no LLM SDK)                               |
 
-There is no root entry point; import one of the two. Both SDKs are optional
+There is no root entry point; import one of the three. Both SDKs are optional
 peer dependencies, so a worker installs only what it uses: a worker that
 only uses `/loop` does not install the AWS SDK, and `/loop` never loads it
 into the workflow bundle.
@@ -21,10 +22,11 @@ yarn add @kwkevinchan/temporal-workflow-kit
 yarn add @kwkevinchan/temporal-workflow-kit @aws-sdk/client-s3
 ```
 
-The Backstage backend reads the claim checks with its own code and does not
-need this package. Both implementations are tested against the same
-examples (`test-fixtures/claim-checks.json` and
-`test-fixtures/loop-markers.json` in the repository).
+The Backstage backend reads the claim checks, markers and records with its
+own code and does not need this package. Both implementations are tested
+against the same examples (`test-fixtures/claim-checks.json`,
+`test-fixtures/loop-markers.json` and `test-fixtures/llm-records.json` in
+the repository).
 
 ## `/s3`: large payloads in S3
 
@@ -423,3 +425,338 @@ a running workflow.
   in a form Backstage reads).
 - Temporal's event groups (experimental in SDK 1.24) may replace the
   activity ID marker once they are stable in every SDK and server.
+
+## `/llm`: LLM steps of agent workflows
+
+Marks the activities of an LLM agent and records each model call, so the
+[Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#llm-steps)
+shows every call with its input, reasoning, output, tool calls and tokens,
+and draws the tools a call asked for next to it.
+
+- **Model call**: an activity that calls the model and returns the record
+  of the call (`recordLlmCall`). Its activity ID starts with
+  `llm/<call>`.
+- **Tool call**: the model asked for a tool; the workflow runs it as an
+  activity whose ID starts with `tool/<call>/<tool call ID>`, or as a local
+  activity whose result carries the same marker. Tools can also run inside
+  the model call's activity; they are then only in the record.
+
+The record follows the
+[OpenTelemetry semantic conventions for generative AI](https://github.com/open-telemetry/semantic-conventions-genai)
+(attributes `gen_ai.*`, message parts `text`, `reasoning`, `tool_call`,
+`tool_call_response`, ...), version **`gen-ai-dev/1.42.0-dev`**
+(repository `open-telemetry/semantic-conventions-genai` at commit
+`16f3130`, 2 November 2026). The conventions are still in Development;
+the record names the version it follows (`semconv`), and a new version of
+this package will move to a newer one.
+
+No LLM SDK is used: the converters only read the shape of the requests and
+responses, so any client library (or plain `fetch`) works. Everything runs
+in the workflow sandbox too; the workflow needs only the markers and
+`toolCallsOf`.
+
+### Usage
+
+Activity (any client library; here the OpenAI SDK):
+
+```ts
+import OpenAI from 'openai';
+import {
+  openaiChat,
+  recordLlmCall,
+} from '@kwkevinchan/temporal-workflow-kit/llm';
+
+const openai = new OpenAI();
+
+export async function callModel(request: { messages: any[] }) {
+  return recordLlmCall({
+    request: { model: 'gpt-4.1', messages: request.messages, tools: TOOLS },
+    convert: openaiChat, // or anthropicMessages, ollamaChat
+    call: body => openai.chat.completions.create(body),
+    // Optional: keep the result small, the record has the output.
+    value: () => undefined,
+  });
+}
+```
+
+Workflow:
+
+```ts
+import { proxyActivities } from '@temporalio/workflow';
+import {
+  llmCallOptions,
+  toolCallOptions,
+  toolCallsOf,
+} from '@kwkevinchan/temporal-workflow-kit/llm';
+import type * as activities from './activities';
+
+export async function agentWorkflow(question: string) {
+  const messages: any[] = [{ role: 'user', content: question }];
+  for (let turn = 1; turn <= 10; turn++) {
+    const call = `agent-${turn}`; // unique in the run
+    const { callModel } = proxyActivities<typeof activities>(
+      llmCallOptions(call, { startToCloseTimeout: '2 minutes' }),
+    );
+    const result = await callModel({ messages });
+    const toolCalls = toolCallsOf(result);
+    if (toolCalls.length === 0) return result;
+    messages.push(/* the assistant message with its tool calls */);
+    // Each tool call as its own activity, linked to the model call.
+    const outputs = await Promise.all(
+      toolCalls.map(tc =>
+        proxyActivities<typeof activities>(
+          toolCallOptions(call, tc.id!, { startToCloseTimeout: '1 minute' }),
+        )[tc.name as 'search'](tc.arguments as any),
+      ),
+    );
+    messages.push(/* one tool message per output */);
+  }
+}
+```
+
+- `llmCallOptions(call, options)` and `toolCallOptions(call, toolCallId,
+options)` return activity options with the marker. Use them for one call
+  each (an activity ID must be unique among the open activities).
+- With [loops](#loop-loops-of-ai-workflows), pass the options of a round:
+  `llmCallOptions(call, round.activityOptions('callModel', options))` gives
+  `llm/<call>/loop/<loop>/<round>/callModel`, so the call shows in the
+  round and the Loops tab adds up the tokens of each round.
+- Local activities: Backstage cannot read their activity ID in every SDK
+  (TypeScript uses a sequence number), so return
+  `markToolResult({ call, toolCallId }, value)` from the activity and
+  unwrap it in the workflow with `toolValueOf(result)`.
+- Tools inside the model call's activity: `call: (body, context) => ...`
+  gets `context.runTool({ id, name, arguments }, run)`, which records the
+  tool (`execute_tool` attributes) in the record's `toolExecutions`.
+- Failed calls: `recordLlmCall` throws the error with the record in its
+  `llm` property. To keep the record in the history, return a failure with
+  the record as details:
+  `onError: (err, record) => ApplicationFailure.fromError(err, { details: [record] })`
+  (`ApplicationFailure` from `@temporalio/activity`). Backstage reads it
+  from the failure details.
+- `toolCallsOf(result)`, `outputTextOf(result)` and `reasoningOf(result)`
+  read the output; `createLlmRecord(attributes, extra)` builds a record
+  from attributes you collected yourself.
+
+### Format (specification)
+
+Workflows in other SDKs follow this format by hand; Backstage reads it the
+same way.
+
+#### Activity IDs
+
+```
+llm/<call>[/<rest>]
+tool/<call>/<toolCallId>[/<rest>]
+```
+
+- `<call>`: name of the model call, unique within the run, for example
+  `agent-3` or `r2`. Not `loop`.
+- `<toolCallId>`: the ID the model gave the tool call (OpenAI `call_...`,
+  Anthropic `toolu_...`). The Ollama converter uses `call_<n>` (position in
+  the message, from 1) when Ollama gives none.
+- `<rest>`: anything, for example a loop marker
+  (`loop/<loop>/<round>/<step>`) or a number that keeps IDs unique.
+- `<call>` and `<toolCallId>` are percent-encoded like `encodeURIComponent`
+  (Go `url.PathEscape`, Python `urllib.parse.quote(s, safe='')`).
+
+The activity ID is used for the same reasons as for loops: every SDK can
+set it, and a payload codec (encryption, S3) never changes it, so Backstage
+finds the LLM steps without the codec. Tool calls are linked to the latest
+model call with the same `<call>` that started before them.
+
+A tool run as a local activity returns
+`{ "temporal.llm.tool": { "call": "<call>", "toolCallId": "<id>" }, "value": ... }`
+instead (or sets the activity ID, in SDKs that let it).
+
+#### The record: the result of the model call
+
+The model call activity returns an object with the record under
+`temporal.llm`. Anything else in the result (`value` here) is yours; the
+backend does not read it.
+
+```json
+{
+  "temporal.llm": {
+    "v": 1,
+    "semconv": "gen-ai-dev/1.42.0-dev",
+    "startTime": "2026-11-03T08:00:00.000Z",
+    "durationMs": 1520,
+    "attributes": {
+      "gen_ai.operation.name": "chat",
+      "gen_ai.provider.name": "openai",
+      "gen_ai.request.model": "gpt-4.1",
+      "gen_ai.request.temperature": 0.2,
+      "gen_ai.response.model": "gpt-4.1-2025-04-14",
+      "gen_ai.response.id": "chatcmpl-123",
+      "gen_ai.response.finish_reasons": ["tool_call"],
+      "gen_ai.usage.input_tokens": 812,
+      "gen_ai.usage.output_tokens": 164,
+      "gen_ai.usage.reasoning.output_tokens": 96,
+      "gen_ai.usage.cache_read.input_tokens": 256,
+      "gen_ai.system_instructions": [
+        { "type": "text", "content": "You are a release assistant." }
+      ],
+      "gen_ai.input.messages": [
+        {
+          "role": "user",
+          "parts": [{ "type": "text", "content": "Summarize the issues." }]
+        }
+      ],
+      "gen_ai.output.messages": [
+        {
+          "role": "assistant",
+          "parts": [
+            { "type": "reasoning", "content": "Two issues match..." },
+            { "type": "text", "content": "Reading both issues." },
+            {
+              "type": "tool_call",
+              "id": "call_b1",
+              "name": "read_issue",
+              "arguments": { "id": "#12" }
+            }
+          ]
+        }
+      ],
+      "gen_ai.tool.definitions": [
+        { "type": "function", "name": "read_issue", "parameters": {} }
+      ]
+    },
+    "toolExecutions": [
+      {
+        "gen_ai.tool.call.id": "ctx_1",
+        "gen_ai.tool.name": "user_profile",
+        "gen_ai.tool.call.arguments": { "user": "guest" },
+        "gen_ai.tool.call.result": { "role": "developer" },
+        "durationMs": 80
+      }
+    ]
+  },
+  "value": "anything"
+}
+```
+
+- `v`: format version, `1`. `semconv`: the version of the conventions of
+  `attributes`.
+- `attributes`: attributes of the OpenTelemetry inference span of the call.
+  Any `gen_ai.*` attribute may be added (for example
+  `gen_ai.conversation.id`). Messages, instructions and tool definitions are
+  JSON arrays; a JSON string with the array (as span exporters write it) is
+  read too.
+- Message parts: `text` (`content`), `reasoning` (`content`), `tool_call`
+  (`id`, `name`, `arguments`), `tool_call_response` (`id`, `response`),
+  `blob`, `uri`, `file`, `server_tool_call`, `server_tool_call_response`,
+  and provider parts named `<provider>.<type>` (for example
+  `anthropic.redacted_thinking`). System messages that are part of the chat
+  history stay in `gen_ai.input.messages`; instructions given apart
+  (Anthropic `system`) are `gen_ai.system_instructions`.
+- Input tokens include cached tokens, output tokens include reasoning
+  tokens (as the conventions ask).
+- `error`: `{ "type", "message" }` of a failed call; `error.type` is set in
+  the attributes too.
+- `toolExecutions`: tools that ran inside the activity, with the attributes
+  of an `execute_tool` span (`gen_ai.tool.call.id`, `gen_ai.tool.name`,
+  `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result`, `error.type`),
+  and `error` and `durationMs`.
+
+#### Large records
+
+A record is part of the activity result, so the
+[S3 codec](#s3-large-payloads-in-s3) stores a large one in S3 like any other
+payload. The step graph shows the model, tokens and tools of records up to
+the backend's inline limit (`maxInlineBytes`, 256 KiB by default); the step
+panel reads records up to 8 MiB from S3. Records encrypted by a codec are
+found (the activity ID marks them) but not shown.
+
+#### What Backstage shows, and the permissions
+
+- Step graph, Loops tab and Timeline (the read permission): the model,
+  token counts, duration, the number and names of the tools and whether
+  there is reasoning. These are names and numbers, like step names.
+- The step panel of a model call (`temporal.workflow.history.read`, like
+  inputs and results): the messages, the reasoning, the output, tool
+  arguments and results, and the raw record.
+
+### Other SDKs, in short
+
+Go:
+
+```go
+// The model call.
+ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+    ActivityID:          "llm/" + url.PathEscape(call),
+    StartToCloseTimeout: 2 * time.Minute,
+})
+var result struct {
+    Record map[string]any `json:"temporal.llm"`
+}
+err := workflow.ExecuteActivity(ctx, CallModel, req).Get(ctx, &result)
+
+// In the activity: return the record.
+return map[string]any{
+    "temporal.llm": map[string]any{
+        "v": 1, "semconv": "gen-ai-dev/1.42.0-dev",
+        "durationMs": time.Since(start).Milliseconds(),
+        "attributes": map[string]any{
+            "gen_ai.operation.name":      "chat",
+            "gen_ai.provider.name":       "openai",
+            "gen_ai.request.model":       req.Model,
+            "gen_ai.usage.input_tokens":  resp.Usage.PromptTokens,
+            "gen_ai.usage.output_tokens": resp.Usage.CompletionTokens,
+            "gen_ai.input.messages":      inputMessages,  // []map[string]any with role and parts
+            "gen_ai.output.messages":     outputMessages,
+        },
+    },
+}, nil
+
+// Each tool call.
+ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+    ActivityID:          "tool/" + url.PathEscape(call) + "/" + url.PathEscape(toolCallID),
+    StartToCloseTimeout: time.Minute,
+})
+```
+
+Python:
+
+```python
+from urllib.parse import quote
+
+result = await workflow.execute_activity(
+    call_model, req,
+    activity_id=f"llm/{quote(call, safe='')}",
+    start_to_close_timeout=timedelta(minutes=2),
+)
+for tc in tool_calls(result["temporal.llm"]):
+    await workflow.execute_activity(
+        TOOLS[tc["name"]], tc["arguments"],
+        activity_id=f"tool/{quote(call, safe='')}/{quote(tc['id'], safe='')}",
+        start_to_close_timeout=timedelta(minutes=1),
+    )
+
+# In the activity:
+return {
+    "temporal.llm": {
+        "v": 1,
+        "semconv": "gen-ai-dev/1.42.0-dev",
+        "durationMs": round((time.monotonic() - start) * 1000),
+        "attributes": {
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": "anthropic",
+            "gen_ai.request.model": req["model"],
+            "gen_ai.usage.input_tokens": usage.input_tokens,
+            "gen_ai.usage.output_tokens": usage.output_tokens,
+            "gen_ai.input.messages": input_messages,
+            "gen_ai.output.messages": output_messages,
+        },
+    }
+}
+```
+
+Python local activities can set `activity_id` too
+(`workflow.execute_local_activity(..., activity_id="tool/...")`).
+
+### Not supported
+
+- Streamed responses: collect the stream into the response shape first.
+- Child workflows as tools are shown as child workflows, not linked to the
+  model call.

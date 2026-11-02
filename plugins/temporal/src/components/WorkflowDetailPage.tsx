@@ -55,6 +55,7 @@ import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { loopOfStep, LoopView, LoopViews } from './graph/loops';
+import { savedListSearch } from './listState';
 import { LoopsTab } from './LoopsTab';
 import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
@@ -228,6 +229,10 @@ function GraphCard(props: {
   graphError?: Error;
   selectedId?: string;
   onSelect(id: string | undefined): void;
+  /** Selects a step from the step panel (a tool call of a model call). */
+  onSelectStep(id: string): void;
+  workflowRef: WorkflowRef;
+  entityRef?: string;
   workflowHref(ref: WorkflowRef): string;
   showMarkers: boolean;
   onShowMarkersChange(show: boolean): void;
@@ -282,6 +287,10 @@ function GraphCard(props: {
                 payloadsHidden={graph.payloadsHidden}
                 workflowHref={props.workflowHref}
                 onClose={() => onSelect(undefined)}
+                nodes={graph.nodes}
+                workflowRef={props.workflowRef}
+                entityRef={props.entityRef}
+                onSelectStep={props.onSelectStep}
               />
             )}
           </div>
@@ -301,6 +310,7 @@ function TimelineTab(props: {
   showMarkers: boolean;
   live: boolean;
   workflowHref(ref: WorkflowRef): string;
+  entityRef?: string;
 }) {
   const { graph } = props;
   const [selectedId, setSelectedId] = useState<string | undefined>();
@@ -330,6 +340,14 @@ function TimelineTab(props: {
           payloadsHidden={graph.payloadsHidden}
           workflowHref={props.workflowHref}
           onClose={() => setSelectedId(undefined)}
+          nodes={graph.nodes}
+          workflowRef={{
+            namespace: props.workflow.namespace,
+            workflowId: props.workflow.workflowId,
+            runId: props.workflow.runId,
+          }}
+          entityRef={props.entityRef}
+          onSelectStep={setSelectedId}
         />
       )}
     </div>
@@ -434,6 +452,20 @@ export function WorkflowDetailPage(
     },
     [nodes, loops, setLoopView, scrollToGraph],
   );
+  // A step picked in the step panel: shown in its loop round, selected.
+  const selectInGraph = useCallback(
+    (id: string) => {
+      const inLoop = loopOfStep(loops, id);
+      if (inLoop) {
+        setLoopView(inLoop.loop.name, {
+          expanded: true,
+          iteration: inLoop.round.iteration,
+        });
+      }
+      setSelectedId(id);
+    },
+    [loops, setLoopView],
+  );
   const showRound = useCallback(
     (loop: string, iteration: number) => {
       setLoopView(loop, { expanded: true, iteration });
@@ -443,8 +475,13 @@ export function WorkflowDetailPage(
     [setLoopView, scrollToGraph],
   );
 
+  // Back to the list with its filters and page, as it was left.
   const back = (
-    <Link href={rootPath || '/'} variant="body-medium">
+    <Link
+      href={`${rootPath || '/'}${savedListSearch(rootPath || '/')}`}
+      variant="body-medium"
+      data-testid="back-to-list"
+    >
       ← All workflows
     </Link>
   );
@@ -598,6 +635,9 @@ export function WorkflowDetailPage(
             graphError={data.graphError}
             selectedId={selectedId}
             onSelect={setSelectedId}
+            onSelectStep={selectInGraph}
+            workflowRef={historyRef}
+            entityRef={entityRef}
             workflowHref={workflowHref}
             showMarkers={showMarkers}
             onShowMarkersChange={setShowMarkers}
@@ -639,6 +679,7 @@ export function WorkflowDetailPage(
                     showMarkers={showMarkers}
                     live={running && autoRefresh}
                     workflowHref={workflowHref}
+                    entityRef={entityRef}
                   />
                 ) : (
                   <Loading />

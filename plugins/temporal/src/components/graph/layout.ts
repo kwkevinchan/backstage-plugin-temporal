@@ -20,6 +20,26 @@ import { isMarkerStep } from '../steps';
 
 export const NODE_WIDTH = 220;
 export const NODE_HEIGHT = 64;
+/** A model call: three lines (name, model, tokens and tools). */
+export const LLM_NODE_WIDTH = 240;
+export const LLM_NODE_HEIGHT = 86;
+/** A tool call of a model call: a smaller box. */
+export const TOOL_NODE_WIDTH = 180;
+export const TOOL_NODE_HEIGHT = 52;
+/** Widest box, for the columns of a wrapped graph. */
+const MAX_NODE_WIDTH = LLM_NODE_WIDTH;
+
+export interface NodeSize {
+  width: number;
+  height: number;
+}
+
+/** Size of the box of a step: model calls are larger, tool calls smaller. */
+export function stepSize(node: { llm?: unknown; tool?: unknown }): NodeSize {
+  if (node.llm) return { width: LLM_NODE_WIDTH, height: LLM_NODE_HEIGHT };
+  if (node.tool) return { width: TOOL_NODE_WIDTH, height: TOOL_NODE_HEIGHT };
+  return { width: NODE_WIDTH, height: NODE_HEIGHT };
+}
 /** Space between the columns, between the steps of a column, and around. */
 const COLUMN_GAP = 56;
 const ROW_GAP = 24;
@@ -122,6 +142,8 @@ export function hideSteps<N extends { id: string }>(
 
 export interface StepLayout {
   positions: Map<string, { x: number; y: number }>;
+  /** Size of each box, for boxes that are not of the default size. */
+  sizes?: Map<string, NodeSize>;
   /** Size of the laid out graph, with its margin. */
   width: number;
   height: number;
@@ -137,10 +159,12 @@ export interface StepLayout {
  * continue on a next row, so long runs stay readable without zooming out.
  */
 export function layoutSteps(
-  nodes: { id: string }[],
+  nodes: { id: string; size?: NodeSize }[],
   edges: WorkflowGraphEdge[],
   width?: number,
 ): StepLayout {
+  const sizeOf = (node: { size?: NodeSize }) =>
+    node.size ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({
     rankdir: 'LR',
@@ -151,19 +175,22 @@ export function layoutSteps(
   });
   graph.setDefaultEdgeLabel(() => ({}));
   for (const node of nodes) {
-    graph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    graph.setNode(node.id, sizeOf(node));
   }
   for (const edge of edges) {
     graph.setEdge(edge.source, edge.target);
   }
   dagre.layout(graph);
   const positions = new Map<string, { x: number; y: number }>();
+  const sizes = new Map<string, NodeSize>();
   for (const node of nodes) {
     const placed = graph.node(node.id) as { x: number; y: number } | undefined;
+    const box = sizeOf(node);
+    if (node.size) sizes.set(node.id, box);
     // dagre returns the center; React Flow expects the top left corner.
     positions.set(node.id, {
-      x: (placed?.x ?? 0) - NODE_WIDTH / 2,
-      y: (placed?.y ?? 0) - NODE_HEIGHT / 2,
+      x: (placed?.x ?? 0) - box.width / 2,
+      y: (placed?.y ?? 0) - box.height / 2,
     });
   }
   const size = graph.graph() as { width?: number; height?: number };
@@ -173,21 +200,32 @@ export function layoutSteps(
     height: size.height ?? NODE_HEIGHT + 2 * MARGIN,
     wrapped: false,
   };
+  if (sizes.size > 0) layout.sizes = sizes;
   if (width === undefined || nodes.length === 0) return layout;
   // Fits as it is, at a readable zoom.
   if (layout.width * READABLE_ZOOM <= width) return layout;
   return wrapColumns(layout, width);
 }
 
+/** Size of a laid out box. */
+export function boxSize(layout: StepLayout, id: string): NodeSize {
+  return layout.sizes?.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+}
+
 /** Moves the columns of a laid out graph into rows of at most `width`. */
 function wrapColumns(layout: StepLayout, width: number): StepLayout {
-  const step = NODE_WIDTH + COLUMN_GAP;
+  // Boxes of one column share their center; columns are as wide as the
+  // widest box when some boxes are larger.
+  const column = layout.sizes ? MAX_NODE_WIDTH : NODE_WIDTH;
+  const step = column + COLUMN_GAP;
   const perRow = Math.max(
     1,
     Math.floor((width - 2 * MARGIN + COLUMN_GAP) / step),
   );
+  const center = (id: string, p: { x: number }) =>
+    Math.round(p.x + boxSize(layout, id).width / 2);
   const columns = [
-    ...new Set([...layout.positions.values()].map(p => Math.round(p.x))),
+    ...new Set([...layout.positions].map(([id, p]) => center(id, p))),
   ].sort((a, b) => a - b);
   if (columns.length <= perRow) return layout;
   const columnOf = new Map(columns.map((x, i) => [x, i]));
@@ -196,12 +234,10 @@ function wrapColumns(layout: StepLayout, width: number): StepLayout {
   const rowCount = Math.ceil(columns.length / perRow);
   const top = new Array<number>(rowCount).fill(Infinity);
   const bottom = new Array<number>(rowCount).fill(-Infinity);
-  const rowOf = (p: { x: number }) =>
-    Math.floor(columnOf.get(Math.round(p.x))! / perRow);
-  for (const p of layout.positions.values()) {
-    const row = rowOf(p);
+  for (const [id, p] of layout.positions) {
+    const row = Math.floor(columnOf.get(center(id, p))! / perRow);
     top[row] = Math.min(top[row], p.y);
-    bottom[row] = Math.max(bottom[row], p.y + NODE_HEIGHT);
+    bottom[row] = Math.max(bottom[row], p.y + boxSize(layout, id).height);
   }
   const offsets: number[] = [];
   let y = MARGIN;
@@ -212,19 +248,24 @@ function wrapColumns(layout: StepLayout, width: number): StepLayout {
 
   const positions = new Map<string, { x: number; y: number }>();
   for (const [id, p] of layout.positions) {
-    const column = columnOf.get(Math.round(p.x))!;
-    const row = Math.floor(column / perRow);
+    const index = columnOf.get(center(id, p))!;
+    const row = Math.floor(index / perRow);
     positions.set(id, {
-      x: MARGIN + (column % perRow) * step,
+      x:
+        MARGIN +
+        (index % perRow) * step +
+        (column - boxSize(layout, id).width) / 2,
       y: offsets[row] + (p.y - top[row]),
     });
   }
-  return {
+  const wrapped: StepLayout = {
     positions,
     width: 2 * MARGIN + perRow * step - COLUMN_GAP,
     height: y - WRAP_GAP + MARGIN,
     wrapped: true,
   };
+  if (layout.sizes) wrapped.sizes = layout.sizes;
+  return wrapped;
 }
 
 export interface Viewport {
@@ -280,12 +321,13 @@ export function panIntoView(
   viewport: Viewport,
   position: { x: number; y: number },
   canvas: { width: number; height: number },
+  size: NodeSize = { width: NODE_WIDTH, height: NODE_HEIGHT },
 ): Viewport {
   const { zoom } = viewport;
   const margin = MARGIN;
-  const shift = (start: number, size: number, available: number) => {
-    const end = start + size;
-    if (size + 2 * margin > available) return margin - start;
+  const shift = (start: number, length: number, available: number) => {
+    const end = start + length;
+    if (length + 2 * margin > available) return margin - start;
     if (start < margin) return margin - start;
     if (end > available - margin) return available - margin - end;
     return 0;
@@ -293,8 +335,8 @@ export function panIntoView(
   const left = position.x * zoom + viewport.x;
   const top = position.y * zoom + viewport.y;
   return {
-    x: viewport.x + shift(left, NODE_WIDTH * zoom, canvas.width),
-    y: viewport.y + shift(top, NODE_HEIGHT * zoom, canvas.height),
+    x: viewport.x + shift(left, size.width * zoom, canvas.width),
+    y: viewport.y + shift(top, size.height * zoom, canvas.height),
     zoom,
   };
 }

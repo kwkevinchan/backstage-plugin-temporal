@@ -18,6 +18,7 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
 import type { WorkflowLoopGroup, WorkflowLoopMarker } from './loops';
 import type { WorkflowFailure, WorkflowStatus } from './types';
 
@@ -164,6 +165,10 @@ export interface WorkflowGraphNode {
   details?: JsonObject;
   /** Loop, round and step of an activity or child workflow with a loop marker. */
   loop?: WorkflowLoopMarker;
+  /** A model call (activity ID `llm/...`): model, tokens and tool calls. */
+  llm?: WorkflowLlmSummary;
+  /** A tool call of a model call (activity ID `tool/...`). */
+  tool?: WorkflowToolLink;
   /** The events of the step, oldest first. */
   events: WorkflowNodeEvent[];
 }

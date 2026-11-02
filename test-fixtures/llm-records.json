@@ -1,0 +1,776 @@
+{
+  "description": "Shared examples of the LLM step format. Markers: activity IDs and what they mark (null: not a marker). Records: a request and response of each provider, the OpenTelemetry GenAI attributes the converters of @kwkevinchan/temporal-workflow-kit/llm write for them, and the summary the backend reads from a record with those attributes.",
+  "semconv": "gen-ai-dev/1.42.0-dev",
+  "markers": [
+    {
+      "text": "llm/agent-1",
+      "marker": {
+        "kind": "llm",
+        "call": "agent-1"
+      }
+    },
+    {
+      "text": "llm/plan%2F1/loop/agent/3/callModel",
+      "marker": {
+        "kind": "llm",
+        "call": "plan/1"
+      },
+      "loop": {
+        "loop": "agent",
+        "iteration": 3,
+        "step": "callModel"
+      }
+    },
+    {
+      "text": "tool/agent-1/call_a1",
+      "marker": {
+        "kind": "tool",
+        "call": "agent-1",
+        "toolCallId": "call_a1"
+      }
+    },
+    {
+      "text": "tool/r2/toolu_01/loop/agent/2/read_file",
+      "marker": {
+        "kind": "tool",
+        "call": "r2",
+        "toolCallId": "toolu_01"
+      },
+      "loop": {
+        "loop": "agent",
+        "iteration": 2,
+        "step": "read_file"
+      }
+    },
+    {
+      "text": "tool/agent-1",
+      "marker": null
+    },
+    {
+      "text": "llm/",
+      "marker": null
+    },
+    {
+      "text": "my-llm/agent",
+      "marker": null
+    },
+    {
+      "text": "llm/%E0%A4%A",
+      "marker": null
+    },
+    {
+      "text": "loop/agent/1/llm",
+      "marker": null,
+      "loop": {
+        "loop": "agent",
+        "iteration": 1,
+        "step": "llm"
+      }
+    }
+  ],
+  "records": [
+    {
+      "name": "openai",
+      "request": {
+        "model": "deepseek-reasoner",
+        "temperature": 0.2,
+        "max_completion_tokens": 2048,
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a release assistant."
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "Summarize the open issues of the release."
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "data:image/png;base64,iVBORw0KGgo="
+                }
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_a1",
+                "type": "function",
+                "function": {
+                  "name": "search_issues",
+                  "arguments": "{\"label\":\"release\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_a1",
+            "content": "{\"count\":2,\"items\":[\"#12\",\"#15\"]}"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_issues",
+              "description": "Search issues",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "read_issue",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "response": {
+        "id": "chatcmpl-123",
+        "object": "chat.completion",
+        "model": "deepseek-reasoner-0528",
+        "choices": [
+          {
+            "index": 0,
+            "finish_reason": "tool_calls",
+            "message": {
+              "role": "assistant",
+              "content": "Reading both issues.",
+              "reasoning_content": "Two issues match; I should read each one.",
+              "tool_calls": [
+                {
+                  "id": "call_b1",
+                  "type": "function",
+                  "function": {
+                    "name": "read_issue",
+                    "arguments": "{\"id\":\"#12\"}"
+                  }
+                },
+                {
+                  "id": "call_b2",
+                  "type": "function",
+                  "function": {
+                    "name": "read_issue",
+                    "arguments": "{\"id\":\"#15\"}"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 812,
+          "completion_tokens": 164,
+          "total_tokens": 976,
+          "prompt_tokens_details": {
+            "cached_tokens": 256
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 96
+          }
+        }
+      },
+      "attributes": {
+        "gen_ai.provider.name": "openai",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.model": "deepseek-reasoner",
+        "gen_ai.request.temperature": 0.2,
+        "gen_ai.request.max_tokens": 2048,
+        "gen_ai.input.messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "content": "You are a release assistant."
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "Summarize the open issues of the release."
+              },
+              {
+                "type": "blob",
+                "modality": "image",
+                "mime_type": "image/png",
+                "content": "iVBORw0KGgo="
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "id": "call_a1",
+                "name": "search_issues",
+                "arguments": {
+                  "label": "release"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_call_response",
+                "id": "call_a1",
+                "response": {
+                  "count": 2,
+                  "items": ["#12", "#15"]
+                }
+              }
+            ]
+          }
+        ],
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "search_issues",
+            "description": "Search issues",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "function",
+            "name": "read_issue",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "gen_ai.response.id": "chatcmpl-123",
+        "gen_ai.response.model": "deepseek-reasoner-0528",
+        "gen_ai.response.finish_reasons": ["tool_call"],
+        "gen_ai.usage.input_tokens": 812,
+        "gen_ai.usage.output_tokens": 164,
+        "gen_ai.usage.reasoning.output_tokens": 96,
+        "gen_ai.usage.cache_read.input_tokens": 256,
+        "gen_ai.output.messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "reasoning",
+                "content": "Two issues match; I should read each one."
+              },
+              {
+                "type": "text",
+                "content": "Reading both issues."
+              },
+              {
+                "type": "tool_call",
+                "id": "call_b1",
+                "name": "read_issue",
+                "arguments": {
+                  "id": "#12"
+                }
+              },
+              {
+                "type": "tool_call",
+                "id": "call_b2",
+                "name": "read_issue",
+                "arguments": {
+                  "id": "#15"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "summary": {
+        "model": "deepseek-reasoner-0528",
+        "provider": "openai",
+        "usage": {
+          "inputTokens": 812,
+          "outputTokens": 164,
+          "reasoningTokens": 96,
+          "cacheReadInputTokens": 256
+        },
+        "reasoning": true,
+        "toolCalls": [
+          {
+            "id": "call_b1",
+            "name": "read_issue"
+          },
+          {
+            "id": "call_b2",
+            "name": "read_issue"
+          }
+        ],
+        "finishReasons": ["tool_call"]
+      }
+    },
+    {
+      "name": "anthropic",
+      "request": {
+        "model": "claude-sonnet-4-5",
+        "max_tokens": 4096,
+        "system": [
+          {
+            "type": "text",
+            "text": "You are a code reviewer."
+          }
+        ],
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 2000
+        },
+        "tools": [
+          {
+            "name": "read_file",
+            "description": "Read a file",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "messages": [
+          {
+            "role": "user",
+            "content": "Review src/index.ts."
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "I need the file first.",
+                "signature": "sig"
+              },
+              {
+                "type": "tool_use",
+                "id": "toolu_01",
+                "name": "read_file",
+                "input": {
+                  "path": "src/index.ts"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "tool_use_id": "toolu_01",
+                "content": "export const x = 1;"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "id": "msg_01",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-sonnet-4-5-20250929",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "The file exports a constant; check its use.",
+            "signature": "sig2"
+          },
+          {
+            "type": "text",
+            "text": "Let me look at the test."
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_02",
+            "name": "read_file",
+            "input": {
+              "path": "src/index.test.ts"
+            }
+          }
+        ],
+        "stop_reason": "tool_use",
+        "usage": {
+          "input_tokens": 1200,
+          "cache_read_input_tokens": 300,
+          "cache_creation_input_tokens": 100,
+          "output_tokens": 210
+        }
+      },
+      "attributes": {
+        "gen_ai.provider.name": "anthropic",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.model": "claude-sonnet-4-5",
+        "gen_ai.request.max_tokens": 4096,
+        "gen_ai.request.reasoning.level": "enabled",
+        "gen_ai.system_instructions": [
+          {
+            "type": "text",
+            "content": "You are a code reviewer."
+          }
+        ],
+        "gen_ai.input.messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "Review src/index.ts."
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "reasoning",
+                "content": "I need the file first."
+              },
+              {
+                "type": "tool_call",
+                "id": "toolu_01",
+                "name": "read_file",
+                "arguments": {
+                  "path": "src/index.ts"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_call_response",
+                "id": "toolu_01",
+                "response": "export const x = 1;"
+              }
+            ]
+          }
+        ],
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "read_file",
+            "description": "Read a file",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "gen_ai.response.id": "msg_01",
+        "gen_ai.response.model": "claude-sonnet-4-5-20250929",
+        "gen_ai.response.finish_reasons": ["tool_call"],
+        "gen_ai.usage.input_tokens": 1600,
+        "gen_ai.usage.output_tokens": 210,
+        "gen_ai.usage.cache_read.input_tokens": 300,
+        "gen_ai.usage.cache_write.input_tokens": 100,
+        "gen_ai.output.messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "reasoning",
+                "content": "The file exports a constant; check its use."
+              },
+              {
+                "type": "text",
+                "content": "Let me look at the test."
+              },
+              {
+                "type": "tool_call",
+                "id": "toolu_02",
+                "name": "read_file",
+                "arguments": {
+                  "path": "src/index.test.ts"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "summary": {
+        "model": "claude-sonnet-4-5-20250929",
+        "provider": "anthropic",
+        "usage": {
+          "inputTokens": 1600,
+          "outputTokens": 210,
+          "cacheReadInputTokens": 300,
+          "cacheWriteInputTokens": 100
+        },
+        "reasoning": true,
+        "toolCalls": [
+          {
+            "id": "toolu_02",
+            "name": "read_file"
+          }
+        ],
+        "finishReasons": ["tool_call"]
+      }
+    },
+    {
+      "name": "ollama",
+      "request": {
+        "model": "qwen3:8b",
+        "stream": false,
+        "think": true,
+        "options": {
+          "temperature": 0.7,
+          "num_predict": 512,
+          "seed": 42
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "description": "Weather of a city",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ],
+        "messages": [
+          {
+            "role": "system",
+            "content": "Answer briefly."
+          },
+          {
+            "role": "user",
+            "content": "Weather in Taipei and Tokyo?"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "function": {
+                  "name": "get_weather",
+                  "arguments": {
+                    "city": "Taipei"
+                  }
+                }
+              },
+              {
+                "function": {
+                  "name": "get_weather",
+                  "arguments": {
+                    "city": "Tokyo"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "28°C, rain",
+            "tool_name": "get_weather"
+          },
+          {
+            "role": "tool",
+            "content": "21°C, clear",
+            "tool_name": "get_weather"
+          }
+        ]
+      },
+      "response": {
+        "model": "qwen3:8b",
+        "created_at": "2026-11-03T08:00:00Z",
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "thinking": "Both cities answered; I also need Osaka for the trip.",
+          "tool_calls": [
+            {
+              "function": {
+                "name": "get_weather",
+                "arguments": {
+                  "city": "Osaka"
+                }
+              }
+            }
+          ]
+        },
+        "done": true,
+        "done_reason": "stop",
+        "total_duration": 1840000000,
+        "prompt_eval_count": 140,
+        "eval_count": 58
+      },
+      "attributes": {
+        "gen_ai.provider.name": "ollama",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.model": "qwen3:8b",
+        "gen_ai.request.temperature": 0.7,
+        "gen_ai.request.max_tokens": 512,
+        "gen_ai.request.seed": 42,
+        "gen_ai.request.reasoning.level": "on",
+        "gen_ai.input.messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "content": "Answer briefly."
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "Weather in Taipei and Tokyo?"
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "id": "call_1",
+                "name": "get_weather",
+                "arguments": {
+                  "city": "Taipei"
+                }
+              },
+              {
+                "type": "tool_call",
+                "id": "call_2",
+                "name": "get_weather",
+                "arguments": {
+                  "city": "Tokyo"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_call_response",
+                "id": "call_1",
+                "response": "28°C, rain",
+                "name": "get_weather"
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_call_response",
+                "id": "call_2",
+                "response": "21°C, clear",
+                "name": "get_weather"
+              }
+            ]
+          }
+        ],
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "Weather of a city",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        ],
+        "gen_ai.response.model": "qwen3:8b",
+        "gen_ai.response.finish_reasons": ["tool_call"],
+        "gen_ai.usage.input_tokens": 140,
+        "gen_ai.usage.output_tokens": 58,
+        "gen_ai.output.messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "reasoning",
+                "content": "Both cities answered; I also need Osaka for the trip."
+              },
+              {
+                "type": "tool_call",
+                "id": "call_1",
+                "name": "get_weather",
+                "arguments": {
+                  "city": "Osaka"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "summary": {
+        "model": "qwen3:8b",
+        "provider": "ollama",
+        "usage": {
+          "inputTokens": 140,
+          "outputTokens": 58
+        },
+        "reasoning": true,
+        "toolCalls": [
+          {
+            "id": "call_1",
+            "name": "get_weather"
+          }
+        ],
+        "finishReasons": ["tool_call"]
+      }
+    }
+  ]
+}

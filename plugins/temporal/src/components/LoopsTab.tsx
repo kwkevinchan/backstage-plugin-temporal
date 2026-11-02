@@ -16,9 +16,11 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
+import { addLlmUsage } from '../common';
 import type {
   WorkflowDetail,
   WorkflowGraphResponse,
+  WorkflowLlmUsage,
   WorkflowLoopGroup,
   WorkflowLoopRound,
   WorkflowLoopsResponse,
@@ -46,6 +48,8 @@ import {
   roundLabel,
 } from './loopText';
 import { StatusIcon, WorkflowStatusLabel } from './WorkflowStatusLabel';
+import { RiSparkling2Line, RiToolsLine } from '@remixicon/react';
+import { tokensText } from './llm/llmText';
 import { tp } from './styles';
 
 /** The loops of the open run, when the API cannot read the other runs. */
@@ -119,9 +123,26 @@ function StepsCell(props: { round: WorkflowLoopRound }) {
         <span
           key={step.nodeId}
           className={tp('tp-loop-step', `tp-tone-${toneOf(step.status)}`)}
-          title={`${step.name}: ${step.status}`}
+          title={`${step.name}: ${step.status}${
+            step.usage ? ` · ${tokensText(step.usage)}` : ''
+          }`}
+          data-llm={step.llm}
         >
           <StatusIcon status={step.status} size={14} />
+          {step.llm === 'llm' && (
+            <RiSparkling2Line
+              size={14}
+              className={tp('tp-llm-icon')}
+              aria-label="Model call"
+            />
+          )}
+          {step.llm === 'tool' && (
+            <RiToolsLine
+              size={14}
+              className={tp('tp-llm-icon')}
+              aria-label="Tool call"
+            />
+          )}
           <Text as="span" variant="body-small">
             {step.name}
           </Text>
@@ -155,6 +176,12 @@ function LoopTable(props: {
   const { loop, runId, multipleRuns } = props;
   const rounds = [...loop.rounds].reverse();
   const summary = decisionText(loop);
+  // Rounds with model calls get a tokens column, and the loop a total.
+  const withTokens = loop.rounds.some(r => r.usage);
+  const total = loop.rounds.reduce<WorkflowLlmUsage | undefined>(
+    (sum, r) => addLlmUsage(sum, r.usage),
+    undefined,
+  );
   return (
     <section
       className={tp('tp-section')}
@@ -177,6 +204,15 @@ function LoopTable(props: {
           {roundLabel(loop.iteration, loop)}
           {summary && ` · last ${summary}`}
         </Text>
+        {total && (
+          <Text
+            variant="body-small"
+            color="secondary"
+            data-testid="loop-tokens-total"
+          >
+            Tokens: {tokensText(total)}
+          </Text>
+        )}
       </Flex>
       <TableRoot
         aria-label={`Rounds of ${loop.name}`}
@@ -193,6 +229,7 @@ function LoopTable(props: {
           <Column>Status</Column>
           <Column>Steps</Column>
           <Column>Duration</Column>
+          {withTokens ? <Column>Tokens</Column> : null}
           <Column>Decision</Column>
           <Column>Score</Column>
         </TableHeader>
@@ -239,6 +276,23 @@ function LoopTable(props: {
                     {formatDuration(round.startTime, round.endTime)}
                   </Text>
                 </Cell>
+                {withTokens ? (
+                  <Cell>
+                    <Text
+                      variant="body-small"
+                      data-testid={`round-tokens-${round.iteration}`}
+                      title={
+                        round.llmCalls
+                          ? `${round.llmCalls} model call${
+                              round.llmCalls === 1 ? '' : 's'
+                            }`
+                          : undefined
+                      }
+                    >
+                      {tokensText(round.usage)}
+                    </Text>
+                  </Cell>
+                ) : null}
                 <Cell>
                   <Text variant="body-small">{round.decision ?? ''}</Text>
                 </Cell>

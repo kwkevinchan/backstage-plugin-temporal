@@ -32,6 +32,13 @@
  *                         markers: done in round 4 of at most 5
  *   - longRefineWorkflow  a loop of 25 rounds that continues as new every
  *                         10 rounds (three runs)
+ *   - agentWorkflow       a fake LLM agent (no model is called): model
+ *                         calls with reasoning and tool calls, tools as
+ *                         activities, a local activity and a retry, four
+ *                         rounds with loop markers, a long report (in S3
+ *                         with PAYLOAD_S3_ENDPOINT)
+ *   - mixedAgentWorkflow  ordinary activities, two model calls, two tools in
+ *                         parallel and a child workflow
  *   - reportWorkflow      completes with large outputs stored in S3 (only
  *                         when PAYLOAD_S3_ENDPOINT is set)
  *
@@ -122,6 +129,26 @@ async function startAll(client, withSearchAttributes) {
       workflowId: `example-long-refine-${suffix}`,
       args: [{ document: 'design doc', totalRounds: 25, every: 10 }],
     }),
+    // LLM steps: an agent loop and a mixed workflow (fake model).
+    client.workflow.start('agentWorkflow', {
+      ...common,
+      workflowId: `example-agent-${suffix}`,
+      args: [
+        {
+          topic: 'payload storage',
+          seed: 3,
+          conversation: `agent-${suffix}`,
+          // Long enough for S3 (above the 128 KiB threshold of the codec,
+          // below the 256 KiB the backend shows inline).
+          reportSize: process.env.PAYLOAD_S3_ENDPOINT ? 170_000 : 4000,
+        },
+      ],
+    }),
+    client.workflow.start('mixedAgentWorkflow', {
+      ...common,
+      workflowId: `example-mixed-agent-${suffix}`,
+      args: [{ ticket: 'T-42', topic: 'retry settings' }],
+    }),
   ]);
 }
 
@@ -181,6 +208,8 @@ async function main() {
     poll,
     draftReview,
     longRefine,
+    agent,
+    mixedAgent,
   ] = handles;
   const approval = await startApproval(client, handles.withSearchAttributes);
   const report = storage
@@ -240,6 +269,12 @@ async function main() {
     );
     console.log(
       `longRefineWorkflow result: ${JSON.stringify(await longRefine.result())}`,
+    );
+    console.log(
+      `agentWorkflow result: ${JSON.stringify(await agent.result())}`,
+    );
+    console.log(
+      `mixedAgentWorkflow result: ${JSON.stringify(await mixedAgent.result())}`,
     );
     // A comment on the approval; the workflow keeps waiting for approval.
     await approval.signal('comment', 'Please check the amount');

@@ -7,7 +7,8 @@ Unofficial Backstage frontend plugin for [Temporal](https://temporal.io).
 Shows Temporal workflows next to the catalog entities that own them: a
 **Temporal** tab with the workflow list and its progress, a details page with
 the step graph, a **Timeline** tab (steps on a time axis), the loops of AI
-workflows, events and details, the workflow controls, cards for
+workflows, the LLM steps of agent workflows (model calls with their input,
+thinking, output, tool calls and tokens), events and details, the workflow controls, cards for
 `TemporalWorkflow` entities and a **Workflows** page. Works with the legacy
 and the new frontend system of Backstage 1.56.
 

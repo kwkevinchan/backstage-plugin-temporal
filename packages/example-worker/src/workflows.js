@@ -34,6 +34,7 @@ const {
   workflowInfo,
 } = require('@temporalio/workflow');
 const { createLoops } = require('@kwkevinchan/temporal-workflow-kit/loop');
+const agentWorkflows = require('./agentWorkflows');
 
 const { reserveStock, chargeCard, deploy } = proxyActivities({
   startToCloseTimeout: '10 seconds',
@@ -346,6 +347,7 @@ const { publishDraft } = proxyActivities({
 });
 
 module.exports = {
+  ...agentWorkflows,
   draftReviewWorkflow,
   longRefineWorkflow,
   reportWorkflow,
