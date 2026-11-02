@@ -20,9 +20,15 @@ system (`./alpha`).
   LLM panel with the input, thinking, output, tool calls (with a link to
   their steps) and usage, copy buttons and the raw record. The Loops tab adds
   up the tokens of each round.
+- A Definition tab on `TemporalWorkflow` entities: the YAML of a workflow
+  written in the Serverless Workflow DSL (`spec.definition`, as Zigflow runs
+  it) next to its graph, selecting each other, with a run of the workflow on
+  top (done, running, failed, not reached). Workflows written in code get
+  links to their source.
 - Workflow lists keep their filters, page and page size in the URL, so the
   browser's back button and the "All workflows" link return to the same
-  page.
+  page. Paging and filtering replace the history entry instead of adding
+  one.
 - Controls: start, signal, update, query, cancel, terminate and rerun, each
   behind a permission.
 - Extension points for other plugins and app modules: `temporalApiRef`,

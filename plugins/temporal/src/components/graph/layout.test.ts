@@ -126,6 +126,19 @@ describe('layoutSteps', () => {
     expect(view.zoom).toBe(1);
   });
 
+  it('lays out top to bottom without wrapping when asked', () => {
+    const { nodes, edges } = chain(12);
+    const layout = layoutSteps(nodes, edges, 600, { direction: 'TB' });
+    expect(layout.wrapped).toBe(false);
+    const xs = new Set([...layout.positions.values()].map(p => p.x));
+    expect(xs.size).toBe(1);
+    const at = (id: string) => layout.positions.get(id)!;
+    expect(at('s1').y).toBeGreaterThan(at('start').y);
+    expect(at('end').y).toBe(
+      Math.max(...[...layout.positions.values()].map(p => p.y)),
+    );
+  });
+
   it('opens a narrow canvas at a readable size from the first step', () => {
     const { nodes, edges } = chain(12);
     const layout = layoutSteps(nodes, edges);

@@ -495,8 +495,9 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     .getByRole('link', { name: 'Workflows', exact: true })
     .first()
     .click();
+  // The first page holds the newest runs, whichever examples ran last, so
+  // the payment workflow is found with the filter.
   const all = table(page, 'All workflows');
-  await expect(all.getByText('paymentWorkflow').first()).toBeVisible();
   await expect(all.getByTestId('workflow-progress').first()).toBeVisible();
   await expectPageMargins(page, all);
   await shot('18-workflows-page');
@@ -504,6 +505,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     .getByRole('textbox', { name: 'Workflow ID starts with' })
     .fill('example-payment-');
   await page.getByRole('button', { name: 'Search' }).click();
+  await expect(all.getByText('paymentWorkflow').first()).toBeVisible();
   await expect(all).not.toContainText('orderWorkflow');
   await openRun(all, 'paymentWorkflow');
   await expect(page.getByTestId('workflow-current')).toHaveText(

@@ -70,6 +70,16 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
      * workflow arguments, or one value for a workflow with one argument.
      */
     exampleInput?: JsonValue;
+    /**
+     * The definition file of a workflow written in a workflow DSL, for the
+     * Definition tab. Workflows written in code leave it out.
+     */
+    definition?: {
+      /** Format of the file: `serverless-workflow`. */
+      format: string;
+      /** Path relative to the entity's file, or an absolute URL. */
+      target: string;
+    };
   };
 }
 
@@ -152,6 +162,28 @@ export const temporalWorkflowEntityV1alpha1Schema = {
             exampleInput: {
               description:
                 'Example arguments for the Start workflow dialog: an array of arguments, or one value for a workflow with one argument.',
+            },
+            definition: {
+              type: 'object',
+              description:
+                'The definition file of a workflow written in a workflow DSL.',
+              required: ['format', 'target'],
+              additionalProperties: false,
+              properties: {
+                format: {
+                  type: 'string',
+                  enum: ['serverless-workflow'],
+                  description:
+                    'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow).',
+                },
+                target: {
+                  type: 'string',
+                  minLength: 1,
+                  maxLength: 2048,
+                  description:
+                    'Path relative to the file of the entity, or an absolute URL.',
+                },
+              },
             },
           },
         },

@@ -28,6 +28,7 @@ import {
 import { temporalServiceRef } from './service/TemporalService';
 import { createRouter } from './router';
 import { ExternalPayloads } from './service/payloads';
+import { DefinitionReader } from './service/definition';
 import {
   readControlOptions,
   WorkflowController,
@@ -69,6 +70,7 @@ export const temporalPlugin = createBackendPlugin({
         httpRouter: coreServices.httpRouter,
         permissions: coreServices.permissions,
         permissionsRegistry: coreServices.permissionsRegistry,
+        urlReader: coreServices.urlReader,
         catalog: catalogServiceRef,
         temporal: temporalServiceRef,
       },
@@ -80,6 +82,7 @@ export const temporalPlugin = createBackendPlugin({
         httpRouter,
         permissions,
         permissionsRegistry,
+        urlReader,
         catalog,
         temporal,
       }) {
@@ -106,6 +109,7 @@ export const temporalPlugin = createBackendPlugin({
             permissions,
             catalog,
             reader,
+            definitions: DefinitionReader.fromConfig(config, urlReader, logger),
             controls: {
               auditor,
               temporal,

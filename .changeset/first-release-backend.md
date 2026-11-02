@@ -14,6 +14,11 @@ First release of the backend plugin.
   tools, reasoning), and `GET .../llm-calls/:eventId` returns the full
   record (OpenTelemetry GenAI attributes), also from S3, with the history
   permission.
+- The definition file of a `TemporalWorkflow` entity
+  (`GET /entities/:kind/:namespace/:name/definition`), read with the URL
+  reader of the configured integrations, at most `temporal.definitions.maxBytes`
+  (1 MiB), parsed as plain YAML with a limit on aliases, with the lines of
+  each task.
 - Controls (start, signal, update, query, cancel, terminate, rerun),
   recorded with the auditor and limited with `temporal.control`.
 - The shared Temporal client service (`temporalServiceRef`, with bearer

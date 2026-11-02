@@ -35,6 +35,7 @@ import {
 } from '@backstage/plugin-org';
 import {
   EntityTemporalContent,
+  EntityTemporalDefinitionContent,
   EntityTemporalRelatedWorkflowsCard,
   EntityTemporalWorkflowSummaryCard,
   isTemporalAvailable,
@@ -121,8 +122,9 @@ const componentPage = (
   </EntityLayout>
 );
 
-// TemporalWorkflow entities: overview with the workflow summary, and the
-// Temporal tab with recent run statistics and the runs.
+// TemporalWorkflow entities: overview with the workflow summary, the
+// Temporal tab with recent run statistics and the runs, and the Definition
+// tab (the YAML and its graph, or links to the code).
 const temporalWorkflowPage = (
   <EntityLayout>
     <EntityLayout.Route path="/" title="Overview">
@@ -137,6 +139,9 @@ const temporalWorkflowPage = (
       </Grid>
     </EntityLayout.Route>
     {temporalRoute}
+    <EntityLayout.Route path="/definition" title="Definition">
+      <EntityTemporalDefinitionContent />
+    </EntityLayout.Route>
   </EntityLayout>
 );
 

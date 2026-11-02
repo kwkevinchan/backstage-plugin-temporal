@@ -29,8 +29,9 @@ import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
  * back (browser back or the "All workflows" link):
  *
  * - filters, the page number and the page size are query parameters of the
- *   list URL (`?status=Running&page=2&pageSize=10`), so back and forward,
- *   reloads and shared links keep them;
+ *   list URL (`?status=Running&page=2&pageSize=10`), so back from a
+ *   workflow, reloads and shared links keep them. Changing them replaces the
+ *   history entry instead of adding one;
  * - Temporal's page tokens are opaque and can be long, so the tokens of the
  *   pages seen are kept in sessionStorage, by list path and filters. When
  *   they are gone (another tab, storage blocked), the list opens on the
@@ -192,13 +193,18 @@ export function useWorkflowListState() {
 
   const go = useCallback(
     (next: { filters?: ListFilters; page?: number; pageSize?: number }) => {
-      setSearchParams(current =>
-        listSearch(
-          next.filters ?? filters,
-          next.page ?? 1,
-          next.pageSize ?? pageSize,
-          current,
-        ),
+      // Replace, not push: paging and filtering do not fill the browser
+      // history, so back leaves the list (or returns to it from a workflow
+      // on the page and with the filters it had).
+      setSearchParams(
+        current =>
+          listSearch(
+            next.filters ?? filters,
+            next.page ?? 1,
+            next.pageSize ?? pageSize,
+            current,
+          ),
+        { replace: true },
       );
     },
     [filters, pageSize, setSearchParams],

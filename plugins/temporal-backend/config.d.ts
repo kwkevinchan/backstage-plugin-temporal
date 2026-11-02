@@ -92,6 +92,20 @@ export interface Config {
        */
       allowedUpdates?: string[];
     };
+    /** Definition files of `TemporalWorkflow` entities (`spec.definition`). */
+    definitions?: {
+      /**
+       * Largest definition file the backend reads, in bytes. Defaults to
+       * 1048576 (1 MiB); at most 8388608.
+       */
+      maxBytes?: number;
+      /**
+       * Read definitions next to entities from `file:` locations, for a
+       * development catalog. Only files in the folder of the entity file or
+       * below it. Defaults to false.
+       */
+      readFileLocations?: boolean;
+    };
     /** Payloads stored outside the workflow history. */
     payloads?: {
       /**

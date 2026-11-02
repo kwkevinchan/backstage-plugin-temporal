@@ -35,6 +35,13 @@ permission framework and recorded with the auditor.
   calls and the usage. The records follow the OpenTelemetry GenAI
   conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
   [LLM steps](#llm-steps)).
+- **Workflow definitions.** A **Definition** tab on `TemporalWorkflow`
+  entities shows a workflow written in YAML (CNCF Serverless Workflow DSL
+  1.0, as [Zigflow](https://github.com/zigflow/zigflow) runs it) next to its
+  graph: selecting a task in one selects it in the other, and a run can be
+  laid over the graph (done, running, failed, not reached). Workflows written
+  in code get links to their source (see
+  [Workflow definitions](#workflow-definitions)).
 - **Large payloads in S3.** Payloads that workers store in an S3-compatible
   store with `@kwkevinchan/temporal-workflow-kit/s3`
   are shown as JSON, as a preview or as an image, and can be downloaded
@@ -95,7 +102,11 @@ load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
 1.56 do). Light and dark themes follow the app theme. The step graph uses
 [React Flow](https://reactflow.dev) (`@xyflow/react`) with the
 [dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed; the
-timeline is drawn with plain HTML and CSS.
+timeline is drawn with plain HTML and CSS. The YAML of the Definition tab
+is colored with `react-syntax-highlighter` (MIT, already in every app through
+`@backstage/core-components`) and only the YAML grammar of highlight.js
+(BSD-3-Clause): about 40 KB minified (14 KB gzipped), loaded with the tab.
+The backend parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
 
 ## Installation
 
@@ -153,7 +164,7 @@ export default createApp({ features: [temporalPlugin /* ... */] });
 
 This adds a **Temporal** tab to entities of any kind that have Temporal
 annotations, to `TemporalWorkflow` entities and to entities that depend on
-them; a summary card on the overview of `TemporalWorkflow` entities; a card
+them; a **Definition** tab to `TemporalWorkflow` entities; a summary card on the overview of `TemporalWorkflow` entities; a card
 with the workflow entities on the overview of entities that depend on them;
 and the **Workflows** page on `/temporal`. The page has a title and an icon,
 so the app lists it in the sidebar with the nav items it discovers from pages
@@ -185,6 +196,7 @@ For `TemporalWorkflow` entities, add a page to the `EntitySwitch`:
 
 ```tsx
 import {
+  EntityTemporalDefinitionContent,
   EntityTemporalRelatedWorkflowsCard,
   EntityTemporalWorkflowSummaryCard,
   getDependsOnTemporalWorkflowRefs,
@@ -205,6 +217,9 @@ const temporalWorkflowPage = (
     </EntityLayout.Route>
     <EntityLayout.Route path="/temporal" title="Temporal">
       <EntityTemporalContent />
+    </EntityLayout.Route>
+    <EntityLayout.Route path="/definition" title="Definition">
+      <EntityTemporalDefinitionContent />
     </EntityLayout.Route>
   </EntityLayout>
 );
@@ -383,6 +398,123 @@ thinking and tool arguments and results need
 `temporal.workflow.history.read`, like inputs and results
 (`GET .../llm-calls/:eventId`). Workflows without markers look as before.
 
+## Workflow definitions
+
+Workflows written in YAML can show their definition on the **Definition**
+tab of their `TemporalWorkflow` entity. The format is the CNCF Serverless
+Workflow DSL 1.0 (now called the Open Workflow Specification) in the flavor
+that [Zigflow](https://github.com/zigflow/zigflow) 0.18 runs on Temporal:
+`document.dsl: 1.0.0`, `document.workflowType` and `document.taskQueue`
+(the standard `document.name` works too).
+
+| Definition tab: YAML and graph                        | A run on top of the graph                                         |
+| ----------------------------------------------------- | ----------------------------------------------------------------- |
+| ![YAML next to its graph](docs/images/definition.png) | ![A run laid over the definition](docs/images/definition-run.png) |
+
+### The entity
+
+```yaml
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: order-fulfillment
+spec:
+  owner: group:default/orders-team
+  workflowType: order-fulfillment
+  taskQueue: orders-zigflow
+  definition:
+    format: serverless-workflow
+    target: ./workflows/order-fulfillment.yaml
+```
+
+`spec.definition` has two fields, both required:
+
+| Field    | Meaning                                                                                                                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format` | `serverless-workflow`. The only format for now; the field leaves room for others without guessing from the file.                                  |
+| `target` | A path relative to the file the entity was read from (`backstage.io/managed-by-location`), or an absolute `http(s)` URL. At most 2048 characters. |
+
+Why this shape: `target` means the same as `spec.target` of Backstage
+`Location` entities (relative or absolute), and an object with a `format`
+can take other DSLs later. The file is not inlined into the entity (as
+`$text` placeholders of API entities are): the catalog would store a copy
+of every file in every entity, without the size limit and the checks below,
+and would show changes only after the next refresh. The backend reads the
+file when the tab opens instead.
+
+Workflows written in code leave `spec.definition` out. Their Definition tab
+links to the source from the `backstage.io/source-location` and
+`backstage.io/view-url` annotations, without reading any file.
+
+### Reading the file
+
+- The backend reads the file with Backstage's URL reader, so only hosts of a
+  configured integration (or `backend.reading.allow`) are read. A relative
+  `target` is resolved against the entity's location with the integration's
+  rules. Other URL schemes are rejected.
+- Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
+  are not read; the backend stops reading at the limit.
+- The YAML is parsed without running anything: YAML 1.2 core schema, no
+  custom tags, no merge keys, unique keys, and at most 100 aliases, so
+  "billion laughs" files fail instead of filling the memory. A file that is
+  not valid YAML is still shown, with the line of the error.
+- Entities from `file:` locations (a development catalog) are read only with
+  `temporal.definitions.readFileLocations: true`, and only files in the
+  folder of the entity file or below it.
+- The route is `GET /entities/:kind/:namespace/:name/definition` and needs
+  `temporal.workflow.read` on the entity, like the workflow list: a
+  definition describes the workflow, without inputs or results.
+
+### The tab
+
+- Left: the YAML, read-only, with line numbers and colors. Pressing a line
+  (or moving with the arrow keys) selects the innermost task around it.
+- Right: the graph, drawn and laid out like the step graph of a run (React
+  Flow and dagre, top to bottom, at least 12px text at the zoom it opens
+  with). Pressing a box marks its lines in the YAML and scrolls to them.
+
+| Task                         | Drawn as                                                                                  |
+| ---------------------------- | ----------------------------------------------------------------------------------------- |
+| `call`, `run`, `set`, `emit` | A box with what it calls or runs (activity, HTTP, gRPC, child workflow, shell, ...)       |
+| `switch`                     | A box with one arrow per case, labeled with the case, to its `then`                       |
+| `fork`                       | A box, one arrow per branch, and a **Join** (or **First to finish** with `compete`) box   |
+| `for` (with `while`)         | A box, an arrow into the body (`each`), a dashed arrow back (`next`) and one out (`done`) |
+| `try` / `catch`              | A box, its body, a **Catch** box reached by a dashed red arrow, an arrow back for `retry` |
+| `wait`, `listen`             | A box with the duration, or the signal, update or events it waits for                     |
+| `do`                         | A box followed by its tasks                                                               |
+| `raise`                      | A box without an arrow out                                                                |
+| anything else                | A plain box marked **unsupported**; the rest of the graph is drawn as usual               |
+
+`then: continue | exit | end | <task>` on tasks and cases are followed;
+`if` and the retry policy of `metadata.activityOptions` show as badges.
+
+### A run on top
+
+**Show a run** lists the recent runs of the entity. The boxes of the tasks
+then take the colors of the run: done, running, failed, and dimmed for
+tasks the run did not reach (in a closed run) or has not reached yet. A
+task that ran more than once (a loop) shows how many times. **Open the run**
+opens its details on the Temporal tab.
+
+The history of a run does not name the tasks. The tab matches events to
+tasks by the names Zigflow 0.18 gives what it starts:
+
+| Task                                                         | Event in the history                                                                                                     |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `call: http`, `call: grpc`, `run` (shell, script, container) | Activity of type `<workflowType>.<task path>` (names from the top, with `try` and `catch` segments; `.` and `\` escaped) |
+| `call: activity`                                             | Activity of the type in `with.name`                                                                                      |
+| `run: workflow`                                              | Child workflow of the type in `workflow.type`                                                                            |
+| A `fork` branch                                              | Child workflow `workflow_fork_<fork>_<branch>`                                                                           |
+| The target of a `switch` case (a `do` task)                  | Child workflow named after the task                                                                                      |
+| `listen` for signals or updates                              | The signals or updates by name (`all`: every one must arrive)                                                            |
+
+Not marked, because no event names them: `set`, `switch`, `wait` (its timer
+has no name), `raise`, the boxes of `do`, `for` and `try`, and tasks that
+run inside a child workflow (fork branches, switch targets). A name that two
+tasks share (two `call: activity` of the same activity) is not marked
+either, since the history cannot tell them apart. Steps of the run that
+match no task are counted under the legend.
+
 ## Configuration
 
 The complete set of keys; only `temporal.connection.address` is required.
@@ -415,6 +547,10 @@ temporal:
     enabled: true
     allowedSignals: [addNote, close]
     allowedUpdates: [setPriority]
+  # Optional: definition files of TemporalWorkflow entities.
+  definitions:
+    maxBytes: 1048576
+    readFileLocations: false
   # Optional: large payloads in S3, see Large payloads in S3.
   payloads:
     s3:
@@ -429,26 +565,28 @@ temporal:
       previewBytes: 2048
 ```
 
-| Key                           | Default     | Meaning                                                                                                |
-| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `connection.address`          | (required)  | Temporal frontend service, `host:port`.                                                                |
-| `connection.namespaces`       | `[default]` | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
-| `connection.defaultNamespace` | `default`   | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
-| `connection.auth.type`        | `none`      | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
-| `connection.auth.token`       |             | Token for `bearer`. A secret: read it from an environment variable.                                    |
-| `webUi.baseUrl`               |             | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
-| `searchAttributes.entityRef`  |             | Keyword search attribute with the entity reference of a workflow.                                      |
-| `searchAttributes.initiator`  |             | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
-| `control.enabled`             | `true`      | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
-| `control.allowedSignals`      | (all)       | Signal names that may be sent.                                                                         |
-| `control.allowedUpdates`      | (all)       | Update names that may be sent.                                                                         |
-| `payloads.s3.bucket`          | (required)  | Bucket the workers store payloads in.                                                                  |
-| `payloads.s3.endpoint`        | AWS S3      | Endpoint of an S3-compatible service.                                                                  |
-| `payloads.s3.region`          | `us-east-1` | Region.                                                                                                |
-| `payloads.s3.forcePathStyle`  | `false`     | Bucket in the path instead of the host name (most self-hosted services).                               |
-| `payloads.s3.credentials`     | (required)  | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
-| `payloads.s3.maxInlineBytes`  | `262144`    | JSON payloads up to this size are shown like payloads in the history.                                  |
-| `payloads.s3.previewBytes`    | `2048`      | Bytes of text shown as the preview of a larger payload.                                                |
+| Key                             | Default     | Meaning                                                                                                |
+| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `connection.address`            | (required)  | Temporal frontend service, `host:port`.                                                                |
+| `connection.namespaces`         | `[default]` | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
+| `connection.defaultNamespace`   | `default`   | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
+| `connection.auth.type`          | `none`      | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
+| `connection.auth.token`         |             | Token for `bearer`. A secret: read it from an environment variable.                                    |
+| `webUi.baseUrl`                 |             | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
+| `searchAttributes.entityRef`    |             | Keyword search attribute with the entity reference of a workflow.                                      |
+| `searchAttributes.initiator`    |             | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
+| `control.enabled`               | `true`      | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
+| `control.allowedSignals`        | (all)       | Signal names that may be sent.                                                                         |
+| `control.allowedUpdates`        | (all)       | Update names that may be sent.                                                                         |
+| `definitions.maxBytes`          | `1048576`   | Largest definition file read, in bytes (at most 8 MiB).                                                |
+| `definitions.readFileLocations` | `false`     | Read definitions next to entities from `file:` locations (development catalogs).                       |
+| `payloads.s3.bucket`            | (required)  | Bucket the workers store payloads in.                                                                  |
+| `payloads.s3.endpoint`          | AWS S3      | Endpoint of an S3-compatible service.                                                                  |
+| `payloads.s3.region`            | `us-east-1` | Region.                                                                                                |
+| `payloads.s3.forcePathStyle`    | `false`     | Bucket in the path instead of the host name (most self-hosted services).                               |
+| `payloads.s3.credentials`       | (required)  | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
+| `payloads.s3.maxInlineBytes`    | `262144`    | JSON payloads up to this size are shown like payloads in the history.                                  |
+| `payloads.s3.previewBytes`      | `2048`      | Bytes of text shown as the preview of a larger payload.                                                |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi` and `control`; the token and the S3 credentials stay in the backend.
@@ -569,6 +707,9 @@ spec:
 | `system`    | `partOf` / `hasPart`         |
 | `dependsOn` | `dependsOn` / `dependencyOf` |
 
+A workflow written in YAML adds `spec.definition` (`format` and `target`)
+for its **Definition** tab; see [Workflow definitions](#workflow-definitions).
+
 The runs of the entity are the executions with that workflow type (and task
 queue, when set), or with the entity reference
 (`temporalworkflow:default/order-workflow`) in the `searchAttributes.entityRef`
@@ -624,7 +765,7 @@ rejected so they cannot change the visibility query.
 
 | Permission                       | Resource type    | Used for                                                   |
 | -------------------------------- | ---------------- | ---------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph and progress            |
+| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph, progress, definition   |
 | `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                          |
 | `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity   |
 | `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity        |
@@ -932,6 +1073,23 @@ call and tools with loop markers, a retried tool, a local activity, and a
 long answer stored in S3 when the worker uses it) and `mixedAgentWorkflow`
 (ordinary activities, model calls, two tools in parallel and a child
 workflow).
+
+The YAML example workflows (`examples/workflows`, shown on the Definition
+tab of `example-yaml-order-workflow`) run in Zigflow. Start a Zigflow worker
+with the files, then the runs (the command also runs the worker of their
+activities until the runs are done):
+
+```sh
+docker run -d --name zigflow --network host \
+  -e TEMPORAL_ADDRESS=localhost:7233 -e DISABLE_TELEMETRY=true \
+  -e CONVERT_FAILURE_DATA=false -e WORKFLOW_FILE= \
+  -e WORKFLOW_DIRECTORY=/app/workflows \
+  -v "$PWD/examples/workflows:/app/workflows:ro" \
+  ghcr.io/zigflow/zigflow:0.18.0-core \
+  run --health-listen-address 127.0.0.1:3901 --metrics-listen-address 127.0.0.1:9901
+yarn workspace example-worker zigflow
+SMOKE_ZIGFLOW=1 yarn test:e2e   # adds the run on the Definition tab
+```
 
 Signals, updates, queries and workflows started from Backstage need a running
 worker; this one keeps polling until Ctrl+C:

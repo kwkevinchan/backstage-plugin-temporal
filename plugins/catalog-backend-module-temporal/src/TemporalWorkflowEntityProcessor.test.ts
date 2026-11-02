@@ -74,6 +74,29 @@ describe('TemporalWorkflowEntityProcessor', () => {
     ).resolves.toBe(true);
   });
 
+  it('validates the definition of a workflow written in YAML', async () => {
+    const definition = (value: JsonObject) =>
+      workflow({
+        owner: 'team-a',
+        workflowType: 'order-flow',
+        definition: value,
+      });
+    await expect(
+      processor.validateEntityKind(
+        definition({ format: 'serverless-workflow', target: './order.yaml' }),
+      ),
+    ).resolves.toBe(true);
+    for (const bad of [
+      { format: 'bpmn', target: './order.bpmn' },
+      { format: 'serverless-workflow' },
+      { format: 'serverless-workflow', target: './a.yaml', extra: true },
+    ]) {
+      await expect(
+        processor.validateEntityKind(definition(bad)),
+      ).rejects.toThrow();
+    }
+  });
+
   it('leaves other kinds to other processors', async () => {
     await expect(
       processor.validateEntityKind({

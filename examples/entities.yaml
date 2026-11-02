@@ -33,6 +33,10 @@ metadata:
   name: example-order-workflow
   title: Example order workflow
   description: Reserves stock for an order. Completes successfully.
+  annotations:
+    # A workflow written in code: its Definition tab links to the source.
+    backstage.io/source-location: url:https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/packages/example-worker/src/
+    backstage.io/view-url: https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/packages/example-worker/src/workflows.js
 spec:
   owner: guests
   workflowType: orderWorkflow
@@ -72,6 +76,47 @@ spec:
   exampleInput:
     title: Printer is out of paper
     priority: normal
+---
+# Workflows written in YAML (CNCF Serverless Workflow DSL, as Zigflow runs
+# them). The Definition tab shows the file next to its graph; the backend
+# reads it next to this file (temporal.definitions.readFileLocations in
+# app-config.yaml). Start runs with `yarn workspace example-worker zigflow`
+# and a Zigflow worker (see packages/example-worker/README.md).
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: example-yaml-order-workflow
+  title: Example YAML order workflow
+  description: Validates, packs and checks an order, takes the payment and ships it. Written in YAML.
+spec:
+  owner: guests
+  workflowType: order-fulfillment
+  taskQueue: backstage-zigflow
+  system: examples
+  lifecycle: experimental
+  exampleInput:
+    orderId: order-1
+    items: [BOOK-1, PEN-2]
+    express: true
+  definition:
+    format: serverless-workflow
+    target: ./workflows/order-fulfillment.yaml
+---
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: example-yaml-notify-workflow
+  title: Example YAML notify workflow
+  description: Tells the customer that the order is on its way. A child of the YAML order workflow.
+spec:
+  owner: guests
+  workflowType: notify-customer
+  taskQueue: backstage-zigflow
+  system: examples
+  lifecycle: experimental
+  definition:
+    format: serverless-workflow
+    target: ./workflows/notify-customer.yaml
 ---
 # A component that uses the two workflows (spec.dependsOn) and also carries
 # an annotation for its own deployment workflow. Its Temporal tab merges both.

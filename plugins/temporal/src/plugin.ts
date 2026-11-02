@@ -24,7 +24,11 @@ import {
 } from '@backstage/core-plugin-api';
 import { temporalApiRef } from './extensions';
 import { TemporalClient } from './api';
-import { entityContentRouteRef, rootRouteRef } from './routes';
+import {
+  definitionContentRouteRef,
+  entityContentRouteRef,
+  rootRouteRef,
+} from './routes';
 
 /**
  * The Temporal plugin for the legacy frontend system.
@@ -44,6 +48,7 @@ export const temporalPlugin = createPlugin({
   routes: {
     root: rootRouteRef,
     entityContent: entityContentRouteRef,
+    definitionContent: definitionContentRouteRef,
   },
 });
 
@@ -61,6 +66,26 @@ export const EntityTemporalContent = temporalPlugin.provide(
         m => m.EntityTemporalContentPage,
       ),
     mountPoint: entityContentRouteRef,
+  }),
+);
+
+/**
+ * Definition tab of `TemporalWorkflow` entities: the YAML of a workflow
+ * written in the Serverless Workflow DSL (`spec.definition`) next to its
+ * graph, optionally with one run on top. Workflows written in code get
+ * links to their source. Mount it on `/definition` of the
+ * `TemporalWorkflow` entity page.
+ *
+ * @public
+ */
+export const EntityTemporalDefinitionContent = temporalPlugin.provide(
+  createRoutableExtension({
+    name: 'EntityTemporalDefinitionContent',
+    component: () =>
+      import('./components/definition/DefinitionContent').then(
+        m => m.EntityTemporalDefinitionContentPage,
+      ),
+    mountPoint: definitionContentRouteRef,
   }),
 );
 

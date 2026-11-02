@@ -57,6 +57,11 @@ temporal:
   searchAttributes:
     entityRef: BackstageEntityRef
     initiator: BackstageInitiator
+  # The definitions of the example TemporalWorkflow entities are files next
+  # to examples/entities.yaml, a file location. Production catalogs read
+  # them with the URL reader of an integration instead.
+  definitions:
+    readFileLocations: true
   # Start, signal, update, cancel, terminate and rerun from Backstage. Every
   # operation is checked with the permission framework (allow-all here).
   control:

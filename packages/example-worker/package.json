@@ -11,7 +11,8 @@
   },
   "scripts": {
     "start": "node --require @backstage/cli/config/nodeTransform.cjs src/index.js",
-    "serve": "node --require @backstage/cli/config/nodeTransform.cjs src/serve.js"
+    "serve": "node --require @backstage/cli/config/nodeTransform.cjs src/serve.js",
+    "zigflow": "node --require @backstage/cli/config/nodeTransform.cjs src/zigflow.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.350.0",

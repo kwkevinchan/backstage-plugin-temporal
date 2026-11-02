@@ -25,3 +25,8 @@ export const rootRouteRef = createRouteRef({
 export const entityContentRouteRef = createRouteRef({
   id: 'temporal:entity-content',
 });
+
+/** Mount point of the Definition tab of `TemporalWorkflow` entities. */
+export const definitionContentRouteRef = createRouteRef({
+  id: 'temporal:definition-content',
+});

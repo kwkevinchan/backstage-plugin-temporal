@@ -151,25 +151,33 @@ export interface StepLayout {
   wrapped: boolean;
 }
 
+/** Space between the rows of a graph laid out top to bottom. */
+const RANK_GAP_TB = 40;
+
 /**
  * Positions of the steps, left to right, laid out with dagre (layered
  * graph drawing). Parallel steps end up in the same column.
  *
  * With `width`, a graph wider than that is wrapped like text: its columns
  * continue on a next row, so long runs stay readable without zooming out.
+ *
+ * With `direction: 'TB'` the steps go top to bottom (parallel steps side by
+ * side) and the graph is not wrapped: the definition graph next to its YAML.
  */
 export function layoutSteps(
   nodes: { id: string; size?: NodeSize }[],
-  edges: WorkflowGraphEdge[],
+  edges: { source: string; target: string }[],
   width?: number,
+  options: { direction?: 'LR' | 'TB' } = {},
 ): StepLayout {
+  const topDown = options.direction === 'TB';
   const sizeOf = (node: { size?: NodeSize }) =>
     node.size ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
   const graph = new dagre.graphlib.Graph();
   graph.setGraph({
-    rankdir: 'LR',
-    nodesep: ROW_GAP,
-    ranksep: COLUMN_GAP,
+    rankdir: topDown ? 'TB' : 'LR',
+    nodesep: topDown ? COLUMN_GAP / 2 : ROW_GAP,
+    ranksep: topDown ? RANK_GAP_TB : COLUMN_GAP,
     marginx: MARGIN,
     marginy: MARGIN,
   });
@@ -201,7 +209,7 @@ export function layoutSteps(
     wrapped: false,
   };
   if (sizes.size > 0) layout.sizes = sizes;
-  if (width === undefined || nodes.length === 0) return layout;
+  if (width === undefined || nodes.length === 0 || topDown) return layout;
   // Fits as it is, at a readable zoom.
   if (layout.width * READABLE_ZOOM <= width) return layout;
   return wrapColumns(layout, width);

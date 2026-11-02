@@ -8,7 +8,9 @@ Shows Temporal workflows next to the catalog entities that own them: a
 **Temporal** tab with the workflow list and its progress, a details page with
 the step graph, a **Timeline** tab (steps on a time axis), the loops of AI
 workflows, the LLM steps of agent workflows (model calls with their input,
-thinking, output, tool calls and tokens), events and details, the workflow controls, cards for
+thinking, output, tool calls and tokens), events and details, the workflow controls, a
+**Definition** tab (the YAML of a Serverless Workflow next to its graph, with
+a run on top), cards for
 `TemporalWorkflow` entities and a **Workflows** page. Works with the legacy
 and the new frontend system of Backstage 1.56.
 
@@ -35,6 +37,7 @@ Legacy frontend system:
 | ------------------------------------------------------------------------------------- | -------------------------------------------------- |
 | `temporalPlugin`                                                                      | The plugin.                                        |
 | `EntityTemporalContent`                                                               | Entity tab: workflow list and details.             |
+| `EntityTemporalDefinitionContent`                                                     | Definition tab of `TemporalWorkflow` entities.     |
 | `TemporalPage`                                                                        | Workflows page with every workflow of a namespace. |
 | `EntityTemporalWorkflowSummaryCard`                                                   | Summary card of a `TemporalWorkflow` entity.       |
 | `EntityTemporalWorkflowStatsCard`                                                     | Recent run statistics of an entity.                |
