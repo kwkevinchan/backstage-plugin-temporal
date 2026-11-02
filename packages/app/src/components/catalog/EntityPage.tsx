@@ -41,11 +41,23 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
 } from '@kwkevinchan/backstage-plugin-temporal';
-import { TemporalWorkflowActionDef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import {
+  createTemporalControlActionDef,
+  TemporalWorkflowActionDef,
+} from '@kwkevinchan/backstage-plugin-temporal-react';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 
 export const temporalWorkflowActions: TemporalWorkflowActionDef[] = [
   { id: 'copy-workflow-id', component: CopyWorkflowIdAction },
+  // Runs the example backend action (packages/backend/src/escalateAction.ts).
+  createTemporalControlActionDef({
+    actionId: 'escalate',
+    label: 'Escalate',
+    confirm: 'Raise the priority of this ticket to high?',
+    filter: workflow =>
+      workflow.workflowType === 'ticketWorkflow' &&
+      workflow.status === 'Running',
+  }),
 ];
 
 const entityWarningContent = (

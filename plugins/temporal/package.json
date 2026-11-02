@@ -66,6 +66,8 @@
     "@backstage/errors": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
+    "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/plugin-permission-react": "backstage:^",
     "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
     "@dagrejs/dagre": "~3.1.3",

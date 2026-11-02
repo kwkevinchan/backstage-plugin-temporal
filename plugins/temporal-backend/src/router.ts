@@ -15,6 +15,7 @@
  */
 
 import {
+  AuditorService,
   BackstageCredentials,
   HttpAuthService,
   PermissionsService,
@@ -44,9 +45,15 @@ import {
   WorkflowSummary,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  TemporalControlAction,
+  TemporalService,
+} from '@kwkevinchan/backstage-plugin-temporal-node';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { sendStoredPayload } from './service/download';
+import { addControlRoutes } from './controlRoutes';
+import { WorkflowController } from './service/WorkflowController';
 import { parseStatus } from './service/query';
 import {
   EntityContext,
@@ -64,6 +71,13 @@ export interface RouterOptions {
   permissions: PermissionsService;
   catalog: CatalogService;
   reader: WorkflowReader;
+  /** When set, the routes that change workflows are served too. */
+  controls?: {
+    auditor: AuditorService;
+    temporal: TemporalService;
+    controller: WorkflowController;
+    actions: TemporalControlAction[];
+  };
 }
 
 function parsePageSize(
@@ -454,6 +468,19 @@ export async function createRouter(
       await sendStoredPayload(res, check, reader.payloads);
     },
   );
+
+  if (options.controls) {
+    addControlRoutes(router, {
+      ...options.controls,
+      httpAuth,
+      permissions,
+      workflowPaths,
+      loadWorkflow,
+      loadEntity,
+      canListAll,
+      entityRefFromParams,
+    });
+  }
 
   return router;
 }

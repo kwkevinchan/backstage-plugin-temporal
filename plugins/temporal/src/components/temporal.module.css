@@ -393,3 +393,49 @@
 .tp-page {
   padding-top: var(--bui-space-5, 20px);
 }
+
+/* Workflow controls: dialogs and fields. */
+.tp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tp-field-label {
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-2, 12px);
+  font-weight: var(--bui-font-weight-bold, 600);
+  color: var(--bui-fg-primary);
+}
+
+.tp-json-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px;
+  resize: vertical;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2, 12px);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-1, transparent);
+  border: 1px solid var(--bui-border-2);
+  border-radius: var(--bui-radius-2, 4px);
+}
+
+.tp-json-input:focus {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+
+.tp-json-input[aria-invalid='true'] {
+  border-color: var(--bui-border-danger);
+}
+
+.tp-disabled-control {
+  display: inline-flex;
+  cursor: not-allowed;
+}
+
+.tp-dialog-result {
+  max-height: 320px;
+  overflow: auto;
+}

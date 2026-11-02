@@ -65,8 +65,32 @@ export interface Config {
        * listed for that entity too.
        */
       entityRef?: string;
-      /** Keyword attribute that holds the user who started a workflow. */
+      /**
+       * Keyword attribute that holds the user who started a workflow. When
+       * set, workflows started or rerun from Backstage carry the user's
+       * entity reference in it.
+       */
       initiator?: string;
+    };
+    /** Operations that change workflows: start, signal, update, cancel, terminate, rerun. */
+    control?: {
+      /**
+       * Serve the operations. Defaults to true; each one is still checked
+       * with the permission framework. When false, they answer 404 and the
+       * frontend hides them; queries keep working.
+       * @visibility frontend
+       */
+      enabled?: boolean;
+      /**
+       * Signal names that may be sent. Empty or absent allows every name.
+       * @visibility frontend
+       */
+      allowedSignals?: string[];
+      /**
+       * Update names that may be sent. Empty or absent allows every name.
+       * @visibility frontend
+       */
+      allowedUpdates?: string[];
     };
   };
 }

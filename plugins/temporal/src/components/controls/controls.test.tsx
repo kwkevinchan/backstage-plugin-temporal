@@ -1,0 +1,385 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { Route, Routes, useParams } from 'react-router-dom';
+import { configApiRef } from '@backstage/core-plugin-api';
+import {
+  mockApis,
+  renderInTestApp,
+  TestApiProvider,
+} from '@backstage/test-utils';
+import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  createTemporalControlActionDef,
+  temporalApiRef,
+} from '@kwkevinchan/backstage-plugin-temporal-react';
+import {
+  failedWorkflow,
+  mockTemporalApi,
+  workflowEntity,
+} from '../../testData';
+import { ControlActionButton } from './ControlActionButton';
+import { StartWorkflowButton } from './StartWorkflow';
+import { WorkflowControls } from './WorkflowControls';
+
+// usePermission caches results across tests; this one answers from `denied`.
+let denied: string[] = [];
+jest.mock('@backstage/plugin-permission-react', () => ({
+  usePermission: (input: { permission: { name: string } }) => ({
+    loading: false,
+    allowed: !denied.includes(input.permission.name),
+  }),
+}));
+
+const running: WorkflowDetail = { ...failedWorkflow, status: 'Running' };
+const ref = {
+  namespace: running.namespace,
+  workflowId: running.workflowId,
+  runId: running.runId,
+};
+const entityRef = 'component:default/orders';
+
+function Opened() {
+  const { workflowId } = useParams();
+  return <p>Opened {workflowId}</p>;
+}
+
+function render(
+  element: JSX.Element,
+  options?: {
+    api?: ReturnType<typeof mockTemporalApi>;
+    deny?: string[];
+    control?: object;
+  },
+) {
+  const api = options?.api ?? mockTemporalApi();
+  denied = options?.deny ?? [];
+  return {
+    api,
+    ...renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, api],
+          [
+            configApiRef,
+            mockApis.config({
+              data: { temporal: { control: options?.control ?? {} } },
+            }),
+          ],
+        ]}
+      >
+        <Routes>
+          <Route path="/" element={element} />
+          <Route path="/wf/:workflowId" element={<Opened />} />
+        </Routes>
+      </TestApiProvider>,
+    ),
+  };
+}
+
+const href = (r: { workflowId: string }) => `/wf/${r.workflowId}`;
+
+describe('WorkflowControls', () => {
+  it('shows the operations of a running workflow', async () => {
+    render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    );
+    for (const name of ['Signal…', 'Update…', 'Query…', 'Cancel']) {
+      expect(await screen.findByRole('button', { name })).toBeEnabled();
+    }
+    expect(screen.getByRole('button', { name: 'Terminate' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+  });
+
+  it('shows rerun and query for a closed workflow', async () => {
+    render(
+      <WorkflowControls
+        workflow={failedWorkflow}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Rerun' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Query…' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Signal…' })).toBeNull();
+  });
+
+  it('disables operations without permission and says why', async () => {
+    render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { deny: ['temporal.workflow.terminate'] },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Terminate' })).toBeDisabled(),
+    );
+    expect(
+      await screen.findByTitle(/You do not have permission to terminate/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
+  it('hides the operations when the controls are disabled', async () => {
+    render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { control: { enabled: false } },
+    );
+    expect(await screen.findByRole('button', { name: 'Query…' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Signal…' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Terminate' })).toBeNull();
+  });
+
+  it('sends a signal with JSON arguments', async () => {
+    const reload = jest.fn();
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={reload}
+        workflowHref={href}
+      />,
+    );
+    api.queryWorkflow.mockResolvedValueOnce({
+      result: {
+        definition: {
+          signalDefinitions: [{ name: 'addNote' }],
+          queryDefinitions: [{ name: '__stack_trace' }, { name: 'state' }],
+        },
+      },
+    });
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Signal…' }),
+    );
+    const name = await screen.findByRole('combobox', { name: /Signal name/ });
+    await waitFor(() => expect(name).toHaveValue('addNote'));
+    const args = screen.getByRole('textbox', { name: 'Arguments (JSON)' });
+    await userEvent.clear(args);
+    await userEvent.click(args);
+    await userEvent.paste('["hello"');
+    expect(screen.getByRole('button', { name: 'Send signal' })).toBeDisabled();
+    await userEvent.paste(']');
+    await userEvent.click(screen.getByRole('button', { name: 'Send signal' }));
+    expect(await screen.findByText('Signal addNote sent')).toBeInTheDocument();
+    expect(api.signalWorkflow).toHaveBeenCalledWith(
+      ref,
+      { name: 'addNote', args: ['hello'] },
+      { entityRef },
+    );
+    expect(reload).toHaveBeenCalled();
+  });
+
+  it('shows the result and the error of an update', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { control: { allowedUpdates: ['setPriority'] } },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Update…' }),
+    );
+    const name = await screen.findByRole('combobox', { name: /Update name/ });
+    expect(name).toHaveValue('setPriority');
+    api.updateWorkflow.mockResolvedValueOnce({ result: { priority: 'high' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Send update' }));
+    expect(
+      await screen.findByTestId('workflow-update-result'),
+    ).toHaveTextContent('priority');
+    api.updateWorkflow.mockRejectedValueOnce(new Error('priority is invalid'));
+    await userEvent.click(screen.getByRole('button', { name: 'Send update' }));
+    expect(await screen.findByText('priority is invalid')).toBeInTheDocument();
+  });
+
+  it('terminates only with a reason', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Terminate' }),
+    );
+    await screen.findByRole('dialog');
+    expect(
+      screen.getAllByRole('button', { name: 'Terminate' }).at(-1),
+    ).toBeDisabled();
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Reason/ }),
+      'stuck',
+    );
+    await userEvent.click(
+      screen.getAllByRole('button', { name: 'Terminate' }).at(-1)!,
+    );
+    await waitFor(() =>
+      expect(api.terminateWorkflow).toHaveBeenCalledWith(
+        ref,
+        { reason: 'stuck' },
+        { entityRef },
+      ),
+    );
+  });
+
+  it('opens the new workflow after a rerun', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={failedWorkflow}
+        entityRef={entityRef}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Rerun' }));
+    await userEvent.click(
+      screen.getAllByRole('button', { name: 'Rerun' }).at(-1)!,
+    );
+    expect(
+      await screen.findByText('Opened order-1-rerun-abc'),
+    ).toBeInTheDocument();
+    expect(api.rerunWorkflow).toHaveBeenCalledWith(ref, {}, { entityRef });
+  });
+});
+
+describe('StartWorkflowButton', () => {
+  it('starts a workflow of a TemporalWorkflow entity with its example input', async () => {
+    const entity = {
+      ...workflowEntity,
+      spec: { ...workflowEntity.spec, exampleInput: { orderId: 'o-1' } },
+    };
+    const { api } = render(
+      <StartWorkflowButton entity={entity} workflowHref={href} />,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Start workflow' }),
+    );
+    expect(screen.getByRole('textbox', { name: 'Input (JSON)' })).toHaveValue(
+      JSON.stringify([{ orderId: 'o-1' }], null, 2),
+    );
+    await userEvent.type(
+      screen.getByRole('textbox', { name: 'Workflow ID' }),
+      'my-run',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Start' }));
+    expect(await screen.findByText('Opened started-1')).toBeInTheDocument();
+    expect(api.startWorkflow).toHaveBeenCalledWith(
+      {
+        workflowId: 'my-run',
+        workflowType: undefined,
+        taskQueue: undefined,
+        args: [{ orderId: 'o-1' }],
+      },
+      { entityRef: 'temporalworkflow:default/order-workflow' },
+    );
+  });
+
+  it('asks for the type and the task queue on the Workflows page', async () => {
+    const { api } = render(<StartWorkflowButton workflowHref={href} />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Start workflow' }),
+    );
+    const start = screen.getByRole('button', { name: 'Start' });
+    expect(start).toBeDisabled();
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Workflow type/ }),
+      'jobWorkflow',
+    );
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Task queue/ }),
+      'jobs',
+    );
+    await userEvent.click(start);
+    await waitFor(() =>
+      expect(api.startWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workflowType: 'jobWorkflow',
+          taskQueue: 'jobs',
+          args: [],
+        }),
+        { entityRef: undefined },
+      ),
+    );
+  });
+
+  it('is disabled without the start permission', async () => {
+    render(
+      <StartWorkflowButton entity={workflowEntity} workflowHref={href} />,
+      {
+        deny: ['temporal.workflow.start'],
+      },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'Start workflow' }),
+      ).toBeDisabled(),
+    );
+  });
+});
+
+describe('ControlActionButton', () => {
+  it('runs a custom backend action and shows its result', async () => {
+    const def = createTemporalControlActionDef({
+      actionId: 'escalate',
+      label: 'Escalate',
+      body: w => ({ workflowId: w.workflowId }),
+    });
+    const reload = jest.fn();
+    const { api } = render(
+      <ControlActionButton
+        action={def.controlAction!}
+        workflow={running}
+        entityRef={entityRef}
+        reload={reload}
+      />,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Escalate' }),
+    );
+    expect(
+      await screen.findByTestId('workflow-action-result'),
+    ).toHaveTextContent('ok');
+    expect(api.runWorkflowAction).toHaveBeenCalledWith(
+      ref,
+      'escalate',
+      { workflowId: running.workflowId },
+      { entityRef },
+    );
+    expect(reload).toHaveBeenCalled();
+    expect(def.id).toBe('escalate');
+  });
+});

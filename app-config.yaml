@@ -56,3 +56,8 @@ temporal:
     baseUrl: ${TEMPORAL_UI_URL:-http://localhost:8080}
   searchAttributes:
     entityRef: BackstageEntityRef
+    initiator: BackstageInitiator
+  # Start, signal, update, cancel, terminate and rerun from Backstage. Every
+  # operation is checked with the permission framework (allow-all here).
+  control:
+    enabled: true

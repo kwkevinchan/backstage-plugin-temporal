@@ -16,6 +16,8 @@
 
 import type { ComponentType } from 'react';
 import type { Entity } from '@backstage/catalog-model';
+import type { ResourcePermission } from '@backstage/plugin-permission-common';
+import type { JsonValue } from '@backstage/types';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
@@ -32,6 +34,47 @@ export interface TemporalWorkflowExtensionProps {
 }
 
 /**
+ * A button on the workflow details page that runs a custom action of the
+ * backend (`POST .../actions/:actionId`, added with
+ * `temporalExtensionPoint.addControlAction()`). The page shows the result or
+ * the error and reloads the workflow.
+ *
+ * @public
+ */
+export interface TemporalControlActionButton {
+  /** ID of the backend action. */
+  actionId: string;
+  /** Button label. */
+  label: string;
+  /** When set, the page asks for confirmation with this text first. */
+  confirm?: string;
+  /** The JSON body sent to the action. Defaults to no body. */
+  body?: (workflow: WorkflowDetail) => JsonValue | undefined;
+  /**
+   * The permission of the backend action. When set, the button is disabled
+   * for users who do not have it on the workflow's entity.
+   */
+  permission?: ResourcePermission<'catalog-entity'>;
+}
+
+/**
+ * Makes a {@link TemporalWorkflowActionDef} with a button that runs a custom
+ * action of the backend, for the legacy frontend system.
+ *
+ * @public
+ */
+export function createTemporalControlActionDef(
+  options: TemporalControlActionButton & {
+    /** Defaults to the action ID. */
+    id?: string;
+    filter?: (workflow: WorkflowDetail) => boolean;
+  },
+): TemporalWorkflowActionDef {
+  const { id, filter, ...controlAction } = options;
+  return { id: id ?? controlAction.actionId, controlAction, filter };
+}
+
+/**
  * A button or other control in the action bar of the workflow details page.
  * Used directly by the legacy frontend system (`workflowActions` prop of
  * `EntityTemporalContent`); the new frontend system uses
@@ -41,7 +84,10 @@ export interface TemporalWorkflowExtensionProps {
  */
 export interface TemporalWorkflowActionDef {
   id: string;
-  component: ComponentType<TemporalWorkflowExtensionProps>;
+  /** The control to show. Without it, `controlAction` is shown as a button. */
+  component?: ComponentType<TemporalWorkflowExtensionProps>;
+  /** A button that runs a custom action of the backend. */
+  controlAction?: TemporalControlActionButton;
   /** Show the action only when this returns true. */
   filter?: (workflow: WorkflowDetail) => boolean;
 }

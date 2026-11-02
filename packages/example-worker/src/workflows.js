@@ -23,6 +23,7 @@ const {
   ApplicationFailure,
   condition,
   continueAsNew,
+  defineQuery,
   defineSignal,
   defineUpdate,
   executeChild,
@@ -220,8 +221,52 @@ async function reportWorkflow(request) {
   };
 }
 
+const addNoteSignal = defineSignal('addNote');
+const closeSignal = defineSignal('close');
+const setPriorityUpdate = defineUpdate('setPriority');
+const stateQuery = defineQuery('state');
+const PRIORITIES = ['low', 'normal', 'high'];
+
+// A support ticket, started from Backstage: notes come as signals, the
+// priority changes with an update (checked by a validator), and the state
+// can be queried. It runs until it gets a close signal or is canceled.
+async function ticketWorkflow(ticket) {
+  const state = {
+    title: ticket?.title ?? 'Untitled',
+    priority: ticket?.priority ?? 'normal',
+    notes: [],
+    status: 'open',
+  };
+  setHandler(addNoteSignal, text => {
+    state.notes.push(String(text));
+  });
+  setHandler(closeSignal, () => {
+    state.status = 'closed';
+  });
+  setHandler(
+    setPriorityUpdate,
+    priority => {
+      const previous = state.priority;
+      state.priority = priority;
+      return { previous, priority };
+    },
+    {
+      validator: priority => {
+        if (!PRIORITIES.includes(priority)) {
+          throw new Error(`priority must be one of ${PRIORITIES.join(', ')}`);
+        }
+      },
+    },
+  );
+  setHandler(stateQuery, () => state);
+  // A cancel request ends the wait with a cancellation: the run is Canceled.
+  await condition(() => state.status === 'closed');
+  return state;
+}
+
 module.exports = {
   reportWorkflow,
+  ticketWorkflow,
   orderWorkflow,
   paymentWorkflow,
   deploymentWorkflow,

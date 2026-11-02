@@ -24,9 +24,15 @@ import {
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { Button, Flex, Text, TextField } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
+import { StartWorkflowButton } from './controls/StartWorkflow';
 import { ErrorAlert } from './feedback';
 import { PanelCard } from './PanelCard';
-import { Pager, StatusSelect, WorkflowRunsTable } from './WorkflowRunsTable';
+import {
+  Pager,
+  StatusSelect,
+  workflowLink,
+  WorkflowRunsTable,
+} from './WorkflowRunsTable';
 import { AllRunsSwitch } from './WorkflowList';
 
 const PAGE_SIZE = 20;
@@ -129,6 +135,9 @@ export function AllWorkflowsList() {
           setTokens([undefined]);
         }}
       />
+      <div style={{ marginLeft: 'auto' }}>
+        <StartWorkflowButton workflowHref={workflowLink} />
+      </div>
       {(idError || typeError) && (
         <Text as="p" variant="body-small" color="danger" role="alert">
           {idError ? 'Workflow ID: letters, digits and _ . : / - only. ' : ''}

@@ -12,6 +12,7 @@ Development only, never published. Starts example workflows on the
 | `fulfillmentWorkflow` | 1    | Completes: parallel activities, an activity retried twice, a timer and a child workflow (`notifyCustomerWorkflow`) | `example-orders`                                                 |
 | `approvalWorkflow`    | 1    | Keeps running, waiting for an `approve` update; gets one `comment` signal                                          | `example-orders`                                                 |
 | `reportWorkflow`      | 1    | Completes with large outputs stored in S3 (only with `PAYLOAD_S3_ENDPOINT`)                                        | `example-orders`                                                 |
+| `ticketWorkflow`      | 0    | Started from Backstage; signals `addNote` and `close`, update `setPriority` (with a validator), query `state`      | `example-ticket-workflow`                                        |
 
 `example-order-workflow` and `example-payment-workflow` are `TemporalWorkflow`
 entities; `example-checkout` lists them in `spec.dependsOn`.
@@ -22,6 +23,13 @@ yarn workspace example-worker start
 
 `yarn start` loads the TypeScript sources of the codec package with the
 Backstage CLI node transform.
+
+`serve` runs the worker until Ctrl+C without starting workflows. Workflows
+started from Backstage, signals, updates and queries need it:
+
+```sh
+yarn workspace example-worker serve
+```
 
 The worker stops when the order, payment and fulfillment workflows are
 closed; the deployment and approval workflows stay running. Environment variables: `TEMPORAL_ADDRESS`

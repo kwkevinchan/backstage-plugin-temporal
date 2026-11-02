@@ -13,8 +13,9 @@ executions per entity with the progress of each run, and a details page built
 around a graph of the run's steps, with the inputs, outputs, errors and
 retries of each step, and the event history. Workflows can be catalog entities of their own (the
 `TemporalWorkflow` kind), and a **Workflows** page lists every workflow of a
-namespace. This version is read-only; permission-checked controls (signal,
-cancel, re-run) are planned.
+namespace. Workflows can be started, signaled, updated, queried, canceled,
+terminated and rerun from Backstage; every operation is checked with the
+permission framework and recorded with the auditor.
 
 ## Packages
 
@@ -22,7 +23,7 @@ cancel, re-run) are planned.
 | ---------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
 | [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Entity tab and workflow details. Legacy entry point and `./alpha` for the new frontend system. |
 | [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)                                   | web-library           | Frontend extension points: API ref, workflow actions and sections, blueprints.                 |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Read-only REST API under `/api/temporal`, permission checks.                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | REST API under `/api/temporal`: read and control workflows, permission checks.                 |
 | [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | Shared types, permissions and annotation constants.                                            |
 | [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Shared Temporal client service and backend extension point.                                    |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Catalog module with the `TemporalWorkflow` kind.                                               |
@@ -379,12 +380,18 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type    | Used for                                                 |
-| -------------------------------- | ---------------- | -------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph and progress          |
-| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                        |
-| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity |
-| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity      |
+| Permission                       | Resource type    | Used for                                                   |
+| -------------------------------- | ---------------- | ---------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph and progress            |
+| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                          |
+| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity   |
+| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity        |
+| `temporal.workflow.start`        | `catalog-entity` | Start a workflow of the entity, or from the Workflows page |
+| `temporal.workflow.signal`       | `catalog-entity` | Send a signal                                              |
+| `temporal.workflow.update`       | `catalog-entity` | Send an update (also used by the example custom action)    |
+| `temporal.workflow.cancel`       | `catalog-entity` | Ask a running workflow to cancel                           |
+| `temporal.workflow.terminate`    | `catalog-entity` | Terminate a running workflow, with a reason                |
+| `temporal.workflow.rerun`        | `catalog-entity` | Start a run again with the same input                      |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
@@ -425,6 +432,99 @@ if (
 The permission backend sends this conditional decision to the catalog to
 resolve; this is covered by an integration test in the backend plugin.
 
+## Workflow controls
+
+The details page has an action bar with the operations that fit the run:
+
+- running: **Signal…**, **Update…**, **Query…**, **Cancel** and
+  **Terminate**;
+- closed: **Rerun** and **Query…**.
+
+Cancel and Terminate ask for confirmation; Terminate needs a reason, which is
+kept in the history. Rerun starts a new workflow with the input, workflow
+type, task queue, memo, timeouts, retry policy and search attributes of the
+run's start event, under a new workflow ID, and opens it. The Signal, Update
+and Query dialogs offer the names the workflow defines (read with the
+`__temporal_workflow_metadata` query of the Temporal SDKs; any name can be
+typed), take the arguments as JSON and show the result or the error, for
+example the message of an update validator.
+
+**Start workflow** is on the Temporal tab of `TemporalWorkflow` entities and
+on the Workflows page. For an entity, the workflow type and task queue come
+from its spec, and the input is filled with `spec.exampleInput` (an array of
+arguments, or one value):
+
+```yaml
+spec:
+  workflowType: ticketWorkflow
+  taskQueue: support
+  exampleInput:
+    title: Printer is out of paper
+```
+
+The backend only starts the entity's own workflow types on its task queue,
+and sets the `searchAttributes.entityRef` and `searchAttributes.initiator`
+attributes (when configured) to the entity and the user. From the Workflows
+page, the workflow type and task queue are typed in. Leave the workflow ID
+empty to have one made from the workflow type.
+
+Every operation is checked with the permission framework, and a button the
+user may not use is disabled with the reason as tooltip. **By default every
+operation is allowed**: with the allow-all policy (or the permission framework
+off), every signed-in user can use them. The permissions are resource
+permissions on the workflow's entity: the entity the page is shown for, else
+the entity in the `searchAttributes.entityRef` attribute. A workflow without
+an entity (opened from the Workflows page) is only controlled when the policy
+allows the permission without conditions. Starting from the Workflows page
+also needs `temporal.workflow.list`. Queries only read the workflow and need
+the read permission. Denied requests answer 403. Each operation is recorded
+with the auditor service (`workflow-start`, `workflow-signal`,
+`workflow-update`, `workflow-query`, `workflow-cancel`, `workflow-terminate`,
+`workflow-rerun`, `workflow-action`), with the user, the workflow and the
+operation. The Temporal history shows the user as the identity
+(`backstage:user:default/jane`).
+
+```yaml
+temporal:
+  control:
+    # Default true. When false the operations answer 404 and are hidden;
+    # queries keep working.
+    enabled: true
+    # Empty or absent allows every name.
+    allowedSignals: [addNote, close]
+    allowedUpdates: [setPriority]
+```
+
+A policy that lets only the owners of an entity terminate or cancel its
+workflows, and everyone start, signal and update them:
+
+```ts
+import {
+  catalogConditions,
+  createCatalogConditionalDecision,
+} from '@backstage/plugin-catalog-backend/alpha';
+import { isPermission } from '@backstage/plugin-permission-common';
+import {
+  temporalWorkflowCancelPermission,
+  temporalWorkflowTerminatePermission,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
+
+if (
+  isPermission(request.permission, temporalWorkflowTerminatePermission) ||
+  isPermission(request.permission, temporalWorkflowCancelPermission)
+) {
+  return createCatalogConditionalDecision(
+    request.permission,
+    catalogConditions.isEntityOwner({
+      claims: user?.info.ownershipEntityRefs ?? [],
+    }),
+  );
+}
+```
+
+To turn an operation off for everyone, return `{ result: AuthorizeResult.DENY }` for
+its permission.
+
 Inputs and results (of the workflow and of each activity) are decoded like
 the default data converter does and shown as JSON. Payloads that cannot be
 decoded (binary, or encrypted by a codec) are shown with their encoding and
@@ -455,7 +555,48 @@ the entity tab and of the Workflows page. In the legacy system, pass
 
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-node`.
+`@kwkevinchan/backstage-plugin-temporal-node`, and custom workflow actions
+with `addControlAction()`. An action is served as
+`POST .../actions/:actionId`; the backend reads the workflow, checks the
+action's permission on its entity, runs the optional `filter`, records the
+call with the auditor and passes a Temporal client to `handle`:
+
+```ts
+temporal.addControlAction({
+  id: 'escalate',
+  permission: temporalWorkflowUpdatePermission,
+  filter: workflow => workflow.status === 'Running',
+  async handle(ref, body, { client }) {
+    const handle = client.workflow.getHandle(ref.workflowId, ref.runId);
+    return handle.executeUpdate('setPriority', { args: ['high'] });
+  },
+});
+```
+
+The frontend shows it as a button that runs the action and shows the result.
+New frontend system:
+
+```ts
+TemporalWorkflowActionBlueprint.make({
+  name: 'escalate',
+  params: {
+    controlAction: {
+      actionId: 'escalate',
+      label: 'Escalate',
+      confirm: 'Raise the priority to high?',
+      // Optional: disables the button without the permission.
+      permission: temporalWorkflowUpdatePermission,
+    },
+    filter: workflow => workflow.status === 'Running',
+  },
+});
+```
+
+Legacy system: add
+`createTemporalControlActionDef({ actionId: 'escalate', label: 'Escalate' })`
+to `workflowActions`. Custom components can call the actions and the
+operations with `TemporalApi` (`runWorkflowAction`, `signalWorkflow`, …).
+The development apps have an example (`packages/backend/src/escalateAction.ts`).
 
 ## Compatibility
 
@@ -493,7 +634,7 @@ The frontend runs on <http://localhost:3000> and the backend on
 ignored by git.
 
 The development backend expects a Temporal server on `localhost:7233` (for
-example `temporal server start-dev --search-attribute BackstageEntityRef=Keyword --search-attribute ApprovalPending=Bool`).
+example `temporal server start-dev --search-attribute BackstageEntityRef=Keyword --search-attribute BackstageInitiator=Keyword --search-attribute ApprovalPending=Bool`).
 Start the example workflows for the `example-orders` component with:
 
 ```sh
@@ -514,12 +655,22 @@ yarn workspace example-worker start
 SMOKE_S3=1 yarn test:e2e   # adds the S3 payload smoke test
 ```
 
+Signals, updates, queries and workflows started from Backstage need a running
+worker; this one keeps polling until Ctrl+C:
+
+```sh
+yarn workspace example-worker serve
+```
+
 Smoke tests sign in as the guest user, open the Temporal tab, open a failed
 workflow, select the failed step in the graph and check its input and error,
 switch to the grouped events, open a running workflow, a `TemporalWorkflow`
 entity and its runs, a component that depends on workflow entities, and the
 Workflows page from the sidebar, and save a screenshot of every step. A
-second test takes the details page in the dark theme:
+second test takes the details page in the dark theme. The control tests
+(`e2e-tests/controls.test.ts`, with `example-worker serve` running) start a
+ticket workflow, signal, query and update it, run the custom Escalate
+action, cancel it, rerun it and terminate the rerun, in both themes:
 
 ```sh
 npx playwright install chromium

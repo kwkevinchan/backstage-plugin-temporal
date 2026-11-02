@@ -15,8 +15,12 @@
  */
 
 import { createApiRef } from '@backstage/core-plugin-api';
+import type { JsonValue } from '@backstage/types';
 import type {
   WorkflowDetail,
+  WorkflowMessageResponse,
+  WorkflowStartRequest,
+  WorkflowStartResponse,
   WorkflowGraphResponse,
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
@@ -125,6 +129,82 @@ export interface TemporalApi {
     ref: WorkflowRef,
     options: { key: string; entityRef?: string },
   ): Promise<Blob>;
+
+  /**
+   * Sends a signal to a running workflow. Needs `temporal.workflow.signal`
+   * on the entity. `args` are the signal arguments.
+   */
+  signalWorkflow(
+    ref: WorkflowRef,
+    request: { name: string; args?: JsonValue[] },
+    options?: { entityRef?: string },
+  ): Promise<void>;
+
+  /**
+   * Sends an update to a running workflow and waits for its result. Needs
+   * `temporal.workflow.update`. A rejected update throws with the
+   * workflow's message.
+   */
+  updateWorkflow(
+    ref: WorkflowRef,
+    request: { name: string; args?: JsonValue[] },
+    options?: { entityRef?: string },
+  ): Promise<WorkflowMessageResponse>;
+
+  /** Queries a workflow. Needs the read permission only. */
+  queryWorkflow(
+    ref: WorkflowRef,
+    request: { name: string; args?: JsonValue[] },
+    options?: { entityRef?: string },
+  ): Promise<WorkflowMessageResponse>;
+
+  /** Asks a running workflow to cancel. Needs `temporal.workflow.cancel`. */
+  cancelWorkflow(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<void>;
+
+  /**
+   * Terminates a running workflow at once. Needs
+   * `temporal.workflow.terminate`.
+   */
+  terminateWorkflow(
+    ref: WorkflowRef,
+    request: { reason?: string },
+    options?: { entityRef?: string },
+  ): Promise<void>;
+
+  /**
+   * Starts a run again with the same input under a new workflow ID. Needs
+   * `temporal.workflow.rerun`.
+   */
+  rerunWorkflow(
+    ref: WorkflowRef,
+    request?: { workflowId?: string },
+    options?: { entityRef?: string },
+  ): Promise<WorkflowStartResponse>;
+
+  /**
+   * Starts a workflow. With `entityRef`, a workflow of that entity (its
+   * workflow type and task queue are the defaults); without it, from the
+   * Workflows page (`workflowType` and `taskQueue` are required). Needs
+   * `temporal.workflow.start`.
+   */
+  startWorkflow(
+    request: WorkflowStartRequest,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowStartResponse>;
+
+  /**
+   * Runs a custom action added by a backend module with
+   * `temporalExtensionPoint.addControlAction()`.
+   */
+  runWorkflowAction(
+    ref: WorkflowRef,
+    actionId: string,
+    body?: JsonValue,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowMessageResponse>;
 }
 
 /**

@@ -287,5 +287,21 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
+    signalWorkflow: jest.fn().mockResolvedValue(undefined),
+    updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
+    queryWorkflow: jest.fn().mockResolvedValue({ result: { notes: [] } }),
+    cancelWorkflow: jest.fn().mockResolvedValue(undefined),
+    terminateWorkflow: jest.fn().mockResolvedValue(undefined),
+    rerunWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'order-1-rerun-abc',
+      runId: 'run-new',
+    }),
+    startWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'started-1',
+      runId: 'run-started',
+    }),
+    runWorkflowAction: jest.fn().mockResolvedValue({ result: { ok: true } }),
   };
 }

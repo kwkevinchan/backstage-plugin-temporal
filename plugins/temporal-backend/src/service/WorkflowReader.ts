@@ -110,7 +110,7 @@ const GRPC_INVALID_ARGUMENT = 3;
 const GRPC_NOT_FOUND = 5;
 const GRPC_UNAVAILABLE = 14;
 
-function mapTemporalError(error: unknown): never {
+export function mapTemporalError(error: unknown): never {
   const code = (error as { code?: unknown })?.code;
   const message = (error as Error)?.message ?? String(error);
   if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);

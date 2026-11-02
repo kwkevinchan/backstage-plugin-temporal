@@ -154,7 +154,7 @@ export function buildEntityWorkflowQuery(
   return query;
 }
 
-function matchesSource(
+export function matchesSource(
   workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType'>,
   source: { taskQueue?: string; workflowTypes: string[] },
 ): boolean {
