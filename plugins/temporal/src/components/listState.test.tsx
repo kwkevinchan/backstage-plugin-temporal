@@ -23,7 +23,7 @@ import {
 } from '@backstage/test-utils';
 import { entityRouteRef } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { temporalApiRef } from '../extensions';
 import { listResponse, mockTemporalApi } from '../testData';
 import { listSearch, readListParams, savedListSearch } from './listState';
@@ -31,8 +31,16 @@ import { TemporalPageContent } from './TemporalPage';
 
 function Location() {
   const location = useLocation();
+  const type = useNavigationType();
+  const navigate = useNavigate();
   return (
-    <span data-testid="location">{`${location.pathname}${location.search}`}</span>
+    <>
+      <span data-testid="location">{`${location.pathname}${location.search}`}</span>
+      <span data-testid="navigation">{type}</span>
+      <button type="button" onClick={() => navigate(-1)}>
+        Browser back
+      </button>
+    </>
   );
 }
 
@@ -55,6 +63,7 @@ function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
 }
 
 const location = () => screen.getByTestId('location').textContent;
+const navigation = () => screen.getByTestId('navigation').textContent;
 
 describe('list parameters', () => {
   it('reads and writes filters, page and page size', () => {
@@ -142,6 +151,52 @@ describe('workflow list state', () => {
       expect(location()).toBe('/?status=Completed&pageSize=10'),
     );
     expect(savedListSearch('/')).toBe('?status=Completed&pageSize=10');
+  });
+
+  it('replaces the history entry when the page or the filters change', async () => {
+    const api = mockTemporalApi();
+    api.listWorkflows.mockImplementation(async options => ({
+      ...listResponse,
+      nextPageToken: options?.pageToken ? undefined : 'token-2',
+    }));
+    // A page before the list, to see where back goes.
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, api],
+          [permissionApiRef, mockApis.permission()],
+        ]}
+      >
+        <TemporalPageContent />
+        <Location />
+      </TestApiProvider>,
+      {
+        routeEntries: ['/before', '/?pageSize=10'],
+        mountedRoutes: { '/catalog/:namespace/:kind/:name': entityRouteRef },
+      },
+    );
+    await screen.findByRole('grid', { name: 'All workflows' });
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(location()).toBe('/?page=2&pageSize=10'));
+    expect(navigation()).toBe('REPLACE');
+    await userEvent.click(
+      screen.getByRole('switch', { name: 'Show all runs' }),
+    );
+    await waitFor(() => expect(location()).toBe('/?allRuns=true&pageSize=10'));
+    expect(navigation()).toBe('REPLACE');
+
+    // Opening a workflow adds an entry; back returns to the list as it was.
+    await userEvent.click(await screen.findByRole('link', { name: 'order-1' }));
+    await screen.findByTestId('back-to-list');
+    expect(navigation()).toBe('PUSH');
+    await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
+    await screen.findByRole('grid', { name: 'All workflows' });
+    expect(location()).toBe('/?allRuns=true&pageSize=10');
+    expect(screen.getByRole('switch', { name: 'Show all runs' })).toBeChecked();
+
+    // One more back leaves the list: paging added no entries.
+    await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
+    await waitFor(() => expect(location()).toBe('/before'));
   });
 
   it('opens the first page when the page tokens are gone', async () => {

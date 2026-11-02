@@ -1,0 +1,103 @@
+# Every kind of task the Definition tab draws, in the Zigflow 0.18 flavor of
+# the Serverless Workflow DSL 1.0. The backend and the frontend tests read
+# this file; the line numbers in the tests depend on it.
+document:
+  dsl: 1.0.0
+  taskQueue: orders
+  workflowType: order-flow
+  version: 0.1.0
+do:
+  - validate:
+      call: activity
+      with:
+        name: validateOrder
+        taskQueue: orders-activities
+  - route:
+      switch:
+        - express:
+            when: ${ $input.express }
+            then: expressShipping
+        - default:
+            then: continue
+  - packItems:
+      for:
+        each: item
+        in: ${ $input.items }
+      while: ${ $data.packed < 10 }
+      do:
+        - pack:
+            call: http
+            with:
+              method: post
+              endpoint: https://packing.example.com/items
+  - checks:
+      fork:
+        compete: false
+        branches:
+          - fraud:
+              call: http
+              with:
+                method: get
+                endpoint: https://fraud.example.com/check
+          - stock:
+              do:
+                - reserve:
+                    call: grpc
+                    with:
+                      proto:
+                        endpoint: file:///protos/stock.proto
+                      service:
+                        name: Stock
+                        host: stock
+                      method: Reserve
+  - waitForPayment:
+      listen:
+        to:
+          one:
+            with:
+              id: paymentReceived
+              type: signal
+  - charge:
+      try:
+        - chargeCard:
+            call: activity
+            with:
+              name: chargeCard
+              taskQueue: orders-activities
+      catch:
+        as: error
+        retry:
+          limit:
+            attempt:
+              count: 3
+        do:
+          - refund:
+              run:
+                shell:
+                  command: echo refund
+  - cooldown:
+      wait:
+        seconds: 5
+  - notify:
+      run:
+        workflow:
+          type: notify-customer
+  - summary:
+      set:
+        done: true
+  - mystery:
+      teleport:
+        to: mars
+  - stop:
+      raise:
+        error:
+          type: https://example.com/errors/stopped
+          status: 500
+      then: end
+  - expressShipping:
+      do:
+        - book:
+            call: activity
+            with:
+              name: bookCourier
+              taskQueue: orders-activities

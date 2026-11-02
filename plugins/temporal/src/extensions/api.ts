@@ -17,6 +17,7 @@
 import { createApiRef } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
 import type {
+  WorkflowDefinitionResponse,
   WorkflowDetail,
   WorkflowMessageResponse,
   WorkflowStartRequest,
@@ -79,6 +80,13 @@ export interface TemporalApi {
     entityRef: string,
     options?: { limit?: number },
   ): Promise<WorkflowStatsResponse>;
+
+  /**
+   * The definition file of a `TemporalWorkflow` entity with
+   * `spec.definition`: its text, the parsed document and the lines of each
+   * task.
+   */
+  getEntityDefinition(entityRef: string): Promise<WorkflowDefinitionResponse>;
 
   /**
    * Gets one workflow execution. `entityRef` is the entity it is shown for;

@@ -1,0 +1,126 @@
+# An order workflow written in YAML: the CNCF Serverless Workflow DSL 1.0 as
+# Zigflow 0.18 runs it. The TemporalWorkflow entity example-yaml-order-workflow
+# (examples/entities.yaml) shows it on its Definition tab.
+#
+# Zigflow runs the workflow on the backstage-zigflow task queue; the
+# activities run in the example worker on backstage-example
+# (packages/example-worker, `yarn workspace example-worker zigflow`).
+document:
+  dsl: 1.0.0
+  taskQueue: backstage-zigflow
+  workflowType: order-fulfillment
+  version: 0.1.0
+  title: Order fulfillment
+  summary: Validates, packs and checks an order, takes the payment and ships it.
+  metadata:
+    activityOptions:
+      startToCloseTimeout:
+        seconds: 10
+      retryPolicy:
+        maximumAttempts: 2
+do:
+  - validate:
+      call: activity
+      with:
+        name: validateOrder
+        taskQueue: backstage-example
+        arguments:
+          - ${ $input }
+
+  # One activity per item, at most five items.
+  - packItems:
+      for:
+        each: item
+        in: ${ $input.items }
+        at: index
+      while: ${ $data.index < 5 }
+      do:
+        - pack:
+            call: activity
+            with:
+              name: packItem
+              taskQueue: backstage-example
+              arguments:
+                - ${ $data.item }
+
+  # Both checks run at the same time, each as a child workflow.
+  - checks:
+      fork:
+        compete: false
+        branches:
+          - fraud:
+              call: activity
+              with:
+                name: checkFraud
+                taskQueue: backstage-example
+                arguments:
+                  - ${ $input.orderId }
+          - stock:
+              call: activity
+              with:
+                name: holdStock
+                taskQueue: backstage-example
+                arguments:
+                  - ${ $input.items }
+
+  # Waits for the payment service to send the paymentReceived signal.
+  - waitForPayment:
+      metadata:
+        timeout: 20s
+      listen:
+        to:
+          one:
+            with:
+              id: paymentReceived
+              type: signal
+
+  # The card is declined in this example: the catch refunds the order.
+  - charge:
+      try:
+        - chargeCard:
+            call: activity
+            with:
+              name: chargeOrder
+              taskQueue: backstage-example
+              arguments:
+                - ${ $input.orderId }
+      catch:
+        as: error
+        do:
+          - refund:
+              call: activity
+              with:
+                name: refundOrder
+                taskQueue: backstage-example
+                arguments:
+                  - ${ $input.orderId }
+
+  - cooldown:
+      wait:
+        seconds: 1
+
+  - notify:
+      run:
+        workflow:
+          type: notify-customer
+          input:
+            orderId: ${ $input.orderId }
+
+  - route:
+      switch:
+        - express:
+            when: ${ $input.express == true }
+            then: expressShipping
+        - default:
+            then: end
+
+  # Zigflow runs the target of a switch as a child workflow.
+  - expressShipping:
+      do:
+        - bookCourier:
+            call: activity
+            with:
+              name: bookExpressCourier
+              taskQueue: backstage-example
+              arguments:
+                - ${ $input.orderId }

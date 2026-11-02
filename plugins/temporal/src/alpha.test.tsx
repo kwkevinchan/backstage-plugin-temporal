@@ -36,7 +36,10 @@ import {
   TemporalWorkflowSectionBlueprint,
 } from './extensions/blueprints';
 import temporalPlugin from './alpha';
-import { EntityCardBlueprint } from '@backstage/plugin-catalog-react/alpha';
+import {
+  EntityCardBlueprint,
+  EntityContentBlueprint,
+} from '@backstage/plugin-catalog-react/alpha';
 import {
   checkoutEntity,
   entity,
@@ -70,6 +73,17 @@ describe('temporal (new frontend system)', () => {
     ).get(EntityCardBlueprint.dataRefs.filterFunction)!;
     expect(related(checkoutEntity)).toBe(true);
     expect(related(entity)).toBe(false);
+  });
+
+  it('adds the Definition tab to TemporalWorkflow entities only', () => {
+    const tab = createExtensionTester(
+      temporalPlugin.getExtension('entity-content:temporal/definition'),
+    );
+    expect(tab.get(coreExtensionData.routePath)).toBe('definition');
+    expect(tab.get(EntityContentBlueprint.dataRefs.title)).toBe('Definition');
+    const filter = tab.get(EntityContentBlueprint.dataRefs.filterFunction)!;
+    expect(filter(workflowEntity)).toBe(true);
+    expect(filter(entity)).toBe(false);
   });
 
   it('collects blueprint actions and sections in the shared extensions API', () => {

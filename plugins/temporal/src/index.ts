@@ -30,6 +30,7 @@
 export {
   temporalPlugin,
   EntityTemporalContent,
+  EntityTemporalDefinitionContent,
   TemporalPage,
   EntityTemporalWorkflowSummaryCard,
   EntityTemporalWorkflowStatsCard,
@@ -45,6 +46,7 @@ export * from './extensions';
 export * from './common/permissions';
 export {
   getDependsOnTemporalWorkflowRefs,
+  getTemporalWorkflowDefinitionSpec,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
   TEMPORAL_WORKFLOW_API_VERSION,
@@ -52,6 +54,7 @@ export {
   TEMPORAL_NAMESPACE_ANNOTATION,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
+  TEMPORAL_DEFINITION_FORMATS,
   WORKFLOW_STATUSES,
 } from './common';
 export type {
@@ -59,7 +62,12 @@ export type {
   DecodedPayload,
   ExternalPayload,
   PendingActivity,
+  TemporalDefinitionFormat,
+  TemporalWorkflowDefinitionSpec,
   TemporalWorkflowEntityV1alpha1,
+  WorkflowDefinitionError,
+  WorkflowDefinitionResponse,
+  WorkflowDefinitionTask,
   WorkflowControlOperation,
   WorkflowDeadline,
   WorkflowDetail,

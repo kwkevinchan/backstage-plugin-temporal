@@ -217,6 +217,7 @@ async function publishDraft(request) {
 module.exports = {
   ...pipelineStages,
   ...require('./agentActivities'),
+  ...require('./zigflowActivities'),
   llmDraft,
   llmReview,
   llmRefine,

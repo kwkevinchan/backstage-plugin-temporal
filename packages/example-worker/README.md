@@ -26,6 +26,18 @@ yarn workspace example-worker start
 `yarn start` loads the TypeScript sources of the codec package with the
 Backstage CLI node transform.
 
+`zigflow` starts two runs of the YAML workflow `order-fulfillment`
+(`examples/workflows`, entity `example-yaml-order-workflow`): an express order
+that completes (the card is declined and refunded in the `catch`) and an
+order that fails because nobody sends `paymentReceived`. Zigflow runs the
+workflow on the `backstage-zigflow` task queue; this command runs the worker
+of its activities on `backstage-example` until both runs are done. See the
+repository README (Development) for the Zigflow container.
+
+```sh
+yarn workspace example-worker zigflow
+```
+
 `serve` runs the worker until Ctrl+C without starting workflows. Workflows
 started from Backstage, signals, updates and queries need it:
 

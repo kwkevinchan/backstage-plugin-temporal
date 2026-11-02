@@ -127,6 +127,8 @@ jobs:
       # Large payloads in RustFS (S3-compatible), for the S3 payload test.
       # Throwaway credentials of a container that only lives in this job.
       SMOKE_S3: '1'
+      # A YAML workflow run by Zigflow, for the run on the Definition tab.
+      SMOKE_ZIGFLOW: '1'
       PAYLOAD_S3_ENDPOINT: http://localhost:9100
       PAYLOAD_S3_BUCKET: temporal-payloads
       PAYLOAD_S3_ACCESS_KEY: ci-access
@@ -188,6 +190,21 @@ jobs:
 
       - name: Start example workflows
         run: yarn workspace example-worker start
+
+      # Zigflow runs the YAML examples (examples/workflows); its activities
+      # run in the example worker. Health and metrics ports stay off 3000.
+      - name: Start Zigflow and the YAML example workflows
+        run: |
+          docker run -d --name zigflow --network host \
+            -e TEMPORAL_ADDRESS=localhost:7233 -e DISABLE_TELEMETRY=true \
+            -e CONVERT_FAILURE_DATA=false -e WORKFLOW_FILE= \
+            -e WORKFLOW_DIRECTORY=/app/workflows \
+            -v "$PWD/examples/workflows:/app/workflows:ro" \
+            ghcr.io/zigflow/zigflow:0.18.0-core \
+            run --health-listen-address 127.0.0.1:3901 \
+            --metrics-listen-address 127.0.0.1:9901
+          yarn workspace example-worker zigflow
+          docker logs zigflow 2>&1 | tail -20
 
       # Signals, updates, queries and started workflows of the control tests.
       - name: Start example worker

@@ -1,0 +1,24 @@
+# A child workflow of order-fulfillment.yaml (its notify task).
+document:
+  dsl: 1.0.0
+  taskQueue: backstage-zigflow
+  workflowType: notify-customer
+  version: 0.1.0
+  title: Notify customer
+  metadata:
+    activityOptions:
+      startToCloseTimeout:
+        seconds: 10
+      retryPolicy:
+        maximumAttempts: 2
+do:
+  - message:
+      set:
+        text: Your order is on its way
+  - send:
+      call: activity
+      with:
+        name: notifyCustomer
+        taskQueue: backstage-example
+        arguments:
+          - ${ $input.orderId }
