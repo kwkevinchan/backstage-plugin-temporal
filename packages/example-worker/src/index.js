@@ -28,16 +28,25 @@
  *   - pipelineWorkflow    completes after twelve stages, with a patch marker
  *                         before each stage
  *   - pollWorkflow        continues as new three times, then completes
+ *   - reportWorkflow      completes with large outputs stored in S3 (only
+ *                         when PAYLOAD_S3_ENDPOINT is set)
  *
  * Environment: TEMPORAL_ADDRESS (default localhost:7233), TEMPORAL_NAMESPACE
  * (default `default`), ENTITY_REF_ATTRIBUTE (default BackstageEntityRef; set
  * to an empty string when the search attribute is not registered). The
  * approval workflow sets the ApprovalPending attribute (Bool) when it is
  * registered.
+ *
+ * S3 payloads (optional): PAYLOAD_S3_ENDPOINT (for example
+ * http://localhost:9100), PAYLOAD_S3_BUCKET (default temporal-payloads),
+ * PAYLOAD_S3_REGION, PAYLOAD_S3_ACCESS_KEY, PAYLOAD_S3_SECRET_KEY. When the
+ * endpoint is set, the client and the worker use the S3 payload codec and
+ * the bucket is created when it is missing.
  */
 const { Client, Connection } = require('@temporalio/client');
 const { NativeConnection, Worker } = require('@temporalio/worker');
 const activities = require('./activities');
+const { payloadStorage } = require('./payloads');
 
 const address = process.env.TEMPORAL_ADDRESS || 'localhost:7233';
 const namespace = process.env.TEMPORAL_NAMESPACE || 'default';
@@ -131,8 +140,10 @@ async function startApproval(client, withSearchAttributes) {
 }
 
 async function main() {
+  const storage = await payloadStorage();
+  const dataConverter = storage?.dataConverter;
   const connection = await Connection.connect({ address });
-  const client = new Client({ connection, namespace });
+  const client = new Client({ connection, namespace, dataConverter });
 
   let handles;
   try {
@@ -156,7 +167,18 @@ async function main() {
     poll,
   ] = handles;
   const approval = await startApproval(client, handles.withSearchAttributes);
-  for (const h of [...handles, approval])
+  const report = storage
+    ? await client.workflow.start('reportWorkflow', {
+        taskQueue,
+        workflowId: `example-report-${Date.now().toString(36)}`,
+        args: [{ reportId: 'weekly-sales' }],
+        searchAttributes:
+          handles.withSearchAttributes && entityRefAttribute
+            ? { [entityRefAttribute]: [entityRef] }
+            : undefined,
+      })
+    : undefined;
+  for (const h of [...handles, approval, ...(report ? [report] : [])])
     console.log(`Started ${h.workflowId}`);
 
   const workerConnection = await NativeConnection.connect({ address });
@@ -166,6 +188,7 @@ async function main() {
     taskQueue,
     workflowsPath: require.resolve('./workflows'),
     activities,
+    dataConverter,
   });
 
   await worker.runUntil(async () => {
@@ -187,6 +210,11 @@ async function main() {
     console.log(
       `pipelineWorkflow result: ${JSON.stringify(await pipelineRun.result())}`,
     );
+    if (report) {
+      console.log(
+        `reportWorkflow result: ${JSON.stringify(await report.result())}`,
+      );
+    }
     // Follows the runs of the workflow ID to the last one.
     console.log(`pollWorkflow result: ${JSON.stringify(await poll.result())}`);
     // A comment on the approval; the workflow keeps waiting for approval.

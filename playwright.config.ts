@@ -24,9 +24,14 @@ import { defineConfig } from '@playwright/test';
  *
  * The backend needs a reachable Temporal server with the example workflows
  * (`yarn workspace example-worker start`). Screenshots of every step go to
- * SMOKE_SHOT_DIR (default e2e-test-results/<app>).
+ * SMOKE_SHOT_DIR (default e2e-test-results/<app>). SMOKE_APP_URL and
+ * SMOKE_BACKEND_URL point at servers on other ports (start them yourself,
+ * with the same ports in the app config). The S3 payload test runs when
+ * SMOKE_S3 is set (see e2e-tests/payloads.test.ts).
  */
 const app = process.env.SMOKE_APP ?? 'app';
+const appUrl = process.env.SMOKE_APP_URL ?? 'http://localhost:3000';
+const backendUrl = process.env.SMOKE_BACKEND_URL ?? 'http://localhost:7007';
 const ci = Boolean(process.env.CI);
 
 export default defineConfig({
@@ -43,19 +48,19 @@ export default defineConfig({
   webServer: [
     {
       command: `yarn workspace ${app} start`,
-      url: 'http://localhost:3000',
+      url: appUrl,
       reuseExistingServer: !ci,
       timeout: 600_000,
     },
     {
       command: 'yarn workspace backend start',
-      url: 'http://localhost:7007/.backstage/health/v1/readiness',
+      url: `${backendUrl}/.backstage/health/v1/readiness`,
       reuseExistingServer: !ci,
       timeout: 600_000,
     },
   ],
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: appUrl,
     viewport: { width: 1440, height: 900 },
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',

@@ -279,6 +279,23 @@
   white-space: pre-wrap;
   word-break: break-all;
 }
+/* Payloads stored in S3. */
+.tp-external {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+  padding: var(--bui-space-2, 8px);
+  border: 1px dashed var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 4px);
+}
+.tp-thumbnail {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 4px);
+  background: var(--bui-bg-neutral-2);
+}
 .tp-failure {
   padding-left: var(--bui-space-3, 12px);
   border-left: 3px solid var(--bui-border-1);

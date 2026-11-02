@@ -57,6 +57,7 @@ import {
   toWorkflowSummary,
 } from './convert';
 import { buildWorkflowGraph } from './graph';
+import { ExternalPayloads, findClaimCheckPayloads } from './payloads';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -138,6 +139,7 @@ export class WorkflowReader {
     private readonly temporal: TemporalService,
     private readonly enrichers: TemporalWorkflowEnricher[],
     private readonly logger: LoggerService,
+    readonly payloads: ExternalPayloads = new ExternalPayloads(),
   ) {}
 
   /**
@@ -370,6 +372,7 @@ export class WorkflowReader {
       .describeWorkflowExecution({ namespace: ref.namespace, execution })
       .catch(mapTemporalError);
     const json = toJson(describe);
+    await this.payloads.resolve(json.workflowExecutionInfo?.memo);
     const detail = toWorkflowDetail(json, this.convertOptions(ref.namespace));
     if (CLOSED_WITH_FAILURE.includes(detail.status)) {
       const reverse = await connection.workflowService
@@ -429,18 +432,22 @@ export class WorkflowReader {
         nextPageToken,
       })
       .catch(mapTemporalError);
+    const events = (response.history?.events ?? []).map(toJson);
+    await this.payloads.resolve(events);
     return {
-      events: (response.history?.events ?? []).map(e =>
-        toHistoryEvent(toJson(e)),
-      ),
+      events: events.map(toHistoryEvent),
       nextPageToken: encodePageToken(response.nextPageToken),
     };
   }
 
-  /** Reads the history of one run, oldest first, up to `max` events. */
+  /**
+   * Reads the history of one run, oldest first, up to `max` events. With
+   * `payloads`, claim checks are resolved for display.
+   */
   private async readEvents(
     ref: WorkflowRef & { runId: string },
     max: number,
+    options: { payloads?: boolean } = {},
   ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.checkNamespace(ref.namespace);
     const connection = await this.temporal.getConnection();
@@ -461,6 +468,7 @@ export class WorkflowReader {
           ? response.nextPageToken
           : undefined;
     } while (nextPageToken && events.length < max);
+    if (options.payloads) await this.payloads.resolve(events);
     return { events, truncated: Boolean(nextPageToken) };
   }
 
@@ -468,8 +476,20 @@ export class WorkflowReader {
   async steps(
     ref: WorkflowRef & { runId: string },
   ): Promise<WorkflowStepsResponse> {
-    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS);
+    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS, {
+      payloads: true,
+    });
     return toWorkflowSteps(events, truncated);
+  }
+
+  /**
+   * The claim check with `key` in the history of one run (inputs, results,
+   * memo, failure details), or undefined. Downloads are limited to these,
+   * so a caller can only read data of runs it may read the history of.
+   */
+  async findClaimCheck(ref: WorkflowRef & { runId: string }, key: string) {
+    const { events } = await this.readEvents(ref, MAX_STEP_EVENTS);
+    return findClaimCheckPayloads(events).find(f => f.check.key === key)?.check;
   }
 
   /**
@@ -489,6 +509,7 @@ export class WorkflowReader {
     const { events, truncated } = await this.readEvents(
       ref,
       options.maxEvents ?? MAX_STEP_EVENTS,
+      { payloads: options.includePayloads },
     );
     return buildWorkflowGraph(events, {
       namespace: workflow.namespace,

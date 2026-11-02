@@ -4921,6 +4921,7 @@ __metadata:
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
     "@backstage/cli": "backstage:^"
+    "@backstage/config": "backstage:^"
     "@backstage/errors": "backstage:^"
     "@backstage/plugin-catalog-backend": "backstage:^"
     "@backstage/plugin-catalog-node": "backstage:^"
@@ -4930,6 +4931,7 @@ __metadata:
     "@backstage/types": "backstage:^"
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
+    "@kwkevinchan/temporal-payload-s3": "workspace:^"
     "@temporalio/client": "npm:~1.24.0"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
@@ -5022,6 +5024,15 @@ __metadata:
     react: ^16.13.1 || ^17.0.0 || ^18.0.0
     react-dom: ^16.13.1 || ^17.0.0 || ^18.0.0
     react-router-dom: ^6.0.0
+  languageName: unknown
+  linkType: soft
+
+"@kwkevinchan/temporal-payload-s3@workspace:^, @kwkevinchan/temporal-payload-s3@workspace:plugins/temporal-payload-s3":
+  version: 0.0.0-use.local
+  resolution: "@kwkevinchan/temporal-payload-s3@workspace:plugins/temporal-payload-s3"
+  dependencies:
+    "@aws-sdk/client-s3": "npm:^3.350.0"
+    "@backstage/cli": "backstage:^"
   languageName: unknown
   linkType: soft
 
@@ -13303,6 +13314,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "example-worker@workspace:packages/example-worker"
   dependencies:
+    "@aws-sdk/client-s3": "npm:^3.350.0"
+    "@backstage/cli": "backstage:^"
+    "@kwkevinchan/temporal-payload-s3": "workspace:^"
     "@temporalio/activity": "npm:~1.24.0"
     "@temporalio/client": "npm:~1.24.0"
     "@temporalio/worker": "npm:~1.24.0"

@@ -15,8 +15,9 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import type {
-  ActivityStep,
+import {
+  CLAIM_CHECK_ENCODING,
+  type ActivityStep,
   PendingActivity,
   WorkflowStepsResponse,
   WorkflowDetail,
@@ -25,6 +26,7 @@ import type {
   WorkflowStatus,
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { claimCheckOf, EXTERNAL_PAYLOAD } from './payloads';
 
 /*
  * Conversion from Temporal API messages to the plugin's JSON types. The input
@@ -101,9 +103,40 @@ function isPayload(value: Json): boolean {
  * Decodes a payload like the default data converter. JSON payloads become
  * `{ encoding, value }`. Anything else (binary, protobuf, encrypted by a
  * codec, broken JSON) becomes `{ encoding, size, undecodable: true }`, since
- * the backend has no codec; the data itself is not sent.
+ * the backend has no codec; the data itself is not sent. Claim checks of
+ * payloads stored in S3 become `{ encoding: 'json/claim-check', external }`,
+ * or the decoded data with `external` when it is shown inline (see
+ * `ExternalPayloads.resolve`).
  */
 export function decodePayload(payload: Json): JsonObject {
+  const external = payload[EXTERNAL_PAYLOAD];
+  if (external) {
+    if (external.state === 'inline') {
+      return { ...decodePlainPayload(payload), external };
+    }
+    return { encoding: CLAIM_CHECK_ENCODING, external };
+  }
+  // A claim check that was not looked at (no S3 configured).
+  const check = claimCheckOf(payload);
+  if (check) {
+    return {
+      encoding: CLAIM_CHECK_ENCODING,
+      external: {
+        store: check.store,
+        bucket: check.bucket,
+        key: check.key,
+        size: check.size,
+        sha256: check.sha256,
+        encoding: check.encoding,
+        contentType: check.contentType,
+        state: 'unconfigured',
+      },
+    };
+  }
+  return decodePlainPayload(payload);
+}
+
+function decodePlainPayload(payload: Json): JsonObject {
   const metadata: JsonObject = {};
   for (const [key, raw] of Object.entries(payload.metadata ?? {})) {
     metadata[key] = decodeBase64(raw);

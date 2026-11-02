@@ -199,7 +199,29 @@ async function pollWorkflow(poll) {
   return { source: poll.source, rounds: round };
 }
 
+const { buildReport, summarizeReport, renderChart } = proxyActivities({
+  startToCloseTimeout: '30 seconds',
+});
+
+/**
+ * Produces large outputs (about 1 MB of JSON, 180 KiB of JSON and a PNG).
+ * With the S3 payload codec they are stored in S3 and the history keeps
+ * claim checks. Started only when S3 is configured for the worker.
+ */
+async function reportWorkflow(request) {
+  const report = await buildReport(request);
+  const summary = await summarizeReport({ reportId: report.reportId });
+  const chart = await renderChart();
+  return {
+    reportId: report.reportId,
+    rows: report.generatedRows,
+    summaryLines: summary.totals.length,
+    chartBytes: chart.length,
+  };
+}
+
 module.exports = {
+  reportWorkflow,
   orderWorkflow,
   paymentWorkflow,
   deploymentWorkflow,

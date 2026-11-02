@@ -3,13 +3,14 @@
 Unofficial Backstage backend plugin for [Temporal](https://temporal.io).
 Serves a read-only API under `/api/temporal`:
 
-| Method | Path                                                                 | Permission                       |
-| ------ | -------------------------------------------------------------------- | -------------------------------- |
-| GET    | `/workflows`                                                         | `temporal.workflow.list`         |
-| GET    | `/entities/:kind/:namespace/:name/workflows`                         | `temporal.workflow.read`         |
-| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                    | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`         | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history` | `temporal.workflow.history.read` |
+| Method | Path                                                                                | Permission                       |
+| ------ | ----------------------------------------------------------------------------------- | -------------------------------- |
+| GET    | `/workflows`                                                                        | `temporal.workflow.list`         |
+| GET    | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.read`         |
+| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                   | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                        | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=` | `temporal.workflow.history.read` |
 
 Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
@@ -25,4 +26,7 @@ comes from the `searchAttributes.entityRef` search attribute); `pageSize`,
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
 ```
 
-See the [repository README](../../README.md) for configuration.
+Payloads stored in S3 by `@kwkevinchan/temporal-payload-s3` are shown when
+`temporal.payloads.s3` is configured, and downloaded through
+`payloads/download` (only keys of claim checks in that run's history). See the
+[repository README](../../README.md) for configuration.
