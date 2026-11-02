@@ -23,6 +23,7 @@ import type {
   WorkflowHistoryResponse,
   WorkflowListResponse,
   WorkflowStepsResponse,
+  WorkflowLoopsResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { TemporalApi } from '@kwkevinchan/backstage-plugin-temporal-react';
 
@@ -277,6 +278,117 @@ export const progressResponse: WorkflowProgressResponse = {
   truncated: false,
 };
 
+const loopStep = (
+  id: string,
+  name: string,
+  iteration: number,
+  time: number,
+): WorkflowGraphResponse['nodes'][number] => ({
+  id,
+  kind: 'activity',
+  name,
+  status: 'Completed',
+  stepId: `loop/draft-review/${iteration}/${name}`,
+  loop: { loop: 'draft-review', iteration, step: name },
+  startTime: new Date(Date.UTC(2026, 0, 1, 11, 0, time)).toISOString(),
+  endTime: new Date(Date.UTC(2026, 0, 1, 11, 0, time + 1)).toISOString(),
+  events: [],
+});
+
+/** A run with a loop of two rounds (draft, review), then publish. */
+export const loopGraphResponse: WorkflowGraphResponse = {
+  status: 'Completed',
+  completedSteps: 5,
+  totalSteps: 5,
+  truncated: false,
+  payloadsHidden: false,
+  nodes: [
+    {
+      id: 'start',
+      kind: 'workflowStarted',
+      name: 'Start',
+      status: 'Completed',
+      events: [],
+    },
+    loopStep('activity-5', 'llmDraft', 1, 1),
+    loopStep('activity-8', 'llmReview', 1, 2),
+    loopStep('activity-12', 'llmDraft', 2, 3),
+    loopStep('activity-15', 'llmReview', 2, 4),
+    {
+      id: 'activity-20',
+      kind: 'activity',
+      name: 'publishDraft',
+      status: 'Completed',
+      events: [],
+    },
+    {
+      id: 'end',
+      kind: 'workflowClosed',
+      name: 'End',
+      status: 'Completed',
+      events: [],
+    },
+  ],
+  edges: [
+    ['start', 'activity-5'],
+    ['activity-5', 'activity-8'],
+    ['activity-8', 'activity-12'],
+    ['activity-12', 'activity-15'],
+    ['activity-15', 'activity-20'],
+    ['activity-20', 'end'],
+  ].map(([source, target]) => ({ id: `${source}->${target}`, source, target })),
+  loops: [
+    {
+      name: 'draft-review',
+      status: 'done',
+      iteration: 2,
+      maxIterations: 5,
+      decision: 'accept',
+      score: 0.9,
+      rounds: [1, 2].map(iteration => ({
+        iteration,
+        status: 'Completed' as const,
+        decision: iteration === 2 ? 'accept' : 'revise',
+        score: iteration === 2 ? 0.9 : 0.5,
+        steps: [
+          {
+            nodeId: iteration === 1 ? 'activity-5' : 'activity-12',
+            name: 'llmDraft',
+            kind: 'activity' as const,
+            status: 'Completed' as const,
+          },
+          {
+            nodeId: iteration === 1 ? 'activity-8' : 'activity-15',
+            name: 'llmReview',
+            kind: 'activity' as const,
+            status: 'Completed' as const,
+          },
+        ],
+      })),
+    },
+  ],
+};
+
+/** The loop across two runs: round 1 ran in an earlier run. */
+export const loopsResponse: WorkflowLoopsResponse = {
+  source: 'history',
+  truncated: false,
+  runs: [
+    { runId: 'run-1', segment: 1, status: 'ContinuedAsNew' },
+    { runId: 'run-2', segment: 2, status: 'Completed' },
+  ],
+  loops: [
+    {
+      ...loopGraphResponse.loops![0],
+      rounds: loopGraphResponse.loops![0].rounds.map(r => ({
+        ...r,
+        runId: r.iteration === 1 ? 'run-1' : 'run-2',
+        segment: r.iteration === 1 ? 1 : 2,
+      })),
+    },
+  ],
+};
+
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
@@ -287,6 +399,7 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
+    getWorkflowLoops: jest.fn().mockResolvedValue(loopsResponse),
     signalWorkflow: jest.fn().mockResolvedValue(undefined),
     updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
     queryWorkflow: jest.fn().mockResolvedValue({ result: { notes: [] } }),

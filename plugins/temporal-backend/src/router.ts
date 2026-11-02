@@ -441,6 +441,17 @@ export async function createRouter(
     },
   );
 
+  // Loops across the continue-as-new runs. Like the graph, the read
+  // permission is enough: rounds, steps and the recorded decisions and
+  // scores (memo), no inputs or results.
+  router.get(
+    workflowPaths.map(p => `${p}/loops`),
+    async (req, res) => {
+      const { workflow } = await loadWorkflow(req, 'read');
+      res.json(await reader.loops(workflow));
+    },
+  );
+
   router.get(
     workflowPaths.map(p => `${p}/progress`),
     async (req, res) => {

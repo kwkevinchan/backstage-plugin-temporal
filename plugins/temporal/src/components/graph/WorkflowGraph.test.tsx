@@ -72,4 +72,30 @@ describe('useSettledWidth', () => {
     });
     expect(probe).toHaveTextContent('700');
   });
+
+  function PanelProbe(props: { open: boolean }) {
+    const [ref, width] = useSettledWidth(150, props.open);
+    return (
+      <div ref={ref} data-testid="panel-probe">
+        {width ?? 'none'}
+      </div>
+    );
+  }
+
+  it('reads the width at once when the step panel opens or closes', () => {
+    let width = 1000;
+    jest
+      .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+      .mockImplementation(() => width);
+    const { rerender } = render(<PanelProbe open={false} />);
+    const probe = screen.getByTestId('panel-probe');
+    expect(probe).toHaveTextContent('1000');
+    // The panel takes its width in the same render: no delay, no timer.
+    width = 700;
+    rerender(<PanelProbe open />);
+    expect(probe).toHaveTextContent('700');
+    width = 1000;
+    rerender(<PanelProbe open={false} />);
+    expect(probe).toHaveTextContent('1000');
+  });
 });
