@@ -46,6 +46,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
+import { sendStoredPayload } from './service/download';
 import { parseStatus } from './service/query';
 import {
   EntityContext,
@@ -431,6 +432,26 @@ export async function createRouter(
     async (req, res) => {
       const { workflow } = await loadWorkflow(req, 'read');
       res.json(await reader.progress(workflow));
+    },
+  );
+
+  router.get(
+    workflowPaths.map(p => `${p}/payloads/download`),
+    async (req, res) => {
+      const key = optionalString(req.query.key, 'key');
+      if (!key || key.length > 1024) throw new InputError('Invalid key');
+      const { ref, workflow } = await loadWorkflow(req, 'history');
+      if (!reader.payloads.configured) {
+        throw new NotFoundError('S3 payload storage is not configured');
+      }
+      const check = await reader.findClaimCheck(
+        { ...ref, runId: workflow.runId },
+        key,
+      );
+      if (!check) {
+        throw new NotFoundError(`No stored payload ${key} in this run`);
+      }
+      await sendStoredPayload(res, check, reader.payloads);
     },
   );
 

@@ -27,6 +27,7 @@ import {
   TemporalWorkflowEnricher,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { createRouter } from './router';
+import { ExternalPayloads } from './service/payloads';
 import { WorkflowReader } from './service/WorkflowReader';
 
 /**
@@ -57,6 +58,7 @@ export const temporalPlugin = createBackendPlugin({
     env.registerInit({
       deps: {
         logger: coreServices.logger,
+        config: coreServices.rootConfig,
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
         permissions: coreServices.permissions,
@@ -66,6 +68,7 @@ export const temporalPlugin = createBackendPlugin({
       },
       async init({
         logger,
+        config,
         httpAuth,
         httpRouter,
         permissions,
@@ -79,7 +82,12 @@ export const temporalPlugin = createBackendPlugin({
             `${controlActions.length} Temporal control action(s) registered; control routes are not served by this version`,
           );
         }
-        const reader = new WorkflowReader(temporal, enrichers, logger);
+        const reader = new WorkflowReader(
+          temporal,
+          enrichers,
+          logger,
+          ExternalPayloads.fromConfig(config, logger),
+        );
         httpRouter.use(
           await createRouter({ httpAuth, permissions, catalog, reader }),
         );

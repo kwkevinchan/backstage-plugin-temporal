@@ -26,6 +26,7 @@ cancel, re-run) are planned.
 | [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | Shared types, permissions and annotation constants.                                            |
 | [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Shared Temporal client service and backend extension point.                                    |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Catalog module with the `TemporalWorkflow` kind.                                               |
+| [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)                                          | node-library          | Payload codec for workers: large payloads in S3, a claim check in the history.                 |
 
 Plugins that add buttons or cards to the workflow page depend on
 `@kwkevinchan/backstage-plugin-temporal-react` only.
@@ -241,6 +242,64 @@ with the read role on the namespaces in `connection.namespaces` is enough.
 See the Temporal documentation on server security for the details. The token
 is read at startup; restart the backend after it is replaced.
 
+## Large payloads in S3
+
+Workers can store large payloads in any S3-compatible object store with the
+[`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3) codec
+(claim check pattern): payloads above a threshold (default 128 KiB) are
+uploaded, and the history keeps a claim check with the bucket, key, size,
+SHA-256, original encoding and media type. See its README for the worker
+setup, the key layout, bucket permissions and lifecycle cleanup.
+
+To show the stored data in Backstage, give the backend read access to the
+same bucket:
+
+```yaml
+temporal:
+  payloads:
+    s3:
+      bucket: temporal-payloads
+      # Leave out for AWS S3.
+      endpoint: http://rustfs.storage.svc:9000
+      region: us-east-1
+      forcePathStyle: true
+      credentials:
+        accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
+        secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
+      # JSON payloads up to this size are shown like any other payload.
+      maxInlineBytes: 262144
+      # Bytes of text shown as the preview of a larger payload.
+      previewBytes: 2048
+```
+
+The step panel then shows, for the input and output of each step:
+
+- JSON up to `maxInlineBytes` (default 256 KiB): the value, as for payloads
+  in the history, with a note that it is stored in S3 and a download button;
+- larger payloads: an icon, the size, the media type and the first
+  `previewBytes` of text, and a download button; images (PNG, JPEG, GIF,
+  WebP up to 8 MiB) as a thumbnail;
+- without `temporal.payloads.s3`: "Stored externally (S3 is not configured
+  in Backstage)" with the bucket, key and SHA-256, and no error;
+- data that cannot be read or does not match its SHA-256: the error.
+
+Downloads go through the backend,
+`GET /api/temporal/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=<key>`,
+with the same checks as the history (`temporal.workflow.history.read`, or
+the list permissions without `entityRef`). The key must belong to a claim
+check in the history of that run, and the claim check must name the
+configured bucket, so a caller cannot read other objects. The backend
+streams the object and checks its SHA-256 on the way; on a mismatch it
+aborts the response. The S3 credentials stay in the backend: the plugin does
+not use presigned URLs, because a presigned URL works for anyone who has it
+until it expires, outside of the Backstage permission checks. The cost is
+that downloads pass through the backend, and the browser holds a download in
+memory before it saves it, so very large objects are better fetched from S3
+directly.
+
+The backend keeps up to 32 MiB of downloaded JSON in memory, by SHA-256, so
+reloading a page does not download the same data again.
+
 ## Workflow entities
 
 The catalog module adds the `TemporalWorkflow` kind for one workflow type:
@@ -439,6 +498,20 @@ Start the example workflows for the `example-orders` component with:
 
 ```sh
 yarn workspace example-worker start
+```
+
+Large payloads: start RustFS (an S3-compatible store) on port 9100, then the
+backend with `app-config.s3.yaml` and the example worker with the same
+`PAYLOAD_S3_*` variables. The worker then also runs `reportWorkflow`, with
+about 1 MB of JSON, 180 KiB of JSON and a PNG as outputs:
+
+```sh
+export PAYLOAD_S3_ENDPOINT=http://localhost:9100 PAYLOAD_S3_BUCKET=temporal-payloads
+export PAYLOAD_S3_ACCESS_KEY=dev-access PAYLOAD_S3_SECRET_KEY=dev-secret-key
+docker compose -f examples/docker-compose.rustfs.yaml up -d
+yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml
+yarn workspace example-worker start
+SMOKE_S3=1 yarn test:e2e   # adds the S3 payload smoke test
 ```
 
 Smoke tests sign in as the guest user, open the Temporal tab, open a failed

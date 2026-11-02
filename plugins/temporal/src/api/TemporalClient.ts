@@ -173,4 +173,21 @@ export class TemporalClient implements TemporalApi {
       })}`,
     );
   }
+
+  async downloadPayload(
+    ref: WorkflowRef,
+    options: { key: string; entityRef?: string },
+  ): Promise<Blob> {
+    const baseUrl = await this.discoveryApi.getBaseUrl('temporal');
+    const response = await this.fetchApi.fetch(
+      `${baseUrl}${buildWorkflowPath(ref)}/payloads/download${queryString({
+        entityRef: options.entityRef,
+        key: options.key,
+      })}`,
+    );
+    if (!response.ok) {
+      throw await ResponseError.fromResponse(response);
+    }
+    return response.blob();
+  }
 }
