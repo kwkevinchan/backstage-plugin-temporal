@@ -222,7 +222,11 @@ export function fakeTemporalServiceFactory(
     getClient: async () => {
       throw new Error('not used');
     },
-    getConnection: async () => ({ workflowService } as any),
+    getConnection: async () =>
+      ({
+        workflowService,
+        withDeadline: (_deadline: number, fn: () => unknown) => fn(),
+      } as any),
     getDefaultNamespace: () => 'default',
     getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default',

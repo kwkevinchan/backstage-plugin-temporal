@@ -33,6 +33,7 @@ const {
   upsertSearchAttributes,
   workflowInfo,
 } = require('@temporalio/workflow');
+const { createLoops } = require('@kwkevinchan/temporal-loop');
 
 const { reserveStock, chargeCard, deploy } = proxyActivities({
   startToCloseTimeout: '10 seconds',
@@ -264,7 +265,89 @@ async function ticketWorkflow(ticket) {
   return state;
 }
 
+/**
+ * A fake AI loop: draft, review, and draft again with the review's
+ * feedback until the score is high enough, for at most `maxRounds` rounds.
+ * The "LLM" activities answer from a seed, so the run always looks the
+ * same. A short pause between rounds (a timer) belongs to the round.
+ */
+async function draftReviewWorkflow(request) {
+  const loops = createLoops();
+  let feedback;
+  const result = await loops.run(
+    'draft-review',
+    { maxIterations: request.maxRounds ?? 5 },
+    async round => {
+      const { llmDraft, llmReview } = round.activities({
+        startToCloseTimeout: '10 seconds',
+      });
+      const draft = await llmDraft({
+        topic: request.topic,
+        round: round.iteration,
+        feedback,
+      });
+      const review = await llmReview({
+        draft,
+        round: round.iteration,
+        seed: request.seed ?? 1,
+      });
+      feedback = review.feedback;
+      if (review.score >= (request.passScore ?? 0.8)) {
+        return round.done({
+          value: draft,
+          decision: 'accept',
+          score: review.score,
+        });
+      }
+      await sleep('300 milliseconds');
+      return round.next({
+        value: draft,
+        decision: 'revise',
+        score: review.score,
+      });
+    },
+  );
+  const published = await publishDraft({
+    topic: request.topic,
+    status: result.status,
+    rounds: result.iterations,
+  });
+  return { ...result, published };
+}
+
+/**
+ * A long loop: 25 rounds of refining, continuing as new every 10 rounds
+ * (three runs). The round count goes on across the runs.
+ */
+async function longRefineWorkflow(request) {
+  const loops = createLoops();
+  const result = await loops.run(
+    'refine',
+    {
+      maxIterations: request.totalRounds ?? 25,
+      continueAsNew: { afterRounds: request.every ?? 10, args: [request] },
+    },
+    async round => {
+      const { llmRefine } = round.activities({
+        startToCloseTimeout: '10 seconds',
+      });
+      const out = await llmRefine({
+        document: request.document,
+        round: round.iteration,
+      });
+      return round.next({ value: out.text, score: out.score });
+    },
+  );
+  return { rounds: result.iterations, status: result.status };
+}
+
+const { publishDraft } = proxyActivities({
+  startToCloseTimeout: '10 seconds',
+});
+
 module.exports = {
+  draftReviewWorkflow,
+  longRefineWorkflow,
   reportWorkflow,
   ticketWorkflow,
   orderWorkflow,

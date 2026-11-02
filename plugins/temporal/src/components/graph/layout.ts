@@ -54,8 +54,20 @@ export function visibleSteps(
   const hidden = nodes.filter(
     n => n.internal || (!options.showMarkers && isMarkerStep(n)),
   );
+  return hideSteps(nodes, edges, new Set(hidden.map(n => n.id)));
+}
+
+/**
+ * Leaves out the steps in `hiddenIds` and joins the arrows through them,
+ * so the graph stays connected.
+ */
+export function hideSteps<N extends { id: string }>(
+  nodes: N[],
+  edges: WorkflowGraphEdge[],
+  hiddenIds: Set<string>,
+): { nodes: N[]; edges: WorkflowGraphEdge[] } {
+  const hidden = nodes.filter(n => hiddenIds.has(n.id));
   if (hidden.length === 0) return { nodes, edges };
-  const hiddenIds = new Set(hidden.map(n => n.id));
 
   const out = new Map<string, Set<string>>();
   const into = new Map<string, Set<string>>();
@@ -128,7 +140,7 @@ export interface StepLayout {
  * continue on a next row, so long runs stay readable without zooming out.
  */
 export function layoutSteps(
-  nodes: WorkflowGraphNode[],
+  nodes: { id: string }[],
   edges: WorkflowGraphEdge[],
   width?: number,
 ): StepLayout {

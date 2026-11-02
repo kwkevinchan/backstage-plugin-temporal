@@ -22,6 +22,7 @@ import type {
   WorkflowStartRequest,
   WorkflowStartResponse,
   WorkflowGraphResponse,
+  WorkflowLoopsResponse,
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
   WorkflowListResponse,
@@ -112,6 +113,18 @@ export interface TemporalApi {
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowGraphResponse>;
+
+  /**
+   * Gets the loops of a workflow (from loop markers) across the runs it
+   * continued as new, with each round's steps, decision and score. For a
+   * running workflow the state comes from its `__loop_state` query when
+   * the worker answers. Optional, so other implementations of this API keep
+   * working; without it the Loops tab shows the loops of the open run only.
+   */
+  getWorkflowLoops?(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowLoopsResponse>;
 
   /** Gets the completed steps and the current step of a run, for lists. */
   getWorkflowProgress(

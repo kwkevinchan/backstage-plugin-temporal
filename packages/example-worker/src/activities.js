@@ -181,8 +181,45 @@ async function renderChart() {
   );
 }
 
+/*
+ * A fake "LLM" for the loop examples: answers from the round and a seed,
+ * so the same request gives the same rounds.
+ */
+async function llmDraft(request) {
+  const revision = request.feedback ? ` (revised: ${request.feedback})` : '';
+  return `Draft ${request.round} about ${request.topic}${revision}`;
+}
+
+async function llmReview(request) {
+  const score =
+    Math.round(
+      Math.min(1, 0.3 + 0.15 * request.round + 0.02 * request.seed) * 100,
+    ) / 100;
+  return {
+    score,
+    feedback: score < 0.8 ? `make round ${request.round + 1} shorter` : 'ok',
+  };
+}
+
+async function llmRefine(request) {
+  return {
+    text: `${request.document} v${request.round}`,
+    score: Math.round((1 - 1 / (request.round + 1)) * 100) / 100,
+  };
+}
+
+async function publishDraft(request) {
+  return {
+    url: `https://example.com/drafts/${encodeURIComponent(request.topic)}`,
+  };
+}
+
 module.exports = {
   ...pipelineStages,
+  llmDraft,
+  llmReview,
+  llmRefine,
+  publishDraft,
   buildReport,
   summarizeReport,
   renderChart,

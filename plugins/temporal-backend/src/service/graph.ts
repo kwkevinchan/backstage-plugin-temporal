@@ -15,6 +15,11 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import {
+  LOOP_MARKER_MEMO_KEY,
+  LOOP_STATE_MEMO_KEY,
+  parseLoopMarker,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   PendingActivity,
   WorkflowFailure,
@@ -26,6 +31,7 @@ import type {
   WorkflowStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
+  decodePayload,
   decodePayloads,
   dropUndefined,
   durationToMs,
@@ -34,6 +40,7 @@ import {
   toIsoTime,
   toWorkflowFailure,
 } from './convert';
+import { buildLoopGroups, readLoopMarker } from './loops';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows
@@ -60,6 +67,14 @@ import {
  */
 
 type Json = any;
+
+/** The value of one memo field of a history event, when it is JSON. */
+function memoValue(memo: Json, key: string): unknown {
+  const payload = memo?.fields?.[key];
+  if (!payload) return undefined;
+  const decoded = decodePayload(payload);
+  return 'value' in decoded ? decoded.value : undefined;
+}
 
 /** Most arrows of one graph; beyond that the graph is too dense to read. */
 export const MAX_GRAPH_EDGES = 5000;
@@ -102,9 +117,11 @@ export interface BuildGraphOptions {
   includePayloads: boolean;
   /** Failure of the closed run from describe, when the history is cut. */
   failure?: WorkflowFailure;
+  /** Memo from describe, for the loop state. */
+  memo?: JsonObject;
 }
 
-interface Building extends WorkflowGraphNode {
+export interface Building extends WorkflowGraphNode {
   /** Event ID of the first and of the closing event, for the arrows. */
   first: number;
   last?: number;
@@ -218,6 +235,10 @@ export function buildWorkflowGraph(
   const lastAttempt = (node: Building) =>
     node.attempts?.[node.attempts.length - 1];
 
+  // Loop states from the memo: the one carried into the run, then each
+  // upsert after a round.
+  let carriedLoopState: unknown;
+  const loopStates: unknown[] = [];
   let lastEventId = 0;
   for (const event of events) {
     lastEventId = Math.max(lastEventId, num(event.eventId));
@@ -227,6 +248,7 @@ export function buildWorkflowGraph(
     // Workflow start and close.
     a = event.workflowExecutionStartedEventAttributes;
     if (a) {
+      carriedLoopState = memoValue(a.memo, LOOP_STATE_MEMO_KEY);
       const node = add('start', event, {
         id: 'start',
         kind: 'workflowStarted',
@@ -315,6 +337,7 @@ export function buildWorkflowGraph(
         startTime: time,
         input: payload(decodePayloads(a.input)),
         maximumAttempts: max > 0 ? max : undefined,
+        loop: parseLoopMarker(a.activityId),
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
         }),
@@ -542,6 +565,9 @@ export function buildWorkflowGraph(
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
         }),
+        loop:
+          readLoopMarker(memoValue(a.memo, LOOP_MARKER_MEMO_KEY)) ??
+          parseLoopMarker(a.workflowId),
       });
       attach(node, event);
       continue;
@@ -663,6 +689,13 @@ export function buildWorkflowGraph(
           failureFromCause(a.cause, 'Workflow task failed');
       }
       continue;
+    }
+
+    // Memo upserts with the loop state stay internal events.
+    a = event.workflowPropertiesModifiedEventAttributes;
+    if (a) {
+      const state = memoValue(a.upsertedMemo, LOOP_STATE_MEMO_KEY);
+      if (state !== undefined) loopStates.push(state);
     }
 
     // Anything else.
@@ -789,6 +822,12 @@ export function buildWorkflowGraph(
   const nextRunId =
     endNode?.status === 'ContinuedAsNew' ? endNode.workflow?.runId : undefined;
   const current = currentStep(visible, options);
+  const loops = buildLoopGroups(nodes, {
+    status: options.status,
+    upserts: loopStates,
+    carried: carriedLoopState,
+    current: options.memo?.[LOOP_STATE_MEMO_KEY],
+  });
   const response: WorkflowGraphResponse = {
     status: options.status,
     nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
@@ -807,6 +846,7 @@ export function buildWorkflowGraph(
             nextRunId,
           })
         : undefined,
+    loops,
   };
   return dropUndefined(response);
 }

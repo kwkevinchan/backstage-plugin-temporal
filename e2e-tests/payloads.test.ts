@@ -34,6 +34,58 @@ function step(page: Page, name: RegExp) {
   return page.getByTestId('workflow-graph').getByRole('button', { name });
 }
 
+/** Waits until the graph has stopped moving (relayout and pan animations). */
+async function graphSettled(page: Page) {
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = await page.evaluate(() => {
+        const viewport = document.querySelector('.react-flow__viewport');
+        const nodes = [...document.querySelectorAll('.react-flow__node')].map(
+          n => (n as HTMLElement).style.transform,
+        );
+        return `${
+          viewport ? getComputedStyle(viewport).transform : ''
+        }|${nodes}`;
+      });
+      const same = now === last;
+      last = now;
+      return same;
+    })
+    .toBe(true);
+}
+
+/** Boxes of the graph not fully inside its area, or under the step panel. */
+async function boxesOutsideGraph(page: Page): Promise<string[]> {
+  const area = await page.getByTestId('workflow-graph').boundingBox();
+  const drawer = await page.getByTestId('step-drawer').boundingBox();
+  if (!area) return ['(no graph)'];
+  const outside: string[] = [];
+  for (const box of await page
+    .getByTestId('workflow-graph')
+    .locator('.react-flow__node')
+    .getByRole('button')
+    .all()) {
+    const b = await box.boundingBox();
+    const name = (await box.getAttribute('aria-label')) ?? '?';
+    const inside =
+      b !== null &&
+      b.x >= area.x - 1 &&
+      b.y >= area.y - 1 &&
+      b.x + b.width <= area.x + area.width + 1 &&
+      b.y + b.height <= area.y + area.height + 1;
+    const underPanel =
+      b !== null &&
+      drawer !== null &&
+      b.x + b.width > drawer.x + 1 &&
+      b.x < drawer.x + drawer.width - 1 &&
+      b.y + b.height > drawer.y + 1 &&
+      b.y < drawer.y + drawer.height - 1;
+    if (!inside || underPanel) outside.push(name);
+  }
+  return outside;
+}
+
 async function shot(page: Page, name: string) {
   mkdirSync(shotDir, { recursive: true });
   await page.screenshot({ path: join(shotDir, `${name}.png`), fullPage: true });
@@ -84,6 +136,11 @@ test('large payloads stored in S3: preview, inline value, image and download', a
   await expect(output.getByTestId('payload-preview')).toContainText(
     '"reportId":"weekly-sales"',
   );
+  // A graph of three activities: with the panel open, it is laid out for
+  // the narrower area and every box stays in view.
+  await expect.poll(() => boxesOutsideGraph(page)).toEqual([]);
+  await graphSettled(page);
+  expect(await boxesOutsideGraph(page)).toEqual([]);
   await shot(page, '30-s3-large-json');
   const downloadPromise = page.waitForEvent('download');
   await output.getByRole('button', { name: 'Download' }).click();

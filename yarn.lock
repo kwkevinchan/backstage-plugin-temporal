@@ -5031,6 +5031,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@kwkevinchan/temporal-loop@workspace:^, @kwkevinchan/temporal-loop@workspace:plugins/temporal-loop":
+  version: 0.0.0-use.local
+  resolution: "@kwkevinchan/temporal-loop@workspace:plugins/temporal-loop"
+  dependencies:
+    "@backstage/cli": "backstage:^"
+    "@temporalio/activity": "npm:~1.24.0"
+    "@temporalio/client": "npm:~1.24.0"
+    "@temporalio/testing": "npm:~1.24.0"
+    "@temporalio/worker": "npm:~1.24.0"
+    "@temporalio/workflow": "npm:~1.24.0"
+  peerDependencies:
+    "@temporalio/workflow": ^1.12.0
+  languageName: unknown
+  linkType: soft
+
 "@kwkevinchan/temporal-payload-s3@workspace:^, @kwkevinchan/temporal-payload-s3@workspace:plugins/temporal-payload-s3":
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/temporal-payload-s3@workspace:plugins/temporal-payload-s3"
@@ -7278,7 +7293,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@temporalio/worker@npm:~1.24.0":
+"@temporalio/testing@npm:~1.24.0":
+  version: 1.24.0
+  resolution: "@temporalio/testing@npm:1.24.0"
+  dependencies:
+    "@temporalio/activity": "npm:1.24.0"
+    "@temporalio/client": "npm:1.24.0"
+    "@temporalio/common": "npm:1.24.0"
+    "@temporalio/core-bridge": "npm:1.24.0"
+    "@temporalio/proto": "npm:1.24.0"
+    "@temporalio/worker": "npm:1.24.0"
+    "@temporalio/workflow": "npm:1.24.0"
+  checksum: 10c0/0c66a0d287f2e820a0f622efd1dbb05bad88f87204d3415b52363a76048358f00ead93a5f7db251bfe368ef68b957acf4b3648dff8d34941c5b6cf8998b7397b
+  languageName: node
+  linkType: hard
+
+"@temporalio/worker@npm:1.24.0, @temporalio/worker@npm:~1.24.0":
   version: 1.24.0
   resolution: "@temporalio/worker@npm:1.24.0"
   dependencies:
@@ -13323,6 +13353,7 @@ __metadata:
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.350.0"
     "@backstage/cli": "backstage:^"
+    "@kwkevinchan/temporal-loop": "workspace:^"
     "@kwkevinchan/temporal-payload-s3": "workspace:^"
     "@temporalio/activity": "npm:~1.24.0"
     "@temporalio/client": "npm:~1.24.0"

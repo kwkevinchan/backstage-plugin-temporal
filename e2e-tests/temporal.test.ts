@@ -273,13 +273,16 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   const runs = table(page, 'Workflows');
   await expect(runs).toBeVisible();
   await expect(runs.getByText('Failed').first()).toBeVisible();
-  await expect(
-    runs
-      .getByRole('row')
-      .filter({ hasText: 'paymentWorkflow' })
-      .first()
-      .getByTestId('workflow-progress'),
-  ).toContainText('Failed at chargeCard');
+  // Progress loads for the rows on screen; with more example workflows the
+  // row may start below the fold.
+  const paymentRow = runs
+    .getByRole('row')
+    .filter({ hasText: 'paymentWorkflow' })
+    .first();
+  await paymentRow.scrollIntoViewIfNeeded();
+  await expect(paymentRow.getByTestId('workflow-progress')).toContainText(
+    'Failed at chargeCard',
+  );
   await shot('04-temporal-tab');
 
   // 5. A failed workflow: the graph, then the failed step with its input

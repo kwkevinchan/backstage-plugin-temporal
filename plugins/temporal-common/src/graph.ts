@@ -15,6 +15,7 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import type { WorkflowLoopGroup, WorkflowLoopMarker } from './loops';
 import type { WorkflowFailure, WorkflowStatus } from './types';
 
 /**
@@ -158,6 +159,8 @@ export interface WorkflowGraphNode {
   workflow?: { namespace: string; workflowId: string; runId?: string };
   /** Other details, for example the timer duration or a signal's sender. */
   details?: JsonObject;
+  /** Loop, round and step of an activity or child workflow with a loop marker. */
+  loop?: WorkflowLoopMarker;
   /** The events of the step, oldest first. */
   events: WorkflowNodeEvent[];
 }
@@ -197,6 +200,8 @@ export interface WorkflowGraphResponse {
   payloadsHidden: boolean;
   /** The run's place among the runs of a workflow that continues as new. */
   runChain?: WorkflowRunChain;
+  /** Loops of the run, from loop markers; left out when there are none. */
+  loops?: WorkflowLoopGroup[];
 }
 
 /**

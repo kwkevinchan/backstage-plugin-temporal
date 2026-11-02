@@ -28,6 +28,7 @@ permission framework and recorded with the auditor.
 | [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Shared Temporal client service and backend extension point.                                    |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Catalog module with the `TemporalWorkflow` kind.                                               |
 | [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)                                          | node-library          | Payload codec for workers: large payloads in S3, a claim check in the history.                 |
+| [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)                                                      | node-library          | For workflow code: loop markers, a loop state query and continue-as-new helpers.               |
 
 Plugins that add buttons or cards to the workflow page depend on
 `@kwkevinchan/backstage-plugin-temporal-react` only.
@@ -188,6 +189,33 @@ Workflow lists show a progress column (done steps and the current step or
 failure). It is loaded for the rows on screen only, with at most four
 requests at a time; the backend reads at most 1000 events per run for it and
 keeps the progress of closed runs in memory.
+
+## Loops
+
+AI workflows often loop: generate, check, and revise when the check fails,
+for dozens of rounds and across continue-as-new runs. Drawn step by step,
+such a graph becomes unreadable. When the activities and child workflows of
+each round carry a loop marker (`loop/<loop>/<round>/<step>` in the activity
+ID; see [`@kwkevinchan/temporal-loop`](plugins/temporal-loop) for the
+format and a TypeScript helper):
+
+- the graph shows each loop as one box, `draft-review · Round 4 of 5 · Done`,
+  with the steps before it and after it. Pressing the box, or **Expand**
+  above the graph, shows the steps of one round; the arrows above the graph
+  step through the rounds. Timers and signals that start during a round
+  belong to it.
+- the **Loops** tab has one table per loop: each round with its steps,
+  status, duration, decision and score, newest first. Pressing a round shows
+  it in the graph. Rounds of a workflow that continued as new are counted
+  across its runs (`GET .../loops` reads up to 20 runs); a round of another
+  run links to that run, opened at the round.
+- the limit, the state (`running`, `done`, `exhausted`, `failed`) and the
+  decisions and scores come from the `temporal.loops` memo the helper
+  upserts after each round, and for a running workflow from its
+  `__loop_state` query when a worker answers within three seconds.
+
+Workflows without markers look as before. The loop data needs the read
+permission, like the graph; inputs and results are not part of it.
 
 ## Configuration
 
@@ -655,6 +683,10 @@ yarn workspace example-worker start
 SMOKE_S3=1 yarn test:e2e   # adds the S3 payload smoke test
 ```
 
+The example worker also runs two loops: `draftReviewWorkflow` (draft,
+review, revise until the score is high enough; done in round 4 of 5) and
+`longRefineWorkflow` (25 rounds that continue as new every 10 rounds).
+
 Signals, updates, queries and workflows started from Backstage need a running
 worker; this one keeps polling until Ctrl+C:
 
@@ -670,7 +702,9 @@ Workflows page from the sidebar, and save a screenshot of every step. A
 second test takes the details page in the dark theme. The control tests
 (`e2e-tests/workflow-controls.test.ts`, with `example-worker serve` running) start a
 ticket workflow, signal, query and update it, run the custom Escalate
-action, cancel it, rerun it and terminate the rerun, in both themes:
+action, cancel it, rerun it and terminate the rerun, in both themes. The
+loop tests (`e2e-tests/loops.test.ts`) open both loop workflows, expand a
+loop, step through its rounds and use the Loops tab, in both themes:
 
 ```sh
 npx playwright install chromium

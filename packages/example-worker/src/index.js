@@ -28,6 +28,10 @@
  *   - pipelineWorkflow    completes after twelve stages, with a patch marker
  *                         before each stage
  *   - pollWorkflow        continues as new three times, then completes
+ *   - draftReviewWorkflow a fake AI loop (draft, review, revise) with loop
+ *                         markers: done in round 4 of at most 5
+ *   - longRefineWorkflow  a loop of 25 rounds that continues as new every
+ *                         10 rounds (three runs)
  *   - reportWorkflow      completes with large outputs stored in S3 (only
  *                         when PAYLOAD_S3_ENDPOINT is set)
  *
@@ -108,6 +112,16 @@ async function startAll(client, withSearchAttributes) {
       workflowId: `example-poll-${suffix}`,
       args: [{ source: 'inventory-feed', rounds: 4 }],
     }),
+    client.workflow.start('draftReviewWorkflow', {
+      ...common,
+      workflowId: `example-draft-review-${suffix}`,
+      args: [{ topic: 'release notes', seed: 1, maxRounds: 5 }],
+    }),
+    client.workflow.start('longRefineWorkflow', {
+      ...common,
+      workflowId: `example-long-refine-${suffix}`,
+      args: [{ document: 'design doc', totalRounds: 25, every: 10 }],
+    }),
   ]);
 }
 
@@ -165,6 +179,8 @@ async function main() {
     fulfillment,
     pipelineRun,
     poll,
+    draftReview,
+    longRefine,
   ] = handles;
   const approval = await startApproval(client, handles.withSearchAttributes);
   const report = storage
@@ -217,6 +233,14 @@ async function main() {
     }
     // Follows the runs of the workflow ID to the last one.
     console.log(`pollWorkflow result: ${JSON.stringify(await poll.result())}`);
+    console.log(
+      `draftReviewWorkflow result: ${JSON.stringify(
+        await draftReview.result(),
+      )}`,
+    );
+    console.log(
+      `longRefineWorkflow result: ${JSON.stringify(await longRefine.result())}`,
+    );
     // A comment on the approval; the workflow keeps waiting for approval.
     await approval.signal('comment', 'Please check the amount');
     // Give the running workflow time to schedule its retrying activity.
