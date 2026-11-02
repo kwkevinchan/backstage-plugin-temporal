@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { isTemporalWorkflowEntity, WorkflowStatus } from '../common';
+import { isTemporalWorkflowEntity } from '../common';
 import { temporalApiRef } from '../extensions';
-import { Button, Switch } from '@backstage/ui';
+import { Alert, Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { StartWorkflowButton } from './controls/StartWorkflow';
 import { ErrorAlert } from './feedback';
+import { useListScroll, useWorkflowListState } from './listState';
 import { PanelCard } from './PanelCard';
 import {
   Pager,
@@ -34,8 +34,6 @@ import {
 import { statusLabel } from './WorkflowStatusLabel';
 
 export { workflowLink } from './WorkflowRunsTable';
-
-const PAGE_SIZE = 20;
 
 /**
  * Switch of the workflow lists: off lists only the latest run of a workflow
@@ -54,84 +52,104 @@ export function AllRunsSwitch(props: {
   );
 }
 
+/** Notice when a page of the list could not be opened again. */
+export function LostPageNotice(props: { page?: number }) {
+  if (!props.page) return null;
+  return (
+    <Alert
+      status="info"
+      icon
+      title={`Page ${props.page} could not be opened again, so the first page is shown.`}
+      style={{ marginBottom: 12 }}
+      data-testid="list-lost-page"
+    />
+  );
+}
+
 /** Workflow list of the current entity. */
 export function WorkflowList(props: { title?: string }) {
   const { entity } = useEntity();
   const temporalApi = useApi(temporalApiRef);
   const entityRef = stringifyEntityRef(entity);
-  const [status, setStatus] = useState<WorkflowStatus | ''>('');
-  // A workflow that continues as new is listed once, with its latest run.
-  const [allRuns, setAllRuns] = useState(false);
-  // Page tokens of the pages seen so far; the last one is the current page.
-  const [tokens, setTokens] = useState<(string | undefined)[]>([undefined]);
-  const pageToken = tokens[tokens.length - 1];
+  // Filters, page and page size live in the URL, so they are kept when a
+  // workflow is opened and the user comes back.
+  const list = useWorkflowListState();
+  const { status, allRuns } = list.filters;
 
   const { value, loading, error, retry } = useAsyncRetry(
     () =>
       temporalApi.listEntityWorkflows(entityRef, {
         status: status || undefined,
         allRuns: allRuns || undefined,
-        pageSize: PAGE_SIZE,
-        pageToken,
+        pageSize: list.pageSize,
+        pageToken: list.pageToken,
       }),
-    [temporalApi, entityRef, status, allRuns, pageToken],
+    [temporalApi, entityRef, status, allRuns, list.pageSize, list.pageToken],
   );
+  const scrollRef = useListScroll(Boolean(value) && !loading);
 
   // Runs listed through a TemporalWorkflow entity the entity depends on.
   const showWorkflowEntity = value?.items.some(i => i.workflowEntityRef);
 
   return (
-    <PanelCard
-      title={props.title ?? 'Temporal workflows'}
-      subtitle={value ? `Namespace: ${value.namespace}` : undefined}
-      actions={
-        <>
-          <AllRunsSwitch
-            isSelected={allRuns}
-            onChange={next => {
-              setAllRuns(next);
-              setTokens([undefined]);
-            }}
+    <div ref={scrollRef}>
+      <PanelCard
+        title={props.title ?? 'Temporal workflows'}
+        subtitle={value ? `Namespace: ${value.namespace}` : undefined}
+        actions={
+          <>
+            <AllRunsSwitch
+              isSelected={allRuns}
+              onChange={next =>
+                list.setFilters({ ...list.filters, allRuns: next })
+              }
+            />
+            <StatusSelect
+              value={status}
+              onChange={next =>
+                list.setFilters({ ...list.filters, status: next })
+              }
+            />
+            <Button variant="secondary" size="small" onPress={retry}>
+              Refresh
+            </Button>
+            {isTemporalWorkflowEntity(entity) && (
+              <StartWorkflowButton
+                entity={entity}
+                workflowHref={workflowLink}
+              />
+            )}
+          </>
+        }
+      >
+        <LostPageNotice page={list.lostPage} />
+        {error ? (
+          <ErrorAlert error={error} />
+        ) : (
+          <WorkflowRunsTable
+            label="Workflows"
+            items={value?.items ?? []}
+            entityRef={entityRef}
+            entityColumn={showWorkflowEntity ? 'workflow' : undefined}
+            pending={loading}
+            emptyText={
+              status
+                ? `No workflows with status ${statusLabel(status)}.`
+                : 'No Temporal workflows were found for this entity.'
+            }
           />
-          <StatusSelect
-            value={status}
-            onChange={next => {
-              setStatus(next);
-              setTokens([undefined]);
-            }}
-          />
-          <Button variant="secondary" size="small" onPress={retry}>
-            Refresh
-          </Button>
-          {isTemporalWorkflowEntity(entity) && (
-            <StartWorkflowButton entity={entity} workflowHref={workflowLink} />
-          )}
-        </>
-      }
-    >
-      {error ? (
-        <ErrorAlert error={error} />
-      ) : (
-        <WorkflowRunsTable
-          label="Workflows"
-          items={value?.items ?? []}
-          entityRef={entityRef}
-          entityColumn={showWorkflowEntity ? 'workflow' : undefined}
-          pending={loading}
-          emptyText={
-            status
-              ? `No workflows with status ${statusLabel(status)}.`
-              : 'No Temporal workflows were found for this entity.'
-          }
+        )}
+        <Pager
+          page={list.page}
+          pageSize={list.pageSize}
+          onPageSizeChange={list.setPageSize}
+          hasPrevious={list.page > 1}
+          hasNext={Boolean(value?.nextPageToken)}
+          disabled={loading}
+          onPrevious={list.previousPage}
+          onNext={() => list.nextPage(value?.nextPageToken)}
         />
-      )}
-      <Pager
-        hasPrevious={tokens.length > 1}
-        hasNext={Boolean(value?.nextPageToken)}
-        disabled={loading}
-        onPrevious={() => setTokens(t => t.slice(0, -1))}
-        onNext={() => setTokens(t => [...t, value?.nextPageToken])}
-      />
-    </PanelCard>
+      </PanelCard>
+    </div>
   );
 }

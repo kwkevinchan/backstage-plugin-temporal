@@ -36,6 +36,7 @@ import {
   Text,
 } from '@backstage/ui';
 import { formatDuration, formatTime } from './format';
+import { PAGE_SIZES } from './listState';
 import { WorkflowProgress } from './WorkflowProgress';
 import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
 
@@ -75,16 +76,34 @@ export function StatusSelect(props: {
   );
 }
 
-/** Previous and next page buttons. */
+/** Previous and next page buttons, the page number and the page size. */
 export function Pager(props: {
   hasPrevious: boolean;
   hasNext: boolean;
   disabled: boolean;
   onPrevious(): void;
   onNext(): void;
+  page?: number;
+  pageSize?: number;
+  onPageSizeChange?(size: number): void;
 }) {
   return (
-    <Flex justify="end" gap="2" mt="3">
+    <Flex justify="end" align="center" gap="2" mt="3">
+      {props.pageSize !== undefined && props.onPageSizeChange && (
+        <Select
+          label="Per page"
+          size="small"
+          style={{ width: 110 }}
+          options={PAGE_SIZES.map(n => ({ id: String(n), label: String(n) }))}
+          selectedKey={String(props.pageSize)}
+          onSelectionChange={key => key && props.onPageSizeChange!(Number(key))}
+        />
+      )}
+      {props.page !== undefined && (
+        <Text variant="body-small" color="secondary" data-testid="list-page">
+          Page {props.page}
+        </Text>
+      )}
       <Button
         variant="secondary"
         size="small"

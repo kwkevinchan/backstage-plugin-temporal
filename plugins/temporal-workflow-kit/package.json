@@ -1,7 +1,7 @@
 {
   "name": "@kwkevinchan/temporal-workflow-kit",
   "version": "0.0.0",
-  "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: an S3 payload codec (claim check) and loop markers for generate, check and revise loops of AI workflows",
+  "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: an S3 payload codec (claim check), loop markers for generate, check and revise loops, and LLM step records (OpenTelemetry GenAI) for AI agent workflows",
   "license": "Apache-2.0",
   "keywords": [
     "temporal",
@@ -10,7 +10,10 @@
     "claim-check",
     "s3",
     "loop",
-    "ai"
+    "ai",
+    "llm",
+    "agent",
+    "opentelemetry"
   ],
   "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-workflow-kit",
   "bugs": {
@@ -24,6 +27,7 @@
   "exports": {
     "./s3": "./src/s3/index.ts",
     "./loop": "./src/loop/index.ts",
+    "./llm": "./src/llm/index.ts",
     "./package.json": "./package.json"
   },
   "typesVersions": {
@@ -33,6 +37,9 @@
       ],
       "loop": [
         "src/loop/index.ts"
+      ],
+      "llm": [
+        "src/llm/index.ts"
       ],
       "package.json": [
         "package.json"

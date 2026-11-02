@@ -15,6 +15,14 @@ system (`./alpha`).
   revise) show as one box per loop with a control to step through the
   rounds. Large payloads stored in S3 show their size, a preview, a download
   button and a thumbnail of images.
+- LLM steps of agent workflows: model calls as boxes with the model, tokens,
+  duration and tools, their tool calls as smaller boxes next to them, and an
+  LLM panel with the input, thinking, output, tool calls (with a link to
+  their steps) and usage, copy buttons and the raw record. The Loops tab adds
+  up the tokens of each round.
+- Workflow lists keep their filters, page and page size in the URL, so the
+  browser's back button and the "All workflows" link return to the same
+  page.
 - Controls: start, signal, update, query, cancel, terminate and rerun, each
   behind a permission.
 - Extension points for other plugins and app modules: `temporalApiRef`,

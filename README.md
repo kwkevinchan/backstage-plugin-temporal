@@ -29,6 +29,12 @@ permission framework and recorded with the auditor.
   and one row per round in the **Loops** tab, across continue-as-new runs
   (with `@kwkevinchan/temporal-workflow-kit/loop`, see
   [the workflow kit](plugins/temporal-workflow-kit)).
+- **LLM steps of agent workflows.** Each model call is a box with the
+  model, tokens, duration and number of tools; the tools it asked for hang
+  off it. Its panel shows the input, the thinking, the output, the tool
+  calls and the usage. The records follow the OpenTelemetry GenAI
+  conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
+  [LLM steps](#llm-steps)).
 - **Large payloads in S3.** Payloads that workers store in an S3-compatible
   store with `@kwkevinchan/temporal-workflow-kit/s3`
   are shown as JSON, as a preview or as an image, and can be downloaded
@@ -38,13 +44,15 @@ permission framework and recorded with the auditor.
 - **Workflow entities.** A `TemporalWorkflow` catalog kind for one workflow
   type, and a **Workflows** page with every workflow of a namespace.
 
-| Workflows of an entity                                    | Step graph and step panel                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![Workflow list of an entity](docs/images/entity-tab.png) | ![Step graph with the step panel](docs/images/details-graph.png) |
-| **Timeline**                                              | **Loop rounds**                                                  |
-| ![Timeline of a loop workflow](docs/images/timeline.png)  | ![A loop expanded to one round](docs/images/loop.png)            |
-| **Large payload in S3**                                   | **Workflow controls**                                            |
-| ![An image stored in S3](docs/images/s3-payload.png)      | ![Terminate dialog](docs/images/controls.png)                    |
+| Workflows of an entity                                           | Step graph and step panel                                        |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![Workflow list of an entity](docs/images/entity-tab.png)        | ![Step graph with the step panel](docs/images/details-graph.png) |
+| **Timeline**                                                     | **Loop rounds**                                                  |
+| ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded to one round](docs/images/loop.png)            |
+| **Large payload in S3**                                          | **Workflow controls**                                            |
+| ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
+| **A model call and its tool calls**                              | **LLM panel**                                                    |
+| ![A model call with three tool calls](docs/images/llm-graph.png) | ![LLM panel of a model call](docs/images/llm-panel.png)          |
 
 ## Packages
 
@@ -293,6 +301,13 @@ Updates rejected by a validator are not written to the history. The backend
 reads at most 5000 events per run; the graph of a longer history shows its
 start and says so.
 
+Workflow lists keep their filters, page and page size in the URL
+(`?status=Running&page=2&pageSize=50`), so the browser's back button and the
+**All workflows** link of the details page return to the same page, at the
+same scroll position. Temporal's page tokens are kept in the browser's
+session storage; when they are gone (another tab), the list opens on the
+first page and says so.
+
 Workflow lists show a progress column (done steps and the current step or
 failure). It is loaded for the rows on screen only, with at most four
 requests at a time; the backend reads at most 1000 events per run for it and
@@ -324,6 +339,49 @@ for the format and a TypeScript helper, `/loop`):
 
 Workflows without markers look as before. The loop data needs the read
 permission, like the graph; inputs and results are not part of it.
+
+## LLM steps
+
+LLM agents call a model, run the tools it asks for, and call it again. When
+the activity of each model call returns a record of the call and the
+activities of the tools carry a marker (see
+[`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit#llm-llm-steps-of-agent-workflows)
+for the format, a TypeScript recorder and converters for OpenAI, Anthropic
+and Ollama, `/llm`):
+
+- the graph draws a model call as a larger box with the model, the input and
+  output tokens, the duration and the number of tools. The tool calls it
+  asked for are smaller boxes with the tool name, joined to it by dashed
+  arrows, so an agent loop reads as model call, tools, model call. Retries
+  of a tool show on its box.
+- selecting a model call opens the LLM panel: **Input** (system
+  instructions and messages as a chat, long texts collapsed), **Thinking**
+  (collapsed), **Output**, **Tool calls** (name, arguments, response,
+  status, and a button to the step of the tool) and **Usage** (input,
+  output, reasoning and cached tokens, duration). Every section has a copy
+  button; **Raw JSON** shows the record as the worker wrote it. A tool step
+  links back to its model call.
+- the **Loops** tab adds the tokens of each round and of the loop, and marks
+  model and tool calls; the **Timeline** marks them too.
+
+The format:
+
+- activity ID `llm/<call>[/...]` for a model call and
+  `tool/<call>/<tool call ID>[/...]` for a tool call; a loop marker may
+  follow (`llm/r2/loop/agent/2/callModel`). Read without the payload codec.
+- the result of a model call holds the record under `temporal.llm`: the
+  attributes of the
+  [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai)
+  (`gen_ai.request.model`, `gen_ai.usage.input_tokens`,
+  `gen_ai.input.messages`, `gen_ai.output.messages` with parts `text`,
+  `reasoning`, `tool_call`, `tool_call_response`, ...), version
+  `gen-ai-dev/1.42.0-dev`. Large records go to S3 like any payload.
+
+The graph, the Loops tab and the timeline need the read permission and show
+names and numbers only (model, tokens, tool names). The messages, the
+thinking and tool arguments and results need
+`temporal.workflow.history.read`, like inputs and results
+(`GET .../llm-calls/:eventId`). Workflows without markers look as before.
 
 ## Configuration
 
@@ -868,7 +926,12 @@ SMOKE_S3=1 yarn test:e2e   # adds the S3 payload smoke test
 
 The example worker also runs two loops: `draftReviewWorkflow` (draft,
 review, revise until the score is high enough; done in round 4 of 5) and
-`longRefineWorkflow` (25 rounds that continue as new every 10 rounds).
+`longRefineWorkflow` (25 rounds that continue as new every 10 rounds), and
+two fake LLM agents without a model: `agentWorkflow` (four rounds of model
+call and tools with loop markers, a retried tool, a local activity, and a
+long answer stored in S3 when the worker uses it) and `mixedAgentWorkflow`
+(ordinary activities, model calls, two tools in parallel and a child
+workflow).
 
 Signals, updates, queries and workflows started from Backstage need a running
 worker; this one keeps polling until Ctrl+C:

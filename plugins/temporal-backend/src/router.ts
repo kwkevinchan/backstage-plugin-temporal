@@ -450,6 +450,18 @@ export async function createRouter(
     },
   );
 
+  // The full record of one model call: messages, reasoning, tool calls.
+  // Like inputs and results, it needs the history permission.
+  router.get(
+    workflowPaths.map(p => `${p}/llm-calls/:eventId`),
+    async (req, res) => {
+      const eventId = req.params.eventId;
+      if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
+      const { workflow } = await loadWorkflow(req, 'history');
+      res.json(await reader.llmCall(workflow, eventId));
+    },
+  );
+
   router.get(
     workflowPaths.map(p => `${p}/progress`),
     async (req, res) => {

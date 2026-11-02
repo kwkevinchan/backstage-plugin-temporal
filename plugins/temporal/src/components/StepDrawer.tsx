@@ -16,8 +16,10 @@
 
 import type { ReactNode } from 'react';
 import type { WorkflowGraphNode, WorkflowRef } from '../common';
-import { ButtonIcon, Flex, Link, Text } from '@backstage/ui';
-import { RiCloseLine } from '@remixicon/react';
+import { Button, ButtonIcon, Flex, Link, Text } from '@backstage/ui';
+import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react';
+import { LlmPanel } from './llm/LlmPanel';
+import { toolName } from './llm/llmText';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
 import { JsonView, PayloadView } from './PayloadView';
@@ -57,12 +59,24 @@ export function DefinitionList(props: { items: [string, ReactNode][] }) {
   );
 }
 
+function stepKindText(step: WorkflowGraphNode): string {
+  if (step.llm) return 'Model call';
+  return step.tool ? 'Tool call' : kindLabel(step.kind);
+}
+
 export interface StepDrawerProps {
   step: WorkflowGraphNode;
   payloadsHidden: boolean;
   /** Link to the details page of another run (child, next run). */
   workflowHref(ref: WorkflowRef): string;
   onClose(): void;
+  /** Every step of the run, for the tool calls of a model call. */
+  nodes?: WorkflowGraphNode[];
+  /** The run, to load the record of a model call. */
+  workflowRef?: WorkflowRef;
+  entityRef?: string;
+  /** Selects another step, for the links between model and tool calls. */
+  onSelectStep?(id: string): void;
 }
 
 /**
@@ -83,25 +97,30 @@ export function StepDrawer(props: StepDrawerProps) {
   const linked = step.workflow;
   const hasInput = step.input !== undefined;
   const hasResult = step.result !== undefined;
-  const showsPayloads = !['waiting', 'cancelRequest'].includes(step.kind);
+  const showsPayloads =
+    !['waiting', 'cancelRequest'].includes(step.kind) && !step.llm;
+  const llmOwner = step.tool?.llmNodeId
+    ? props.nodes?.find(n => n.id === step.tool!.llmNodeId)
+    : undefined;
 
   return (
     <aside
       className={tp('tp-drawer')}
       aria-label={`Step ${step.name}`}
       data-testid="step-drawer"
+      data-llm={Boolean(step.llm)}
     >
       <Flex align="start" justify="between" gap="2">
         <div style={{ minWidth: 0 }}>
           <Text as="p" variant="body-x-small" color="secondary">
-            {kindLabel(step.kind)}
+            {stepKindText(step)}
           </Text>
           <Text
             as="h3"
             variant="title-small"
             style={{ margin: 0, wordBreak: 'break-word' }}
           >
-            {step.name}
+            {step.tool ? toolName(step) : step.name}
           </Text>
           <div style={{ marginTop: 4 }}>
             <WorkflowStatusLabel status={step.status} />
@@ -149,6 +168,46 @@ export function StepDrawer(props: StepDrawerProps) {
           ]}
         />
       </div>
+
+      {step.tool && (
+        <div className={tp('tp-section')} data-testid="tool-of-call">
+          <DefinitionList
+            items={[
+              ['Tool call ID', step.tool.toolCallId],
+              [
+                'Activity type',
+                step.tool.name && step.tool.name !== step.name
+                  ? step.name
+                  : undefined,
+              ],
+            ]}
+          />
+          {llmOwner && props.onSelectStep && (
+            <Button
+              size="small"
+              variant="secondary"
+              iconStart={<RiArrowLeftLine />}
+              style={{ marginTop: 6 }}
+              onPress={() => props.onSelectStep!(llmOwner.id)}
+            >
+              Model call {llmOwner.llm?.call ?? llmOwner.name}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {step.llm && (
+        <div className={tp('tp-section')}>
+          <LlmPanel
+            step={step}
+            nodes={props.nodes ?? []}
+            payloadsHidden={payloadsHidden}
+            workflowRef={props.workflowRef}
+            entityRef={props.entityRef}
+            onSelectStep={props.onSelectStep}
+          />
+        </div>
+      )}
 
       {step.failure && (
         <Section title="Error" testId="step-error">

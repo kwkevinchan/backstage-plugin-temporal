@@ -22,6 +22,7 @@ import type {
   WorkflowStartRequest,
   WorkflowStartResponse,
   WorkflowGraphResponse,
+  WorkflowLlmCallResponse,
   WorkflowLoopsResponse,
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
@@ -125,6 +126,19 @@ export interface TemporalApi {
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowLoopsResponse>;
+
+  /**
+   * Gets the full record of one model call (a step with `llm`): messages,
+   * reasoning, output, tool calls and tokens. `nodeId` is the ID of the
+   * step in the graph. Needs the permission to read the history. Optional,
+   * so other implementations of this API keep working; without it the LLM
+   * panel shows the summary only.
+   */
+  getLlmCall?(
+    ref: WorkflowRef,
+    nodeId: string,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowLlmCallResponse>;
 
   /** Gets the completed steps and the current step of a run, for lists. */
   getWorkflowProgress(

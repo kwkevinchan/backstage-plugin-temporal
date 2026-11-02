@@ -19,6 +19,7 @@ import type {
   WorkflowDetail,
   WorkflowGraphNode,
   WorkflowGraphResponse,
+  WorkflowLlmCallResponse,
   WorkflowProgressResponse,
   WorkflowStatsResponse,
   WorkflowHistoryResponse,
@@ -487,6 +488,220 @@ export const timelineNodes: WorkflowGraphNode[] = [
   },
 ];
 
+/** An agent run: a model call with a tool call, then a final model call. */
+export const llmGraphResponse: WorkflowGraphResponse = {
+  status: 'Completed',
+  completedSteps: 3,
+  totalSteps: 3,
+  truncated: false,
+  payloadsHidden: false,
+  nodes: [
+    {
+      id: 'start',
+      kind: 'workflowStarted',
+      name: 'Start',
+      status: 'Completed',
+      startTime: '2026-11-03T10:00:00.000Z',
+      endTime: '2026-11-03T10:00:00.000Z',
+      events: [],
+    },
+    {
+      id: 'activity-5',
+      kind: 'activity',
+      name: 'callModel',
+      status: 'Completed',
+      stepId: 'llm/r1/loop/agent/1/callModel',
+      startTime: '2026-11-03T10:00:01.000Z',
+      endTime: '2026-11-03T10:00:03.000Z',
+      loop: { loop: 'agent', iteration: 1, step: 'callModel' },
+      llm: {
+        call: 'r1',
+        record: 'available',
+        operation: 'chat',
+        provider: 'openai',
+        model: 'fake-reasoner-1',
+        usage: { inputTokens: 1240, outputTokens: 96, reasoningTokens: 40 },
+        durationMs: 1500,
+        reasoning: true,
+        toolCalls: [
+          {
+            id: 'call_1a',
+            name: 'search',
+            nodeId: 'activity-8',
+            status: 'Completed',
+          },
+        ],
+      },
+      events: [],
+    },
+    {
+      id: 'activity-8',
+      kind: 'activity',
+      name: 'search',
+      status: 'Completed',
+      stepId: 'tool/r1/call_1a/loop/agent/1/search',
+      startTime: '2026-11-03T10:00:04.000Z',
+      endTime: '2026-11-03T10:00:04.300Z',
+      attempt: 2,
+      result: { encoding: 'json/plain', value: { hits: 2 } },
+      loop: { loop: 'agent', iteration: 1, step: 'search' },
+      tool: {
+        call: 'r1',
+        toolCallId: 'call_1a',
+        llmNodeId: 'activity-5',
+        name: 'search',
+      },
+      events: [],
+    },
+    {
+      id: 'activity-11',
+      kind: 'activity',
+      name: 'callModel',
+      status: 'Completed',
+      stepId: 'llm/r2/loop/agent/2/callModel',
+      startTime: '2026-11-03T10:00:05.000Z',
+      endTime: '2026-11-03T10:00:06.000Z',
+      loop: { loop: 'agent', iteration: 2, step: 'callModel' },
+      llm: {
+        call: 'r2',
+        record: 'available',
+        model: 'fake-reasoner-1',
+        usage: { inputTokens: 1500, outputTokens: 300 },
+        durationMs: 900,
+        reasoning: false,
+        toolCalls: [],
+      },
+      events: [],
+    },
+    {
+      id: 'end',
+      kind: 'workflowClosed',
+      name: 'End',
+      status: 'Completed',
+      startTime: '2026-11-03T10:00:07.000Z',
+      endTime: '2026-11-03T10:00:07.000Z',
+      events: [],
+    },
+  ],
+  edges: [
+    { id: 'start->activity-5', source: 'start', target: 'activity-5' },
+    {
+      id: 'activity-5->activity-8',
+      source: 'activity-5',
+      target: 'activity-8',
+    },
+    {
+      id: 'activity-8->activity-11',
+      source: 'activity-8',
+      target: 'activity-11',
+    },
+    { id: 'activity-11->end', source: 'activity-11', target: 'end' },
+  ],
+  loops: [
+    {
+      name: 'agent',
+      status: 'done',
+      iteration: 2,
+      rounds: [
+        {
+          iteration: 1,
+          status: 'Completed',
+          usage: { inputTokens: 1240, outputTokens: 96, reasoningTokens: 40 },
+          llmCalls: 1,
+          steps: [
+            {
+              nodeId: 'activity-5',
+              name: 'callModel',
+              kind: 'activity',
+              status: 'Completed',
+              llm: 'llm',
+              usage: { inputTokens: 1240, outputTokens: 96 },
+            },
+            {
+              nodeId: 'activity-8',
+              name: 'search',
+              kind: 'activity',
+              status: 'Completed',
+              llm: 'tool',
+            },
+          ],
+        },
+        {
+          iteration: 2,
+          status: 'Completed',
+          usage: { inputTokens: 1500, outputTokens: 300 },
+          llmCalls: 1,
+          steps: [
+            {
+              nodeId: 'activity-11',
+              name: 'callModel',
+              kind: 'activity',
+              status: 'Completed',
+              llm: 'llm',
+              usage: { inputTokens: 1500, outputTokens: 300 },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
+/** The full record of the first model call of {@link llmGraphResponse}. */
+export const llmCallResponse: WorkflowLlmCallResponse = {
+  nodeId: 'activity-5',
+  activityId: 'llm/r1/loop/agent/1/callModel',
+  activityType: 'callModel',
+  call: 'r1',
+  status: 'Completed',
+  record: {
+    operation: 'chat',
+    provider: 'openai',
+    requestModel: 'fake-reasoner-1',
+    responseModel: 'fake-reasoner-1',
+    finishReasons: ['tool_call'],
+    usage: { inputTokens: 1240, outputTokens: 96, reasoningTokens: 40 },
+    systemInstructions: [],
+    inputMessages: [
+      {
+        role: 'system',
+        parts: [{ type: 'text', content: 'You are a helpful assistant.' }],
+      },
+      {
+        role: 'user',
+        parts: [
+          { type: 'text', content: `Explain storage. ${'More. '.repeat(150)}` },
+        ],
+      },
+    ],
+    outputMessages: [
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'reasoning', content: 'I should search the docs first.' },
+          { type: 'text', content: 'Searching.' },
+          {
+            type: 'tool_call',
+            id: 'call_1a',
+            name: 'search',
+            arguments: { query: 'storage' },
+          },
+        ],
+      },
+    ],
+    toolExecutions: [
+      {
+        id: 'ctx_profile',
+        name: 'user_profile',
+        result: { role: 'developer' },
+        durationMs: 80,
+      },
+    ],
+    durationMs: 1500,
+  },
+  raw: { v: 1, attributes: { 'gen_ai.request.model': 'fake-reasoner-1' } },
+};
+
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
@@ -498,6 +713,7 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
     getWorkflowLoops: jest.fn().mockResolvedValue(loopsResponse),
+    getLlmCall: jest.fn().mockResolvedValue(llmCallResponse),
     signalWorkflow: jest.fn().mockResolvedValue(undefined),
     updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
     queryWorkflow: jest.fn().mockResolvedValue({ result: { notes: [] } }),

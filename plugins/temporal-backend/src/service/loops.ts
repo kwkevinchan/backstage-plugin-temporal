@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import { addLlmUsage } from '../common';
 import type {
   WorkflowGraphNode,
+  WorkflowLlmUsage,
   WorkflowLoopGroup,
   WorkflowLoopMarker,
   WorkflowLoopRound,
@@ -194,7 +196,24 @@ function toStep(node: LoopNodeInput): WorkflowLoopStep {
     status: node.status,
     startTime: node.startTime,
     endTime: node.endTime,
+    llm: llmRole(node),
+    usage: node.llm?.usage,
   });
+}
+
+/** `llm` for a model call, `tool` for a tool call. */
+function llmRole(node: LoopNodeInput): 'llm' | 'tool' | undefined {
+  if (node.llm) return 'llm';
+  return node.tool ? 'tool' : undefined;
+}
+
+/** Tokens and model calls of the steps of a round. */
+function roundUsage(steps: LoopNodeInput[]) {
+  const calls = steps.filter(s => s.llm);
+  if (calls.length === 0) return {};
+  let usage: WorkflowLlmUsage | undefined;
+  for (const c of calls) usage = addLlmUsage(usage, c.llm!.usage);
+  return { usage, llmCalls: calls.length };
 }
 
 /** Status of a loop without a loop state, from the run. */
@@ -321,6 +340,7 @@ export function buildLoopGroups(
             : record?.endTime ?? ends.sort()[ends.length - 1],
         decision: record?.decision,
         score: record?.score,
+        ...roundUsage(all),
       });
     });
 

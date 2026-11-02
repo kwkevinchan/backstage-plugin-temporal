@@ -271,17 +271,26 @@ export class ExternalPayloads {
    * events or a describe response, protobuf JSON form). JSON data up to
    * `maxInlineBytes` replaces the claim check in place.
    */
-  async resolve(root: Json): Promise<void> {
+  async resolve(
+    root: Json,
+    options: { maxInlineBytes?: number } = {},
+  ): Promise<void> {
     const found = findClaimCheckPayloads(root);
     if (found.length === 0) return;
+    const maxInline = options.maxInlineBytes ?? this.maxInlineBytes;
     await runLimited(found, CONCURRENCY, async ({ payload, check }) => {
-      payload[EXTERNAL_PAYLOAD] = await this.resolveOne(payload, check);
+      payload[EXTERNAL_PAYLOAD] = await this.resolveOne(
+        payload,
+        check,
+        maxInline,
+      );
     });
   }
 
   private async resolveOne(
     payload: Json,
     check: ClaimCheck,
+    maxInlineBytes: number,
   ): Promise<ExternalPayload> {
     const info = baseInfo(check);
     const store = this.store;
@@ -294,7 +303,7 @@ export class ExternalPayloads {
       };
     }
     try {
-      if (isJsonEncoding(check.encoding) && check.size <= this.maxInlineBytes) {
+      if (isJsonEncoding(check.encoding) && check.size <= maxInlineBytes) {
         const restored = verifyAndRestore(check, await this.download(check));
         // The converter decodes the original payload, then adds `external`.
         payload.metadata = Object.fromEntries(

@@ -216,6 +216,7 @@ async function publishDraft(request) {
 
 module.exports = {
   ...pipelineStages,
+  ...require('./agentActivities'),
   llmDraft,
   llmReview,
   llmRefine,

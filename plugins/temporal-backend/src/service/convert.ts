@@ -23,9 +23,12 @@ import {
   WorkflowDetail,
   WorkflowFailure,
   WorkflowHistoryEvent,
+  WorkflowNodeStatus,
   WorkflowStatus,
   WorkflowSummary,
+  parseLlmMarker,
 } from '../common';
+import { linkLlmSteps, summarizeLlmCall } from './llm';
 import { claimCheckOf, EXTERNAL_PAYLOAD } from './payloads';
 
 /*
@@ -452,6 +455,8 @@ export function toWorkflowSteps(
 ): WorkflowStepsResponse {
   const response: WorkflowStepsResponse = { activities: [], truncated };
   const byScheduledId = new Map<string, ActivityStep>();
+  // Model calls: call name and decoded result, by scheduled event ID.
+  const llmCalls = new Map<string, { call: string; result?: unknown }>();
   for (const event of events) {
     const time = toIsoTime(event.eventTime);
     const started = event.workflowExecutionStartedEventAttributes;
@@ -479,6 +484,12 @@ export function toWorkflowSteps(
         scheduledTime: time,
         input: decodePayloads(scheduled.input),
       });
+      const marker = parseLlmMarker(step.activityId);
+      if (marker?.kind === 'llm') {
+        llmCalls.set(step.scheduledEventId, { call: marker.call });
+      } else if (marker) {
+        step.tool = { call: marker.call, toolCallId: marker.toolCallId };
+      }
       byScheduledId.set(step.scheduledEventId, step);
       response.activities.push(step);
       continue;
@@ -502,7 +513,45 @@ export function toWorkflowSteps(
       if (time) step.closeTime = time;
       if (attrs.result) step.result = decodePayloads(attrs.result) ?? null;
       if (attrs.failure) step.failure = toWorkflowFailure(attrs.failure);
+      const llm = llmCalls.get(step.scheduledEventId);
+      if (llm) llm.result = step.result;
       break;
+    }
+  }
+  if (llmCalls.size > 0 || response.activities.some(s => s.tool)) {
+    const nodes = response.activities.map(step => {
+      const llm = llmCalls.get(step.scheduledEventId);
+      const status: WorkflowNodeStatus =
+        step.status === 'Started' ? 'Running' : step.status;
+      return {
+        step,
+        node: {
+          id: `activity-${step.scheduledEventId}`,
+          kind: 'activity' as const,
+          name: step.activityType,
+          status,
+          startTime: step.startedTime ?? step.scheduledTime,
+          endTime: step.closeTime,
+          events: [],
+          first: Number(step.scheduledEventId),
+          tool: step.tool,
+          llm: llm
+            ? summarizeLlmCall(
+                {
+                  status,
+                  startTime: step.startedTime ?? step.scheduledTime,
+                  endTime: step.closeTime,
+                },
+                llm.call,
+                llm.result,
+              )
+            : undefined,
+        },
+      };
+    });
+    linkLlmSteps(nodes.map(n => n.node));
+    for (const { step, node } of nodes) {
+      if (node.llm) step.llm = node.llm;
     }
   }
   return response;

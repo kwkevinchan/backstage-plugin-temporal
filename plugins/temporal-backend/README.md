@@ -63,6 +63,7 @@ in the repository README for an example.
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                  | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`               | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops`                  | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId`     | `temporal.workflow.history.read` |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=` | `temporal.workflow.history.read` |
 | POST   | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.start`        |
 | POST   | `/workflows`                                                                        | `temporal.workflow.start` + list |

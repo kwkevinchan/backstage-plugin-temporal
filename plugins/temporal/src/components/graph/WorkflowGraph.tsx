@@ -37,13 +37,13 @@ import { Button, ButtonIcon, Flex, Switch, Text } from '@backstage/ui';
 import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
 import { isMarkerStep, isOpenStep } from '../steps';
 import {
+  boxSize,
   graphHeight,
   initialViewport,
   keepInGraph,
   layoutSteps,
-  NODE_HEIGHT,
-  NODE_WIDTH,
   panIntoView,
+  stepSize,
   visibleSteps,
 } from './layout';
 import { StepFlowNode, StepNode } from './StepNode';
@@ -109,7 +109,31 @@ function useStructure(
       graph.loops,
       loopViews,
     );
-    const layout = layoutSteps(steps.nodes, steps.edges, layoutWidth);
+    // Tool calls hang off the model call that asked for them, also when
+    // the time order would draw the arrow from another step.
+    const toolEdges = new Set<string>();
+    const shown = new Set(steps.nodes.map(n => n.id));
+    for (const node of steps.nodes) {
+      if (isLoopBoxNode(node) || !node.tool?.llmNodeId) continue;
+      const source = node.tool.llmNodeId;
+      if (!shown.has(source)) continue;
+      const id = `${source}->${node.id}`;
+      toolEdges.add(id);
+      if (!steps.edges.some(e => e.id === id)) {
+        steps.edges = [...steps.edges, { id, source, target: node.id }];
+      }
+    }
+    const sized = steps.nodes.some(n => !isLoopBoxNode(n) && (n.llm || n.tool));
+    const layout = layoutSteps(
+      sized
+        ? steps.nodes.map(n => ({
+            id: n.id,
+            size: isLoopBoxNode(n) ? undefined : stepSize(n),
+          }))
+        : steps.nodes,
+      steps.edges,
+      layoutWidth,
+    );
     // A new layout key when a loop opens, closes or shows another round.
     const loopKey = steps.boxes
       .map(b => `${b.id}:${b.expanded ? b.round?.iteration : '-'}`)
@@ -117,6 +141,7 @@ function useStructure(
     return {
       ...steps,
       layout,
+      toolEdges,
       key: `${steps.nodes.length}:${steps.edges.length}:${layout.width}x${layout.height}:${loopKey}`,
     };
   }, [graph, showMarkers, layoutWidth, loopViews]);
@@ -140,11 +165,12 @@ function GraphCanvas(
   const nodes: FlowNode[] = useMemo(
     () =>
       structure.nodes.map((step): FlowNode => {
+        const size = boxSize(layout, step.id);
         const common = {
           id: step.id,
           position: layout.positions.get(step.id) ?? { x: 0, y: 0 },
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
+          width: size.width,
+          height: size.height,
           draggable: false,
           connectable: false,
           selectable: false,
@@ -189,7 +215,16 @@ function GraphCanvas(
       type: 'smoothstep',
       // Arrows into open steps move, like the step itself.
       animated: open.has(e.target),
-      className: open.has(e.target) ? tp('tp-edge-active') : undefined,
+      className:
+        [
+          open.has(e.target) ? tp('tp-edge-active') : '',
+          // A plain class too, for tests and custom styles.
+          structure.toolEdges.has(e.id)
+            ? `${tp('tp-edge-tool')} temporal-llm-tool-edge`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ') || undefined,
       focusable: false,
     }));
   }, [structure, running]);
@@ -224,8 +259,13 @@ function GraphCanvas(
       const canvas = { width, height };
       const current = flow.getViewport();
       let next = relayout ? initialViewport(layout, canvas) : current;
-      if (selectedPosition) {
-        next = panIntoView(next, selectedPosition, canvas);
+      if (selectedPosition && selectedId) {
+        next = panIntoView(
+          next,
+          selectedPosition,
+          canvas,
+          boxSize(layout, selectedId),
+        );
       }
       next = keepInGraph(next, layout, canvas);
       if (
@@ -392,7 +432,14 @@ function GraphToolbar(props: {
           const canvas = { width, height };
           flow.setViewport(
             keepInGraph(
-              position ? panIntoView(view, position, canvas) : view,
+              position && props.selectedId
+                ? panIntoView(
+                    view,
+                    position,
+                    canvas,
+                    boxSize(structure.layout, props.selectedId),
+                  )
+                : view,
               structure.layout,
               canvas,
             ),

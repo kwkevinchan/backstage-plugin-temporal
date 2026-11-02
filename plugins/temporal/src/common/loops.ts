@@ -18,6 +18,7 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { WorkflowNodeKind, WorkflowNodeStatus } from './graph';
+import type { WorkflowLlmUsage } from './llm';
 import type { WorkflowStatus } from './types';
 
 /*
@@ -98,6 +99,10 @@ export interface WorkflowLoopStep {
   status: WorkflowNodeStatus;
   startTime?: string;
   endTime?: string;
+  /** `llm` for a model call, `tool` for a tool call of one. */
+  llm?: 'llm' | 'tool';
+  /** Token counts of a model call. */
+  usage?: WorkflowLlmUsage;
 }
 
 /**
@@ -123,6 +128,10 @@ export interface WorkflowLoopRound {
   runId?: string;
   /** Position of that run among the continue-as-new runs, from 1. */
   segment?: number;
+  /** Tokens of the model calls of the round; left out without any. */
+  usage?: WorkflowLlmUsage;
+  /** Model calls in the round. */
+  llmCalls?: number;
 }
 
 /**

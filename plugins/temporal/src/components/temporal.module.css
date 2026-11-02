@@ -794,3 +794,198 @@
     animation: none;
   }
 }
+
+/* LLM steps: model calls and their tool calls have an accent color, a
+   violet mixed from the theme's info and danger colors, so it follows the
+   light and dark themes. */
+.tp-llm,
+.tp-graph,
+.tp-timeline,
+.tp-loop-steps,
+.tp-drawer {
+  --tp-llm: color-mix(in srgb, var(--bui-fg-info) 55%, var(--bui-fg-danger));
+}
+.tp-node[data-llm] {
+  border-left-color: var(--tp-llm);
+  background: color-mix(in srgb, var(--tp-llm) 7%, var(--bui-bg-neutral-2));
+}
+.tp-node[data-llm]:hover {
+  background: color-mix(in srgb, var(--tp-llm) 13%, var(--bui-bg-neutral-2));
+}
+.tp-node[data-llm='tool'] {
+  gap: 0;
+  padding: 4px 10px;
+  border-left-width: 3px;
+  border-radius: var(--bui-radius-3, 8px);
+}
+.tp-node[data-llm='tool'] .tp-node-title {
+  font-size: 13px;
+}
+.tp-llm-icon {
+  flex: none;
+  color: var(--tp-llm);
+}
+.tp-node-sub.tp-llm-model {
+  color: var(--bui-fg-primary);
+}
+.tp-graph :global(.react-flow__edge).tp-edge-tool path {
+  stroke: var(--tp-llm);
+  stroke-dasharray: 5 3;
+}
+
+/* LLM panel: chat-style messages, collapsible long parts. */
+.tp-llm-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2, 8px);
+  margin: 0 0 6px;
+}
+.tp-llm-section-head > :first-child {
+  margin: 0;
+}
+.tp-llm-section-head > :last-child {
+  margin-left: auto;
+}
+.tp-llm-messages {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-message {
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: var(--bui-bg-neutral-1);
+  min-width: 0;
+}
+.tp-llm-message[data-role='assistant'] {
+  border-left: 3px solid var(--tp-llm);
+}
+.tp-llm-message[data-role='system'] {
+  background: var(--bui-bg-neutral-2);
+}
+.tp-llm-message[data-role='tool'] {
+  border-style: dashed;
+}
+.tp-llm-role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: var(--bui-font-weight-bold, 600);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-3, 14px);
+  line-height: 1.5;
+  color: var(--bui-fg-primary);
+}
+.tp-llm-text[data-clamped='true'] {
+  max-height: 9em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, currentColor 70%, transparent);
+  mask-image: linear-gradient(to bottom, currentColor 70%, transparent);
+}
+.tp-llm-more {
+  margin-top: 2px;
+}
+.tp-llm-thinking {
+  border: 1px solid var(--bui-border-1);
+  border-left: 3px solid var(--tp-llm);
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: color-mix(in srgb, var(--tp-llm) 5%, var(--bui-bg-neutral-1));
+}
+.tp-llm-thinking > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-thinking .tp-llm-text {
+  margin-top: 6px;
+  font-style: italic;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-tools {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-tool {
+  border: 1px solid var(--tp-border, var(--bui-border-1));
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: var(--bui-bg-neutral-1);
+  min-width: 0;
+}
+.tp-llm-tool-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--bui-space-2, 8px);
+  margin-bottom: 4px;
+}
+.tp-llm-tool-name {
+  font-family: var(--bui-font-monospace, monospace);
+  font-size: 13px;
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-llm-usage {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-usage > div {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 6px);
+  padding: 6px 10px;
+}
+.tp-llm-usage-label {
+  font-size: 12px;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-usage-value {
+  font-size: var(--bui-font-size-4, 16px);
+  font-weight: var(--bui-font-weight-bold, 600);
+  color: var(--bui-fg-primary);
+}
+.tp-llm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tp-llm);
+  color: var(--tp-llm);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.tp-drawer[data-llm='true'] {
+  flex-basis: 520px;
+  max-width: 55%;
+  max-height: 860px;
+}
+/* Timeline: model and tool calls are outlined in the accent color. */
+.tp-tl-bar[data-llm] {
+  outline: 2px solid var(--tp-llm);
+  outline-offset: 1px;
+}
+.tp-tl-bar[data-llm='tool'] {
+  outline-style: dashed;
+  outline-width: 1.5px;
+}
+.tp-tl-label .tp-llm-icon {
+  flex: none;
+}
+/* At least 12px at the smallest zoom the graph opens with. */
+.tp-node[data-llm] .tp-badge {
+  font-size: 13px;
+}

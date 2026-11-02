@@ -46,7 +46,11 @@ import {
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
+  ExternalPayload,
+  parseLlmMarker,
+  WorkflowLlmCallResponse,
 } from '../common';
+import type { JsonObject } from '@backstage/types';
 import { TemporalService } from './TemporalService';
 import { TemporalWorkflowEnricher } from '../extensions';
 import {
@@ -60,6 +64,7 @@ import {
   toWorkflowSummary,
 } from './convert';
 import { buildWorkflowGraph } from './graph';
+import { llmRecordOf, normalizeLlmRecord } from './llm';
 import { readLoopState } from './loops';
 import { ExternalPayloads, findClaimCheckPayloads } from './payloads';
 import {
@@ -139,6 +144,79 @@ export interface EntityContext {
   entityRef: string;
   namespace: string;
   filter: EntityWorkflowFilter;
+}
+
+/** Largest record of a model call read from S3 (8 MiB). */
+export const MAX_LLM_RECORD_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Payloads with the results (and failure details) of model calls in a
+ * history, for reading their records from S3 without the other payloads.
+ */
+export function llmResultPayloads(events: unknown[]): unknown[] {
+  const calls = new Set<string>();
+  const roots: unknown[] = [];
+  for (const event of events as any[]) {
+    const scheduled = event.activityTaskScheduledEventAttributes;
+    if (scheduled && parseLlmMarker(scheduled.activityId)?.kind === 'llm') {
+      calls.add(String(event.eventId));
+      continue;
+    }
+    const completed = event.activityTaskCompletedEventAttributes;
+    if (completed && calls.has(String(completed.scheduledEventId))) {
+      roots.push(completed.result);
+    }
+    const failed = event.activityTaskFailedEventAttributes;
+    if (failed && calls.has(String(failed.scheduledEventId))) {
+      roots.push(failed.failure);
+    }
+  }
+  return roots;
+}
+
+/** Why a record stored in S3 is not shown. */
+function externalReason(external: ExternalPayload): string {
+  if (external.state === 'unconfigured') {
+    return 'The record is stored in S3, and the backend has no S3 configuration.';
+  }
+  if (external.state === 'error') {
+    return `The record stored in S3 could not be read: ${
+      external.error ?? ''
+    }`.trim();
+  }
+  return 'The record stored in S3 is larger than the backend reads.';
+}
+
+/** The LLM record in a result or failure (protobuf JSON, resolved). */
+function findLlmRecord(root: any): {
+  record?: JsonObject;
+  external?: ExternalPayload;
+  reason?: string;
+} {
+  const candidates: unknown[] = [];
+  if (root?.payloads) candidates.push(decodePayloads(root));
+  for (let f = root, depth = 0; f && depth < 5; f = f.cause, depth++) {
+    const details = decodePayloads(f.applicationFailureInfo?.details);
+    if (Array.isArray(details)) candidates.push(...details);
+    else if (details !== undefined) candidates.push(details);
+  }
+  let external: ExternalPayload | undefined;
+  for (const c of candidates) {
+    const decoded = c as any;
+    if (decoded?.external) external = decoded.external;
+    const record = llmRecordOf(decoded?.value);
+    if (record) return { record, external };
+  }
+  if (external && external.state !== 'inline') {
+    return { external, reason: externalReason(external) };
+  }
+  if (candidates.some(c => (c as any)?.undecodable)) {
+    return {
+      reason:
+        'The result is encoded by a payload codec (for example encryption); the backend cannot read it.',
+    };
+  }
+  return { reason: 'The result has no LLM record (`temporal.llm`).' };
 }
 
 /** Reads workflows from Temporal for one entity. */
@@ -455,7 +533,7 @@ export class WorkflowReader {
   private async readEvents(
     ref: WorkflowRef & { runId: string },
     max: number,
-    options: { payloads?: boolean } = {},
+    options: { payloads?: boolean; llmPayloads?: boolean } = {},
   ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.checkNamespace(ref.namespace);
     const connection = await this.temporal.getConnection();
@@ -477,6 +555,9 @@ export class WorkflowReader {
           : undefined;
     } while (nextPageToken && events.length < max);
     if (options.payloads) await this.payloads.resolve(events);
+    else if (options.llmPayloads) {
+      await this.payloads.resolve(llmResultPayloads(events));
+    }
     return { events, truncated: Boolean(nextPageToken) };
   }
 
@@ -507,7 +588,15 @@ export class WorkflowReader {
    */
   async graph(
     workflow: WorkflowDetail,
-    options: { includePayloads: boolean; maxEvents?: number },
+    options: {
+      includePayloads: boolean;
+      maxEvents?: number;
+      /**
+       * False skips reading the records of model calls stored in S3, for
+       * lists. Their summaries then say `unreadable`.
+       */
+      llm?: boolean;
+    },
   ): Promise<WorkflowGraphResponse> {
     const ref = {
       namespace: workflow.namespace,
@@ -517,7 +606,10 @@ export class WorkflowReader {
     const { events, truncated } = await this.readEvents(
       ref,
       options.maxEvents ?? MAX_STEP_EVENTS,
-      { payloads: options.includePayloads },
+      {
+        payloads: options.includePayloads,
+        llmPayloads: options.llm !== false,
+      },
     );
     return buildWorkflowGraph(events, {
       namespace: workflow.namespace,
@@ -684,6 +776,94 @@ export class WorkflowReader {
   }
 
   /**
+   * The full record of one model call (activity ID `llm/...`) of a run,
+   * by the event ID of its `ActivityTaskScheduled` event. A record stored
+   * in S3 is downloaded and verified, up to {@link MAX_LLM_RECORD_BYTES}.
+   */
+  async llmCall(
+    workflow: WorkflowDetail,
+    scheduledEventId: string,
+  ): Promise<WorkflowLlmCallResponse> {
+    const ref = {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId: workflow.runId,
+    };
+    const { events } = await this.readEvents(ref, MAX_STEP_EVENTS);
+    const graph = buildWorkflowGraph(events, {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      status: workflow.status,
+      truncated: false,
+      pendingActivities: workflow.pendingActivities,
+      includePayloads: false,
+    });
+    const nodeId = `activity-${scheduledEventId}`;
+    const node = graph.nodes.find(n => n.id === nodeId);
+    if (!node?.llm) {
+      throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
+    }
+    // The result, else the failure details of the last failed attempt.
+    let root: unknown;
+    let fromFailure = false;
+    for (const event of events as any[]) {
+      const completed = event.activityTaskCompletedEventAttributes;
+      if (
+        completed &&
+        String(completed.scheduledEventId) === scheduledEventId
+      ) {
+        root = completed.result;
+        fromFailure = false;
+      }
+      for (const key of [
+        'activityTaskFailedEventAttributes',
+        'activityTaskTimedOutEventAttributes',
+      ]) {
+        const closed = event[key];
+        if (closed && String(closed.scheduledEventId) === scheduledEventId) {
+          root = closed.failure;
+          fromFailure = true;
+        }
+      }
+      const started = event.activityTaskStartedEventAttributes;
+      if (
+        started &&
+        String(started.scheduledEventId) === scheduledEventId &&
+        started.lastFailure &&
+        root === undefined
+      ) {
+        root = started.lastFailure;
+        fromFailure = true;
+      }
+    }
+    const response: WorkflowLlmCallResponse = {
+      nodeId,
+      activityId: node.stepId ?? '',
+      activityType: node.name,
+      call: node.llm.call,
+      status: node.status,
+    };
+    if (root === undefined) {
+      response.unavailable =
+        node.llm.record === 'pending'
+          ? 'The model call has not ended yet.'
+          : 'The model call has no result.';
+      return response;
+    }
+    await this.payloads.resolve(root, { maxInlineBytes: MAX_LLM_RECORD_BYTES });
+    const found = findLlmRecord(root);
+    if (found.external) response.external = found.external;
+    if (!found.record) {
+      response.unavailable = found.reason;
+      return response;
+    }
+    response.raw = found.record;
+    response.record = normalizeLlmRecord(found.record);
+    if (fromFailure) response.fromFailure = true;
+    return response;
+  }
+
+  /**
    * Adds the position of the run among the runs of its workflow ID (runs
    * that started before it, and all runs) to the links of `chain`. When
    * counting fails, the links are returned as they are.
@@ -732,6 +912,7 @@ export class WorkflowReader {
     const graph = await this.graph(workflow, {
       includePayloads: false,
       maxEvents: MAX_PROGRESS_EVENTS,
+      llm: false,
     });
     const progress: WorkflowProgressResponse = {
       status: graph.status,

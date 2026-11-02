@@ -40,6 +40,15 @@ import {
   toIsoTime,
   toWorkflowFailure,
 } from './convert';
+import {
+  linkLlmSteps,
+  llmFieldsOf,
+  llmRecordOf,
+  localActivityId,
+  localActivityResult,
+  summarizeLlmCall,
+  toolMarkerOf,
+} from './llm';
 import { buildLoopGroups, readLoopMarker } from './loops';
 
 /*
@@ -125,6 +134,27 @@ export interface Building extends WorkflowGraphNode {
   /** Event ID of the first and of the closing event, for the arrows. */
   first: number;
   last?: number;
+  /** Call name of a model call (activity ID `llm/...`). */
+  llmCall?: string;
+  /** Decoded result (or failure details) of a model call. */
+  llmResult?: unknown;
+}
+
+/** The decoded payload with an LLM record in the details of a failure. */
+function failureRecord(failure: Json): unknown {
+  for (let f = failure, depth = 0; f && depth < 5; f = f.cause, depth++) {
+    const decoded = decodePayloads(f.applicationFailureInfo?.details);
+    const list = Array.isArray(decoded) ? decoded : [decoded];
+    const found = list.find(
+      d =>
+        d &&
+        typeof d === 'object' &&
+        'value' in d &&
+        llmRecordOf((d as any).value),
+    );
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function num(value: unknown): number {
@@ -329,6 +359,7 @@ export function buildWorkflowGraph(
     a = event.activityTaskScheduledEventAttributes;
     if (a) {
       const max = num(a.retryPolicy?.maximumAttempts);
+      const llm = llmFieldsOf(a.activityId);
       const node = add(`activity-${event.eventId}`, event, {
         kind: 'activity',
         name: a.activityType?.name ?? '',
@@ -342,6 +373,8 @@ export function buildWorkflowGraph(
           taskQueue: a.taskQueue?.name || undefined,
         }),
       });
+      if (llm && 'llmCall' in llm) node.llmCall = llm.llmCall;
+      if (llm && 'tool' in llm) node.tool = llm.tool;
       attach(node, event);
       continue;
     }
@@ -354,6 +387,9 @@ export function buildWorkflowGraph(
       node.status = 'Running';
       node.attempt = attempt;
       node.attempts = [];
+      if (attempt > 1 && a.lastFailure && node.llmCall) {
+        node.llmResult = failureRecord(a.lastFailure) ?? node.llmResult;
+      }
       if (attempt > 1 && a.lastFailure) {
         node.attempts.push({
           attempt: attempt - 1,
@@ -386,6 +422,11 @@ export function buildWorkflowGraph(
       close(node, event, status);
       if (a.result) node.result = payload(decodePayloads(a.result) ?? null);
       if (a.failure) node.failure = toWorkflowFailure(a.failure);
+      if (node.llmCall) {
+        node.llmResult = a.result
+          ? decodePayloads(a.result) ?? null
+          : failureRecord(a.failure) ?? node.llmResult;
+      }
       const current = lastAttempt(node);
       if (current) {
         current.status = status;
@@ -641,6 +682,23 @@ export function buildWorkflowGraph(
         input: Object.keys(details).length > 0 ? payload(details) : undefined,
         details: { markerName },
       });
+      if (isLocalActivity) {
+        // A tool call run as a local activity: the activity ID (SDKs that
+        // set it) or the tool marker in the result.
+        const fields = llmFieldsOf(localActivityId(details));
+        const tool =
+          fields && 'tool' in fields
+            ? fields.tool
+            : toolMarkerOf(localActivityResult(details));
+        if (tool) {
+          node.tool = { call: tool.call, toolCallId: tool.toolCallId };
+          const data = (details.data as JsonObject | undefined)?.value as
+            | JsonObject
+            | undefined;
+          const type = data?.activity_type ?? data?.activityType;
+          if (typeof type === 'string' && type) node.name = type;
+        }
+      }
       instant(node, event);
       attach(node, event);
       continue;
@@ -775,6 +833,13 @@ export function buildWorkflowGraph(
     }
   }
 
+  // Model calls: summaries from their records, tool calls linked to them.
+  for (const node of nodes) {
+    if (node.llmCall === undefined) continue;
+    node.llm = summarizeLlmCall(node, node.llmCall, node.llmResult);
+  }
+  linkLlmSteps(nodes);
+
   const visible = nodes.filter(n => !n.internal);
   // A running workflow with nothing open waits for something outside.
   const running = options.status === 'Running';
@@ -830,7 +895,10 @@ export function buildWorkflowGraph(
   });
   const response: WorkflowGraphResponse = {
     status: options.status,
-    nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
+    nodes: nodes.map(
+      ({ first: _f, last: _l, llmCall: _c, llmResult: _r, ...node }) =>
+        dropUndefined(node),
+    ),
     edges,
     current: current.text,
     currentDeadline: current.deadline,
