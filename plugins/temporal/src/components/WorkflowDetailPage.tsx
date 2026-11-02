@@ -61,6 +61,7 @@ import { PendingActivities } from './PendingActivities';
 import { DefinitionList, StepDrawer } from './StepDrawer';
 import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
+import { WorkflowTimeline } from './timeline/WorkflowTimeline';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
 import { workflowLink } from './WorkflowList';
@@ -287,6 +288,51 @@ function GraphCard(props: {
         )}
       </CardBody>
     </Card>
+  );
+}
+
+/**
+ * The Timeline tab: the steps on a time axis, with the step panel of the
+ * graph next to it for the selected bar.
+ */
+function TimelineTab(props: {
+  graph: WorkflowGraphResponse;
+  workflow: WorkflowDetail;
+  showMarkers: boolean;
+  live: boolean;
+  workflowHref(ref: WorkflowRef): string;
+}) {
+  const { graph } = props;
+  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const selected = graph.nodes.find(n => n.id === selectedId);
+  return (
+    <div className={tp('tp-graph-layout')}>
+      <div className={tp('tp-graph-column')}>
+        {graph.truncated && (
+          <Alert
+            status="info"
+            icon
+            title="The history is long; the timeline shows its first events."
+          />
+        )}
+        <WorkflowTimeline
+          graph={graph}
+          workflow={props.workflow}
+          showMarkers={props.showMarkers}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          live={props.live}
+        />
+      </div>
+      {selected && (
+        <StepDrawer
+          step={selected}
+          payloadsHidden={graph.payloadsHidden}
+          workflowHref={props.workflowHref}
+          onClose={() => setSelectedId(undefined)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -568,6 +614,7 @@ export function WorkflowDetailPage(
             >
               <TabList aria-label="Workflow details">
                 <Tab id="steps">Steps</Tab>
+                <Tab id="timeline">Timeline</Tab>
                 {loops && loops.length > 0 ? <Tab id="loops">Loops</Tab> : null}
                 <Tab id="events">Events</Tab>
                 <Tab id="details">Details</Tab>
@@ -580,6 +627,19 @@ export function WorkflowDetailPage(
               <TabPanel id="steps">
                 {graph ? (
                   <StepsTable steps={graph.nodes} onSelect={selectFromTab} />
+                ) : (
+                  <Loading />
+                )}
+              </TabPanel>
+              <TabPanel id="timeline">
+                {graph ? (
+                  <TimelineTab
+                    graph={graph}
+                    workflow={workflow}
+                    showMarkers={showMarkers}
+                    live={running && autoRefresh}
+                    workflowHref={workflowHref}
+                  />
                 ) : (
                   <Loading />
                 )}

@@ -7,7 +7,7 @@ activity and child workflow of a round with the loop name, the round and the
 step, keeps the state of each loop in a query and in the memo, and carries
 the round count into the next run when the workflow continues as new.
 
-The [Backstage Temporal plugin](../temporal/README.md) reads the markers: the
+The [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal/README.md) reads the markers: the
 step graph shows a loop as one box (`draft-review · Round 4 of 5 · Done`)
 that expands to the steps of one round, and the Loops tab lists every round
 with its steps, decision and score, across the runs.
@@ -15,6 +15,14 @@ with its steps, decision and score, across the runs.
 The package runs inside workflow code (the workflow sandbox).
 `@temporalio/workflow` (1.12 or later; tested with 1.24) is a peer
 dependency, so your workflow's own SDK is used.
+
+## Installation
+
+In the package with your workflow code:
+
+```sh
+yarn add @kwkevinchan/temporal-loop
+```
 
 ## Usage
 

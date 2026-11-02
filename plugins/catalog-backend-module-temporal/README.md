@@ -1,8 +1,18 @@
 # @kwkevinchan/backstage-plugin-catalog-backend-module-temporal
 
-Unofficial catalog backend module that adds the `TemporalWorkflow` kind
-(`apiVersion: temporal.io/v1alpha1`). It validates the spec with a JSON
-schema and adds the relations of the entity.
+Unofficial catalog backend module for the Backstage Temporal plugin.
+
+## Purpose
+
+Adds the `TemporalWorkflow` kind (`apiVersion: temporal.io/v1alpha1`) for one
+workflow type: it validates the spec with a JSON schema and adds the
+relations of the entity.
+
+## Installation
+
+```sh
+yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-catalog-backend-module-temporal
+```
 
 ```ts
 backend.add(
@@ -18,6 +28,11 @@ catalog:
     - allow: [Component, System, API, Resource, Location, TemporalWorkflow]
 ```
 
+## API
+
+- Default export: the catalog module.
+- `TemporalWorkflowEntityProcessor`: the processor, for custom setups.
+
 | Field               | Required | Relations                    |
 | ------------------- | -------- | ---------------------------- |
 | `spec.owner`        | yes      | `ownedBy` / `ownerOf`        |
@@ -29,5 +44,6 @@ catalog:
 | `spec.dependsOn`    | no       | `dependsOn` / `dependencyOf` |
 
 Names (`workflowType`, `taskQueue`, `namespace`) follow the same rules as the
-Temporal annotations. See the [repository README](../../README.md) for an
-example and for how components refer to a workflow.
+Temporal annotations. See [Workflow entities](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#workflow-entities)
+in the repository README for an example and for how components refer to a
+workflow.

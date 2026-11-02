@@ -236,6 +236,21 @@ describe('EntityTemporalContent', () => {
     expect(screen.getByText('Upstream not ready')).toBeInTheDocument();
   });
 
+  it('has a Timeline tab whose bars open the step panel', async () => {
+    const api = mockTemporalApi();
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    await screen.findByRole('grid', { name: 'Steps' });
+    await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }));
+    const timeline = screen.getByTestId('workflow-timeline');
+    const bar = within(timeline).getByRole('button', {
+      name: /^chargeCard, Failed/,
+    });
+    fireEvent.click(bar);
+    const drawers = screen.getAllByTestId('step-drawer');
+    expect(drawers).toHaveLength(1);
+    expect(drawers[0]).toHaveTextContent('Card declined');
+  });
+
   it('reloads a running workflow every five seconds until turned off', async () => {
     const api = mockTemporalApi();
     api.getWorkflow.mockResolvedValue({ ...failedWorkflow, status: 'Running' });
