@@ -15,10 +15,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type {
-  WorkflowGraphNode,
-  WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowGraphNode, WorkflowRef } from '../common';
 import { ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiCloseLine } from '@remixicon/react';
 import { FailureView } from './FailureView';

@@ -40,11 +40,9 @@ import {
   isTemporalAvailable,
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal';
-import {
   createTemporalControlActionDef,
   TemporalWorkflowActionDef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '@kwkevinchan/backstage-plugin-temporal';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 
 export const temporalWorkflowActions: TemporalWorkflowActionDef[] = [

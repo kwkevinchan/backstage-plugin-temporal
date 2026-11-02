@@ -23,8 +23,8 @@ import type {
   WorkflowLoopRound,
   WorkflowLoopsResponse,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../common';
+import { temporalApiRef } from '../extensions';
 import {
   Alert,
   Cell,

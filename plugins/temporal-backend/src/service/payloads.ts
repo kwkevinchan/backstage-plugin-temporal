@@ -16,14 +16,14 @@
 
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Config } from '@backstage/config';
-import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { ExternalPayload } from '../common';
 import {
   ClaimCheck,
   CLAIM_CHECK_ENCODING,
-  S3PayloadStore,
   validateClaimCheck,
   verifyAndRestore,
-} from '@kwkevinchan/temporal-payload-s3';
+} from './claimCheck';
+import { S3PayloadReader } from './S3PayloadReader';
 
 /*
  * Claim checks in workflow histories. Payloads larger than the threshold of
@@ -197,7 +197,7 @@ async function runLimited<T>(
 /** Options of {@link ExternalPayloads}. */
 export interface ExternalPayloadsOptions {
   /** Store of the claim checks; undefined when S3 is not configured. */
-  store?: Pick<S3PayloadStore, 'bucket' | 'get' | 'getStart' | 'stream'>;
+  store?: Pick<S3PayloadReader, 'bucket' | 'get' | 'getStart' | 'stream'>;
   maxInlineBytes?: number;
   previewBytes?: number;
   logger?: LoggerService;
@@ -229,7 +229,7 @@ export class ExternalPayloads {
     const s3 = config.getOptionalConfig('temporal.payloads.s3');
     if (!s3) return new ExternalPayloads({ logger });
     const credentials = s3.getOptionalConfig('credentials');
-    const store = new S3PayloadStore({
+    const store = new S3PayloadReader({
       bucket: s3.getString('bucket'),
       endpoint: s3.getOptionalString('endpoint'),
       region: s3.getOptionalString('region'),

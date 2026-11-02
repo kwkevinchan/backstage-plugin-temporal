@@ -16,7 +16,13 @@
 
 /**
  * Unofficial Backstage frontend plugin for Temporal workflows (legacy
- * frontend system). The new frontend system uses the `./alpha` entry point.
+ * frontend system). The new frontend system uses the `./alpha` entry point,
+ * which also has the blueprints for workflow actions and sections.
+ *
+ * The package also exports the frontend extension points (the API ref, the
+ * workflow context and the props of actions and sections), the permissions
+ * (the same objects as in `@kwkevinchan/backstage-plugin-temporal-backend`)
+ * and the response types of the backend API.
  *
  * @packageDocumentation
  */
@@ -35,6 +41,8 @@ export type {
   TemporalWorkflowStatsCardProps,
 } from './components';
 export { TemporalClient } from './api';
+export * from './extensions';
+export * from './common/permissions';
 export {
   getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
@@ -44,4 +52,46 @@ export {
   TEMPORAL_NAMESPACE_ANNOTATION,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+  WORKFLOW_STATUSES,
+} from './common';
+export type {
+  ActivityStep,
+  DecodedPayload,
+  ExternalPayload,
+  PendingActivity,
+  TemporalWorkflowEntityV1alpha1,
+  WorkflowControlOperation,
+  WorkflowDeadline,
+  WorkflowDetail,
+  WorkflowFailure,
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+  WorkflowGraphResponse,
+  WorkflowHistoryEvent,
+  WorkflowHistoryResponse,
+  WorkflowListResponse,
+  WorkflowLoopGroup,
+  WorkflowLoopMarker,
+  WorkflowLoopRound,
+  WorkflowLoopRun,
+  WorkflowLoopStatus,
+  WorkflowLoopStep,
+  WorkflowLoopsResponse,
+  WorkflowMessageRequest,
+  WorkflowMessageResponse,
+  WorkflowNodeAttempt,
+  WorkflowNodeEvent,
+  WorkflowNodeKind,
+  WorkflowNodeStatus,
+  WorkflowProgressResponse,
+  WorkflowRef,
+  WorkflowRerunRequest,
+  WorkflowRunChain,
+  WorkflowStartRequest,
+  WorkflowStartResponse,
+  WorkflowStatsResponse,
+  WorkflowStatus,
+  WorkflowStepsResponse,
+  WorkflowSummary,
+  WorkflowTerminateRequest,
+} from './common';

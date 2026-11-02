@@ -46,11 +46,9 @@ import {
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import {
-  TemporalService,
-  TemporalWorkflowEnricher,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+} from '../common';
+import { TemporalService } from './TemporalService';
+import { TemporalWorkflowEnricher } from '../extensions';
 import {
   ConvertOptions,
   decodePayloads,

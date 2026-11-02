@@ -1,0 +1,81 @@
+{
+  "name": "@kwkevinchan/temporal-workflow-kit",
+  "version": "0.0.0",
+  "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: an S3 payload codec (claim check) and loop markers for generate, check and revise loops of AI workflows",
+  "license": "Apache-2.0",
+  "keywords": [
+    "temporal",
+    "workflow",
+    "payload-codec",
+    "claim-check",
+    "s3",
+    "loop",
+    "ai"
+  ],
+  "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-workflow-kit",
+  "bugs": {
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
+    "directory": "plugins/temporal-workflow-kit"
+  },
+  "exports": {
+    "./s3": "./src/s3/index.ts",
+    "./loop": "./src/loop/index.ts",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "s3": [
+        "src/s3/index.ts"
+      ],
+      "loop": [
+        "src/loop/index.ts"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "backstage": {
+    "role": "node-library"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.350.0",
+    "@temporalio/workflow": "^1.12.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@temporalio/workflow": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.350.0",
+    "@backstage/cli": "backstage:^",
+    "@temporalio/activity": "~1.24.0",
+    "@temporalio/client": "~1.24.0",
+    "@temporalio/testing": "~1.24.0",
+    "@temporalio/worker": "~1.24.0",
+    "@temporalio/workflow": "~1.24.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

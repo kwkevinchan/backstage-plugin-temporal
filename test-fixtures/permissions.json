@@ -1,0 +1,83 @@
+{
+  "description": "Every permission of the Temporal plugin, in the order of temporalPermissions. The backend (original) and the frontend (copy) are both tested against this file.",
+  "permissions": [
+    {
+      "name": "temporal.workflow.read",
+      "attributes": {
+        "action": "read"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.history.read",
+      "attributes": {
+        "action": "read"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.list",
+      "attributes": {
+        "action": "read"
+      },
+      "type": "basic"
+    },
+    {
+      "name": "temporal.workflow.history.list",
+      "attributes": {
+        "action": "read"
+      },
+      "type": "basic"
+    },
+    {
+      "name": "temporal.workflow.start",
+      "attributes": {
+        "action": "create"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.signal",
+      "attributes": {
+        "action": "update"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.update",
+      "attributes": {
+        "action": "update"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.cancel",
+      "attributes": {
+        "action": "update"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.terminate",
+      "attributes": {
+        "action": "delete"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
+      "name": "temporal.workflow.rerun",
+      "attributes": {
+        "action": "create"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    }
+  ]
+}

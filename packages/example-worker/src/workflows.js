@@ -33,7 +33,7 @@ const {
   upsertSearchAttributes,
   workflowInfo,
 } = require('@temporalio/workflow');
-const { createLoops } = require('@kwkevinchan/temporal-loop');
+const { createLoops } = require('@kwkevinchan/temporal-workflow-kit/loop');
 
 const { reserveStock, chargeCard, deploy } = proxyActivities({
   startToCloseTimeout: '10 seconds',

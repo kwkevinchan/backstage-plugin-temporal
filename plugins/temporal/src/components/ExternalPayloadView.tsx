@@ -18,12 +18,12 @@ import { ReactNode, useEffect, useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApiHolder } from '@backstage/core-plugin-api';
 import { Button, Flex, Text } from '@backstage/ui';
-import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { ExternalPayload } from '../common';
 import {
   temporalApiRef,
   TemporalWorkflowContextValue,
   useTemporalWorkflow,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../extensions';
 import {
   RiCloudLine,
   RiDownloadLine,

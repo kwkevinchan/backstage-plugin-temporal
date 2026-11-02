@@ -27,7 +27,7 @@ import {
   temporalApiRef,
   TemporalWorkflowActionDef,
   useTemporalWorkflow,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import {
   entity,

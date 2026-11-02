@@ -27,9 +27,10 @@ permission framework and recorded with the auditor.
 - **Loops of AI workflows.** Rounds of generate, check and revise loops are
   grouped into one box in the graph, one group per round in the timeline,
   and one row per round in the **Loops** tab, across continue-as-new runs
-  (with [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)).
+  (with `@kwkevinchan/temporal-workflow-kit/loop`, see
+  [the workflow kit](plugins/temporal-workflow-kit)).
 - **Large payloads in S3.** Payloads that workers store in an S3-compatible
-  store with [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)
+  store with `@kwkevinchan/temporal-workflow-kit/s3`
   are shown as JSON, as a preview or as an image, and can be downloaded
   through the backend.
 - **Workflow controls.** Start, signal, update, query, cancel, terminate and
@@ -47,19 +48,26 @@ permission framework and recorded with the auditor.
 
 ## Packages
 
-| Package                                                                                                    | Role                  | Install in        | Purpose                                                                                                     |
-| ---------------------------------------------------------------------------------------------------------- | --------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point and `./alpha` for the new frontend system. |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks.                              |
-| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)                                   | web-library           | Your plugins      | Frontend extension points: API ref, workflow actions and sections, blueprints.                              |
-| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Your modules      | Shared Temporal client service and backend extension point.                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | (dependency)      | Shared types, permissions and annotation constants.                                                         |
-| [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)                                          | node-library          | Your workers      | Payload codec: large payloads in S3, a claim check in the history.                                          |
-| [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)                                                      | node-library          | Your workflows    | Loop markers, a loop state query and continue-as-new helpers.                                               |
+| Package                                                                                                    | Role                  | Install in        | Purpose                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------------------------- | --------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections.                       |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy. |
+| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                          |
+| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library          | Your workers      | Not a Backstage package. `/s3`: payload codec, large payloads in S3 with a claim check in the history. `/loop`: loop markers, a loop state query and continue-as-new helpers.        |
 
-Plugins that add buttons or cards to the workflow page depend on
-`@kwkevinchan/backstage-plugin-temporal-react` only.
+Which ones to install:
+
+- **Everyone:** the frontend plugin in the app and the backend plugin in the
+  backend.
+- **With `TemporalWorkflow` entities:** also the catalog module in the
+  backend.
+- **With large payloads in S3, or loops of AI workflows:** the workflow kit
+  in your Temporal workers (not in Backstage). The backend reads the claim
+  checks itself and only needs `temporal.payloads.s3`.
+
+Plugins and app modules that add buttons or tabs to the workflow page use the
+frontend plugin (`./alpha` for the blueprints); backend modules and
+permission policies use the backend plugin.
 
 Development-only packages (never published): `packages/app` (legacy frontend
 system), `packages/app-next` (new frontend system), `packages/backend` and
@@ -67,12 +75,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                        |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                    |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                          |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**. `@kwkevinchan/temporal-loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24). `@kwkevinchan/temporal-payload-s3` works with the TypeScript SDK (tested with 1.24). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                        |
+| Component       | Supported                                                                                                                                                                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                    |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                          |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**. `@kwkevinchan/temporal-workflow-kit/loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24); `/s3` works with the TypeScript SDK (tested with 1.24). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                        |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -296,8 +304,8 @@ AI workflows often loop: generate, check, and revise when the check fails,
 for dozens of rounds and across continue-as-new runs. Drawn step by step,
 such a graph becomes unreadable. When the activities and child workflows of
 each round carry a loop marker (`loop/<loop>/<round>/<step>` in the activity
-ID; see [`@kwkevinchan/temporal-loop`](plugins/temporal-loop) for the
-format and a TypeScript helper):
+ID; see [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)
+for the format and a TypeScript helper, `/loop`):
 
 - the graph shows each loop as one box, `draft-review · Round 4 of 5 · Done`,
   with the steps before it and after it. Pressing the box, or **Expand**
@@ -422,7 +430,7 @@ is read at startup; restart the backend after it is replaced.
 ## Large payloads in S3
 
 Workers can store large payloads in any S3-compatible object store with the
-[`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3) codec
+`/s3` codec of [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)
 (claim check pattern): payloads above a threshold (default 128 KiB) are
 uploaded, and the history keeps a claim check with the bucket, key, size,
 SHA-256, original encoding and media type. See its README for the worker
@@ -683,7 +691,7 @@ import { isPermission } from '@backstage/plugin-permission-common';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowTerminatePermission,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend';
 
 if (
   isPermission(request.permission, temporalWorkflowTerminatePermission) ||
@@ -709,7 +717,8 @@ size only. Inputs and results are part of the history and need
 
 ## Extending
 
-New frontend system, with `@kwkevinchan/backstage-plugin-temporal-react/alpha`:
+New frontend system, with the blueprints of
+`@kwkevinchan/backstage-plugin-temporal/alpha`:
 
 ```ts
 TemporalWorkflowActionBlueprint.make({
@@ -731,7 +740,7 @@ the entity tab and of the Workflows page. In the legacy system, pass
 
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-node`, and custom workflow actions
+`@kwkevinchan/backstage-plugin-temporal-backend`, and custom workflow actions
 with `addControlAction()`. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the

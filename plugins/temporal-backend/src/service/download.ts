@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { Response } from 'express';
-import type { ClaimCheck } from '@kwkevinchan/temporal-payload-s3';
+import type { ClaimCheck } from './claimCheck';
 import type { ExternalPayloads } from './payloads';
 
 const EXTENSIONS: Record<string, string> = {

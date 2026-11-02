@@ -26,7 +26,7 @@ import {
 } from '@backstage/plugin-catalog-react';
 import { catalogApiMock } from '@backstage/plugin-catalog-react/testUtils';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { temporalApiRef } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import {
   checkoutEntity,

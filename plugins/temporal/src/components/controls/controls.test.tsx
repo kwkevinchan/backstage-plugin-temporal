@@ -23,11 +23,11 @@ import {
   renderInTestApp,
   TestApiProvider,
 } from '@backstage/test-utils';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowDetail } from '../../common';
 import {
   createTemporalControlActionDef,
   temporalApiRef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../../extensions';
 import {
   failedWorkflow,
   mockTemporalApi,

@@ -15,8 +15,10 @@
  */
 
 import { createBackendModule } from '@backstage/backend-plugin-api';
-import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node';
+import {
+  temporalExtensionPoint,
+  temporalWorkflowUpdatePermission,
+} from '@kwkevinchan/backstage-plugin-temporal-backend';
 
 /**
  * Example custom workflow action: "Escalate" on a running ticket workflow

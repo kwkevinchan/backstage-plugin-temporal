@@ -1,0 +1,62 @@
+{
+  "description": "Shared examples of the loop marker format (activity and child workflow IDs). Read by the tests of @kwkevinchan/temporal-workflow-kit (loop, writes and parses) and @kwkevinchan/backstage-plugin-temporal-backend (parses). A null marker means the text is not a loop marker.",
+  "examples": [
+    {
+      "text": "loop/review/1/draft",
+      "marker": {
+        "loop": "review",
+        "iteration": 1,
+        "step": "draft"
+      }
+    },
+    {
+      "text": "loop/review/12/draft/2",
+      "marker": {
+        "loop": "review",
+        "iteration": 12,
+        "step": "draft",
+        "occurrence": 2
+      }
+    },
+    {
+      "text": "loop/my%20loop/3/a%2Fb",
+      "marker": {
+        "loop": "my loop",
+        "iteration": 3,
+        "step": "a/b"
+      }
+    },
+    {
+      "text": "order-1/loop/fix/2/childStep",
+      "marker": {
+        "loop": "fix",
+        "iteration": 2,
+        "step": "childStep"
+      }
+    },
+    {
+      "text": "loop/review/0/draft",
+      "marker": null
+    },
+    {
+      "text": "loop/review/x/draft",
+      "marker": null
+    },
+    {
+      "text": "loop/review/1",
+      "marker": null
+    },
+    {
+      "text": "myloop/review/1/draft",
+      "marker": null
+    },
+    {
+      "text": "loop/%E0%A4%A/1/draft",
+      "marker": null
+    },
+    {
+      "text": "5",
+      "marker": null
+    }
+  ]
+}

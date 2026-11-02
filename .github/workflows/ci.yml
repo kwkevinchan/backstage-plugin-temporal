@@ -28,6 +28,11 @@ jobs:
       - name: Boundary scanner self test
         run: node scripts/check-boundaries.test.mjs
 
+      # The frontend copy of the permissions, types and constants must match
+      # the backend original (see scripts/sync-common.mjs).
+      - name: Shared definitions copy
+        run: node scripts/sync-common.mjs --check
+
       - name: Scan tracked files
         env:
           BOUNDARY_DENYLIST: ${{ secrets.BOUNDARY_DENYLIST }}

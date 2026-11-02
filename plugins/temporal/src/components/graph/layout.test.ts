@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { WorkflowGraphNode } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowGraphNode } from '../../common';
 import { graphResponse } from '../../testData';
 import {
   graphHeight,

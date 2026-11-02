@@ -15,9 +15,9 @@
  */
 
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import { TemporalWorkflowActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
+import { TemporalWorkflowActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
 
-/** Example workflow action, added through the temporal-react blueprint. */
+/** Example workflow action, added through the blueprint of the Temporal plugin. */
 const copyWorkflowIdAction = TemporalWorkflowActionBlueprint.make({
   name: 'copy-workflow-id',
   params: {

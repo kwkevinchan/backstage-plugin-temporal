@@ -1,7 +1,7 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal",
   "version": "0.0.0",
-  "description": "Unofficial Backstage frontend plugin for Temporal workflows",
+  "description": "Unofficial Backstage frontend plugin for Temporal workflows, with the extension points and blueprints for workflow actions and sections",
   "license": "Apache-2.0",
   "keywords": [
     "backstage",
@@ -43,10 +43,7 @@
     "pluginId": "temporal",
     "pluginPackages": [
       "@kwkevinchan/backstage-plugin-temporal",
-      "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node",
-      "@kwkevinchan/backstage-plugin-temporal-react"
+      "@kwkevinchan/backstage-plugin-temporal-backend"
     ]
   },
   "sideEffects": false,
@@ -70,9 +67,8 @@
     "@backstage/plugin-permission-react": "backstage:^",
     "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
+    "@backstage/version-bridge": "backstage:^",
     "@dagrejs/dagre": "~3.1.3",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-react": "workspace:^",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@xyflow/react": "^12.12.0",
     "react-use": "^17.2.4"

@@ -18,11 +18,8 @@ import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import {
-  isTemporalWorkflowEntity,
-  WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { isTemporalWorkflowEntity, WorkflowStatus } from '../common';
+import { temporalApiRef } from '../extensions';
 import { Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { StartWorkflowButton } from './controls/StartWorkflow';

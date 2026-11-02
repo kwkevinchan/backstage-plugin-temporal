@@ -36,8 +36,6 @@
     "@backstage/plugin-permission-node": "backstage:^",
     "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",
     "app": "workspace:^",
     "better-sqlite3": "^12.0.0",
     "node-gyp": "^10.0.0",
