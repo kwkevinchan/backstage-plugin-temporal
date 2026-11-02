@@ -1,8 +1,31 @@
 # @kwkevinchan/backstage-plugin-temporal-backend
 
 Unofficial Backstage backend plugin for [Temporal](https://temporal.io).
+
+## Purpose
+
 Serves an API under `/api/temporal` that reads workflows and, checked with
-the permission framework and recorded with the auditor, changes them:
+the permission framework and recorded with the auditor, changes them. The
+frontend plugin `@kwkevinchan/backstage-plugin-temporal` uses it.
+
+## Installation
+
+```sh
+yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-temporal-backend
+```
+
+```ts
+backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+```
+
+It needs the catalog and the permission framework, and
+`temporal.connection` in the app config. Payloads stored in S3 by
+`@kwkevinchan/temporal-payload-s3` are shown when `temporal.payloads.s3` is
+configured; allow `blob:` in `backend.csp.img-src` for their image
+thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
+permission policy.
+
+## API
 
 | Method | Path                                                                                | Permission                       |
 | ------ | ----------------------------------------------------------------------------------- | -------------------------------- |
@@ -11,6 +34,10 @@ the permission framework and recorded with the auditor, changes them:
 | GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                   | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                        | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                  | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                  | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`               | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops`                  | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=` | `temporal.workflow.history.read` |
 | POST   | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.start`        |
 | POST   | `/workflows`                                                                        | `temporal.workflow.start` + list |
@@ -41,12 +68,3 @@ update, cancel and terminate answer 409 when the workflow is not running.
 `temporal.control.enabled: false` turns every route that changes workflows
 off (404); `temporal.control.allowedSignals` and `allowedUpdates` limit the
 names (400 for others).
-
-```ts
-backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
-```
-
-Payloads stored in S3 by `@kwkevinchan/temporal-payload-s3` are shown when
-`temporal.payloads.s3` is configured, and downloaded through
-`payloads/download` (only keys of claim checks in that run's history). See the
-[repository README](../../README.md) for configuration.

@@ -4,31 +4,59 @@
 > endorsed by, or supported by Temporal Technologies, Inc. or the Backstage
 > project. "Temporal" is used only to describe what the plugin connects to.
 
-**Status: pre-alpha.** Nothing is published yet and every API may change. The
-first usable release is planned as `0.1.0`.
+**Status: pre-release.** The first release will be `0.1.0`. Until `1.0.0`,
+minor versions may change the API.
 
 The plugin shows [Temporal](https://temporal.io) workflows next to the catalog
-entities that own them in [Backstage](https://backstage.io): a list of workflow
-executions per entity with the progress of each run, and a details page built
-around a graph of the run's steps, with the inputs, outputs, errors and
-retries of each step, and the event history. Workflows can be catalog entities of their own (the
-`TemporalWorkflow` kind), and a **Workflows** page lists every workflow of a
-namespace. Workflows can be started, signaled, updated, queried, canceled,
-terminated and rerun from Backstage; every operation is checked with the
+entities that own them in [Backstage](https://backstage.io), and lets people
+operate them from there, with every operation checked by the Backstage
 permission framework and recorded with the auditor.
+
+## Features
+
+- **Workflows of an entity.** A **Temporal** tab on catalog entities lists
+  their workflow executions with status, times and the progress of each run
+  (steps done, the current step or the failure).
+- **Step graph.** The details page of a run is built around a graph of its
+  steps: activities with their attempts, timers, signals, updates, child
+  workflows and the wait the run is in. Selecting a step opens a panel with
+  its input, output, error, attempts and events.
+- **Timeline.** The same steps on a time axis: how long each step waited for
+  a worker and how long it ran, retries, timers and waits, signals and
+  updates. Bars of a running workflow grow until now; the chart zooms.
+- **Loops of AI workflows.** Rounds of generate, check and revise loops are
+  grouped into one box in the graph, one group per round in the timeline,
+  and one row per round in the **Loops** tab, across continue-as-new runs
+  (with [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)).
+- **Large payloads in S3.** Payloads that workers store in an S3-compatible
+  store with [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)
+  are shown as JSON, as a preview or as an image, and can be downloaded
+  through the backend.
+- **Workflow controls.** Start, signal, update, query, cancel, terminate and
+  rerun workflows, and add your own actions.
+- **Workflow entities.** A `TemporalWorkflow` catalog kind for one workflow
+  type, and a **Workflows** page with every workflow of a namespace.
+
+| Workflows of an entity                                    | Step graph and step panel                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![Workflow list of an entity](docs/images/entity-tab.png) | ![Step graph with the step panel](docs/images/details-graph.png) |
+| **Timeline**                                              | **Loop rounds**                                                  |
+| ![Timeline of a loop workflow](docs/images/timeline.png)  | ![A loop expanded to one round](docs/images/loop.png)            |
+| **Large payload in S3**                                   | **Workflow controls**                                            |
+| ![An image stored in S3](docs/images/s3-payload.png)      | ![Terminate dialog](docs/images/controls.png)                    |
 
 ## Packages
 
-| Package                                                                                                    | Role                  | Description                                                                                    |
-| ---------------------------------------------------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Entity tab and workflow details. Legacy entry point and `./alpha` for the new frontend system. |
-| [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)                                   | web-library           | Frontend extension points: API ref, workflow actions and sections, blueprints.                 |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | REST API under `/api/temporal`: read and control workflows, permission checks.                 |
-| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | Shared types, permissions and annotation constants.                                            |
-| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Shared Temporal client service and backend extension point.                                    |
-| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Catalog module with the `TemporalWorkflow` kind.                                               |
-| [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)                                          | node-library          | Payload codec for workers: large payloads in S3, a claim check in the history.                 |
-| [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)                                                      | node-library          | For workflow code: loop markers, a loop state query and continue-as-new helpers.               |
+| Package                                                                                                    | Role                  | Install in        | Purpose                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------- | --------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point and `./alpha` for the new frontend system. |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks.                              |
+| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                 |
+| [`@kwkevinchan/backstage-plugin-temporal-react`](plugins/temporal-react)                                   | web-library           | Your plugins      | Frontend extension points: API ref, workflow actions and sections, blueprints.                              |
+| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library          | Your modules      | Shared Temporal client service and backend extension point.                                                 |
+| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library        | (dependency)      | Shared types, permissions and annotation constants.                                                         |
+| [`@kwkevinchan/temporal-payload-s3`](plugins/temporal-payload-s3)                                          | node-library          | Your workers      | Payload codec: large payloads in S3, a claim check in the history.                                          |
+| [`@kwkevinchan/temporal-loop`](plugins/temporal-loop)                                                      | node-library          | Your workflows    | Loop markers, a loop state query and continue-as-new helpers.                                               |
 
 Plugins that add buttons or cards to the workflow page depend on
 `@kwkevinchan/backstage-plugin-temporal-react` only.
@@ -37,11 +65,33 @@ Development-only packages (never published): `packages/app` (legacy frontend
 system), `packages/app-next` (new frontend system), `packages/backend` and
 `packages/example-worker`.
 
+## Compatibility
+
+| Component       | Supported                                                                                                                                                                                                                        |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                    |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                          |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**. `@kwkevinchan/temporal-loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24). `@kwkevinchan/temporal-payload-s3` works with the TypeScript SDK (tested with 1.24). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                        |
+
+The screens use the Backstage design system `@backstage/ui`; the app must
+load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
+1.56 do). Light and dark themes follow the app theme. The step graph uses
+[React Flow](https://reactflow.dev) (`@xyflow/react`) with the
+[dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed; the
+timeline is drawn with plain HTML and CSS.
+
 ## Installation
 
-The packages are not published yet; these steps describe the planned setup.
+### Backend
 
-Backend (`packages/backend/src/index.ts`):
+```sh
+yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-temporal-backend
+# Optional: the TemporalWorkflow kind.
+yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-catalog-backend-module-temporal
+```
+
+`packages/backend/src/index.ts`:
 
 ```ts
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
@@ -52,10 +102,32 @@ backend.add(
 ```
 
 The backend plugin needs the catalog and the permission framework. It only
-uses `@temporalio/client` (no worker code runs inside Backstage).
+uses `@temporalio/client` (no worker code runs inside Backstage). Add at
+least `temporal.connection` to your app config (see
+[Configuration](#configuration)).
 
-Frontend, new frontend system: add the plugin to your app features (or let
-feature discovery find it):
+**Content security policy.** With large payloads in S3, the step panel shows
+stored images as thumbnails from `blob:` URLs. The backend's default content
+security policy does not allow them, so in production (where the backend
+serves the app) add `blob:` to `img-src`, or the thumbnails stay empty:
+
+```yaml
+backend:
+  csp:
+    img-src: ["'self'", 'data:', 'blob:']
+```
+
+`backend.csp` replaces the default list of a directive, so keep `'self'` and
+`data:`. The development server of the frontend (`yarn start`) does not send
+this header, so the problem only shows in a production build.
+
+### Frontend, new frontend system
+
+```sh
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
+```
+
+Add the plugin to your app features, or let feature discovery find it:
 
 ```ts
 import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
@@ -71,7 +143,13 @@ and the **Workflows** page on `/temporal`. The page has a title and an icon,
 so the app lists it in the sidebar with the nav items it discovers from pages
 (`navItems` of `NavContentBlueprint`).
 
-Frontend, legacy system (`EntityPage.tsx`):
+### Frontend, legacy frontend system
+
+```sh
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
+```
+
+`EntityPage.tsx`:
 
 ```tsx
 import {
@@ -153,9 +231,31 @@ The details page of a run shows, from top to bottom:
   activities show their attempt (`×3`), and a child workflow links to its own
   details. The graph can be zoomed, panned and fitted to the view. Selecting
   a step opens a panel with its input, output, error, attempts and events.
-- tabs: **Steps** (a table of the steps), **Events** (grouped by step, or the
-  raw history), **Details** (the summary table, failure, pending activities,
+- tabs: **Steps** (a table of the steps), **Timeline** (see below),
+  **Events** (grouped by step, or the raw history), **Details** (the summary table, failure, pending activities,
   search attributes and memo), and one tab per workflow section.
+
+### Timeline
+
+The **Timeline** tab draws the steps of the run on a time axis, one row per
+step, oldest first, with offsets from the start of the run (`+1m 30s`):
+
+- activities and child workflows: a light bar for the time the step waited
+  for a worker (scheduled to started; for a retried activity this includes
+  the earlier attempts and the retry backoff) and a solid bar for the time it
+  ran (started to closed). The label counts retries (`2 retries`).
+- colors follow the status like the graph: failed and timed-out steps are
+  red. Timers and waits are dashed; signals, updates and the end of the run
+  are points.
+- the first row is the whole run. For a running workflow, open steps reach
+  to now (a vertical line) and grow while the page refreshes.
+- steps of a loop are grouped by round; the latest round of each loop is
+  open and the others can be expanded (one at a time, or all at once). A
+  run that continued as new shows its own rounds only.
+- drag across the chart to zoom in to that range; Ctrl (or ⌘) + scroll
+  zooms around the pointer, Shift + scroll pans, and **Whole run** zooms
+  out. Hovering a bar shows its times, durations and attempts; pressing it
+  opens the same step panel as the graph.
 
 The backend builds the steps from the history (`GET .../graph`):
 
@@ -219,27 +319,73 @@ permission, like the graph; inputs and results are not part of it.
 
 ## Configuration
 
+The complete set of keys; only `temporal.connection.address` is required.
+
 ```yaml
 temporal:
   connection:
-    address: localhost:7233
+    # Temporal frontend service, host:port.
+    address: temporal-frontend.temporal.svc:7233
     # Namespaces the plugin may read; requests for others are rejected.
-    # The UI uses one namespace per entity; the API takes the namespace as a
-    # parameter.
-    namespaces: [default]
+    # Default: [default].
+    namespaces: [default, orders]
+    # Namespace of entities without temporal.io/namespace. Default: default.
     defaultNamespace: default
-    # `none` (default) or `bearer`, see Authentication below.
     auth:
-      type: none
+      # none (default) or bearer, see Authentication below.
+      type: bearer
+      token: ${TEMPORAL_TOKEN}
   # Optional: adds "Open in Temporal UI" links.
   webUi:
-    baseUrl: http://localhost:8080
+    baseUrl: https://temporal-ui.example.com
   # Optional: names of custom search attributes registered in Temporal.
   searchAttributes:
     # Keyword attribute with the entity reference, e.g. component:default/orders.
     entityRef: BackstageEntityRef
+    # Keyword attribute set to the user who started a workflow from Backstage.
     initiator: BackstageInitiator
+  # Optional: operations that change workflows, see Workflow controls.
+  control:
+    enabled: true
+    allowedSignals: [addNote, close]
+    allowedUpdates: [setPriority]
+  # Optional: large payloads in S3, see Large payloads in S3.
+  payloads:
+    s3:
+      bucket: temporal-payloads
+      endpoint: http://rustfs.storage.svc:9000
+      region: us-east-1
+      forcePathStyle: true
+      credentials:
+        accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
+        secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
+      maxInlineBytes: 262144
+      previewBytes: 2048
 ```
+
+| Key                           | Default     | Meaning                                                                                                |
+| ----------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+| `connection.address`          | (required)  | Temporal frontend service, `host:port`.                                                                |
+| `connection.namespaces`       | `[default]` | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
+| `connection.defaultNamespace` | `default`   | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
+| `connection.auth.type`        | `none`      | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
+| `connection.auth.token`       |             | Token for `bearer`. A secret: read it from an environment variable.                                    |
+| `webUi.baseUrl`               |             | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
+| `searchAttributes.entityRef`  |             | Keyword search attribute with the entity reference of a workflow.                                      |
+| `searchAttributes.initiator`  |             | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
+| `control.enabled`             | `true`      | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
+| `control.allowedSignals`      | (all)       | Signal names that may be sent.                                                                         |
+| `control.allowedUpdates`      | (all)       | Update names that may be sent.                                                                         |
+| `payloads.s3.bucket`          | (required)  | Bucket the workers store payloads in.                                                                  |
+| `payloads.s3.endpoint`        | AWS S3      | Endpoint of an S3-compatible service.                                                                  |
+| `payloads.s3.region`          | `us-east-1` | Region.                                                                                                |
+| `payloads.s3.forcePathStyle`  | `false`     | Bucket in the path instead of the host name (most self-hosted services).                               |
+| `payloads.s3.credentials`     | (required)  | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
+| `payloads.s3.maxInlineBytes`  | `262144`    | JSON payloads up to this size are shown like payloads in the history.                                  |
+| `payloads.s3.previewBytes`    | `2048`      | Bytes of text shown as the preview of a larger payload.                                                |
+
+All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
+`webUi` and `control`; the token and the S3 credentials stay in the backend.
 
 ### Authentication
 
@@ -266,8 +412,10 @@ config sets `jwtKeyProvider.keySourceURIs` (the public keys of the token
 issuer, as JWKS), `authorizer: default` and `claimMapper: default`. The
 default claim mapper reads the permissions claim (`permissionsClaimName`,
 by default `permissions`) with values like `default:read`, meaning the read
-role on the `default` namespace. The plugin only reads workflows, so a token
-with the read role on the namespaces in `connection.namespaces` is enough.
+role on the `default` namespace. To show workflows, a token with the read
+role on the namespaces in `connection.namespaces` is enough; the workflow
+controls (start, signal, update, cancel, terminate, rerun) need the write
+role.
 See the Temporal documentation on server security for the details. The token
 is read at startup; restart the backend after it is replaced.
 
@@ -281,7 +429,7 @@ SHA-256, original encoding and media type. See its README for the worker
 setup, the key layout, bucket permissions and lifecycle cleanup.
 
 To show the stored data in Backstage, give the backend read access to the
-same bucket:
+same bucket (and allow `blob:` images, see [Installation](#backend)):
 
 ```yaml
 temporal:
@@ -626,21 +774,47 @@ to `workflowActions`. Custom components can call the actions and the
 operations with `TemporalApi` (`runWorkflowAction`, `signalWorkflow`, …).
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
 
-## Compatibility
+## Security
 
-The main line targets Backstage **1.56.x** (see `backstage.json`), which is the
-minimum supported version. Both frontend systems are supported: the legacy
-system (`EntityPage.tsx`) and the new frontend system (`./alpha`).
+- **Secrets stay in the backend.** The Temporal token
+  (`connection.auth.token`) and the S3 credentials are marked as secrets in
+  the config schema and are never sent to the browser. Read them from
+  environment variables or mounted secrets, not from files in git.
+- **Access is open by default.** With the allow-all policy, or with the
+  permission framework off, every signed-in user can read every workflow
+  of the configured namespaces (including inputs and results) and use
+  every operation. Write a permission policy before you enable the plugin
+  for people who should not have that (see [Permissions](#permissions)).
+- **Inputs and results can contain personal or secret data.** They are part
+  of the history and need `temporal.workflow.history.read`; without it the
+  graph is shown without them. Keep the list permissions
+  (`temporal.workflow.list`, `.history.list`) for people who may read every
+  workflow.
+- **Least privilege towards Temporal and S3.** The token only needs the read
+  role on the namespaces in `connection.namespaces` (plus the write role if
+  you use the operations); the S3 key only needs `s3:GetObject` on the
+  payload bucket. List only the namespaces Backstage should see.
+- **No TLS on the Temporal connection.** `auth.type: bearer` sends the token
+  without TLS, for a Temporal server inside a private network. Do not point
+  it at a server across an untrusted network.
+- **Operations are recorded.** Every operation is checked with the
+  permission framework and recorded with the auditor, and the Temporal
+  history shows the user as the identity. Limit signal and update names
+  with `control.allowedSignals` and `control.allowedUpdates`, or turn the
+  operations off with `control.enabled: false`.
+- **Downloads are checked.** A payload can only be downloaded when its key
+  belongs to a claim check in the history of the run and names the
+  configured bucket; its SHA-256 is checked on the way. No presigned URLs
+  are handed out.
+- **Images from S3** are shown from `blob:` URLs; allow `blob:` in
+  `img-src` only (see [Installation](#backend)).
 
-The screens use the Backstage design system `@backstage/ui`; the app must
-load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
-1.56 do). Light and dark themes follow the app theme. The step graph uses
-[React Flow](https://reactflow.dev) (`@xyflow/react`) with the
-[dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed.
+Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 ## Development
 
-Requirements: Node.js 22 or 24, and Yarn 4 through Corepack.
+Requirements: Node.js 22 or 24, Yarn 4 through Corepack, and Docker or the
+Temporal CLI for a local Temporal server.
 
 ```sh
 corepack enable
@@ -717,7 +891,8 @@ resolved from the release in `backstage.json` by the Backstage Yarn plugin.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). To report a vulnerability, see
+[SECURITY.md](SECURITY.md).
 
 ## License
 

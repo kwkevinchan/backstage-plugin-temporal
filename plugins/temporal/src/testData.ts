@@ -17,6 +17,7 @@
 import { Entity } from '@backstage/catalog-model';
 import type {
   WorkflowDetail,
+  WorkflowGraphNode,
   WorkflowGraphResponse,
   WorkflowProgressResponse,
   WorkflowStatsResponse,
@@ -388,6 +389,103 @@ export const loopsResponse: WorkflowLoopsResponse = {
     },
   ],
 };
+
+/** Start of the run in {@link timelineNodes}. */
+export const TIMELINE_T0 = Date.UTC(2026, 0, 1, 10, 0, 0);
+const tAt = (seconds: number) =>
+  new Date(TIMELINE_T0 + seconds * 1000).toISOString();
+
+/**
+ * Steps of a running order workflow for the timeline: a quick activity, a
+ * failed one after retries, a timer, a signal, a running activity and a
+ * wait.
+ */
+export const timelineNodes: WorkflowGraphNode[] = [
+  {
+    id: 'start',
+    kind: 'workflowStarted',
+    name: 'Start',
+    status: 'Completed',
+    startTime: tAt(0),
+    endTime: tAt(0),
+    events: [],
+  },
+  {
+    id: 'activity-5',
+    kind: 'activity',
+    name: 'reserveStock',
+    status: 'Completed',
+    startTime: tAt(1),
+    endTime: tAt(4),
+    attempt: 1,
+    events: [
+      { eventId: '5', eventType: 'ActivityTaskScheduled', eventTime: tAt(1) },
+      { eventId: '6', eventType: 'ActivityTaskStarted', eventTime: tAt(2) },
+      { eventId: '7', eventType: 'ActivityTaskCompleted', eventTime: tAt(4) },
+    ],
+  },
+  {
+    id: 'activity-9',
+    kind: 'activity',
+    name: 'chargeCard',
+    status: 'Failed',
+    startTime: tAt(5),
+    endTime: tAt(20),
+    attempt: 3,
+    maximumAttempts: 3,
+    events: [
+      { eventId: '9', eventType: 'ActivityTaskScheduled', eventTime: tAt(5) },
+      { eventId: '10', eventType: 'ActivityTaskStarted', eventTime: tAt(15) },
+      { eventId: '11', eventType: 'ActivityTaskFailed', eventTime: tAt(20) },
+    ],
+  },
+  {
+    id: 'timer-12',
+    kind: 'timer',
+    name: 'Timer 10s',
+    status: 'Completed',
+    startTime: tAt(21),
+    endTime: tAt(31),
+    events: [],
+  },
+  {
+    id: 'signal-14',
+    kind: 'signal',
+    name: 'approve',
+    status: 'Completed',
+    startTime: tAt(25),
+    endTime: tAt(25),
+    events: [],
+  },
+  {
+    id: 'wft-3',
+    kind: 'workflowTask',
+    name: 'Workflow task',
+    status: 'Completed',
+    internal: true,
+    startTime: tAt(0),
+    events: [],
+  },
+  {
+    id: 'activity-16',
+    kind: 'activity',
+    name: 'ship',
+    status: 'Running',
+    startTime: tAt(32),
+    attempt: 1,
+    attempts: [{ attempt: 1, status: 'Running', startedTime: tAt(34) }],
+    events: [
+      { eventId: '16', eventType: 'ActivityTaskScheduled', eventTime: tAt(32) },
+    ],
+  },
+  {
+    id: 'waiting',
+    kind: 'waiting',
+    name: 'Waiting',
+    status: 'Waiting',
+    events: [],
+  },
+];
 
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {

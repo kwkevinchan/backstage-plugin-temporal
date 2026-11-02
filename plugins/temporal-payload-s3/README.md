@@ -5,9 +5,9 @@ object store and keeps a small **claim check** in the workflow history
 instead (the claim check pattern). It works with any service that speaks
 the S3 protocol: AWS S3, RustFS, MinIO, Ceph, Cloudflare R2 and others.
 
-The [Backstage Temporal plugin](../../README.md) reads the claim checks and
+The [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) reads the claim checks and
 shows the stored data on the workflow page (see
-[Large payloads in S3](../../README.md#large-payloads-in-s3)).
+[Large payloads in S3](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#large-payloads-in-s3)).
 
 ## How it works
 
@@ -158,5 +158,5 @@ PAYLOAD_S3_ACCESS_KEY=dev-access PAYLOAD_S3_SECRET_KEY=dev-secret-key \
 ```
 
 RustFS listens on `http://localhost:9100` (path-style). See the
-[example worker](../../packages/example-worker/README.md) for a workflow with
+[example worker](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/packages/example-worker/README.md) for a workflow with
 large outputs.
