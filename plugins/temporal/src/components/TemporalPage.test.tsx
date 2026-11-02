@@ -16,15 +16,25 @@
 
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
+import {
+  renderInTestApp,
+  TestApiProvider,
+  mockApis,
+} from '@backstage/test-utils';
 import { entityRouteRef } from '@backstage/plugin-catalog-react';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { TemporalPageContent } from './TemporalPage';
 import { listResponse, mockTemporalApi } from '../testData';
 
 function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
   return renderInTestApp(
-    <TestApiProvider apis={[[temporalApiRef, api]]}>
+    <TestApiProvider
+      apis={[
+        [temporalApiRef, api],
+        [permissionApiRef, mockApis.permission()],
+      ]}
+    >
       <TemporalPageContent />
     </TestApiProvider>,
     {

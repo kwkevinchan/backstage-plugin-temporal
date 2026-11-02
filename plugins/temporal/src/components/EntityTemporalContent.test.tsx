@@ -16,8 +16,13 @@
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
+import {
+  renderInTestApp,
+  TestApiProvider,
+  mockApis,
+} from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
 import {
   temporalApiRef,
   TemporalWorkflowActionDef,
@@ -37,7 +42,12 @@ function render(
   workflowActions?: TemporalWorkflowActionDef[],
 ) {
   return renderInTestApp(
-    <TestApiProvider apis={[[temporalApiRef, api]]}>
+    <TestApiProvider
+      apis={[
+        [temporalApiRef, api],
+        [permissionApiRef, mockApis.permission()],
+      ]}
+    >
       <EntityProvider entity={entity}>
         <EntityTemporalContentPage workflowActions={workflowActions} />
       </EntityProvider>
@@ -258,7 +268,12 @@ describe('EntityTemporalContent', () => {
   it('shows the tab for entities of any kind', async () => {
     const api = mockTemporalApi();
     await renderInTestApp(
-      <TestApiProvider apis={[[temporalApiRef, api]]}>
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, api],
+          [permissionApiRef, mockApis.permission()],
+        ]}
+      >
         <EntityProvider
           entity={{
             apiVersion: 'example.com/v1',

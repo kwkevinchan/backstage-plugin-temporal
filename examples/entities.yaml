@@ -53,6 +53,26 @@ spec:
   system: examples
   lifecycle: experimental
 ---
+# Started from Backstage (Start workflow on its Temporal tab), with the
+# example input below. Takes signals (addNote, close), an update with a
+# validator (setPriority) and a query (state). Needs a running worker:
+# `yarn workspace example-worker serve`.
+apiVersion: temporal.io/v1alpha1
+kind: TemporalWorkflow
+metadata:
+  name: example-ticket-workflow
+  title: Example ticket workflow
+  description: A support ticket that runs until it is closed or canceled.
+spec:
+  owner: guests
+  workflowType: ticketWorkflow
+  taskQueue: backstage-example
+  system: examples
+  lifecycle: experimental
+  exampleInput:
+    title: Printer is out of paper
+    priority: normal
+---
 # A component that uses the two workflows (spec.dependsOn) and also carries
 # an annotation for its own deployment workflow. Its Temporal tab merges both.
 apiVersion: backstage.io/v1alpha1

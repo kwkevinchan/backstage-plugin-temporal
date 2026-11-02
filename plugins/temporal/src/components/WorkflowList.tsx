@@ -18,13 +18,22 @@ import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  isTemporalWorkflowEntity,
+  WorkflowStatus,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
+import { StartWorkflowButton } from './controls/StartWorkflow';
 import { ErrorAlert } from './feedback';
 import { PanelCard } from './PanelCard';
-import { Pager, StatusSelect, WorkflowRunsTable } from './WorkflowRunsTable';
+import {
+  Pager,
+  StatusSelect,
+  workflowLink,
+  WorkflowRunsTable,
+} from './WorkflowRunsTable';
 import { statusLabel } from './WorkflowStatusLabel';
 
 export { workflowLink } from './WorkflowRunsTable';
@@ -97,6 +106,9 @@ export function WorkflowList(props: { title?: string }) {
           <Button variant="secondary" size="small" onPress={retry}>
             Refresh
           </Button>
+          {isTemporalWorkflowEntity(entity) && (
+            <StartWorkflowButton entity={entity} workflowHref={workflowLink} />
+          )}
         </>
       }
     >

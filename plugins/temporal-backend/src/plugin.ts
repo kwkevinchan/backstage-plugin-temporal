@@ -19,7 +19,10 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
-import { temporalPermissions } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  isValidControlActionId,
+  temporalPermissions,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   TemporalControlAction,
   temporalExtensionPoint,
@@ -28,10 +31,15 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { createRouter } from './router';
 import { ExternalPayloads } from './service/payloads';
+import {
+  readControlOptions,
+  WorkflowController,
+} from './service/WorkflowController';
 import { WorkflowReader } from './service/WorkflowReader';
 
 /**
- * Backend plugin for Temporal. Serves read-only routes under `/api/temporal`.
+ * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
+ * workflows and, checked with the permission framework, change them.
  *
  * @public
  */
@@ -59,6 +67,7 @@ export const temporalPlugin = createBackendPlugin({
       deps: {
         logger: coreServices.logger,
         config: coreServices.rootConfig,
+        auditor: coreServices.auditor,
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
         permissions: coreServices.permissions,
@@ -69,6 +78,7 @@ export const temporalPlugin = createBackendPlugin({
       async init({
         logger,
         config,
+        auditor,
         httpAuth,
         httpRouter,
         permissions,
@@ -77,10 +87,14 @@ export const temporalPlugin = createBackendPlugin({
         temporal,
       }) {
         permissionsRegistry.addPermissions(temporalPermissions);
-        if (controlActions.length > 0) {
-          logger.warn(
-            `${controlActions.length} Temporal control action(s) registered; control routes are not served by this version`,
-          );
+        for (const action of controlActions) {
+          if (!isValidControlActionId(action.id)) {
+            throw new Error(`Invalid control action id: ${action.id}`);
+          }
+        }
+        const controlOptions = readControlOptions(config);
+        if (!controlOptions.enabled) {
+          logger.info('Temporal workflow controls are disabled');
         }
         const reader = new WorkflowReader(
           temporal,
@@ -88,8 +102,20 @@ export const temporalPlugin = createBackendPlugin({
           logger,
           ExternalPayloads.fromConfig(config, logger),
         );
+        const controller = new WorkflowController(temporal, controlOptions);
         httpRouter.use(
-          await createRouter({ httpAuth, permissions, catalog, reader }),
+          await createRouter({
+            httpAuth,
+            permissions,
+            catalog,
+            reader,
+            controls: {
+              auditor,
+              temporal,
+              controller,
+              actions: controlActions,
+            },
+          }),
         );
       },
     });

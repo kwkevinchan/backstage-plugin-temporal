@@ -62,6 +62,8 @@
     "@backstage/catalog-model": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
+    "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/types": "backstage:^",
     "@backstage/version-bridge": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
   },

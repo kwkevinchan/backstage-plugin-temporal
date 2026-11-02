@@ -48,6 +48,8 @@ import {
   Text,
 } from '@backstage/ui';
 import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
+import { ControlActionButton } from './controls/ControlActionButton';
+import { WorkflowControls } from './controls/WorkflowControls';
 import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
@@ -428,9 +430,26 @@ export function WorkflowDetailPage(
                   {formatTime(workflow.startTime) || '—'}
                 </SummaryItem>
                 <div className={tp('tp-summary-actions')}>
-                  {actions.map(({ id, component: Action }) => (
+                  <WorkflowControls
+                    workflow={workflow}
+                    entityRef={entityRef}
+                    reload={data.reload}
+                    workflowHref={workflowHref}
+                  />
+                  {actions.map(({ id, component: Action, controlAction }) => (
                     <div key={id} data-testid={`temporal-action-${id}`}>
-                      <Action {...extensionProps} />
+                      {Action ? (
+                        <Action {...extensionProps} />
+                      ) : (
+                        controlAction && (
+                          <ControlActionButton
+                            action={controlAction}
+                            workflow={workflow}
+                            entityRef={entityRef}
+                            reload={data.reload}
+                          />
+                        )
+                      )}
                     </div>
                   ))}
                   {workflow.webUiUrl && (

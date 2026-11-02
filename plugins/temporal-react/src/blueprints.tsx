@@ -22,6 +22,7 @@ import {
 } from '@backstage/frontend-plugin-api';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
+  TemporalControlActionButton,
   TemporalWorkflowActionDef,
   TemporalWorkflowExtensionProps,
   TemporalWorkflowSectionDef,
@@ -85,6 +86,15 @@ function lazyComponent(
  *     filter: workflow => workflow.status === 'Running',
  *   },
  * });
+ *
+ * // A button that runs a custom action of the backend.
+ * TemporalWorkflowActionBlueprint.make({
+ *   name: 'escalate',
+ *   params: {
+ *     controlAction: { actionId: 'escalate', label: 'Escalate' },
+ *     filter: workflow => workflow.status === 'Running',
+ *   },
+ * });
  * ```
  *
  * @alpha
@@ -96,14 +106,23 @@ export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
   dataRefs: { action: temporalWorkflowActionDataRef },
   *factory(
     params: {
-      loader: Loader;
+      /** Loads the control to show. */
+      loader?: Loader;
+      /** Instead of `loader`: a button that runs a custom backend action. */
+      controlAction?: TemporalControlActionButton;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },
   ) {
+    if (!params.loader && !params.controlAction) {
+      throw new Error(
+        `${node.spec.id}: a workflow action needs a loader or a controlAction`,
+      );
+    }
     yield temporalWorkflowActionDataRef({
       id: node.spec.id,
-      component: lazyComponent(node, params.loader),
+      component: params.loader ? lazyComponent(node, params.loader) : undefined,
+      controlAction: params.controlAction,
       filter: params.filter,
     });
   },

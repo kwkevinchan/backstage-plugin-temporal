@@ -15,6 +15,7 @@
  */
 
 import { createBackend } from '@backstage/backend-defaults';
+import { escalateActionModule } from './escalateAction';
 
 const backend = createBackend();
 
@@ -39,5 +40,7 @@ backend.add(
 );
 
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Example custom workflow action (Escalate on ticket workflows).
+backend.add(escalateActionModule);
 
 backend.start();

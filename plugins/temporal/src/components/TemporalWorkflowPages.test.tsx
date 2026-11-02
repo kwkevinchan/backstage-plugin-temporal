@@ -15,7 +15,7 @@
  */
 
 import { screen, within } from '@testing-library/react';
-import { MockConfigApi } from '@backstage/test-utils';
+import { MockConfigApi, mockApis } from '@backstage/test-utils';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { configApiRef } from '@backstage/core-plugin-api';
 import { Entity } from '@backstage/catalog-model';
@@ -25,6 +25,7 @@ import {
   EntityProvider,
 } from '@backstage/plugin-catalog-react';
 import { catalogApiMock } from '@backstage/plugin-catalog-react/testUtils';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import {
@@ -42,6 +43,7 @@ async function render(entity: Entity, api: ReturnType<typeof mockTemporalApi>) {
     <TestApiProvider
       apis={[
         [temporalApiRef, api],
+        [permissionApiRef, mockApis.permission()],
         [configApiRef, config],
         [catalogApiRef, catalogApiMock({ entities: [workflowEntity] })],
       ]}

@@ -15,6 +15,7 @@
  */
 
 import type { Entity } from '@backstage/catalog-model';
+import type { JsonValue } from '@backstage/types';
 import {
   isValidNamespaceName,
   isValidTaskQueueName,
@@ -61,6 +62,11 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
     lifecycle?: string;
     /** Entity references of what the workflow needs, like resources. */
     dependsOn?: string[];
+    /**
+     * Example arguments, filled in the "Start workflow" dialog: an array of
+     * workflow arguments, or one value for a workflow with one argument.
+     */
+    exampleInput?: JsonValue;
   };
 }
 
@@ -139,6 +145,10 @@ export const temporalWorkflowEntityV1alpha1Schema = {
               description:
                 'Entity references of what the workflow needs, like resources.',
               items: { type: 'string', minLength: 1 },
+            },
+            exampleInput: {
+              description:
+                'Example arguments for the Start workflow dialog: an array of arguments, or one value for a workflow with one argument.',
             },
           },
         },
@@ -240,4 +250,21 @@ export function parseTemporalWorkflowSpec(entity: Entity): TemporalAnnotations {
     );
   }
   return { namespace, taskQueue, workflowTypes: [workflowType] };
+}
+
+/**
+ * The example arguments of a `TemporalWorkflow` entity (`spec.exampleInput`)
+ * as an argument list: an array as it is, any other value as the only
+ * argument. Undefined when the entity has none.
+ *
+ * @public
+ */
+export function getTemporalWorkflowExampleArgs(
+  entity: Entity,
+): JsonValue[] | undefined {
+  if (!isTemporalWorkflowEntity(entity)) return undefined;
+  const value = (entity.spec as { exampleInput?: JsonValue } | undefined)
+    ?.exampleInput;
+  if (value === undefined) return undefined;
+  return Array.isArray(value) ? value : [value];
 }

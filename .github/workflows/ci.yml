@@ -162,6 +162,7 @@ jobs:
         run: |
           temporal server start-dev --headless --port 7233 \
             --search-attribute BackstageEntityRef=Keyword \
+            --search-attribute BackstageInitiator=Keyword \
             --search-attribute ApprovalPending=Bool > temporal.log 2>&1 &
           for i in $(seq 1 60); do
             temporal operator cluster health 2>/dev/null | grep -q SERVING && break
@@ -183,6 +184,16 @@ jobs:
       - name: Start example workflows
         run: yarn workspace example-worker start
 
+      # Signals, updates, queries and started workflows of the control tests.
+      - name: Start example worker
+        run: |
+          yarn workspace example-worker serve > worker.log 2>&1 &
+          for i in $(seq 1 30); do
+            grep -q "Worker polling" worker.log && break
+            sleep 2
+          done
+          cat worker.log
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
@@ -198,4 +209,5 @@ jobs:
             e2e-test-results/
             e2e-test-report/
             temporal.log
+            worker.log
           retention-days: 7
