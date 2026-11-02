@@ -15,7 +15,9 @@
  */
 
 /**
- * Entry point for the new frontend system.
+ * Entry point for the new frontend system: the plugin (default export), its
+ * extensions, and the blueprints for workflow actions and sections that
+ * other plugins and app modules add.
  *
  * @packageDocumentation
  */
@@ -42,17 +44,22 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import {
-  temporalApiRef,
-  temporalWorkflowExtensionsApiRef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from './common';
+import { temporalApiRef, temporalWorkflowExtensionsApiRef } from './extensions';
 import {
   temporalWorkflowActionDataRef,
   temporalWorkflowSectionDataRef,
-} from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
+} from './extensions/blueprints';
 import { TemporalClient } from './api';
 import { entityContentRouteRef, rootRouteRef } from './routes';
+
+export {
+  TemporalWorkflowActionBlueprint,
+  TemporalWorkflowSectionBlueprint,
+  temporalWorkflowActionDataRef,
+  temporalWorkflowSectionDataRef,
+  TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
+} from './extensions/blueprints';
 
 /** @alpha */
 export const temporalApi = ApiBlueprint.make({

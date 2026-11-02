@@ -43,7 +43,7 @@
     "@backstage/catalog-model": "backstage:^",
     "@backstage/plugin-catalog-common": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
   },
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",

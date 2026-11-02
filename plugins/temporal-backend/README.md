@@ -19,11 +19,36 @@ backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
 ```
 
 It needs the catalog and the permission framework, and
-`temporal.connection` in the app config. Payloads stored in S3 by
-`@kwkevinchan/temporal-payload-s3` are shown when `temporal.payloads.s3` is
+`temporal.connection` in the app config. Payloads stored in S3 by the `/s3` codec of
+`@kwkevinchan/temporal-workflow-kit` are shown when `temporal.payloads.s3` is
 configured; allow `blob:` in `backend.csp.img-src` for their image
 thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
 permission policy.
+
+The backend reads claim checks and the S3 objects behind them with its own
+code and the AWS SDK; it does not depend on the workflow kit (a worker
+package).
+
+## Exports
+
+- The default export is the plugin.
+- `temporalServiceRef`: root-scoped service with one shared Temporal
+  connection, configured under `temporal.connection` (address, namespaces,
+  `auth` with `none` or `bearer`). Only `@temporalio/client` is used.
+- `temporalExtensionPoint`: `addWorkflowEnricher()` adds data to workflow
+  summaries; `addControlAction()` adds a custom workflow action, served as
+  `POST .../actions/:actionId` and checked with its own permission.
+- The permissions (`temporalPermissions`, `temporalWorkflowReadPermission`
+  and the others) for permission policies, the annotation constants, the
+  `TemporalWorkflow` kind (schema and type guards) and the response types of
+  the API.
+
+Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
+backend module imports a backend plugin. For a module that uses
+`temporalExtensionPoint`, list this package in the rule's
+`excludedTargetPackages`, as `plugins/catalog-backend-module-temporal` does.
+See [Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending)
+in the repository README for an example.
 
 ## API
 

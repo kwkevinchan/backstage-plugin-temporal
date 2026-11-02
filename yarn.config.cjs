@@ -21,8 +21,17 @@ const { defineConfig } = require('@yarnpkg/types');
 const REPO_URL = 'https://github.com/kwkevinchan/backstage-plugin-temporal';
 const SCOPE = '@kwkevinchan/';
 const NPMJS = 'https://registry.npmjs.org/';
-/** Library for workflow code (runs in the workflow sandbox). */
-const WORKFLOW_HELPER = '@kwkevinchan/temporal-loop';
+/**
+ * Library for Temporal workers: `/s3` (payload codec) and `/loop` (runs in
+ * the workflow sandbox). It has no runtime dependencies; the AWS and
+ * Temporal SDKs are optional peer dependencies, so a worker that only uses
+ * `/loop` does not install the AWS SDK.
+ */
+const WORKFLOW_KIT = '@kwkevinchan/temporal-workflow-kit';
+const WORKFLOW_KIT_PEERS = new Set([
+  '@aws-sdk/client-s3',
+  '@temporalio/workflow',
+]);
 
 const BACKEND_ROLES = new Set([
   'backend',
@@ -174,9 +183,9 @@ module.exports = defineConfig({
         }
       }
 
-      // Libraries stay below plugins: a web-library (for example the
-      // extension points in temporal-react) must not depend on a frontend
-      // plugin, and a node-library must not depend on a backend plugin.
+      // Libraries stay below plugins: a web-library must not depend on a
+      // frontend plugin, and a node-library must not depend on a backend
+      // plugin.
       if (
         role === 'web-library' &&
         dep.type !== 'devDependencies' &&
@@ -194,13 +203,31 @@ module.exports = defineConfig({
         dep.error(`node-library packages must not depend on ${dep.ident}`);
       }
 
+      // The workflow kit: only optional peer dependencies at run time.
+      if (workspace.ident === WORKFLOW_KIT && dep.type !== 'devDependencies') {
+        if (
+          dep.type !== 'peerDependencies' ||
+          !WORKFLOW_KIT_PEERS.has(dep.ident)
+        ) {
+          dep.error(
+            `${WORKFLOW_KIT} may only have ${[...WORKFLOW_KIT_PEERS].join(
+              ', ',
+            )} as (optional) peer dependencies, not ${dep.ident} in ${
+              dep.type
+            }`,
+          );
+        } else {
+          workspace.set(['peerDependenciesMeta', dep.ident, 'optional'], true);
+        }
+      }
+
       // Published packages talk to Temporal through the client only; the
       // worker and workflow packages (native code, sandbox) stay out.
-      // The one exception is the loop helper, which runs inside workflow
-      // code: it uses @temporalio/workflow as a peer dependency, so the
-      // workflow's own SDK version is used and nothing is bundled twice.
+      // The one exception is the workflow kit, whose `/loop` runs inside
+      // workflow code: it uses @temporalio/workflow as a peer dependency, so
+      // the workflow's own SDK version is used and nothing is bundled twice.
       const isWorkflowHelperPeer =
-        workspace.ident === WORKFLOW_HELPER &&
+        workspace.ident === WORKFLOW_KIT &&
         dep.type === 'peerDependencies' &&
         dep.ident === '@temporalio/workflow';
       if (

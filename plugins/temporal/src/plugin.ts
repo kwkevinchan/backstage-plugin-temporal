@@ -22,7 +22,7 @@ import {
   discoveryApiRef,
   fetchApiRef,
 } from '@backstage/core-plugin-api';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { temporalApiRef } from './extensions';
 import { TemporalClient } from './api';
 import { entityContentRouteRef, rootRouteRef } from './routes';
 

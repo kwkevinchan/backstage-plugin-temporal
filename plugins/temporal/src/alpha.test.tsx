@@ -30,11 +30,11 @@ import {
   temporalApiRef,
   TemporalWorkflowExtensionsApi,
   temporalWorkflowExtensionsApiRef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from './extensions';
 import {
   TemporalWorkflowActionBlueprint,
   TemporalWorkflowSectionBlueprint,
-} from '@kwkevinchan/backstage-plugin-temporal-react/alpha';
+} from './extensions/blueprints';
 import temporalPlugin from './alpha';
 import { EntityCardBlueprint } from '@backstage/plugin-catalog-react/alpha';
 import {

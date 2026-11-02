@@ -1,7 +1,7 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-backend",
   "version": "0.0.0",
-  "description": "Unofficial Backstage backend plugin for Temporal workflows",
+  "description": "Unofficial Backstage backend plugin for Temporal workflows, with the shared Temporal client service, extension points, permissions and types",
   "license": "Apache-2.0",
   "keywords": [
     "backstage",
@@ -30,10 +30,7 @@
     "pluginId": "temporal",
     "pluginPackages": [
       "@kwkevinchan/backstage-plugin-temporal",
-      "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node",
-      "@kwkevinchan/backstage-plugin-temporal-react"
+      "@kwkevinchan/backstage-plugin-temporal-backend"
     ]
   },
   "scripts": {
@@ -45,6 +42,7 @@
     "postpack": "backstage-cli package postpack"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.350.0",
     "@backstage/backend-plugin-api": "backstage:^",
     "@backstage/catalog-model": "backstage:^",
     "@backstage/config": "backstage:^",
@@ -53,9 +51,6 @@
     "@backstage/plugin-permission-common": "backstage:^",
     "@backstage/plugin-permission-node": "backstage:^",
     "@backstage/types": "backstage:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",
-    "@kwkevinchan/temporal-payload-s3": "workspace:^",
     "@temporalio/client": "~1.24.0",
     "express": "^4.14.0",
     "express-promise-router": "^4.1.0"
@@ -66,6 +61,7 @@
     "@backstage/cli": "backstage:^",
     "@backstage/plugin-catalog-backend": "backstage:^",
     "@backstage/plugin-permission-backend": "backstage:^",
+    "@grpc/grpc-js": "^1.12.4",
     "@types/express": "^4.17.6",
     "@types/supertest": "^2.0.12",
     "supertest": "^6.2.4"

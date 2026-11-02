@@ -17,7 +17,7 @@
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { temporalApiRef } from '../extensions';
 import { Button, Grid, Text } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { ErrorAlert, Loading } from './feedback';

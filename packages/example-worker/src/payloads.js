@@ -24,7 +24,9 @@ const {
   HeadBucketCommand,
   S3Client,
 } = require('@aws-sdk/client-s3');
-const { createS3DataConverter } = require('@kwkevinchan/temporal-payload-s3');
+const {
+  createS3DataConverter,
+} = require('@kwkevinchan/temporal-workflow-kit/s3');
 
 /** Data converter and bucket, or undefined when S3 is not configured. */
 async function payloadStorage() {

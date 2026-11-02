@@ -29,6 +29,8 @@
     "start:next": "backstage-cli repo start packages/app-next packages/backend",
     "boundaries": "node scripts/check-boundaries.mjs",
     "boundaries:selftest": "node scripts/check-boundaries.test.mjs",
+    "sync:common": "node scripts/sync-common.mjs",
+    "sync:common:check": "node scripts/sync-common.mjs --check",
     "changeset": "changeset",
     "prepare": "husky",
     "test:e2e:next": "SMOKE_APP=app-next playwright test"

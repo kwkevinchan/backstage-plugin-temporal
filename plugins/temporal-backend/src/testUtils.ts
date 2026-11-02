@@ -16,10 +16,7 @@
 
 import { createServiceFactory } from '@backstage/backend-plugin-api';
 import { Entity } from '@backstage/catalog-model';
-import {
-  TemporalService,
-  temporalServiceRef,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+import { TemporalService, temporalServiceRef } from './service/TemporalService';
 
 export const ordersEntity: Entity = {
   apiVersion: 'backstage.io/v1alpha1',

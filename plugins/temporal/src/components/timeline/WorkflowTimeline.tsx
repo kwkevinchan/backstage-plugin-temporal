@@ -24,10 +24,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type {
-  WorkflowGraphResponse,
-  WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowGraphResponse, WorkflowStatus } from '../../common';
 import { Button, Flex, Text } from '@backstage/ui';
 import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react';
 import { formatTime } from '../format';
@@ -368,7 +365,7 @@ function GroupHeader(props: {
   );
 }
 
-function Legend() {
+function Legend(props: { rounds: boolean }) {
   const item = (cls: string, text: string, tone = 'tp-tone-success') => (
     <span className={tp('tp-tl-legend-item')}>
       <span className={tp('tp-tl-legend-swatch', cls, tone)} aria-hidden />
@@ -382,6 +379,7 @@ function Legend() {
       {item('tp-tl-legend-run', 'Failed', 'tp-tone-danger')}
       {item('tp-tl-legend-wait', 'Timer or wait', 'tp-tone-neutral')}
       {item('tp-tl-legend-point', 'Signal or update', 'tp-tone-info')}
+      {props.rounds && item('tp-tl-legend-round', 'Collapsed round')}
     </div>
   );
 }
@@ -614,7 +612,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           </Button>
         </Flex>
       </Flex>
-      <Legend />
+      <Legend rounds={groups.length > 0} />
       <div
         ref={chartRef}
         className={tp('tp-tl-chart')}

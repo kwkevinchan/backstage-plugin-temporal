@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { Button } from '@backstage/ui';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal-react';
+import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
 
 /** Example workflow action used by both development apps. */
 export function CopyWorkflowIdAction(props: TemporalWorkflowExtensionProps) {

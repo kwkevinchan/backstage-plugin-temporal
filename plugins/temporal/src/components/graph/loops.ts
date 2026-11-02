@@ -19,7 +19,7 @@ import type {
   WorkflowGraphNode,
   WorkflowLoopGroup,
   WorkflowLoopRound,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { hideSteps } from './layout';
 
 /** How one loop is shown: collapsed, or expanded to one round. */

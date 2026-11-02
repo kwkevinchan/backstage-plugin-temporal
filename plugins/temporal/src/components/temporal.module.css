@@ -751,11 +751,19 @@
   border-top: none;
   border-radius: 0 0 3px 3px;
 }
+/*
+ * A collapsed round: a neutral pill with a border in the status colour of
+ * the round, so it does not look like the tinted "Queued" part of a bar.
+ */
+.tp-tl-group-bar[data-expanded='false'],
+.tp-tl-legend-round {
+  box-sizing: border-box;
+  border: 2px solid var(--tp-fg);
+  border-radius: 999px;
+  background: var(--bui-bg-neutral-4);
+}
 .tp-tl-group-bar[data-expanded='false'] {
-  height: 12px;
-  border: none;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--tp-fg) 45%, transparent);
+  height: 14px;
 }
 .tp-tl-tooltip {
   position: absolute;

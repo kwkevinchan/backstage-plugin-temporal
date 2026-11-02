@@ -23,7 +23,7 @@ import {
 } from '@backstage/test-utils';
 import { entityRouteRef } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { temporalApiRef } from '../extensions';
 import { TemporalPageContent } from './TemporalPage';
 import { listResponse, mockTemporalApi } from '../testData';
 

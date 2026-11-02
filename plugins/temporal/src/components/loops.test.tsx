@@ -23,7 +23,7 @@ import {
 } from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+import { temporalApiRef } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { groupLoops, isLoopBoxNode } from './graph/loops';
 import {

@@ -25,7 +25,7 @@ import {
   WorkflowHistoryEvent,
   WorkflowStatus,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { claimCheckOf, EXTERNAL_PAYLOAD } from './payloads';
 
 /*

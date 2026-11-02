@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { WorkflowFailure } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowFailure } from '../common';
 import { Text } from '@backstage/ui';
 import { tp } from './styles';
 

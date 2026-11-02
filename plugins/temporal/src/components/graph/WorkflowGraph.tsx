@@ -32,7 +32,7 @@ import {
   useStore,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowGraphResponse } from '../../common';
 import { Button, ButtonIcon, Flex, Switch, Text } from '@backstage/ui';
 import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
 import { isMarkerStep, isOpenStep } from '../steps';

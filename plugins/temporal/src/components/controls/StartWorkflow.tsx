@@ -25,8 +25,8 @@ import {
   parseTemporalWorkflowSpec,
   temporalWorkflowStartPermission,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../../common';
+import { temporalApiRef } from '../../extensions';
 import {
   Button,
   Dialog,

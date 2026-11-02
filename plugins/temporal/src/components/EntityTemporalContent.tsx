@@ -23,11 +23,11 @@ import {
   isTemporalWorkflowEntity,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowSectionDef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../extensions';
 import { Flex, Grid } from '@backstage/ui';
 import { TemporalRelatedWorkflowsCard } from './TemporalRelatedWorkflowsCard';
 import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';

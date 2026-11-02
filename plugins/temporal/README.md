@@ -41,5 +41,36 @@ Legacy frontend system:
 | `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                       |
 | `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).         |
 
-Extensions of the workflow page (actions and sections) come from
-[`@kwkevinchan/backstage-plugin-temporal-react`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-react/README.md).
+## Extension points
+
+Plugins and app modules that add buttons or tabs to the workflow page, or
+that call the Temporal backend from their own components, use these exports.
+
+- `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
+  workflow reads and operations (start, signal, update, query, cancel,
+  terminate, rerun, custom actions).
+- `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`: actions and tabs
+  for the legacy frontend system (props `workflowActions` and
+  `workflowSections` of `EntityTemporalContent` and `TemporalPage`).
+- `createTemporalControlActionDef()`: a button that runs a custom backend
+  action, for the legacy frontend system.
+- `useTemporalWorkflow()`, `TemporalWorkflowProvider`: the workflow shown on
+  the current page.
+- `temporalWorkflowExtensionsApiRef`: the shared mount point of actions and
+  sections.
+- `./alpha`: `TemporalWorkflowActionBlueprint` (with a `loader` or a
+  `controlAction`) and `TemporalWorkflowSectionBlueprint` for the new
+  frontend system.
+- The permissions (`temporalWorkflowSignalPermission` and the others, the
+  same names and attributes as in the backend package), the annotation
+  constants and the response types of the backend API (`WorkflowDetail`,
+  `WorkflowSummary` and the others).
+
+Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
+frontend plugin with another `pluginId` imports this package. Add the
+extensions from an app module (`createFrontendModule`, as in
+`packages/app-next`) or a frontend plugin module, or list this package in the
+rule's `excludedTargetPackages`.
+
+See [Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending) in the repository README for
+examples.

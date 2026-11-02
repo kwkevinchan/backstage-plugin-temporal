@@ -1,0 +1,235 @@
+{
+  "description": "Shared examples of the claim check format. Read by the tests of @kwkevinchan/temporal-workflow-kit (s3, writes and reads) and @kwkevinchan/backstage-plugin-temporal-backend (reads), so both implementations stay in step. Data and metadata values are base64. The writer stores payloads under prefix 'temporal-payloads' in bucket 'temporal-payloads'.",
+  "bucket": "temporal-payloads",
+  "prefix": "temporal-payloads",
+  "valid": [
+    {
+      "name": "JSON payload of a workflow",
+      "context": {
+        "namespace": "default",
+        "workflowId": "order-1"
+      },
+      "payload": {
+        "metadata": {
+          "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "eyJoZWxsbyI6IndvcmxkIiwiaXRlbXMiOlsxLDIsM119"
+      },
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      }
+    },
+    {
+      "name": "PNG with extra metadata",
+      "context": {
+        "namespace": "billing",
+        "workflowId": "invoice-7"
+      },
+      "payload": {
+        "metadata": {
+          "encoding": "YmluYXJ5L3BsYWlu",
+          "note": "c2Nhbg=="
+        },
+        "data": "iVBORw0KGgoBAgME"
+      },
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/billing/invoice-7/4353a1de7e0dcc4e87350e22d5c9ee9f3e70e8ce9c31533ec991bee8870c4814",
+        "size": 12,
+        "sha256": "4353a1de7e0dcc4e87350e22d5c9ee9f3e70e8ce9c31533ec991bee8870c4814",
+        "encoding": "binary/plain",
+        "contentType": "image/png",
+        "metadata": {
+          "note": "c2Nhbg=="
+        }
+      }
+    },
+    {
+      "name": "Payload without a workflow",
+      "context": null,
+      "payload": {
+        "metadata": {
+          "encoding": "anNvbi9wbGFpbg=="
+        },
+        "data": "InRleHQi"
+      },
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/_/_/1e1d0f251d3a76fa2b1bfc81164078572623403887db02988b504b0492e9f076",
+        "size": 6,
+        "sha256": "1e1d0f251d3a76fa2b1bfc81164078572623403887db02988b504b0492e9f076",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "not an object",
+      "claimCheck": null,
+      "error": "Claim check is not an object"
+    },
+    {
+      "name": "an array",
+      "claimCheck": [],
+      "error": "Claim check is not an object"
+    },
+    {
+      "name": "unknown version",
+      "claimCheck": {
+        "version": 2,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Unsupported claim check version: 2"
+    },
+    {
+      "name": "unknown store",
+      "claimCheck": {
+        "version": 1,
+        "store": "gcs",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Unsupported claim check store: gcs"
+    },
+    {
+      "name": "no bucket",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Claim check has no bucket"
+    },
+    {
+      "name": "no key",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Claim check has no key"
+    },
+    {
+      "name": "negative size",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": -1,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Claim check has an invalid size"
+    },
+    {
+      "name": "fractional size",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 1.5,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Claim check has an invalid size"
+    },
+    {
+      "name": "upper-case sha256",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "A21D560561D5866E7FE0ED3CD00382E184EA710F53012A311723DE1F6915D27A",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "error": "Claim check has an invalid sha256"
+    },
+    {
+      "name": "metadata value not a string",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json",
+        "metadata": {
+          "note": 1
+        }
+      },
+      "error": "Claim check has invalid metadata"
+    }
+  ],
+  "integrity": [
+    {
+      "name": "wrong size",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 34,
+        "sha256": "a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "data": "eyJoZWxsbyI6IndvcmxkIiwiaXRlbXMiOlsxLDIsM119",
+      "error": "bytes, the claim check says"
+    },
+    {
+      "name": "wrong SHA-256",
+      "claimCheck": {
+        "version": 1,
+        "store": "s3",
+        "bucket": "temporal-payloads",
+        "key": "temporal-payloads/default/order-1/a21d560561d5866e7fe0ed3cd00382e184ea710f53012a311723de1f6915d27a",
+        "size": 33,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "encoding": "json/plain",
+        "contentType": "application/json"
+      },
+      "data": "eyJoZWxsbyI6IndvcmxkIiwiaXRlbXMiOlsxLDIsM119",
+      "error": "SHA-256"
+    }
+  ]
+}

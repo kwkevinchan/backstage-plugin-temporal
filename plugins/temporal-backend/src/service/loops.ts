@@ -24,12 +24,12 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { dropUndefined } from './convert';
 
 /*
  * Loops of a run, from the loop markers of its steps and the loop state in
- * the memo (see @kwkevinchan/temporal-loop). The marked steps of a loop are
+ * the memo (see @kwkevinchan/temporal-workflow-kit/loop). The marked steps of a loop are
  * grouped by round. Unmarked steps (timers, signals, markers) that start
  * while the loop runs belong to the round they started in, so a collapsed
  * loop has no arrows that go around it.

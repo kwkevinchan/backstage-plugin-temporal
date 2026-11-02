@@ -24,13 +24,13 @@ import type {
   WorkflowGraphResponse,
   WorkflowRef,
   WorkflowRunChain,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import {
   TemporalWorkflowActionDef,
   TemporalWorkflowProvider,
   TemporalWorkflowSectionDef,
   temporalWorkflowExtensionsApiRef,
-} from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../extensions';
 import {
   Alert,
   Button,

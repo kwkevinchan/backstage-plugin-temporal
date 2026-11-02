@@ -38,7 +38,7 @@ closed; the deployment and approval workflows stay running. Environment variable
 attribute). With `PAYLOAD_S3_ENDPOINT` (and `PAYLOAD_S3_BUCKET`, default
 `temporal-payloads`, `PAYLOAD_S3_ACCESS_KEY`, `PAYLOAD_S3_SECRET_KEY`), the
 client and the worker use the S3 payload codec of
-`@kwkevinchan/temporal-payload-s3`, the bucket is created when missing, and
+`@kwkevinchan/temporal-workflow-kit/s3`, the bucket is created when missing, and
 `reportWorkflow` runs too: its activities return about 1 MB of JSON, 180 KiB
 of JSON and a PNG chart, which are stored in S3 (see
 `examples/docker-compose.rustfs.yaml` for a local RustFS). The approval workflow sets the `ApprovalPending` search attribute

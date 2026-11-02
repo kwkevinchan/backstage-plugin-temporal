@@ -27,8 +27,8 @@ import type {
   WorkflowDetail,
   WorkflowRef,
   WorkflowStartResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+} from '../common';
+import { TemporalService } from './TemporalService';
 import { decodePayloads } from './convert';
 import { mapTemporalError } from './WorkflowReader';
 

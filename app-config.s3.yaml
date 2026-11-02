@@ -1,4 +1,4 @@
-# Large payloads stored in S3 (claim checks of @kwkevinchan/temporal-payload-s3).
+# Large payloads stored in S3 (claim checks of @kwkevinchan/temporal-workflow-kit/s3).
 # Local development with RustFS (examples/docker-compose.rustfs.yaml):
 #
 #   yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml

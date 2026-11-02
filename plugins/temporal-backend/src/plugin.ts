@@ -19,16 +19,13 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
-import {
-  isValidControlActionId,
-  temporalPermissions,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+import { isValidControlActionId, temporalPermissions } from './common';
 import {
   TemporalControlAction,
   temporalExtensionPoint,
-  temporalServiceRef,
   TemporalWorkflowEnricher,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+} from './extensions';
+import { temporalServiceRef } from './service/TemporalService';
 import { createRouter } from './router';
 import { ExternalPayloads } from './service/payloads';
 import {

@@ -38,8 +38,8 @@ import {
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import type { TemporalApi } from '@kwkevinchan/backstage-plugin-temporal-react';
+} from '../common';
+import type { TemporalApi } from '../extensions';
 
 function queryString(params: Record<string, string | number | undefined>) {
   const search = new URLSearchParams();
