@@ -72,7 +72,7 @@ workflow definition.
 | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
 | ![Workflow list of an entity](docs/images/entity-tab.png)        | ![Step graph with the step panel](docs/images/details-graph.png) |
 | **Timeline**                                                     | **Loop rounds**                                                  |
-| ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded to one round](docs/images/loop.png)            |
+| ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded, one frame per round](docs/images/loop.png)    |
 | **Large payload in S3**                                          | **Workflow controls**                                            |
 | ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
 | **A model call and its tool calls**                              | **LLM panel**                                                    |
