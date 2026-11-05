@@ -64,7 +64,7 @@ function TemporalOverview() {
           <TemporalWorkflowStatsCard />
         </Grid.Item>
         <Grid.Item colSpan={{ initial: '1', md: '2' }}>
-          <WorkflowList title="Runs" />
+          <WorkflowList title="Workflow executions" />
         </Grid.Item>
       </Grid.Root>
     );

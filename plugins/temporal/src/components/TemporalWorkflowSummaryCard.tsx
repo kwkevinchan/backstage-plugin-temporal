@@ -69,7 +69,8 @@ export function TemporalWorkflowSummaryCard() {
 
   return (
     <PanelCard
-      title="Temporal workflow"
+      title="Workflow type"
+      subtitle="This entity is one Temporal Workflow Type and its Workflow Definition (the workflow code)."
       actions={
         webUiUrl && (
           <ButtonLink

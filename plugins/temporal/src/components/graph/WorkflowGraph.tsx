@@ -14,13 +14,25 @@
  * limitations under the License.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Edge, ReactFlowProvider } from '@xyflow/react';
-import type { WorkflowGraphResponse } from '../../common';
-import { Button, ButtonIcon, Flex, Switch, Text } from '@backstage/ui';
-import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
+import type { WorkflowGraphEdge, WorkflowGraphResponse } from '../../common';
+import { Button, Flex, Switch, Text } from '@backstage/ui';
 import { isMarkerStep, isOpenStep } from '../steps';
-import { graphHeight, layoutSteps, stepSize, visibleSteps } from './layout';
+import {
+  graphHeight,
+  layoutSteps,
+  NodeSize,
+  stepSize,
+  visibleSteps,
+} from './layout';
+import {
+  LoopBlockLayout,
+  layoutLoopBlock,
+  noteAfterId,
+  noteBeforeId,
+  placeLoopBlocks,
+} from './loopLayout';
 import {
   flowNodeBase,
   GraphCanvas,
@@ -29,20 +41,36 @@ import {
   ViewButtons,
 } from './GraphCanvas';
 import { StepFlowNode, StepNode } from './StepNode';
-import { LoopFlowNode, LoopNode } from './LoopNode';
 import {
+  LoopFlowNode,
+  LoopNode,
+  LoopNoteFlowNode,
+  LoopNoteNode,
+  RoundFrameFlowNode,
+  RoundFrameNode,
+} from './LoopNode';
+import {
+  focusFrame,
   groupLoops,
   isLoopBoxNode,
   LoopBox,
   LoopView,
   LoopViews,
-  shownRound,
 } from './loops';
-import { loopStatusLabel, roundLabel } from '../loopText';
+import { loopStatusLabel, roundLabel, roundsText } from '../loopText';
 import { tp } from '../styles';
 
-const nodeTypes = { step: StepNode, loop: LoopNode };
-type FlowNode = StepFlowNode | LoopFlowNode;
+const nodeTypes = {
+  step: StepNode,
+  loop: LoopNode,
+  round: RoundFrameNode,
+  loopNote: LoopNoteNode,
+};
+type FlowNode =
+  | StepFlowNode
+  | LoopFlowNode
+  | RoundFrameFlowNode
+  | LoopNoteFlowNode;
 
 export { RELAYOUT_DELAY_MS, useSettledWidth } from './GraphCanvas';
 
@@ -69,6 +97,9 @@ export interface WorkflowGraphProps {
 
 type Structure = ReturnType<typeof useStructure>;
 
+/** Space the main graph keeps around an expanded loop when it wraps. */
+const BLOCK_MARGIN = 32;
+
 function useStructure(
   graph: WorkflowGraphResponse,
   showMarkers: boolean,
@@ -77,48 +108,100 @@ function useStructure(
 ) {
   return useMemo(() => {
     const visible = visibleSteps(graph.nodes, graph.edges, { showMarkers });
-    const steps = groupLoops(
-      visible.nodes,
-      visible.edges,
-      graph.loops,
-      loopViews,
-    );
     // Tool calls hang off the model call that asked for them, also when
     // the time order would draw the arrow from another step.
     const toolEdges = new Set<string>();
-    const shown = new Set(steps.nodes.map(n => n.id));
-    for (const node of steps.nodes) {
-      if (isLoopBoxNode(node) || !node.tool?.llmNodeId) continue;
+    const shown = new Set(visible.nodes.map(n => n.id));
+    const visibleEdges: WorkflowGraphEdge[] = [...visible.edges];
+    for (const node of visible.nodes) {
+      if (!node.tool?.llmNodeId) continue;
       const source = node.tool.llmNodeId;
       if (!shown.has(source)) continue;
       const id = `${source}->${node.id}`;
       toolEdges.add(id);
-      if (!steps.edges.some(e => e.id === id)) {
-        steps.edges = [...steps.edges, { id, source, target: node.id }];
+      if (!visibleEdges.some(e => e.id === id)) {
+        visibleEdges.push({ id, source, target: node.id });
       }
     }
-    const sized = steps.nodes.some(n => !isLoopBoxNode(n) && (n.llm || n.tool));
-    const layout = layoutSteps(
-      sized
-        ? steps.nodes.map(n => ({
-            id: n.id,
-            size: isLoopBoxNode(n) ? undefined : stepSize(n),
-          }))
-        : steps.nodes,
+    const steps = groupLoops(
+      visible.nodes,
+      visibleEdges,
+      graph.loops,
+      loopViews,
+      { previousRun: Boolean(graph.runChain?.previousRunId) },
+    );
+    const sized =
+      steps.boxes.some(b => b.expanded) ||
+      visible.nodes.some(n => n.llm || n.tool);
+    const sizeOf = (n: (typeof visible.nodes)[number]) =>
+      sized ? stepSize(n) : undefined;
+
+    // Expanded loops first: each is one large box of the main graph.
+    const blocks = new Map<string, LoopBlockLayout>();
+    const nextRun = graph.runChain?.index
+      ? graph.runChain.index + 1
+      : undefined;
+    for (const box of steps.boxes.filter(b => b.expanded)) {
+      blocks.set(
+        box.id,
+        layoutLoopBlock(
+          {
+            id: box.id,
+            frames: box.frames.map(frame => ({
+              id: frame.id,
+              steps: (steps.frameSteps.get(frame.id) ?? []).map(n => ({
+                id: n.id,
+                size: sizeOf(n),
+              })),
+              edges: steps.frameEdges.get(frame.id) ?? [],
+            })),
+            noteBefore: box.fromEarlierRun,
+            noteAfter: box.loop.status === 'continued',
+          },
+          layoutWidth !== undefined
+            ? Math.max(0, layoutWidth - 2 * BLOCK_MARGIN)
+            : undefined,
+        ),
+      );
+    }
+    const main = layoutSteps(
+      steps.nodes.map(n => {
+        const block = blocks.get(n.id);
+        let size: NodeSize | undefined;
+        if (block) size = { width: block.width, height: block.height };
+        else if (!isLoopBoxNode(n)) size = sizeOf(n);
+        return size ? { id: n.id, size } : { id: n.id };
+      }),
       steps.edges,
       layoutWidth,
     );
-    // A new layout key when a loop opens, closes or shows another round.
+    const layout = placeLoopBlocks(main, blocks);
+    // A new layout key when a loop opens or closes.
     const loopKey = steps.boxes
-      .map(b => `${b.id}:${b.expanded ? b.round?.iteration : '-'}`)
+      .map(b => `${b.id}:${b.expanded ? b.frames.length : '-'}`)
       .join(',');
     return {
       ...steps,
       layout,
       toolEdges,
+      nextRun,
       key: `${steps.nodes.length}:${steps.edges.length}:${layout.width}x${layout.height}:${loopKey}`,
     };
   }, [graph, showMarkers, layoutWidth, loopViews]);
+}
+
+/** Text of the notes above the first round frame and below the last. */
+function noteText(box: LoopBox, nextRun?: number) {
+  const first = box.frames[0]?.round.iteration ?? 1;
+  return {
+    before:
+      first > 2
+        ? `↑ Rounds 1–${first - 1} ran in earlier runs`
+        : '↑ Round 1 ran in the run before',
+    after: nextRun
+      ? `↓ The loop continues in run ${nextRun}`
+      : '↓ The loop continues in the next run',
+  };
 }
 
 function StepCanvas(
@@ -126,52 +209,122 @@ function StepCanvas(
     structure: Structure;
     layoutWidth?: number;
     onToggleLoop(name: string): void;
+    focusId?: string;
   },
 ) {
-  const { structure, selectedId, onSelect, onToggleLoop } = props;
+  const { structure, selectedId, onSelect, onToggleLoop, focusId } = props;
   const { layout } = structure;
   const running = props.graph.status === 'Running';
-  const nodes: FlowNode[] = useMemo(
-    () =>
-      structure.nodes.map((step): FlowNode => {
-        const common = flowNodeBase(layout, step.id);
-        if (isLoopBoxNode(step)) {
-          return {
-            ...common,
-            type: 'loop',
-            data: {
-              box: step.loopBox,
-              active: running && step.loopBox.loop.status === 'running',
-              selected: step.id === selectedId,
-              onToggle: onToggleLoop,
-            },
-          };
-        }
-        return {
+  const nodes: FlowNode[] = useMemo(() => {
+    // Frames and notes first: they are drawn under the steps.
+    const under: FlowNode[] = [];
+    const over: FlowNode[] = [];
+    for (const step of structure.nodes) {
+      const common = flowNodeBase(layout, step.id);
+      if (isLoopBoxNode(step)) {
+        const box = step.loopBox;
+        over.push({
           ...common,
-          type: 'step',
-          data: { step, selected: step.id === selectedId, onSelect },
-        };
-      }),
-    [structure, layout, selectedId, onSelect, onToggleLoop, running],
-  );
+          type: 'loop',
+          data: {
+            box,
+            active: running && box.loop.status === 'running',
+            selected: step.id === selectedId,
+            onToggle: onToggleLoop,
+          },
+        });
+        if (!box.expanded) continue;
+        const notes = noteText(box, structure.nextRun);
+        if (box.fromEarlierRun) {
+          under.push({
+            ...flowNodeBase(layout, noteBeforeId(box.id)),
+            type: 'loopNote',
+            data: {
+              text: notes.before,
+              testId: `loop-note-before-${box.loop.name}`,
+            },
+          });
+        }
+        if (box.loop.status === 'continued') {
+          under.push({
+            ...flowNodeBase(layout, noteAfterId(box.id)),
+            type: 'loopNote',
+            data: {
+              text: notes.after,
+              testId: `loop-note-after-${box.loop.name}`,
+            },
+          });
+        }
+        for (const frame of box.frames) {
+          const frameSteps = structure.frameSteps.get(frame.id) ?? [];
+          under.push({
+            ...flowNodeBase(layout, frame.id),
+            type: 'round',
+            data: {
+              loop: box.loop,
+              round: frame.round,
+              focused: frame.id === focusId,
+              active: running && frame.round.status === 'Running',
+              empty: frameSteps.length === 0,
+            },
+          });
+          for (const member of frameSteps) {
+            over.push({
+              ...flowNodeBase(layout, member.id),
+              type: 'step',
+              data: {
+                step: member,
+                selected: member.id === selectedId,
+                onSelect,
+              },
+            });
+          }
+        }
+        continue;
+      }
+      over.push({
+        ...common,
+        type: 'step',
+        data: {
+          step,
+          selected: step.id === selectedId,
+          onSelect,
+          nextRun:
+            step.kind === 'workflowClosed' ? structure.nextRun : undefined,
+        },
+      });
+    }
+    return [...under, ...over];
+  }, [structure, layout, selectedId, onSelect, onToggleLoop, running, focusId]);
 
   const edges: Edge[] = useMemo(() => {
-    const open = new Set(
-      structure.nodes
-        .filter(n =>
-          isLoopBoxNode(n)
-            ? running &&
-              !n.loopBox.expanded &&
-              n.loopBox.loop.status === 'running'
-            : isOpenStep(n),
-        )
-        .map(n => n.id),
+    const expanded = new Map(
+      structure.boxes.filter(b => b.expanded).map(b => [b.id, b]),
     );
-    return structure.edges.map(e => ({
+    const open = new Set<string>();
+    for (const n of structure.nodes) {
+      if (isLoopBoxNode(n)) {
+        const box = n.loopBox;
+        if (!running) continue;
+        if (!box.expanded && box.loop.status === 'running') open.add(n.id);
+        for (const f of box.frames) {
+          if (f.round.status === 'Running') open.add(f.id);
+        }
+      } else if (isOpenStep(n)) {
+        open.add(n.id);
+      }
+    }
+    for (const steps of structure.frameSteps.values()) {
+      for (const n of steps) if (isOpenStep(n)) open.add(n.id);
+    }
+    const toFlow = (
+      e: { id: string; source: string; target: string },
+      handles: { sourceHandle?: string; targetHandle?: string } = {},
+    ): Edge => ({
       id: e.id,
       source: e.source,
       target: e.target,
+      ...handles,
       type: 'smoothstep',
       // Arrows into open steps move, like the step itself.
       animated: open.has(e.target),
@@ -186,7 +339,47 @@ function StepCanvas(
           .filter(Boolean)
           .join(' ') || undefined,
       focusable: false,
-    }));
+    });
+    const result: Edge[] = [];
+    // Arrows of the main graph; those of an expanded loop go into its
+    // first round and out of its last one.
+    for (const e of structure.edges) {
+      const from = expanded.get(e.source);
+      const into = expanded.get(e.target);
+      const source = from ? from.frames[from.frames.length - 1].id : e.source;
+      const target = into ? into.frames[0].id : e.target;
+      result.push(
+        toFlow(
+          { id: e.id, source, target },
+          {
+            sourceHandle: from ? 'out' : undefined,
+            targetHandle: into ? 'in' : undefined,
+          },
+        ),
+      );
+    }
+    for (const box of expanded.values()) {
+      // Round after round, top to bottom.
+      box.frames.slice(1).forEach((frame, i) => {
+        const before = box.frames[i];
+        result.push(
+          toFlow(
+            {
+              id: `${before.id}->${frame.id}`,
+              source: before.id,
+              target: frame.id,
+            },
+            { sourceHandle: 'bottom', targetHandle: 'top' },
+          ),
+        );
+      });
+      for (const frame of box.frames) {
+        for (const e of structure.frameEdges.get(frame.id) ?? []) {
+          result.push(toFlow(e));
+        }
+      }
+    }
+    return result;
   }, [structure, running]);
 
   return (
@@ -198,25 +391,28 @@ function StepCanvas(
       layoutKey={structure.key}
       layoutWidth={props.layoutWidth}
       selectedId={selectedId}
+      focusId={focusId}
       onSelect={onSelect}
-      // Loop boxes open and close from their own button.
-      selectable={node => node.type !== 'loop'}
+      // Loop boxes open and close from their own button; frames and notes
+      // are not steps.
+      selectable={node => node.type === 'step'}
     />
   );
 }
 
-/**
- * Controls of one loop above the graph: expand or collapse it, and step
- * through its rounds.
- */
+/** Expand or collapse one loop, above the graph. */
 function LoopControls(props: { box: LoopBox; onChange(view: LoopView): void }) {
   const { box, onChange } = props;
   const { loop } = box;
-  const rounds = loop.rounds;
-  const current = box.round ?? rounds[rounds.length - 1];
-  const index = current ? rounds.indexOf(current) : -1;
-  const go = (to: number) =>
-    onChange({ expanded: true, iteration: rounds[to].iteration });
+  let rounds = 'No rounds';
+  if (box.expanded) {
+    rounds = roundsText(
+      box.frames.map(f => f.round),
+      loop,
+    );
+  } else if (loop.rounds.length > 0) {
+    rounds = roundLabel(loop.iteration, loop);
+  }
   return (
     <div
       className={tp('tp-loop-controls')}
@@ -225,37 +421,15 @@ function LoopControls(props: { box: LoopBox; onChange(view: LoopView): void }) {
       data-testid={`loop-controls-${loop.name}`}
     >
       <span className={tp('tp-loop-controls-name')}>{loop.name}</span>
-      <ButtonIcon
-        size="small"
-        variant="tertiary"
-        icon={<RiArrowLeftSLine />}
-        aria-label="Previous round"
-        isDisabled={index <= 0}
-        onPress={() => go(index - 1)}
-      />
       <Text as="span" variant="body-small" data-testid="loop-round">
-        {current ? roundLabel(current.iteration, loop) : 'No rounds'}
-        {!box.expanded && ` · ${loopStatusLabel(loop.status)}`}
+        {rounds}
+        {` · ${loopStatusLabel(loop.status)}`}
       </Text>
-      <ButtonIcon
-        size="small"
-        variant="tertiary"
-        icon={<RiArrowRightSLine />}
-        aria-label="Next round"
-        isDisabled={index < 0 || index >= rounds.length - 1}
-        onPress={() => go(index + 1)}
-      />
       <Button
         size="small"
         variant="secondary"
-        isDisabled={!current}
-        onPress={() =>
-          onChange(
-            box.expanded
-              ? { expanded: false, iteration: current?.iteration }
-              : { expanded: true, iteration: current?.iteration },
-          )
-        }
+        isDisabled={loop.rounds.length === 0}
+        onPress={() => onChange({ expanded: !box.expanded })}
       >
         {box.expanded ? 'Collapse' : 'Expand'}
       </Button>
@@ -321,19 +495,10 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     },
     [onLoopViewChange],
   );
-  const loops = props.graph.loops;
   const toggleLoop = useCallback(
-    (name: string) => {
-      const loop = loops?.find(l => l.name === name);
-      if (!loop) return;
-      const view = loopViews[name];
-      const round = shownRound(loop, view);
-      changeLoopView(name, {
-        expanded: !view?.expanded,
-        iteration: round?.iteration,
-      });
-    },
-    [loops, loopViews, changeLoopView],
+    (name: string) =>
+      changeLoopView(name, { expanded: !loopViews[name]?.expanded }),
+    [loopViews, changeLoopView],
   );
   const structure = useStructure(
     props.graph,
@@ -341,6 +506,27 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     layoutWidth,
     loopViews,
   );
+  // The loop that was expanded last, or whose round was picked: its round
+  // is brought into view.
+  const [focusLoop, setFocusLoop] = useState<string>();
+  const lastViews = useRef<LoopViews>({});
+  useEffect(() => {
+    const before = lastViews.current;
+    lastViews.current = loopViews;
+    const changed = Object.keys(loopViews).filter(
+      name =>
+        loopViews[name].expanded &&
+        (!before[name]?.expanded ||
+          before[name].iteration !== loopViews[name].iteration),
+    );
+    if (changed.length > 0) setFocusLoop(changed[changed.length - 1]);
+  }, [loopViews]);
+  const focusBox = structure.boxes.find(
+    b => b.expanded && b.loop.name === focusLoop,
+  );
+  const focusId = focusBox
+    ? focusFrame(focusBox, loopViews[focusBox.loop.name])?.id
+    : undefined;
   const hasMarkers = props.graph.nodes.some(isMarkerStep);
   const minHeight = graphHeight(
     structure.layout,
@@ -371,6 +557,7 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
               structure={structure}
               layoutWidth={layoutWidth}
               onToggleLoop={toggleLoop}
+              focusId={focusId}
             />
           </div>
         </div>

@@ -62,7 +62,7 @@ describe('EntityTemporalContent', () => {
     await render(api, '/');
     expect(await screen.findByText('order-1')).toBeInTheDocument();
     expect(screen.getByText('payment-1')).toBeInTheDocument();
-    const table = screen.getByRole('grid', { name: 'Workflows' });
+    const table = screen.getByRole('grid', { name: 'Workflow executions' });
     expect(within(table).getByText('Completed')).toBeInTheDocument();
     expect(within(table).getByText('Failed')).toBeInTheDocument();
     // Progress of each run, loaded per row.

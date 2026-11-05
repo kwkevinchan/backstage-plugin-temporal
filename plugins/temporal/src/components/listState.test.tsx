@@ -28,6 +28,7 @@ import { temporalApiRef } from '../extensions';
 import { listResponse, mockTemporalApi } from '../testData';
 import { listSearch, readListParams, savedListSearch } from './listState';
 import { TemporalPageContent } from './TemporalPage';
+import { pageSizeOptions } from './WorkflowRunsTable';
 
 function Location() {
   const location = useLocation();
@@ -111,7 +112,7 @@ describe('workflow list state', () => {
       nextPageToken: options?.pageToken ? undefined : 'token-2',
     }));
     await render(api, '/?status=Completed&pageSize=10');
-    await screen.findByRole('grid', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() =>
       expect(location()).toBe('/?status=Completed&page=2&pageSize=10'),
@@ -134,7 +135,7 @@ describe('workflow list state', () => {
     );
     api.listWorkflows.mockClear();
     await userEvent.click(back);
-    await screen.findByRole('grid', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'Workflow executions' });
     expect(location()).toBe('/?status=Completed&page=2&pageSize=10');
     await waitFor(() =>
       expect(api.listWorkflows).toHaveBeenCalledWith(
@@ -175,7 +176,7 @@ describe('workflow list state', () => {
         mountedRoutes: { '/catalog/:namespace/:kind/:name': entityRouteRef },
       },
     );
-    await screen.findByRole('grid', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() => expect(location()).toBe('/?page=2&pageSize=10'));
     expect(navigation()).toBe('REPLACE');
@@ -190,7 +191,7 @@ describe('workflow list state', () => {
     await screen.findByTestId('back-to-list');
     expect(navigation()).toBe('PUSH');
     await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
-    await screen.findByRole('grid', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'Workflow executions' });
     expect(location()).toBe('/?allRuns=true&pageSize=10');
     expect(screen.getByRole('switch', { name: 'Show all runs' })).toBeChecked();
 
@@ -214,7 +215,9 @@ describe('workflow list state', () => {
   it('reads the filters from the URL', async () => {
     const api = mockTemporalApi();
     await render(api, '/?allRuns=true&workflowId=order-');
-    const table = await screen.findByRole('grid', { name: 'All workflows' });
+    const table = await screen.findByRole('grid', {
+      name: 'Workflow executions',
+    });
     expect(
       within(table).getByRole('link', { name: 'order-1' }),
     ).toBeInTheDocument();
@@ -225,5 +228,34 @@ describe('workflow list state', () => {
       screen.getByRole('textbox', { name: 'Workflow ID starts with' }),
     ).toHaveValue('order-');
     expect(screen.getByRole('switch', { name: 'Show all runs' })).toBeChecked();
+  });
+
+  it('shows a page size from the URL that is not one of the options', async () => {
+    const api = mockTemporalApi();
+    await render(api, '/?pageSize=5');
+    await screen.findByRole('grid', { name: 'Workflow executions' });
+    expect(api.listWorkflows).toHaveBeenCalledWith(
+      expect.objectContaining({ pageSize: 5 }),
+    );
+    const select = screen.getByRole('button', { name: /Per page/ });
+    expect(select).toHaveTextContent('5');
+    expect(select).not.toHaveTextContent('Select an option');
+    // The select keeps its width instead of filling the row.
+    const root = select.closest('.bui-Select') as HTMLElement;
+    expect(root.style.flex).toBe('0 0 auto');
+    expect(root.style.width).toBe('110px');
+    await userEvent.click(select);
+    const options = screen
+      .getAllByRole('option')
+      .map(option => option.textContent);
+    expect(options).toEqual(['5', '10', '20', '50', '100']);
+  });
+});
+
+describe('page size options', () => {
+  it('adds the current size when it is not offered', () => {
+    expect(pageSizeOptions(20)).toEqual([10, 20, 50, 100]);
+    expect(pageSizeOptions(5)).toEqual([5, 10, 20, 50, 100]);
+    expect(pageSizeOptions(30)).toEqual([10, 20, 30, 50, 100]);
   });
 });

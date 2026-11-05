@@ -56,7 +56,7 @@ export function TemporalRelatedWorkflowsCard() {
     );
   } else {
     body = (
-      <TableRoot aria-label="Workflow entities">
+      <TableRoot aria-label="Workflow types">
         <TableHeader>
           <Column isRowHeader>Workflow</Column>
           <Column>Workflow type</Column>
@@ -99,8 +99,8 @@ export function TemporalRelatedWorkflowsCard() {
 
   return (
     <PanelCard
-      title="Workflow entities"
-      subtitle="TemporalWorkflow entities in spec.dependsOn; their runs are listed below."
+      title="Workflow types"
+      subtitle="Workflow types this entity depends on (TemporalWorkflow entities in spec.dependsOn); their executions are listed below."
     >
       {body}
     </PanelCard>

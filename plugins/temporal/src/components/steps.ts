@@ -53,10 +53,20 @@ export function isOpenStep(node: WorkflowGraphNode): boolean {
   return ['Scheduled', 'Running', 'Retrying', 'Waiting'].includes(node.status);
 }
 
+/** What a step box knows besides the step. */
+export interface StepTextOptions {
+  /**
+   * Number of the run that follows (`runChain.index + 1`), for the end of a
+   * run that continued as new.
+   */
+  nextRun?: number;
+}
+
 /** Second line of a step: what it waits for, or its duration. */
 export function stepSubtitle(
   node: WorkflowGraphNode,
   now: number = Date.now(),
+  options: StepTextOptions = {},
 ): string {
   if (isOpenStep(node) && (node.waitingFor || node.deadline)) {
     const deadline = node.deadline ? deadlineText(node.deadline, now) : '';
@@ -65,7 +75,10 @@ export function stepSubtitle(
   }
   if (node.failure) return node.failure.message;
   if (node.kind === 'workflowStarted' || node.kind === 'workflowClosed') {
-    return node.workflow?.runId ? `Next run ${node.workflow.runId}` : '';
+    if (node.status !== 'ContinuedAsNew' || !node.workflow?.runId) return '';
+    return options.nextRun
+      ? `Continues in run ${options.nextRun}`
+      : 'Continues in a new run';
   }
   const duration =
     node.startTime && node.endTime && node.startTime !== node.endTime
@@ -82,6 +95,7 @@ export function stepSubtitle(
 export function stepBoxText(
   node: WorkflowGraphNode,
   now: number = Date.now(),
+  options: StepTextOptions = {},
 ): { title: string; subtitle: string } {
   if (
     isOpenStep(node) &&
@@ -99,7 +113,7 @@ export function stepBoxText(
         .join(' · '),
     };
   }
-  return { title: node.name, subtitle: stepSubtitle(node, now) };
+  return { title: node.name, subtitle: stepSubtitle(node, now, options) };
 }
 
 /** Retries of an activity, as `×3` for the third attempt. */

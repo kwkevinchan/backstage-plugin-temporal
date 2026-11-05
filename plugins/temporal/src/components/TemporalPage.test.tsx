@@ -68,7 +68,9 @@ describe('Workflows page', () => {
       ],
     });
     await render(api);
-    const table = await screen.findByRole('grid', { name: 'All workflows' });
+    const table = await screen.findByRole('grid', {
+      name: 'Workflow executions',
+    });
     expect(
       within(table).getByRole('link', { name: 'order-1' }),
     ).toHaveAttribute(
@@ -101,7 +103,7 @@ describe('Workflows page', () => {
   it('filters by workflow ID prefix and type, and rejects unsafe input', async () => {
     const api = mockTemporalApi();
     await render(api);
-    await screen.findByRole('grid', { name: 'All workflows' });
+    await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.type(
       screen.getByRole('textbox', { name: 'Workflow ID starts with' }),
       'order-',
@@ -141,7 +143,7 @@ describe('Workflows page', () => {
       { entityRef: undefined },
     );
     expect(
-      screen.getByRole('link', { name: '← All workflows' }),
+      screen.getByRole('link', { name: '← Workflow executions' }),
     ).toBeInTheDocument();
   });
 });

@@ -96,7 +96,7 @@ async function openRun(page: Page, workflowType: string) {
     .or(page.getByRole('link', { name: 'Temporal', exact: true }))
     .first()
     .click();
-  const runs = table(page, 'Workflows');
+  const runs = table(page, 'Workflow executions');
   await expect(runs.getByText(workflowType).first()).toBeVisible({
     timeout: 120_000,
   });
@@ -125,19 +125,18 @@ test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', as
   page.on('pageerror', error => errors.push(String(error)));
   await openRun(page, 'agentWorkflow');
 
-  // The loop box, expanded to round 2: a model call and its three tools.
+  // The loop box, expanded: a frame per round; round 2 has a model call and
+  // its three tools.
   await page.getByTestId('loop-agent').click();
   const controls = page.getByTestId('loop-controls-agent');
-  await expect(controls.getByTestId('loop-round')).toContainText('Round 4');
-  await controls.getByRole('button', { name: 'Previous round' }).click();
-  await controls.getByRole('button', { name: 'Previous round' }).click();
-  await expect(controls.getByTestId('loop-round')).toContainText('Round 2');
-  const call = modelCall(page, /^Model call callModel, fake-reasoner/);
+  await expect(controls.getByTestId('loop-round')).toContainText('Rounds 1–4');
+  await expect(page.getByTestId('loop-round-agent-2')).toBeVisible();
+  const call = modelCall(page, /^Model call callModel, fake-reasoner/).nth(1);
   await expect(call).toBeVisible();
   await expect(call).toContainText('fake-reasoner-1-2026-11');
   await expect(call).toContainText(/\d+ in · \d+ out · [\d.]+m?s · 3 tools/);
   const tools = graph(page).locator('[data-llm="tool"]');
-  await expect(tools).toHaveCount(3);
+  expect(await tools.count()).toBeGreaterThanOrEqual(3);
   await expect(
     graph(page).getByRole('button', {
       name: /^Tool call read_file, Completed, attempt 2/,
@@ -149,14 +148,15 @@ test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', as
   // Arrows from the model call to its tools are drawn as tool arrows.
   await expect(
     graph(page).locator('.react-flow__edge.temporal-llm-tool-edge'),
-  ).toHaveCount(3);
+  ).toHaveCount(await tools.count());
   for (const size of await drawnFontSizes(page)) {
     expect(size).toBeGreaterThanOrEqual(12);
   }
   await shot(page, '01-agent-graph-round');
 
   // The LLM panel: input, thinking (collapsed), output, tool calls, usage.
-  await call.click();
+  // The round may be outside the canvas; selecting it pans it into view.
+  await call.dispatchEvent('click');
   const panel = page.getByTestId('llm-panel');
   await expect(panel).toBeVisible();
   const input = section(page, 'llm-input');
@@ -213,10 +213,9 @@ test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', as
   await page.getByText('Raw JSON', { exact: true }).click();
 
   // The last round: the answer is stored in S3 (when the worker uses it).
-  await controls.getByRole('button', { name: 'Next round' }).click();
-  await controls.getByRole('button', { name: 'Next round' }).click();
-  await expect(controls.getByTestId('loop-round')).toContainText('Round 4');
-  await modelCall(page, /^Model call callModel/).click();
+  await modelCall(page, /^Model call callModel/)
+    .last()
+    .dispatchEvent('click');
   const output = section(page, 'llm-output');
   await expect(output).toContainText('# Report: payload storage');
   await expect(output.getByRole('button', { name: /Show all/ })).toBeVisible();
@@ -302,10 +301,10 @@ test('LLM steps in the dark theme', async ({ page }) => {
   await openRun(page, 'agentWorkflow');
   await expect(page.locator('body')).toHaveAttribute('data-theme-mode', 'dark');
   await page.getByTestId('loop-agent').click();
-  const controls = page.getByTestId('loop-controls-agent');
-  await controls.getByRole('button', { name: 'Previous round' }).click();
-  await controls.getByRole('button', { name: 'Previous round' }).click();
-  await modelCall(page, /^Model call callModel/).click();
+  await expect(page.getByTestId('loop-round-agent-2')).toBeVisible();
+  await modelCall(page, /^Model call callModel/)
+    .nth(1)
+    .dispatchEvent('click');
   await page.getByTestId('llm-thinking-details').locator('summary').click();
   await expect(
     section(page, 'llm-tools').getByTestId('llm-tool-card'),

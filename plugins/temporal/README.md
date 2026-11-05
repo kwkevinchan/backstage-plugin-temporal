@@ -5,13 +5,14 @@ Unofficial Backstage frontend plugin for [Temporal](https://temporal.io).
 ## Purpose
 
 Shows Temporal workflows next to the catalog entities that own them: a
-**Temporal** tab with the workflow list and its progress, a details page with
+**Temporal** tab with the workflow executions and their progress, a details page with
 the step graph, a **Timeline** tab (steps on a time axis), the loops of AI
 workflows, the LLM steps of agent workflows (model calls with their input,
 thinking, output, tool calls and tokens), events and details, the workflow controls, a
 **Definition** tab (the YAML of a Serverless Workflow next to its graph, with
 a run on top), cards for
-`TemporalWorkflow` entities and a **Workflows** page. Works with the legacy
+`TemporalWorkflow` entities (one entity is one workflow type and its
+definition) and a **Workflows** page. Works with the legacy
 and the new frontend system of Backstage 1.56.
 
 ## Installation
@@ -33,17 +34,17 @@ the entity cards and the APIs.
 
 Legacy frontend system:
 
-| Export                                                                                | What it is                                         |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `temporalPlugin`                                                                      | The plugin.                                        |
-| `EntityTemporalContent`                                                               | Entity tab: workflow list and details.             |
-| `EntityTemporalDefinitionContent`                                                     | Definition tab of `TemporalWorkflow` entities.     |
-| `TemporalPage`                                                                        | Workflows page with every workflow of a namespace. |
-| `EntityTemporalWorkflowSummaryCard`                                                   | Summary card of a `TemporalWorkflow` entity.       |
-| `EntityTemporalWorkflowStatsCard`                                                     | Recent run statistics of an entity.                |
-| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow entities a component depends on.          |
-| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                       |
-| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).         |
+| Export                                                                                | What it is                                              |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `temporalPlugin`                                                                      | The plugin.                                             |
+| `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.            |
+| `EntityTemporalDefinitionContent`                                                     | Definition tab of `TemporalWorkflow` entities.          |
+| `TemporalPage`                                                                        | Workflows page: the workflow executions of a namespace. |
+| `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.      |
+| `EntityTemporalWorkflowStatsCard`                                                     | Recent run statistics of an entity.                     |
+| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                  |
+| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                            |
+| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).              |
 
 ## Extension points
 

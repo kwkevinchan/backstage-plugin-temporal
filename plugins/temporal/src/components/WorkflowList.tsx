@@ -94,7 +94,7 @@ export function WorkflowList(props: { title?: string }) {
   return (
     <div ref={scrollRef}>
       <PanelCard
-        title={props.title ?? 'Temporal workflows'}
+        title={props.title ?? 'Workflow executions'}
         subtitle={value ? `Namespace: ${value.namespace}` : undefined}
         actions={
           <>
@@ -127,7 +127,7 @@ export function WorkflowList(props: { title?: string }) {
           <ErrorAlert error={error} />
         ) : (
           <WorkflowRunsTable
-            label="Workflows"
+            label="Workflow executions"
             items={value?.items ?? []}
             entityRef={entityRef}
             entityColumn={showWorkflowEntity ? 'workflow' : undefined}

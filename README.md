@@ -12,11 +12,26 @@ entities that own them in [Backstage](https://backstage.io), and lets people
 operate them from there, with every operation checked by the Backstage
 permission framework and recorded with the auditor.
 
+## Terms
+
+The plugin uses the Temporal terms:
+
+| Term                     | Meaning                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Workflow Type            | The name of a workflow, for example `orderWorkflow`. It stands for one Workflow Definition (the workflow code). |
+| Workflow Execution       | One execution of a workflow type: one row of a workflow list.                                                   |
+| Workflow Run             | One part of a workflow execution that continues as new. Each run has its own Run ID.                            |
+| Workflow Execution Chain | The runs of a workflow that continued as new, oldest first. They share the Workflow ID.                         |
+
+A `TemporalWorkflow` catalog entity stands for one workflow type and its
+workflow definition.
+
 ## Features
 
-- **Workflows of an entity.** A **Temporal** tab on catalog entities lists
-  their workflow executions with status, times and the progress of each run
-  (steps done, the current step or the failure).
+- **Workflow executions of an entity.** A **Temporal** tab on catalog
+  entities lists their workflow executions with workflow type, status, times
+  and the progress of each one (steps done, the current step or the
+  failure).
 - **Step graph.** The details page of a run is built around a graph of its
   steps: activities with their attempts, timers, signals, updates, child
   workflows and the wait the run is in. Selecting a step opens a panel with
@@ -25,7 +40,8 @@ permission framework and recorded with the auditor.
   a worker and how long it ran, retries, timers and waits, signals and
   updates. Bars of a running workflow grow until now; the chart zooms.
 - **Loops of AI workflows.** Rounds of generate, check and revise loops are
-  grouped into one box in the graph, one group per round in the timeline,
+  grouped into one box in the graph (expanded: one frame per round), one
+  group per round in the timeline,
   and one row per round in the **Loops** tab, across continue-as-new runs
   (with `@kwkevinchan/temporal-workflow-kit/loop`, see
   [the workflow kit](plugins/temporal-workflow-kit)).
@@ -48,8 +64,9 @@ permission framework and recorded with the auditor.
   through the backend.
 - **Workflow controls.** Start, signal, update, query, cancel, terminate and
   rerun workflows, and add your own actions.
-- **Workflow entities.** A `TemporalWorkflow` catalog kind for one workflow
-  type, and a **Workflows** page with every workflow of a namespace.
+- **Workflow types in the catalog.** A `TemporalWorkflow` catalog kind for
+  one workflow type and its definition, and a **Workflows** page with every
+  workflow execution of a namespace.
 
 | Workflows of an entity                                           | Step graph and step panel                                        |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -253,10 +270,14 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 The details page of a run shows, from top to bottom:
 
-- a summary line: status, where the run is now (what it waits for, or the
-  step it failed at), workflow type, duration and start time, the link to
-  the Temporal UI and a refresh button. Running workflows reload every five
-  seconds; the **Auto refresh** switch turns this off.
+- a header: the workflow ID and the run ID, with the actions on the right
+  (controls, your own actions, the link to the Temporal UI, a refresh
+  button and, for running workflows, **Auto refresh**). Below a line, the
+  fields in a grid: status, where the run is now (what it waits for, or the
+  step it failed at), the run of the execution chain (`Run 2 of 3`, with
+  links to the run before and after and an explanation of continue-as-new),
+  workflow type, duration and start time. Running workflows reload every
+  five seconds; the **Auto refresh** switch turns this off.
 - the step graph: one box per step and arrows between them. Colors follow
   the status, running steps pulse, waiting steps are dashed, retried
   activities show their attempt (`×3`), and a child workflow links to its own
@@ -318,10 +339,16 @@ start and says so.
 
 Workflow lists keep their filters, page and page size in the URL
 (`?status=Running&page=2&pageSize=50`), so the browser's back button and the
-**All workflows** link of the details page return to the same page, at the
+**← Workflow executions** link of the details page return to the same page, at the
 same scroll position. Temporal's page tokens are kept in the browser's
 session storage; when they are gone (another tab), the list opens on the
 first page and says so.
+
+Workflow lists start with the workflow type, then the workflow ID, status
+and progress. **Show all runs** also lists the earlier runs of workflows that
+continued as new; without it each execution chain shows its latest run.
+A page size from the URL that is not one of the offered sizes
+(`?pageSize=5`) is added to the **Per page** choices.
 
 Workflow lists show a progress column (done steps and the current step or
 failure). It is loaded for the rows on screen only, with at most four
@@ -339,15 +366,27 @@ for the format and a TypeScript helper, `/loop`):
 
 - the graph shows each loop as one box, `draft-review · Round 4 of 5 · Done`,
   with the steps before it and after it. Pressing the box, or **Expand**
-  above the graph, shows the steps of one round; the arrows above the graph
-  step through the rounds. Timers and signals that start during a round
-  belong to it.
+  above the graph, shows every round of the run, one frame per round from
+  top to bottom: its title has the round, decision and score
+  (`Round 3 · revise · score 0.81`), a running round pulses and a failed one
+  is red. The steps of a round go left to right inside its frame and wrap
+  inside it when it is wider than the graph. Arrows lead from the step
+  before the loop to the first round, from round to round, and from the last
+  round to the step after it. Expanding brings the running round, else the
+  last failed one, else the last one into view; a round pressed in the
+  **Loops** tab is brought into view instead. Timers and signals that start
+  during a round belong to it.
+- a run that continued as new shows its own rounds only, with a note above
+  the first frame (the rounds of the earlier runs) and below the last one
+  (`The loop continues in run 3`). Its loop state is `continued`, shown as
+  **Continues in next run**.
 - the **Loops** tab has one table per loop: each round with its steps,
   status, duration, decision and score, newest first. Pressing a round shows
   it in the graph. Rounds of a workflow that continued as new are counted
   across its runs (`GET .../loops` reads up to 20 runs); a round of another
   run links to that run, opened at the round.
-- the limit, the state (`running`, `done`, `exhausted`, `failed`) and the
+- the limit, the state (`running`, `done`, `exhausted`, `failed`, and
+  `continued` for a run that continued as new while the loop ran) and the
   decisions and scores come from the `temporal.loops` memo the helper
   upserts after each round, and for a running workflow from its
   `__loop_state` query when a worker answers within three seconds.
@@ -683,7 +722,10 @@ reloading a page does not download the same data again.
 
 ## Workflow entities
 
-The catalog module adds the `TemporalWorkflow` kind for one workflow type:
+The catalog module adds the `TemporalWorkflow` kind. One entity stands for
+one Temporal Workflow Type and its Workflow Definition (the workflow code);
+the entity page shows it as **Workflow type**. Its workflow executions are
+listed on its Temporal tab.
 
 ```yaml
 apiVersion: temporal.io/v1alpha1
@@ -710,7 +752,7 @@ spec:
 A workflow written in YAML adds `spec.definition` (`format` and `target`)
 for its **Definition** tab; see [Workflow definitions](#workflow-definitions).
 
-The runs of the entity are the executions with that workflow type (and task
+The workflow executions of the entity are those with that workflow type (and task
 queue, when set), or with the entity reference
 (`temporalworkflow:default/order-workflow`) in the `searchAttributes.entityRef`
 attribute. `workflowType`, `taskQueue` and `namespace` follow the same rules
@@ -727,9 +769,10 @@ spec:
 ```
 
 The catalog adds `dependsOn` / `dependencyOf`. The component's Temporal tab
-then lists the workflow entities, and its runs are its own (from the
-annotations, if any) together with the runs of each workflow entity; runs of
-a workflow entity link to it. Workflow entities in another Temporal
+then lists the workflow types it depends on (**Workflow types**), and its
+workflow executions are its own (from the annotations, if any) together with
+those of each workflow type entity; executions of a workflow type entity
+link to it. Workflow entities in another Temporal
 namespace than the component's, or that the user may not read
 (`temporal.workflow.read`), are left out. `dependsOn` is used rather than a
 new relation type because it means what the link means ("needs this to

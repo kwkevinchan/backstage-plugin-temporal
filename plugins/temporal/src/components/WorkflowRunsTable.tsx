@@ -77,6 +77,17 @@ export function StatusSelect(props: {
 }
 
 /** Previous and next page buttons, the page number and the page size. */
+/**
+ * Sizes offered by the "Per page" select: the usual sizes, plus the
+ * current one when the URL asks for another size (`?pageSize=5`), so the
+ * select shows what the list shows.
+ */
+export function pageSizeOptions(current: number): number[] {
+  const sizes: number[] = [...PAGE_SIZES];
+  if (!sizes.includes(current)) sizes.push(current);
+  return sizes.sort((a, b) => a - b);
+}
+
 export function Pager(props: {
   hasPrevious: boolean;
   hasNext: boolean;
@@ -93,8 +104,12 @@ export function Pager(props: {
         <Select
           label="Per page"
           size="small"
-          style={{ width: 110 }}
-          options={PAGE_SIZES.map(n => ({ id: String(n), label: String(n) }))}
+          // The select grows by default (`flex: 1`); keep it small.
+          style={{ flex: '0 0 auto', width: 110 }}
+          options={pageSizeOptions(props.pageSize).map(n => ({
+            id: String(n),
+            label: String(n),
+          }))}
           selectedKey={String(props.pageSize)}
           onSelectionChange={key => key && props.onPageSizeChange!(Number(key))}
         />
@@ -131,7 +146,8 @@ interface ColumnDef {
 }
 
 /**
- * Runs as a table with status, progress and times. `entityRef` is passed
+ * Workflow executions as a table: workflow type first, then the workflow
+ * ID, status, progress and times. `entityRef` is passed
  * to the progress requests, so they are checked on that entity.
  */
 export function WorkflowRunsTable(props: {
@@ -146,6 +162,11 @@ export function WorkflowRunsTable(props: {
 }) {
   const columns: ColumnDef[] = [
     {
+      id: 'type',
+      title: 'Workflow type',
+      cell: item => <Text variant="body-small">{item.workflowType}</Text>,
+    },
+    {
       id: 'workflowId',
       title: 'Workflow ID',
       cell: item => (
@@ -153,11 +174,6 @@ export function WorkflowRunsTable(props: {
           {item.workflowId}
         </Link>
       ),
-    },
-    {
-      id: 'type',
-      title: 'Type',
-      cell: item => <Text variant="body-small">{item.workflowType}</Text>,
     },
     {
       id: 'status',
@@ -200,7 +216,8 @@ export function WorkflowRunsTable(props: {
   if (props.entityColumn) {
     columns.push({
       id: 'entity',
-      title: props.entityColumn === 'workflow' ? 'Workflow entity' : 'Entity',
+      title:
+        props.entityColumn === 'workflow' ? 'Workflow type entity' : 'Entity',
       cell: item => {
         const ref =
           props.entityColumn === 'workflow'

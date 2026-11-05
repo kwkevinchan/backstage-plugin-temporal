@@ -4,9 +4,10 @@ Unofficial catalog backend module for the Backstage Temporal plugin.
 
 ## Purpose
 
-Adds the `TemporalWorkflow` kind (`apiVersion: temporal.io/v1alpha1`) for one
-workflow type: it validates the spec with a JSON schema and adds the
-relations of the entity.
+Adds the `TemporalWorkflow` kind (`apiVersion: temporal.io/v1alpha1`). One
+entity stands for one Temporal Workflow Type and its Workflow Definition (the
+workflow code); the module validates the spec with a JSON schema and adds
+the relations of the entity.
 
 ## Installation
 

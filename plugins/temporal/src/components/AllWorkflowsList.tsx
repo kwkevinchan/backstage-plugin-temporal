@@ -159,7 +159,7 @@ export function AllWorkflowsList() {
   return (
     <div ref={scrollRef}>
       <PanelCard
-        title="All workflows"
+        title="Workflow executions"
         subtitle={value ? `Namespace: ${value.namespace}` : undefined}
       >
         {filterBar}
@@ -168,7 +168,7 @@ export function AllWorkflowsList() {
           <ErrorAlert error={error} />
         ) : (
           <WorkflowRunsTable
-            label="All workflows"
+            label="Workflow executions"
             items={value?.items ?? []}
             showTaskQueue
             entityColumn="any"

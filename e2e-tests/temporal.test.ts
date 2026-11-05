@@ -268,9 +268,9 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   // 4. Temporal tab with the workflow list and the progress of each run.
   await temporalTab.click();
   await expect(
-    page.getByRole('heading', { name: 'Temporal workflows' }),
+    page.getByRole('heading', { name: 'Workflow executions' }),
   ).toBeVisible();
-  const runs = table(page, 'Workflows');
+  const runs = table(page, 'Workflow executions');
   await expect(runs).toBeVisible();
   await expect(runs.getByText('Failed').first()).toBeVisible();
   // Progress loads for the rows on screen; with more example workflows the
@@ -322,7 +322,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(page.getByText('Caused by').first()).toBeVisible();
 
   // 7. A running workflow with a retrying activity.
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await expect(runs).toBeVisible();
   await openRun(runs, 'deploymentWorkflow');
   await expect(
@@ -337,7 +337,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await shot('08-workflow-running');
 
   // 8. Parallel steps, retries, a timer and a child workflow.
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await openRun(runs, 'fulfillmentWorkflow');
   await expect(step(page, /^pickItems, Completed/)).toBeVisible();
   await expect(step(page, /^printLabel, Completed/)).toBeVisible();
@@ -352,7 +352,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await shot('10-child-workflow');
 
   // 9. A workflow that waits for approval.
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await openRun(runs, 'approvalWorkflow');
   // The wait has a time limit: the hint comes first, the timer is the
   // time limit, in words and not as a UTC timestamp.
@@ -381,7 +381,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
 
   // 10. A long run: twelve stages with a patch marker before each one. It
   // opens at a readable size from its first step, without the markers.
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await openRun(runs, 'pipelineWorkflow');
   await expect(step(page, /^notifyTeam, Completed/)).toBeVisible();
   await graphSettled(page);
@@ -431,7 +431,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   // 11. The tab does not depend on the kind: a Resource with the annotations.
   await page.goto('/catalog/default/resource/example-order-jobs');
   await entityTab(page, 'Temporal').click();
-  const resourceTable = table(page, 'Workflows');
+  const resourceTable = table(page, 'Workflow executions');
   await expect(resourceTable.getByText('orderWorkflow').first()).toBeVisible();
   await expect(resourceTable).not.toContainText('paymentWorkflow');
   await shot('12-resource-temporal-tab');
@@ -447,7 +447,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await shot('13-catalog-temporal-workflows');
   await workflowLink.first().click();
   await expect(
-    page.getByText('Temporal workflow', { exact: true }),
+    page.getByRole('heading', { name: 'Workflow type', exact: true }),
   ).toBeVisible();
   await expect(page.getByText('orderWorkflow').first()).toBeVisible();
   await shot('14-temporal-workflow-entity');
@@ -458,7 +458,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     page.getByRole('heading', { name: 'Recent runs' }),
   ).toBeVisible();
   await expect(page.getByRole('group', { name: 'Succeeded' })).toBeVisible();
-  const entityRuns = table(page, 'Workflows');
+  const entityRuns = table(page, 'Workflow executions');
   await expect(entityRuns.getByText('orderWorkflow').first()).toBeVisible();
   await expect(entityRuns).not.toContainText('paymentWorkflow');
   await shot('15-temporal-workflow-runs');
@@ -472,7 +472,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   // the merged runs (its own annotation and the two workflow entities).
   await page.goto('/catalog/default/component/example-checkout');
   await entityTab(page, 'Temporal').click();
-  const workflowEntities = table(page, 'Workflow entities');
+  const workflowEntities = table(page, 'Workflow types');
   await expect(
     workflowEntities.getByRole('link', {
       name: /example-order-workflow|Example order workflow/,
@@ -483,7 +483,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
       name: /example-payment-workflow|Example payment workflow/,
     }),
   ).toBeVisible();
-  const merged = table(page, 'Workflows');
+  const merged = table(page, 'Workflow executions');
   await expect(merged.getByText('deploymentWorkflow').first()).toBeVisible();
   await expect(merged.getByText('paymentWorkflow').first()).toBeVisible();
   await expect(merged.getByText('orderWorkflow').first()).toBeVisible();
@@ -497,7 +497,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     .click();
   // The first page holds the newest runs, whichever examples ran last, so
   // the payment workflow is found with the filter.
-  const all = table(page, 'All workflows');
+  const all = table(page, 'Workflow executions');
   await expect(all.getByTestId('workflow-progress').first()).toBeVisible();
   await expectPageMargins(page, all);
   await shot('18-workflows-page');
@@ -523,7 +523,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
 
   // 17. A workflow that continues as new is listed once, with its latest
   // run; the switch lists every run.
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await page
     .getByRole('textbox', { name: 'Workflow ID starts with' })
     .fill('example-poll-');
@@ -541,9 +541,12 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await openRun(all, 'pollWorkflow');
   const chain = page.getByTestId('workflow-run-chain');
   await expect(chain).toContainText('Run 4 of 4');
-  await chain.getByRole('link', { name: /Previous run/ }).click();
+  await chain.getByRole('link', { name: '← Run 3' }).click();
   await expect(chain).toContainText('Run 3 of 4');
-  await expect(chain.getByRole('link', { name: /Next run/ })).toBeVisible();
+  await expect(chain.getByRole('link', { name: 'Run 4 →' })).toBeVisible();
+  // The info button explains what a run is.
+  await chain.getByRole('button', { name: 'About runs' }).focus();
+  await expect(page.getByRole('tooltip')).toContainText('same Workflow ID');
   await graphSettled(page);
   await shot('25-continue-as-new-run');
 });
@@ -579,7 +582,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await page.goto('/catalog/default/component/example-orders');
   await entityTab(page, 'Temporal').click();
   await expect(page.locator('body')).toHaveAttribute('data-theme-mode', 'dark');
-  const runs = table(page, 'Workflows');
+  const runs = table(page, 'Workflow executions');
   await expect(runs.getByText('paymentWorkflow').first()).toBeVisible();
   await shot('dark-01-temporal-tab');
   await openRun(runs, 'paymentWorkflow');
@@ -591,7 +594,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await page.getByRole('tab', { name: 'Events' }).click();
   await expect(page.getByTestId('grouped-events')).toContainText('chargeCard');
   await shot('dark-03-workflow-events-grouped');
-  await page.getByRole('link', { name: '← All workflows' }).click();
+  await page.getByRole('link', { name: '← Workflow executions' }).click();
   await openRun(runs, 'fulfillmentWorkflow');
   await expect(step(page, /^bookCourier, Completed, attempt 3/)).toBeVisible();
   await shot('dark-04-workflow-fulfillment');
@@ -624,7 +627,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
     .click();
   await page.getByText('Show all runs', { exact: true }).click();
   await expect(
-    table(page, 'All workflows').getByText('Continued as new').first(),
+    table(page, 'Workflow executions').getByText('Continued as new').first(),
   ).toBeVisible();
   await shot('dark-08-workflows-page-all-runs');
 });
@@ -635,7 +638,7 @@ async function openRunFromWorkflowsPage(page: Page, workflowType: string) {
     .getByRole('link', { name: 'Workflows', exact: true })
     .first()
     .click();
-  const all = table(page, 'All workflows');
+  const all = table(page, 'Workflow executions');
   await expect(all.getByText(workflowType).first()).toBeVisible();
   await openRun(all, workflowType);
 }

@@ -27,6 +27,7 @@ import {
   RiArrowRightCircleLine,
   RiQuestionLine,
 } from '@remixicon/react';
+import { RUN_HELP } from './RunHelp';
 import { tp } from './styles';
 
 /** Color tone of a status, mapped to the @backstage/ui status tokens. */
@@ -137,6 +138,9 @@ export function WorkflowStatusLabel(props: { status: AnyStatus }) {
     <span
       className={tp('tp-status', `tp-tone-${statusTone(props.status)}`)}
       data-status={props.status}
+      // Continued as new is the Temporal name of the status; the title says
+      // what it means.
+      title={props.status === 'ContinuedAsNew' ? RUN_HELP : undefined}
     >
       <StatusIcon status={props.status} />
       <span className={tp('tp-status-text')}>{label}</span>
