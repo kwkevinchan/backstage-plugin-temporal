@@ -354,14 +354,14 @@ export function buildLoopGroups(
         !n.internal &&
         !OUTSIDE_KINDS.has(n.kind),
     );
-    let status =
+    let status: WorkflowLoopStatus =
       entry?.status ??
       (runOpen && !open && later ? 'done' : derivedStatus(options.status));
-    if (
-      status === 'running' &&
-      options.status !== 'Running' &&
-      options.status !== 'ContinuedAsNew'
-    ) {
+    // A run that ended while the loop ran: the loop goes on in the next
+    // run (continued as new), or it stopped with the run.
+    if (status === 'running' && options.status === 'ContinuedAsNew') {
+      status = 'continued';
+    } else if (status === 'running' && options.status !== 'Running') {
       status = 'failed';
     }
     const lastIteration = iterations[iterations.length - 1] ?? 0;

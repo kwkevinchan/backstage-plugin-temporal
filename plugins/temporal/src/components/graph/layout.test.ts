@@ -155,6 +155,10 @@ describe('layoutSteps', () => {
   });
 });
 
+/** Margin of a laid out graph: its first step starts there. */
+const marginOf = (layout: { positions: Map<string, { y: number }> }) =>
+  Math.min(...[...layout.positions.values()].map(p => p.y));
+
 describe('graphHeight', () => {
   it('follows the graph within limits', () => {
     const row = chain(2);
@@ -173,9 +177,27 @@ describe('graphHeight', () => {
     );
     const tall = layoutSteps(nodes, edges, 1200);
     expect(graphHeight(tall, 1200)).toBe(MAX_GRAPH_HEIGHT);
-    const two = layoutSteps(nodes.slice(0, 3), edges.slice(0, 2), 1200);
-    expect(graphHeight(two, 1200)).toBeGreaterThan(MIN_GRAPH_HEIGHT);
-    expect(graphHeight(two, 1200)).toBeLessThan(MAX_GRAPH_HEIGHT);
+    // Seven steps side by side: taller than the smallest area.
+    const side = parallel.slice(0, 7);
+    const seven = layoutSteps(
+      ['start', ...side].map(id => node(id)),
+      edgesOf(...side.map(id => ['start', id] as [string, string])),
+      1200,
+    );
+    expect(graphHeight(seven, 1200)).toBeGreaterThan(MIN_GRAPH_HEIGHT);
+    expect(graphHeight(seven, 1200)).toBeLessThan(MAX_GRAPH_HEIGHT);
+  });
+
+  it('gives a one-row graph at least 400px and centers it', () => {
+    const row = chain(2);
+    const one = layoutSteps(row.nodes, row.edges, 1200);
+    expect(MIN_GRAPH_HEIGHT).toBeGreaterThanOrEqual(400);
+    const height = graphHeight(one, 1200);
+    const view = initialViewport(one, { width: 1200, height });
+    // As much space above the steps as below them.
+    const above = view.y + marginOf(one);
+    const below = height - view.y - one.height * view.zoom + marginOf(one);
+    expect(Math.abs(above - below)).toBeLessThan(1);
   });
 });
 

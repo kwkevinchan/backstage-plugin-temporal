@@ -79,12 +79,18 @@ export function parseLoopMarker(
 
 /**
  * State of a loop: a round runs (`running`), a round decided the result is
- * good enough (`done`), the last allowed round ended (`exhausted`), or a
- * round failed or the run stopped (`failed`).
+ * good enough (`done`), the last allowed round ended (`exhausted`), a
+ * round failed or the run stopped (`failed`), or the run continued as new
+ * while the loop ran, so the loop goes on in the next run (`continued`).
  *
  * @public
  */
-export type WorkflowLoopStatus = 'running' | 'done' | 'exhausted' | 'failed';
+export type WorkflowLoopStatus =
+  | 'running'
+  | 'done'
+  | 'exhausted'
+  | 'failed'
+  | 'continued';
 
 /**
  * One step of a round.

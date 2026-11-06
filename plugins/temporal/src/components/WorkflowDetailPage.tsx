@@ -59,6 +59,7 @@ import { savedListSearch } from './listState';
 import { LoopsTab } from './LoopsTab';
 import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
+import { RunHelp } from './RunHelp';
 import { DefinitionList, StepDrawer } from './StepDrawer';
 import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
@@ -104,13 +105,31 @@ function useExtensions(props: WorkflowDetailPageProps) {
   }, [props.workflowActions, props.workflowSections, shared]);
 }
 
-function SummaryItem(props: { label: string; children: React.ReactNode }) {
+/**
+ * One field of the header: the label above, the value below. A wide field
+ * (long text, links) spans two columns when there is room.
+ */
+function SummaryItem(props: {
+  label: string;
+  /** Shown after the label: an explanation of the field. */
+  help?: React.ReactNode;
+  wide?: boolean;
+  testId?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className={tp('tp-summary-item')}>
-      <Text as="span" variant="body-x-small" color="secondary">
-        {props.label}
-      </Text>
-      <Text as="span" variant="body-medium">
+    <div
+      className={tp('tp-summary-item')}
+      data-wide={props.wide || undefined}
+      data-testid={props.testId}
+    >
+      <span className={tp('tp-summary-label')}>
+        <Text as="span" variant="body-small" color="secondary">
+          {props.label}
+        </Text>
+        {props.help}
+      </span>
+      <Text as="span" variant="body-medium" className={tp('tp-summary-value')}>
         {props.children}
       </Text>
     </div>
@@ -121,7 +140,7 @@ function detailItems(workflow: WorkflowDetail): [string, React.ReactNode][] {
   return [
     ['Workflow ID', workflow.workflowId],
     ['Run ID', workflow.runId],
-    ['Type', workflow.workflowType],
+    ['Workflow type', workflow.workflowType],
     ['Task queue', workflow.taskQueue],
     ['Namespace', workflow.namespace],
     ['Status', <WorkflowStatusLabel status={workflow.status} />],
@@ -182,7 +201,7 @@ function DetailsTab(props: { workflow: WorkflowDetail }) {
   );
 }
 
-/** "Run 3 of 5", with links to the run before and after this one. */
+/** Links to the run before and after this one: "← Run 2", "Run 4 →". */
 function RunChainLinks(props: {
   chain: WorkflowRunChain;
   workflow: WorkflowDetail;
@@ -195,25 +214,31 @@ function RunChainLinks(props: {
       workflowId: workflow.workflowId,
       runId,
     });
+  const index = chain.index;
   return (
-    <span className={tp('tp-run-chain')} data-testid="workflow-run-chain">
-      <span>
-        {chain.index && chain.total
-          ? `Run ${chain.index} of ${chain.total}`
-          : 'One of several runs'}
-      </span>
+    <span className={tp('tp-run-chain')}>
       {chain.previousRunId && (
         <Link href={href(chain.previousRunId)} variant="body-medium">
-          ← Previous run
+          {index && index > 1 ? `← Run ${index - 1}` : '← Previous run'}
         </Link>
       )}
       {chain.nextRunId && (
         <Link href={href(chain.nextRunId)} variant="body-medium">
-          Next run →
+          {index ? `Run ${index + 1} →` : 'Next run →'}
         </Link>
+      )}
+      {!chain.previousRunId && !chain.nextRunId && (
+        <span className={tp('tp-muted')}>—</span>
       )}
     </span>
   );
+}
+
+/** Label of the run chain field: which run of the chain this is. */
+function runChainLabel(chain: WorkflowRunChain): string {
+  return chain.index && chain.total
+    ? `Run ${chain.index} of ${chain.total}`
+    : 'One of several runs';
 }
 
 function currentLabel(workflow: WorkflowDetail) {
@@ -482,7 +507,7 @@ export function WorkflowDetailPage(
       variant="body-medium"
       data-testid="back-to-list"
     >
-      ← All workflows
+      ← Workflow executions
     </Link>
   );
 
@@ -520,112 +545,138 @@ export function WorkflowDetailPage(
       <Flex direction="column" gap="4">
         {back}
         <Card>
-          <CardBody>
-            <Flex direction="column" gap="3">
-              <Flex align="baseline" gap="3" style={{ flexWrap: 'wrap' }}>
+          <CardBody className={tp('tp-header')}>
+            <div className={tp('tp-header-top')}>
+              <div className={tp('tp-header-title')}>
                 <Text
                   as="h2"
                   variant="title-medium"
-                  style={{ margin: 0, wordBreak: 'break-all' }}
+                  className={tp('tp-header-id')}
                 >
                   {workflow.workflowId}
                 </Text>
-                <Text variant="body-small" color="secondary">
-                  Run {workflow.runId}
+                <Text
+                  variant="body-small"
+                  color="secondary"
+                  className={tp('tp-header-run')}
+                >
+                  Run ID {workflow.runId}
                 </Text>
-              </Flex>
-              <div className={tp('tp-summary')} data-testid="workflow-summary">
-                <SummaryItem label="Status">
-                  <WorkflowStatusLabel status={workflow.status} />
-                </SummaryItem>
-                {graph?.current && (
-                  <SummaryItem label={currentLabel(workflow)}>
-                    <span data-testid="workflow-current">
-                      {graph.current}
-                      {graph.currentDeadline && (
-                        <span
-                          title={formatTime(graph.currentDeadline.time)}
-                          data-testid="workflow-deadline"
-                        >
-                          {' · '}
-                          {deadlineText(graph.currentDeadline)}
-                        </span>
-                      )}
-                    </span>
-                  </SummaryItem>
+              </div>
+              <div
+                className={tp('tp-summary-actions')}
+                data-testid="workflow-actions"
+              >
+                <WorkflowControls
+                  workflow={workflow}
+                  entityRef={entityRef}
+                  reload={data.reload}
+                  workflowHref={workflowHref}
+                />
+                {actions.map(({ id, component: Action, controlAction }) => (
+                  <div key={id} data-testid={`temporal-action-${id}`}>
+                    {Action ? (
+                      <Action {...extensionProps} />
+                    ) : (
+                      controlAction && (
+                        <ControlActionButton
+                          action={controlAction}
+                          workflow={workflow}
+                          entityRef={entityRef}
+                          reload={data.reload}
+                        />
+                      )
+                    )}
+                  </div>
+                ))}
+                {workflow.webUiUrl && (
+                  <ButtonLink
+                    variant="secondary"
+                    href={workflow.webUiUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    iconEnd={<RiExternalLinkLine />}
+                  >
+                    Open in Temporal UI
+                  </ButtonLink>
                 )}
-                {graph?.runChain && (
-                  <SummaryItem label="Continue as new">
-                    <RunChainLinks
-                      chain={graph.runChain}
-                      workflow={workflow}
-                      workflowHref={workflowHref}
-                    />
-                  </SummaryItem>
+                <Button
+                  variant="secondary"
+                  iconStart={<RiRefreshLine />}
+                  isPending={data.refreshing && !running}
+                  onPress={data.reload}
+                >
+                  Refresh
+                </Button>
+                {running && (
+                  <Switch
+                    label="Auto refresh"
+                    isSelected={autoRefresh}
+                    onChange={setAutoRefresh}
+                  />
                 )}
-                <SummaryItem label="Type">{workflow.workflowType}</SummaryItem>
-                <SummaryItem label="Duration">
-                  {formatDuration(workflow.startTime, workflow.closeTime) ||
-                    '—'}
+              </div>
+            </div>
+            <hr className={tp('tp-header-divider')} />
+            <div className={tp('tp-summary')} data-testid="workflow-summary">
+              <SummaryItem
+                label="Status"
+                help={
+                  workflow.status === 'ContinuedAsNew' ? <RunHelp /> : undefined
+                }
+              >
+                <WorkflowStatusLabel status={workflow.status} />
+              </SummaryItem>
+              {graph?.current && (
+                <SummaryItem
+                  label={currentLabel(workflow)}
+                  // Long text (what a run waits for, with its time limit)
+                  // gets two columns.
+                  wide={
+                    Boolean(graph.currentDeadline) || graph.current.length > 32
+                  }
+                >
+                  <span data-testid="workflow-current">
+                    {graph.current}
+                    {graph.currentDeadline && (
+                      <span
+                        title={formatTime(graph.currentDeadline.time)}
+                        data-testid="workflow-deadline"
+                      >
+                        {' · '}
+                        {deadlineText(graph.currentDeadline)}
+                      </span>
+                    )}
+                  </span>
                 </SummaryItem>
-                <SummaryItem label="Started">
-                  {formatTime(workflow.startTime) || '—'}
-                </SummaryItem>
-                <div className={tp('tp-summary-actions')}>
-                  <WorkflowControls
+              )}
+              {graph?.runChain && (
+                <SummaryItem
+                  label={runChainLabel(graph.runChain)}
+                  help={<RunHelp />}
+                  wide
+                  testId="workflow-run-chain"
+                >
+                  <RunChainLinks
+                    chain={graph.runChain}
                     workflow={workflow}
-                    entityRef={entityRef}
-                    reload={data.reload}
                     workflowHref={workflowHref}
                   />
-                  {actions.map(({ id, component: Action, controlAction }) => (
-                    <div key={id} data-testid={`temporal-action-${id}`}>
-                      {Action ? (
-                        <Action {...extensionProps} />
-                      ) : (
-                        controlAction && (
-                          <ControlActionButton
-                            action={controlAction}
-                            workflow={workflow}
-                            entityRef={entityRef}
-                            reload={data.reload}
-                          />
-                        )
-                      )}
-                    </div>
-                  ))}
-                  {workflow.webUiUrl && (
-                    <ButtonLink
-                      variant="secondary"
-                      href={workflow.webUiUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      iconEnd={<RiExternalLinkLine />}
-                    >
-                      Open in Temporal UI
-                    </ButtonLink>
-                  )}
-                  <Button
-                    variant="secondary"
-                    iconStart={<RiRefreshLine />}
-                    isPending={data.refreshing && !running}
-                    onPress={data.reload}
-                  >
-                    Refresh
-                  </Button>
-                  {running && (
-                    <Switch
-                      label="Auto refresh"
-                      isSelected={autoRefresh}
-                      onChange={setAutoRefresh}
-                    />
-                  )}
-                </div>
-              </div>
-              {data.error && (
-                <ErrorAlert title="Could not refresh" error={data.error} />
+                </SummaryItem>
               )}
-            </Flex>
+              <SummaryItem label="Workflow type">
+                {workflow.workflowType}
+              </SummaryItem>
+              <SummaryItem label="Duration">
+                {formatDuration(workflow.startTime, workflow.closeTime) || '—'}
+              </SummaryItem>
+              <SummaryItem label="Started">
+                {formatTime(workflow.startTime) || '—'}
+              </SummaryItem>
+            </div>
+            {data.error && (
+              <ErrorAlert title="Could not refresh" error={data.error} />
+            )}
           </CardBody>
         </Card>
 

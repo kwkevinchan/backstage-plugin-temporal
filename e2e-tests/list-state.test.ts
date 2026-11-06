@@ -47,16 +47,27 @@ async function signIn(page: Page) {
   ).toBeVisible({ timeout: 120_000 });
 }
 
-/** Workflow IDs of the rows, in order. */
+/**
+ * Workflow IDs of the rows, in order: the links of the "Workflow ID"
+ * column. Other links (the entity of a run) are left out, and IDs need
+ * not follow a pattern (Zigflow runs have generated IDs).
+ */
 async function rowIds(page: Page, name: string): Promise<string[]> {
   const list = table(page, name);
   await expect(list.getByRole('link').first()).toBeVisible();
   await expect(list).not.toHaveAttribute('aria-busy', 'true');
-  return list
-    .getByRole('row')
-    .getByRole('link')
-    .filter({ hasText: /^example-|^ticket-/ })
-    .allTextContents();
+  return list.getByRole('row').evaluateAll(rows => {
+    const [head, ...body] = rows;
+    const column = [...head.querySelectorAll('th, [role="columnheader"]')]
+      .map(cell => cell.textContent?.trim())
+      .indexOf('Workflow ID');
+    return body
+      .map(row => {
+        const cells = row.querySelectorAll('td, [role="gridcell"]');
+        return cells[column]?.querySelector('a')?.textContent?.trim() ?? '';
+      })
+      .filter(id => id !== '');
+  });
 }
 
 async function checkList(page: Page, name: string, listUrl: string) {
@@ -120,7 +131,11 @@ async function checkList(page: Page, name: string, listUrl: string) {
 
 test('the Workflows page comes back to the same page', async ({ page }) => {
   await signIn(page);
-  await checkList(page, 'All workflows', '/temporal?allRuns=true&pageSize=5');
+  await checkList(
+    page,
+    'Workflow executions',
+    '/temporal?allRuns=true&pageSize=5',
+  );
   mkdirSync(shotDir, { recursive: true });
   await page.screenshot({
     path: join(shotDir, 'list-01-workflows-page-2.png'),
@@ -132,7 +147,7 @@ test('the Temporal tab comes back to the same page', async ({ page }) => {
   await signIn(page);
   await checkList(
     page,
-    'Workflows',
+    'Workflow executions',
     '/catalog/default/component/example-orders/temporal?allRuns=true&pageSize=5',
   );
 });

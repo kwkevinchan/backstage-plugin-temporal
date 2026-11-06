@@ -26,7 +26,7 @@ import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
 
 /*
  * State of the workflow lists, kept when the user opens a workflow and comes
- * back (browser back or the "All workflows" link):
+ * back (browser back or the "Workflow executions" link):
  *
  * - filters, the page number and the page size are query parameters of the
  *   list URL (`?status=Running&page=2&pageSize=10`), so back from a
@@ -142,7 +142,7 @@ export function listSearch(
 
 /**
  * The query string the list at `path` had when it was left, for the
- * "All workflows" link of the details page. Empty when not known.
+ * "Workflow executions" link of the details page. Empty when not known.
  */
 export function savedListSearch(path: string): string {
   const saved = read(`${SEARCH_KEY}${normalPath(path)}`);
@@ -220,7 +220,7 @@ export function useWorkflowListState() {
     }
   }, [page, pageToken, filters, pageSize, setSearchParams]);
 
-  // The search of the list, for the "All workflows" link.
+  // The search of the list, for the "Workflow executions" link.
   useEffect(() => {
     write(`${SEARCH_KEY}${path}`, location.search || '?');
   }, [path, location.search]);

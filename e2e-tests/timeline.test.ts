@@ -58,7 +58,7 @@ async function openTemporalTab(page: Page) {
     .or(page.getByRole('link', { name: 'Temporal', exact: true }))
     .first()
     .click();
-  const runs = table(page, 'Workflows');
+  const runs = table(page, 'Workflow executions');
   await expect(runs).toBeVisible();
   return runs;
 }
@@ -147,7 +147,7 @@ for (const theme of ['light', 'dark']) {
     await expect(wholeRun).toBeDisabled();
 
     // 4. A running run: the open step ends at now and grows.
-    await page.getByRole('link', { name: '← All workflows' }).click();
+    await page.getByRole('link', { name: '← Workflow executions' }).click();
     await openRun(runs, 'deploymentWorkflow');
     timeline = await openTimeline(page);
     await expect(page.getByTestId('timeline-now')).toBeVisible();
@@ -159,7 +159,7 @@ for (const theme of ['light', 'dark']) {
     await shot(page, 'timeline-05-running', theme);
 
     // 5. A loop: rounds grouped, the latest open, others collapsed.
-    await page.getByRole('link', { name: '← All workflows' }).click();
+    await page.getByRole('link', { name: '← Workflow executions' }).click();
     await openRun(runs, 'draftReviewWorkflow');
     timeline = await openTimeline(page);
     const round1 = page.getByTestId('timeline-round-draft-review/1');

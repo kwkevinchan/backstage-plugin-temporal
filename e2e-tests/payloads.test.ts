@@ -115,8 +115,8 @@ test('large payloads stored in S3: preview, inline value, image and download', a
     .first()
     .click();
   const runs = page
-    .getByRole('grid', { name: 'Workflows', exact: true })
-    .or(page.getByRole('table', { name: 'Workflows', exact: true }))
+    .getByRole('grid', { name: 'Workflow executions', exact: true })
+    .or(page.getByRole('table', { name: 'Workflow executions', exact: true }))
     .first();
   await runs
     .getByRole('row')

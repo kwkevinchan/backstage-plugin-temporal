@@ -54,7 +54,11 @@ export const NODE_FONT_SIZE = 13;
  * The view can still be zoomed out by hand or with "Whole graph".
  */
 export const READABLE_ZOOM = 0.93;
-export const MIN_GRAPH_HEIGHT = 160;
+/**
+ * Height limits of the graph area. A small graph is centered in the
+ * smallest area; a taller one scrolls inside the largest.
+ */
+export const MIN_GRAPH_HEIGHT = 400;
 export const MAX_GRAPH_HEIGHT = 720;
 
 /**
@@ -220,55 +224,79 @@ export function boxSize(layout: StepLayout, id: string): NodeSize {
   return layout.sizes?.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
 }
 
-/** Moves the columns of a laid out graph into rows of at most `width`. */
+/**
+ * Moves the columns of a laid out graph into rows of at most `width`.
+ * Columns are as wide as the widest box (the column width of a step, or
+ * more for a large box such as an expanded loop), and fill each row from
+ * the left.
+ */
 function wrapColumns(layout: StepLayout, width: number): StepLayout {
-  // Boxes of one column share their center; columns are as wide as the
-  // widest box when some boxes are larger.
-  const column = layout.sizes ? MAX_NODE_WIDTH : NODE_WIDTH;
-  const step = column + COLUMN_GAP;
-  const perRow = Math.max(
-    1,
-    Math.floor((width - 2 * MARGIN + COLUMN_GAP) / step),
-  );
+  // Boxes of one column share their center; columns of steps are as wide
+  // as the widest step when some steps are larger.
+  const stepColumn = layout.sizes ? MAX_NODE_WIDTH : NODE_WIDTH;
   const center = (id: string, p: { x: number }) =>
     Math.round(p.x + boxSize(layout, id).width / 2);
-  const columns = [
-    ...new Set([...layout.positions].map(([id, p]) => center(id, p))),
-  ].sort((a, b) => a - b);
-  if (columns.length <= perRow) return layout;
-  const columnOf = new Map(columns.map((x, i) => [x, i]));
+  const columnWidth = new Map<number, number>();
+  for (const [id, p] of layout.positions) {
+    const x = center(id, p);
+    columnWidth.set(
+      x,
+      Math.max(columnWidth.get(x) ?? stepColumn, boxSize(layout, id).width),
+    );
+  }
+  const columns = [...columnWidth.keys()].sort((a, b) => a - b);
+
+  // Columns into rows, from the left.
+  const room = width - 2 * MARGIN;
+  const rowOf = new Map<number, number>();
+  const leftOf = new Map<number, number>();
+  let row = 0;
+  let x = 0;
+  let widest = 0;
+  for (const column of columns) {
+    const w = columnWidth.get(column)!;
+    if (x > 0 && x + w > room) {
+      row++;
+      x = 0;
+    }
+    rowOf.set(column, row);
+    leftOf.set(column, x);
+    x += w + COLUMN_GAP;
+    widest = Math.max(widest, x - COLUMN_GAP);
+  }
+  const rowCount = row + 1;
+  if (rowCount === 1) return layout;
 
   // Height of each row, from the steps in it.
-  const rowCount = Math.ceil(columns.length / perRow);
   const top = new Array<number>(rowCount).fill(Infinity);
   const bottom = new Array<number>(rowCount).fill(-Infinity);
   for (const [id, p] of layout.positions) {
-    const row = Math.floor(columnOf.get(center(id, p))! / perRow);
-    top[row] = Math.min(top[row], p.y);
-    bottom[row] = Math.max(bottom[row], p.y + boxSize(layout, id).height);
+    const r = rowOf.get(center(id, p))!;
+    top[r] = Math.min(top[r], p.y);
+    bottom[r] = Math.max(bottom[r], p.y + boxSize(layout, id).height);
   }
   const offsets: number[] = [];
   let y = MARGIN;
-  for (let row = 0; row < rowCount; row++) {
+  for (let r = 0; r < rowCount; r++) {
     offsets.push(y);
-    if (top[row] !== Infinity) y += bottom[row] - top[row] + WRAP_GAP;
+    if (top[r] !== Infinity) y += bottom[r] - top[r] + WRAP_GAP;
   }
 
   const positions = new Map<string, { x: number; y: number }>();
   for (const [id, p] of layout.positions) {
-    const index = columnOf.get(center(id, p))!;
-    const row = Math.floor(index / perRow);
+    const column = center(id, p);
+    const r = rowOf.get(column)!;
     positions.set(id, {
       x:
         MARGIN +
-        (index % perRow) * step +
-        (column - boxSize(layout, id).width) / 2,
-      y: offsets[row] + (p.y - top[row]),
+        leftOf.get(column)! +
+        (columnWidth.get(column)! - boxSize(layout, id).width) / 2,
+      y: offsets[r] + (p.y - top[r]),
     });
   }
   const wrapped: StepLayout = {
     positions,
-    width: 2 * MARGIN + perRow * step - COLUMN_GAP,
+    width: 2 * MARGIN + widest,
     height: y - WRAP_GAP + MARGIN,
     wrapped: true,
   };

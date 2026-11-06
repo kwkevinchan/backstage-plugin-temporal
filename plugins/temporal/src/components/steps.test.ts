@@ -93,6 +93,24 @@ describe('stepSubtitle', () => {
   });
 });
 
+describe('the end of a run that continued as new', () => {
+  const end: WorkflowGraphNode = {
+    id: 'end',
+    kind: 'workflowClosed',
+    name: 'Continued as new',
+    status: 'ContinuedAsNew',
+    workflow: { namespace: 'default', workflowId: 'wf', runId: 'run-3' },
+    events: [],
+  };
+  it('names the run it continues in', () => {
+    expect(stepSubtitle(end, now, { nextRun: 3 })).toBe('Continues in run 3');
+    expect(stepSubtitle(end, now)).toBe('Continues in a new run');
+    expect(
+      stepSubtitle({ ...end, status: 'Completed', name: 'End' }, now),
+    ).toBe('');
+  });
+});
+
 describe('isMarkerStep', () => {
   const marker = (markerName: string): WorkflowGraphNode => ({
     id: 'marker-7',

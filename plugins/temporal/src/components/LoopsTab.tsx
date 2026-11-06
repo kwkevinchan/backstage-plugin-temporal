@@ -50,6 +50,7 @@ import {
 import { StatusIcon, WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { RiSparkling2Line, RiToolsLine } from '@remixicon/react';
 import { tokensText } from './llm/llmText';
+import { RunHelp } from './RunHelp';
 import { tp } from './styles';
 
 /** The loops of the open run, when the API cannot read the other runs. */
@@ -349,14 +350,17 @@ export function LoopsTab(props: {
           title="Not every run or event was read; some rounds may be missing."
         />
       )}
-      <Text variant="body-small" color="secondary">
-        {data.runs.length > 1
-          ? `${data.runs.length} runs (continue as new). `
-          : ''}
-        {data.source === 'query'
-          ? 'State from the running workflow.'
-          : 'State from the history.'}
-      </Text>
+      <Flex align="center" gap="1">
+        <Text variant="body-small" color="secondary">
+          {data.runs.length > 1
+            ? `${data.runs.length} runs (continued as new). `
+            : ''}
+          {data.source === 'query'
+            ? 'State from the running workflow.'
+            : 'State from the history.'}
+        </Text>
+        {data.runs.length > 1 && <RunHelp />}
+      </Flex>
       {data.loops.length === 0 && (
         <Text color="secondary">No loops in this workflow.</Text>
       )}

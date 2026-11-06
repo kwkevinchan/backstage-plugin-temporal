@@ -51,6 +51,8 @@ export type StepNodeData = {
   step: WorkflowGraphNode;
   selected: boolean;
   onSelect(id: string): void;
+  /** Number of the next run, for the end of a run that continued as new. */
+  nextRun?: number;
 };
 
 export type StepFlowNode = Node<StepNodeData, 'step'>;
@@ -196,7 +198,10 @@ export const StepNode = memo(function StepNodeView(
     );
   }
   const dashed = step.kind === 'waiting' || step.status === 'Waiting';
-  const text = stepBoxText(step);
+  const text = stepBoxText(step, Date.now(), { nextRun: props.data.nextRun });
+  // "Continued as new" is the title already.
+  const status =
+    statusLabel(step.status) === text.title ? '' : statusLabel(step.status);
   return (
     <>
       <Handle
@@ -228,9 +233,7 @@ export const StepNode = memo(function StepNodeView(
         <span className={tp('tp-node-sub')}>
           {isOpenStep(step)
             ? text.subtitle
-            : [statusLabel(step.status), text.subtitle]
-                .filter(Boolean)
-                .join(' · ')}
+            : [status, text.subtitle].filter(Boolean).join(' · ')}
         </span>
       </button>
       <Handle

@@ -75,6 +75,11 @@ export interface GraphCanvasProps<N extends Node> {
   /** The width the graph was laid out for. */
   layoutWidth?: number;
   selectedId?: string;
+  /**
+   * A box to bring into view when nothing is selected (the round frame of
+   * an expanded loop).
+   */
+  focusId?: string;
   onSelect(id: string | undefined): void;
   /** Boxes that pressing selects; by default every box. */
   selectable?(node: N): boolean;
@@ -87,22 +92,46 @@ export interface GraphCanvasProps<N extends Node> {
  * box is moved into view without cutting off the first column.
  */
 export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
-  const { layout, selectedId, onSelect } = props;
+  const { layout, onSelect } = props;
+  // The selected box, else the focused one, is moved into view.
+  const target = props.selectedId ?? props.focusId;
   const flow = useReactFlow<N, Edge>();
   const width = useStore(s => s.width);
   const height = useStore(s => s.height);
   const zoom = useStore(s => s.transform[2]);
+  const domNode = useStore(s => s.domNode);
+
+  // The graph area grows with the layout, so a box can be below the
+  // window: once a new target is laid out, the page scrolls to it too
+  // (nothing moves when it is already in sight).
+  const scrolledTo = useRef<string>();
+  const targetLaidOut = target ? layout.positions.has(target) : false;
+  useEffect(() => {
+    if (!target) {
+      scrolledTo.current = undefined;
+      return undefined;
+    }
+    if (!targetLaidOut || scrolledTo.current === target) return undefined;
+    // After the canvas height and the view follow the new layout.
+    const timer = window.setTimeout(() => {
+      const element = domNode?.querySelector(
+        `.react-flow__node[data-id="${target.replace(/["\\]/g, '\\$&')}"]`,
+      );
+      if (!element) return;
+      scrolledTo.current = target;
+      element.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [target, targetLaidOut, domNode]);
 
   // While the area changes width a new layout follows, so the view waits
   // for it.
   const applied = useRef<{
     key?: string;
-    selectedId?: string;
+    target?: string;
     width?: number;
   }>({});
-  const selectedPosition = selectedId
-    ? layout.positions.get(selectedId)
-    : undefined;
+  const targetPosition = target ? layout.positions.get(target) : undefined;
   const relayoutPending =
     props.layoutWidth !== undefined && Math.abs(width - props.layoutWidth) > 1;
   useEffect(() => {
@@ -113,19 +142,19 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
       last.key !== props.layoutKey ||
       last.width === undefined ||
       Math.abs(last.width - width) > 1;
-    if (!relayout && last.selectedId === selectedId) return undefined;
+    if (!relayout && last.target === target) return undefined;
     const first = last.key === undefined;
     const run = () => {
-      applied.current = { key: props.layoutKey, selectedId, width };
+      applied.current = { key: props.layoutKey, target, width };
       const canvas = { width, height };
       const current = flow.getViewport();
       let next = relayout ? initialViewport(layout, canvas) : current;
-      if (selectedPosition && selectedId) {
+      if (targetPosition && target) {
         next = panIntoView(
           next,
-          selectedPosition,
+          targetPosition,
           canvas,
-          boxSize(layout, selectedId),
+          boxSize(layout, target),
         );
       }
       next = keepInGraph(next, layout, canvas);
@@ -150,8 +179,8 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
     layout,
     width,
     height,
-    selectedId,
-    selectedPosition,
+    target,
+    targetPosition,
     relayoutPending,
   ]);
 

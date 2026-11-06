@@ -268,6 +268,41 @@ describe('loop groups in the graph', () => {
     expect(graph.loops![0].rounds.map(r => r.iteration)).toEqual([11]);
   });
 
+  it('shows a loop of a run that continued as new as continued, not running', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', { continuedExecutionRunId: 'run-1' });
+    h.activity('draft', 'loop/review/11/draft');
+    h.activity('review', 'loop/review/11/review');
+    h.upsert(state(11, 'running', { decision: 'revise', score: 0.5 }));
+    h.activity('draft', 'loop/review/12/draft');
+    h.activity('review', 'loop/review/12/review');
+    // The memo still says running when the run hands over to the next one.
+    h.upsert(state(12, 'running', { decision: 'revise', score: 0.6 }));
+    h.add('WorkflowExecutionContinuedAsNew', { newExecutionRunId: 'run-3' });
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({ status: 'ContinuedAsNew' }),
+    );
+    const [loop] = graph.loops!;
+    expect(loop).toMatchObject({ status: 'continued', iteration: 12 });
+    expect(loop.rounds.map(r => [r.iteration, r.status])).toEqual([
+      [11, 'Completed'],
+      [12, 'Completed'],
+    ]);
+  });
+
+  it('shows a loop without a loop state of a continued run as continued', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    h.activity('draft', 'loop/review/1/draft');
+    h.add('WorkflowExecutionContinuedAsNew', { newExecutionRunId: 'run-2' });
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({ status: 'ContinuedAsNew' }),
+    );
+    expect(graph.loops![0].status).toBe('continued');
+  });
+
   it('reads child workflow markers from the memo and the workflow ID', () => {
     const h = history();
     h.add('WorkflowExecutionStarted', {});

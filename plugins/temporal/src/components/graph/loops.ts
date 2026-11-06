@@ -20,26 +20,46 @@ import type {
   WorkflowLoopGroup,
   WorkflowLoopRound,
 } from '../../common';
-import { hideSteps } from './layout';
 
-/** How one loop is shown: collapsed, or expanded to one round. */
+/**
+ * How one loop is shown: collapsed into one box, or expanded with every
+ * round of the run in its own frame.
+ */
 export interface LoopView {
   expanded: boolean;
-  /** The round shown when expanded; the latest round when left out. */
+  /**
+   * The round to bring into view when expanded (a round picked in the
+   * Loops tab). Left out: the running round, else a failed round, else the
+   * last one.
+   */
   iteration?: number;
 }
 
 export type LoopViews = Record<string, LoopView>;
+
+/** The frame of one round of an expanded loop. */
+export interface RoundFrame {
+  /** `loop:<name>#<iteration>`. */
+  id: string;
+  round: WorkflowLoopRound;
+  /** Steps of the round in the graph, in graph order. */
+  stepIds: string[];
+}
 
 /** The box of a loop in the graph. */
 export interface LoopBox {
   id: string;
   loop: WorkflowLoopGroup;
   expanded: boolean;
-  /** The round shown (expanded) or the latest round (collapsed). */
+  /** The latest round. */
   round?: WorkflowLoopRound;
+  /** Frames of the rounds of this run, oldest first; empty when collapsed. */
+  frames: RoundFrame[];
+  /** The loop started in an earlier run (continued as new). */
+  fromEarlierRun?: boolean;
 }
 
+/** Prefix of the node IDs of loop boxes, so they never clash with steps. */
 export const LOOP_NODE_PREFIX = 'loop:';
 
 export function loopNodeId(name: string): string {
@@ -50,7 +70,12 @@ export function isLoopNodeId(id: string | undefined): boolean {
   return Boolean(id?.startsWith(LOOP_NODE_PREFIX));
 }
 
-/** The round of a loop that a view shows: the chosen one, else the latest. */
+/** ID of the frame of a round. */
+export function roundFrameId(name: string, iteration: number): string {
+  return `${loopNodeId(name)}#${iteration}`;
+}
+
+/** The latest round, or the round with `iteration` when there is one. */
 export function shownRound(
   loop: WorkflowLoopGroup,
   view?: LoopView,
@@ -64,9 +89,28 @@ export function shownRound(
 }
 
 /**
- * The loop that a step belongs to, by the steps of its rounds, with the
+ * The frame an expanded loop brings into view: the round named in the
+ * view, else the running round, else the last failed round, else the last
  * round.
  */
+export function focusFrame(
+  box: LoopBox,
+  view?: LoopView,
+): RoundFrame | undefined {
+  const { frames } = box;
+  if (frames.length === 0) return undefined;
+  const named =
+    view?.iteration !== undefined
+      ? frames.find(f => f.round.iteration === view.iteration)
+      : undefined;
+  if (named) return named;
+  const running = frames.find(f => f.round.status === 'Running');
+  if (running) return running;
+  const failed = [...frames].reverse().find(f => f.round.status === 'Failed');
+  return failed ?? frames[frames.length - 1];
+}
+
+/** The loop and round a step belongs to. */
 export function loopOfStep(
   loops: WorkflowLoopGroup[] | undefined,
   nodeId: string,
@@ -87,61 +131,114 @@ export function isLoopBoxNode(
   return 'loopBox' in node;
 }
 
+export interface GroupedLoops {
+  /**
+   * Steps and loop boxes of the main graph. An expanded loop is one box
+   * here too: its rounds are laid out inside it.
+   */
+  nodes: Node[];
+  /** Arrows of the main graph. */
+  edges: WorkflowGraphEdge[];
+  boxes: LoopBox[];
+  /** Steps of each round frame. */
+  frameSteps: Map<string, WorkflowGraphNode[]>;
+  /** Arrows between the steps of each round frame. */
+  frameEdges: Map<string, WorkflowGraphEdge[]>;
+}
+
 /**
- * Replaces the steps of each loop with one box. A collapsed loop is the box
- * alone, with the arrows into and out of its rounds. An expanded loop is
- * the box followed by the steps of one round; the other rounds are left
- * out and the arrows through them are joined. Steps after the loop follow
- * it. Without loops, the steps are returned as they are.
+ * The graph with each loop as one box. A collapsed loop is one box for all
+ * its rounds. An expanded loop is one box too, with a frame for each round
+ * of the run: the steps of a round go into its frame, and arrows between
+ * rounds are left out (the frames are joined in round order). Arrows into
+ * and out of the loop go to its box.
+ *
+ * A step belongs to the first loop that lists it, so loops inside loops
+ * show as boxes next to each other.
  */
 export function groupLoops(
   nodes: WorkflowGraphNode[],
   edges: WorkflowGraphEdge[],
   loops: WorkflowLoopGroup[] | undefined,
   views: LoopViews,
-): { nodes: Node[]; edges: WorkflowGraphEdge[]; boxes: LoopBox[] } {
-  if (!loops || loops.length === 0) return { nodes, edges, boxes: [] };
-  const present = new Set(nodes.map(n => n.id));
-  const hidden = new Set<string>();
-  const mergeInto = new Map<string, string>();
-  const shownBy = new Map<string, string>();
+  options: { previousRun?: boolean } = {},
+): GroupedLoops {
+  const empty = {
+    frameSteps: new Map<string, WorkflowGraphNode[]>(),
+    frameEdges: new Map<string, WorkflowGraphEdge[]>(),
+  };
+  if (!loops || loops.length === 0) {
+    return { nodes, edges, boxes: [], ...empty };
+  }
+  const byId = new Map(nodes.map(n => [n.id, n]));
+  /** Step ID to the box it is in. */
+  const boxOf = new Map<string, string>();
+  /** Step ID to its round frame, for expanded loops. */
+  const frameOf = new Map<string, string>();
   const boxes: LoopBox[] = [];
+  const { frameSteps, frameEdges } = empty;
   for (const loop of loops) {
-    const view = views[loop.name];
-    const round = shownRound(loop, view);
     const id = loopNodeId(loop.name);
-    const members = loop.rounds
-      .flatMap(r => r.steps.map(s => s.nodeId))
-      .filter(m => present.has(m) && !mergeInto.has(m) && !shownBy.has(m));
-    if (members.length === 0 && loop.rounds.length === 0) continue;
-    const shown = new Set(
-      view?.expanded && round
-        ? round.steps.map(s => s.nodeId).filter(m => members.includes(m))
-        : [],
-    );
-    const expanded = Boolean(view?.expanded) && shown.size > 0;
-    boxes.push({ id, loop, expanded, round });
-    for (const m of members) {
-      if (!expanded) mergeInto.set(m, id);
-      else if (shown.has(m)) shownBy.set(m, id);
-      else hidden.add(m);
+    const view = views[loop.name];
+    const expanded = Boolean(view?.expanded) && loop.rounds.length > 0;
+    let members = 0;
+    const frames: RoundFrame[] = [];
+    for (const round of loop.rounds) {
+      const frame: RoundFrame = {
+        id: roundFrameId(loop.name, round.iteration),
+        round,
+        stepIds: [],
+      };
+      for (const step of round.steps) {
+        if (!byId.has(step.nodeId) || boxOf.has(step.nodeId)) continue;
+        boxOf.set(step.nodeId, id);
+        members++;
+        if (expanded) {
+          frameOf.set(step.nodeId, frame.id);
+          frame.stepIds.push(step.nodeId);
+        }
+      }
+      if (expanded) frames.push(frame);
+    }
+    if (members === 0 && loop.rounds.length === 0) continue;
+    const first = loop.rounds[0];
+    boxes.push({
+      id,
+      loop,
+      expanded,
+      round: loop.rounds[loop.rounds.length - 1],
+      frames,
+      fromEarlierRun: Boolean(options.previousRun && first?.iteration > 1),
+    });
+  }
+  if (boxes.length === 0) return { nodes, edges, boxes, ...empty };
+
+  // Steps of each frame in graph order.
+  const order = new Map(nodes.map((n, i) => [n.id, i]));
+  for (const box of boxes) {
+    for (const frame of box.frames) {
+      frame.stepIds.sort((a, b) => order.get(a)! - order.get(b)!);
+      frameSteps.set(
+        frame.id,
+        frame.stepIds.map(s => byId.get(s)!),
+      );
+      frameEdges.set(frame.id, []);
     }
   }
-  if (boxes.length === 0) return { nodes, edges, boxes };
-
-  // Other rounds of expanded loops: left out, arrows joined through them.
-  const reduced = hideSteps(nodes, edges, hidden);
 
   const out: Node[] = [];
   const placed = new Set<string>();
   const boxById = new Map(boxes.map(b => [b.id, b]));
-  for (const node of reduced.nodes) {
-    const box = mergeInto.get(node.id) ?? shownBy.get(node.id);
-    if (box && !placed.has(box)) {
+  for (const node of nodes) {
+    const box = boxOf.get(node.id);
+    if (!box) {
+      out.push(node);
+      continue;
+    }
+    if (!placed.has(box)) {
       placed.add(box);
       out.push({ id: box, loopBox: boxById.get(box)! });
     }
-    if (!mergeInto.has(node.id)) out.push(node);
   }
   // A loop whose steps are all hidden (markers) still shows its box.
   for (const box of boxes) {
@@ -157,25 +254,16 @@ export function groupLoops(
     seen.add(id);
     result.push({ id, source, target });
   };
-  for (const edge of reduced.edges) {
-    const source = mergeInto.get(edge.source) ?? edge.source;
-    const target = mergeInto.get(edge.target) ?? edge.target;
-    const intoRound = shownBy.get(target);
-    // Arrows into the shown round go through the box of its loop.
-    if (intoRound && shownBy.get(source) !== intoRound) {
-      link(source, intoRound);
-      link(intoRound, target);
+  for (const edge of edges) {
+    const frame = frameOf.get(edge.source);
+    if (frame && frame === frameOf.get(edge.target)) {
+      frameEdges.get(frame)!.push(edge);
       continue;
     }
-    link(source, target);
+    link(
+      boxOf.get(edge.source) ?? edge.source,
+      boxOf.get(edge.target) ?? edge.target,
+    );
   }
-  // The box of an expanded loop leads to the round's first steps, also when
-  // no arrow led into them (the loop started the workflow).
-  for (const box of boxes.filter(b => b.expanded)) {
-    if (!result.some(e => e.source === box.id)) {
-      const first = out.find(n => shownBy.get(n.id) === box.id);
-      if (first) link(box.id, first.id);
-    }
-  }
-  return { nodes: out, edges: result, boxes };
+  return { nodes: out, edges: result, boxes, frameSteps, frameEdges };
 }

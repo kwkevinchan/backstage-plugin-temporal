@@ -310,25 +310,93 @@
   color: var(--bui-fg-secondary);
 }
 
-/* Summary bar at the top of the details page. */
-.tp-summary {
+/*
+ * Header of the details page: the workflow ID and run ID with the actions
+ * on the right, a divider, then the fields in a grid.
+ */
+.tp-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-4, 16px);
+  padding: var(--bui-space-5, 24px);
+  container: tp-header / inline-size;
+}
+.tp-header-top {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--bui-space-2, 8px) var(--bui-space-5, 24px);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--bui-space-3, 12px) var(--bui-space-4, 16px);
+}
+.tp-header-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-1, 4px);
+  /* Takes the row; the actions wrap under it when the row is narrow. */
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.tp-header-id {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tp-header-run {
+  overflow-wrap: anywhere;
+}
+.tp-header-divider {
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: none;
+  border-top: 1px solid var(--bui-border-1);
+}
+.tp-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--bui-space-4, 16px) var(--bui-space-5, 24px);
 }
 .tp-summary-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bui-space-1_5, 6px);
   min-width: 0;
+}
+.tp-summary-item[data-wide] {
+  grid-column: span 2;
+}
+.tp-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bui-space-1, 4px);
+  min-height: 20px;
+}
+.tp-summary-value {
+  overflow-wrap: anywhere;
 }
 .tp-summary-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--bui-space-2, 8px);
-  margin-left: auto;
+}
+.tp-help {
+  display: inline-flex;
+  /* The button is larger than the label text; keep the row height. */
+  margin-block: -6px;
+}
+@media (max-width: 480px) {
+  .tp-header {
+    padding: var(--bui-space-4, 16px);
+  }
+}
+/* Room for one column only (two need 2 x 180px + 24px): wide fields do not span. */
+@container tp-header (max-width: 383px) {
+  .tp-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .tp-summary-item[data-wide] {
+    grid-column: auto;
+  }
 }
 
 /* Progress in lists. */
@@ -454,6 +522,65 @@
 .tp-node[data-loop='true'][data-expanded='true'] {
   border-left-style: double;
   border-left-width: 6px;
+}
+/*
+ * Frame of one round of an expanded loop, under its steps: a title bar
+ * and a light body, so the arrows between the steps show through.
+ */
+.tp-round {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1.5px solid var(--tp-border);
+  border-radius: var(--bui-radius-3, 8px);
+  background: color-mix(in srgb, var(--bui-bg-neutral-2) 45%, transparent);
+  font-family: var(--bui-font-regular);
+  cursor: default;
+}
+.tp-round[data-status='Running'],
+.tp-round[data-status='Failed'] {
+  border-width: 2px;
+}
+.tp-round[data-active='true'] {
+  animation: tp-pulse 1.6s ease-in-out infinite;
+}
+.tp-round[data-focused='true'] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bui-ring) 60%, transparent);
+}
+.tp-round-title {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2, 8px);
+  height: 32px;
+  padding: 0 var(--bui-space-3, 12px);
+  border-bottom: 1px solid var(--tp-border);
+  border-radius: var(--bui-radius-3, 8px) var(--bui-radius-3, 8px) 0 0;
+  background: var(--tp-bg);
+  color: var(--bui-fg-primary);
+  /* At least 12px at the smallest zoom the graph opens with. */
+  font-size: 13px;
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-round-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-round-empty {
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  color: var(--bui-fg-secondary);
+  font-size: 13px;
+}
+.tp-round-note {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 var(--bui-space-3, 12px);
+  color: var(--bui-fg-secondary);
+  font-family: var(--bui-font-regular);
+  font-size: 13px;
+  white-space: nowrap;
 }
 .tp-loop-controls {
   display: inline-flex;

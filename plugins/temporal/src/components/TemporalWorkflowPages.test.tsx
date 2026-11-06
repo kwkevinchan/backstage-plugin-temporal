@@ -61,7 +61,9 @@ describe('TemporalWorkflow entity tab', () => {
     const api = mockTemporalApi();
     await render(workflowEntity, api);
 
-    expect(await screen.findByText('Temporal workflow')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Workflow type' }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText('orderWorkflow').length).toBeGreaterThan(0);
     expect(screen.getByText('production')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /team-a/ })).toHaveAttribute(
@@ -104,7 +106,9 @@ describe('TemporalWorkflow entity tab', () => {
       { limit: 50 },
     );
 
-    expect(screen.getByText('Runs')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Workflow executions' }),
+    ).toBeInTheDocument();
     expect(await screen.findByText('order-1')).toBeInTheDocument();
     expect(api.listEntityWorkflows).toHaveBeenCalledWith(
       'temporalworkflow:default/order-workflow',
@@ -133,7 +137,7 @@ describe('Temporal tab of a component that depends on workflows', () => {
     await render(checkoutEntity, api);
 
     const workflows = await screen.findByRole('grid', {
-      name: 'Workflow entities',
+      name: 'Workflow types',
     });
     expect(
       within(workflows).getByRole('link', { name: /order-workflow/ }),
@@ -143,9 +147,11 @@ describe('Temporal tab of a component that depends on workflows', () => {
     );
     expect(within(workflows).getByText('orders')).toBeInTheDocument();
 
-    const runs = await screen.findByRole('grid', { name: 'Workflows' });
+    const runs = await screen.findByRole('grid', {
+      name: 'Workflow executions',
+    });
     expect(within(runs).getByText('deploy-1')).toBeInTheDocument();
-    expect(within(runs).getByText('Workflow entity')).toBeInTheDocument();
+    expect(within(runs).getByText('Workflow type entity')).toBeInTheDocument();
     expect(
       within(runs).getByRole('link', { name: /order-workflow/ }),
     ).toHaveAttribute(

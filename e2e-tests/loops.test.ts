@@ -111,7 +111,7 @@ async function openTemporalTab(page: Page) {
     .or(page.getByRole('link', { name: 'Temporal', exact: true }))
     .first()
     .click();
-  const runs = table(page, 'Workflows');
+  const runs = table(page, 'Workflow executions');
   await expect(runs).toBeVisible();
   return runs;
 }
@@ -155,24 +155,35 @@ for (const theme of ['light', 'dark']) {
     ).toHaveCount(0);
     await shot(page, 'loops-01-collapsed', theme);
 
-    // 2. Expanded: the steps of the last round, then an earlier round.
+    // 2. Expanded: every round in its own frame, top to bottom.
     await box.click();
     await expect(box).toHaveAttribute('aria-expanded', 'true');
     const controls = page.getByTestId('loop-controls-draft-review');
-    await expect(controls.getByTestId('loop-round')).toHaveText('Round 4 of 5');
+    await expect(controls.getByTestId('loop-round')).toHaveText(
+      'Rounds 1–4 of 5 · Done',
+    );
+    await expect(
+      controls.getByRole('button', { name: 'Previous round' }),
+    ).toHaveCount(0);
     await expect(
       graph(page).getByRole('button', { name: /^llmReview, Completed/ }),
-    ).toHaveCount(1);
+    ).toHaveCount(4);
+    const frame = (round: number) =>
+      page.getByTestId(`loop-round-draft-review-${round}`);
+    await expect(frame(4)).toContainText('Round 4 · accept');
+    await expect(frame(1)).toContainText('Round 1 · revise');
+    // The last round is brought into view.
+    await expect(frame(4)).toHaveAttribute('data-focused', 'true');
     await graphSettled(page);
-    expect(await boxesOutsideGraph(page)).toEqual([]);
-    await shot(page, 'loops-02-expanded-round-4', theme);
-    await controls.getByRole('button', { name: 'Previous round' }).click();
-    await expect(controls.getByTestId('loop-round')).toHaveText('Round 3 of 5');
-    // The pause between rounds belongs to the round.
+    await expect(frame(4)).toBeInViewport();
+    const top = async (round: number) => (await frame(round).boundingBox())!.y;
+    expect(await top(1)).toBeLessThan(await top(2));
+    expect(await top(3)).toBeLessThan(await top(4));
+    // The pauses between rounds belong to the rounds.
     await expect(
       graph(page).getByRole('button', { name: /^Timer/ }),
-    ).toHaveCount(1);
-    await shot(page, 'loops-03-expanded-round-3', theme);
+    ).not.toHaveCount(0);
+    await shot(page, 'loops-02-expanded', theme);
 
     // 3. The Loops tab: one row per round with decision and score; a row
     // opens its round in the graph.
@@ -185,10 +196,13 @@ for (const theme of ['light', 'dark']) {
     await page.getByTestId('workflow-loops').scrollIntoViewIfNeeded();
     await shot(page, 'loops-04-tab', theme);
     await rounds.getByRole('row').filter({ hasText: '0.62' }).click();
-    await expect(controls.getByTestId('loop-round')).toHaveText('Round 2 of 5');
+    await expect(frame(2)).toHaveAttribute('data-focused', 'true');
+    await graphSettled(page);
+    await expect(frame(2)).toBeInViewport();
+    await shot(page, 'loops-03-tab-round-2', theme);
 
     // 4. The long loop: three runs, 25 rounds counted across them.
-    await page.getByRole('link', { name: '← All workflows' }).click();
+    await page.getByRole('link', { name: '← Workflow executions' }).click();
     await openRun(runs, 'longRefineWorkflow');
     await expect(page.getByTestId('workflow-run-chain')).toContainText(
       'Run 3 of 3',
@@ -203,7 +217,7 @@ for (const theme of ['light', 'dark']) {
     const longRounds = table(page, 'Rounds of refine');
     await expect(longRounds.getByRole('row')).toHaveCount(26);
     await expect(page.getByTestId('workflow-loops')).toContainText(
-      '3 runs (continue as new)',
+      '3 runs (continued as new)',
     );
     await expect(longRounds.getByRole('link', { name: 'Run 1' })).toHaveCount(
       10,
@@ -223,7 +237,16 @@ for (const theme of ['light', 'dark']) {
     await expect(refine).toHaveAttribute('aria-expanded', 'true');
     await expect(
       page.getByTestId('loop-controls-refine').getByTestId('loop-round'),
-    ).toHaveText('Round 5 of 25');
+    ).toHaveText('Rounds 1–10 of 25 · Continued in next run');
+    await expect(page.getByTestId('loop-round-refine-5')).toHaveAttribute(
+      'data-focused',
+      'true',
+    );
+    await graphSettled(page);
+    await expect(page.getByTestId('loop-round-refine-5')).toBeInViewport();
+    await expect(page.getByTestId('loop-note-after-refine')).toHaveText(
+      '↓ The loop continues in run 2',
+    );
     await shot(page, 'loops-07-earlier-run-round-5', theme);
     expect(consoleErrors).toEqual([]);
   });

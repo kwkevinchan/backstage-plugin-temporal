@@ -202,7 +202,8 @@ the round count into the next run when the workflow continues as new.
 
 The [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal/README.md) reads the markers: the
 step graph shows a loop as one box (`draft-review · Round 4 of 5 · Done`)
-that expands to the steps of one round, and the Loops tab lists every round
+that expands to every round of the run, one frame per round, and the Loops
+tab lists every round
 with its steps, decision and score, across the runs.
 
 `/loop` runs inside workflow code (the workflow sandbox).
