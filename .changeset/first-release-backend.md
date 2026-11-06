@@ -6,8 +6,9 @@ First release of the backend plugin.
 
 - Permission-checked routes for the workflows of an entity and of the
   Workflows page: lists, details, the step graph, progress, loops, the event
-  history and downloads of payloads stored in S3 (`temporal.payloads.s3`,
-  read with the claim checks of `@kwkevinchan/temporal-workflow-kit/s3`).
+  history and downloads of large payloads in Temporal External Storage
+  (`temporal.externalStorage.s3`: the references of the SDKs' S3 driver,
+  read and verified by the backend itself).
 - LLM steps: model calls (activity ID `llm/...`) and their tool calls
   (`tool/...`) are found without the payload codec; the graph, the steps
   and the loops carry a summary of each call (model, tokens, duration,

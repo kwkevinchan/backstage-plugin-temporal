@@ -106,16 +106,27 @@ export interface Config {
        */
       readFileLocations?: boolean;
     };
-    /** Payloads stored outside the workflow history. */
-    payloads?: {
+    /**
+     * Temporal External Storage: payloads that workers store outside the
+     * workflow history with the `ExternalStorage` of the Temporal SDKs.
+     */
+    externalStorage?: {
       /**
-       * S3-compatible storage of large payloads (claim checks of the
-       * `@kwkevinchan/temporal-workflow-kit/s3` codec). Without it, claim checks
-       * are shown as stored externally, with their key and size.
+       * The S3 driver (`@temporalio/external-storage-s3` and the drivers of
+       * the other SDKs). Without it, stored payloads are shown as stored
+       * externally, with their key and size.
        */
       s3?: {
-        /** Bucket of the payloads, the same as the workers use. */
+        /**
+         * Bucket of the payloads, the same as the workers' driver uses.
+         * Payloads in other buckets are not read.
+         */
         bucket: string;
+        /**
+         * Driver name the workers' driver writes into the references.
+         * Defaults to `aws.s3driver`, the default of the S3 driver.
+         */
+        driverName?: string;
         /**
          * Endpoint of an S3-compatible service, for example
          * `http://localhost:9100`. Leave it out for AWS S3.

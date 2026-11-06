@@ -58,10 +58,11 @@ workflow definition.
   laid over the graph (done, running, failed, not reached). Workflows written
   in code get links to their source (see
   [Workflow definitions](#workflow-definitions)).
-- **Large payloads in S3.** Payloads that workers store in an S3-compatible
-  store with `@kwkevinchan/temporal-workflow-kit/s3`
-  are shown as JSON, as a preview or as an image, and can be downloaded
-  through the backend.
+- **Large payloads in External Storage.** Payloads that workers store in
+  S3 with Temporal External Storage (the `ExternalStorage` of the Temporal
+  SDKs and its S3 driver) are shown as JSON, as a preview or as an image,
+  and can be downloaded through the backend (see
+  [Large payloads](#large-payloads-external-storage)).
 - **Workflow controls.** Start, signal, update, query, cancel, terminate and
   rerun workflows, and add your own actions.
 - **Workflow types in the catalog.** A `TemporalWorkflow` catalog kind for
@@ -85,7 +86,7 @@ workflow definition.
 | [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections.                       |
 | [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy. |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                          |
-| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library          | Your workers      | Not a Backstage package. `/s3`: payload codec, large payloads in S3 with a claim check in the history. `/loop`: loop markers, a loop state query and continue-as-new helpers.        |
+| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library          | Your workers      | Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                |
 
 Which ones to install:
 
@@ -93,9 +94,10 @@ Which ones to install:
   backend.
 - **With `TemporalWorkflow` entities:** also the catalog module in the
   backend.
-- **With large payloads in S3, or loops of AI workflows:** the workflow kit
-  in your Temporal workers (not in Backstage). The backend reads the claim
-  checks itself and only needs `temporal.payloads.s3`.
+- **With loops or LLM steps of AI workflows:** the workflow kit in your
+  Temporal workers (not in Backstage).
+- **With large payloads in External Storage:** nothing more; the backend
+  reads the references itself and only needs `temporal.externalStorage.s3`.
 
 Plugins and app modules that add buttons or tabs to the workflow page use the
 frontend plugin (`./alpha` for the blueprints); backend modules and
@@ -107,12 +109,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                        |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                    |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                          |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**. `@kwkevinchan/temporal-workflow-kit/loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24); `/s3` works with the TypeScript SDK (tested with 1.24). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                        |
+| Component       | Supported                                                                                                                                                                                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                           |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                 |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**. `@kwkevinchan/temporal-workflow-kit/loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                               |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -150,7 +152,7 @@ uses `@temporalio/client` (no worker code runs inside Backstage). Add at
 least `temporal.connection` to your app config (see
 [Configuration](#configuration)).
 
-**Content security policy.** With large payloads in S3, the step panel shows
+**Content security policy.** With large payloads in External Storage, the step panel shows
 stored images as thumbnails from `blob:` URLs. The backend's default content
 security policy does not allow them, so in production (where the backend
 serves the app) add `blob:` to `img-src`, or the thumbnails stay empty:
@@ -429,7 +431,7 @@ The format:
   (`gen_ai.request.model`, `gen_ai.usage.input_tokens`,
   `gen_ai.input.messages`, `gen_ai.output.messages` with parts `text`,
   `reasoning`, `tool_call`, `tool_call_response`, ...), version
-  `gen-ai-dev/1.42.0-dev`. Large records go to S3 like any payload.
+  `gen-ai-dev/1.42.0-dev`. Large records go to External Storage like any payload.
 
 The graph, the Loops tab and the timeline need the read permission and show
 names and numbers only (model, tokens, tool names). The messages, the
@@ -590,8 +592,8 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
-  # Optional: large payloads in S3, see Large payloads in S3.
-  payloads:
+  # Optional: large payloads in Temporal External Storage, see Large payloads.
+  externalStorage:
     s3:
       bucket: temporal-payloads
       endpoint: http://rustfs.storage.svc:9000
@@ -604,28 +606,29 @@ temporal:
       previewBytes: 2048
 ```
 
-| Key                             | Default     | Meaning                                                                                                |
-| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
-| `connection.address`            | (required)  | Temporal frontend service, `host:port`.                                                                |
-| `connection.namespaces`         | `[default]` | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
-| `connection.defaultNamespace`   | `default`   | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
-| `connection.auth.type`          | `none`      | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
-| `connection.auth.token`         |             | Token for `bearer`. A secret: read it from an environment variable.                                    |
-| `webUi.baseUrl`                 |             | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
-| `searchAttributes.entityRef`    |             | Keyword search attribute with the entity reference of a workflow.                                      |
-| `searchAttributes.initiator`    |             | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
-| `control.enabled`               | `true`      | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
-| `control.allowedSignals`        | (all)       | Signal names that may be sent.                                                                         |
-| `control.allowedUpdates`        | (all)       | Update names that may be sent.                                                                         |
-| `definitions.maxBytes`          | `1048576`   | Largest definition file read, in bytes (at most 8 MiB).                                                |
-| `definitions.readFileLocations` | `false`     | Read definitions next to entities from `file:` locations (development catalogs).                       |
-| `payloads.s3.bucket`            | (required)  | Bucket the workers store payloads in.                                                                  |
-| `payloads.s3.endpoint`          | AWS S3      | Endpoint of an S3-compatible service.                                                                  |
-| `payloads.s3.region`            | `us-east-1` | Region.                                                                                                |
-| `payloads.s3.forcePathStyle`    | `false`     | Bucket in the path instead of the host name (most self-hosted services).                               |
-| `payloads.s3.credentials`       | (required)  | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
-| `payloads.s3.maxInlineBytes`    | `262144`    | JSON payloads up to this size are shown like payloads in the history.                                  |
-| `payloads.s3.previewBytes`      | `2048`      | Bytes of text shown as the preview of a larger payload.                                                |
+| Key                                 | Default        | Meaning                                                                                                |
+| ----------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
+| `connection.address`                | (required)     | Temporal frontend service, `host:port`.                                                                |
+| `connection.namespaces`             | `[default]`    | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
+| `connection.defaultNamespace`       | `default`      | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
+| `connection.auth.type`              | `none`         | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
+| `connection.auth.token`             |                | Token for `bearer`. A secret: read it from an environment variable.                                    |
+| `webUi.baseUrl`                     |                | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
+| `searchAttributes.entityRef`        |                | Keyword search attribute with the entity reference of a workflow.                                      |
+| `searchAttributes.initiator`        |                | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
+| `control.enabled`                   | `true`         | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
+| `control.allowedSignals`            | (all)          | Signal names that may be sent.                                                                         |
+| `control.allowedUpdates`            | (all)          | Update names that may be sent.                                                                         |
+| `definitions.maxBytes`              | `1048576`      | Largest definition file read, in bytes (at most 8 MiB).                                                |
+| `definitions.readFileLocations`     | `false`        | Read definitions next to entities from `file:` locations (development catalogs).                       |
+| `externalStorage.s3.bucket`         | (required)     | Bucket the workers store payloads in.                                                                  |
+| `externalStorage.s3.driverName`     | `aws.s3driver` | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                         |
+| `externalStorage.s3.endpoint`       | AWS S3         | Endpoint of an S3-compatible service.                                                                  |
+| `externalStorage.s3.region`         | `us-east-1`    | Region.                                                                                                |
+| `externalStorage.s3.forcePathStyle` | `false`        | Bucket in the path instead of the host name (most self-hosted services).                               |
+| `externalStorage.s3.credentials`    | (required)     | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
+| `externalStorage.s3.maxInlineBytes` | `262144`       | JSON payloads up to this size are shown like payloads in the history.                                  |
+| `externalStorage.s3.previewBytes`   | `2048`         | Bytes of text shown as the preview of a larger payload.                                                |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi` and `control`; the token and the S3 credentials stay in the backend.
@@ -662,21 +665,48 @@ role.
 See the Temporal documentation on server security for the details. The token
 is read at startup; restart the backend after it is replaced.
 
-## Large payloads in S3
+## Large payloads (External Storage)
 
-Workers can store large payloads in any S3-compatible object store with the
-`/s3` codec of [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)
-(claim check pattern): payloads above a threshold (default 128 KiB) are
-uploaded, and the history keeps a claim check with the bucket, key, size,
-SHA-256, original encoding and media type. See its README for the worker
-setup, the key layout, bucket permissions and lifecycle cleanup.
+Workers can keep large payloads out of the workflow history with
+[Temporal External Storage](https://docs.temporal.io/external-storage)
+(public preview in the Temporal SDKs, TypeScript SDK 1.21 or later): the
+SDK stores payloads above a threshold (default 256 KiB) in S3 with the S3
+driver, and the history keeps a reference with the bucket, key and SHA-256
+of the stored object. The workers set it up; this plugin only reads.
+
+```ts
+import { S3Client } from '@aws-sdk/client-s3';
+import { ExternalStorage } from '@temporalio/common';
+import { S3StorageDriver } from '@temporalio/external-storage-s3';
+import { AwsSdkS3StorageDriverClient } from '@temporalio/external-storage-s3-aws-sdk';
+
+const driver = new S3StorageDriver({
+  client: new AwsSdkS3StorageDriverClient(
+    new S3Client({ region: 'us-east-1' }),
+  ),
+  bucket: 'temporal-payloads',
+});
+const dataConverter = {
+  externalStorage: new ExternalStorage({ drivers: [driver] }),
+};
+// The same data converter for Worker.create() and new Client().
+```
+
+For an S3-compatible service (RustFS, MinIO), give the `S3Client` an
+`endpoint` and `forcePathStyle: true`. Temporal does not delete stored
+objects: give the bucket a lifecycle rule that keeps objects longer than the
+longest workflow run plus the namespace retention period. In a monorepo,
+`@temporalio/common` and `@temporalio/proto` must share one copy of
+`protobufjs`; with two copies (another dependency wants protobufjs 7) the SDK
+fails with "type must be a Type", and a `protobufjs@^8` dependency in the
+root package fixes the layout.
 
 To show the stored data in Backstage, give the backend read access to the
 same bucket (and allow `blob:` images, see [Installation](#backend)):
 
 ```yaml
 temporal:
-  payloads:
+  externalStorage:
     s3:
       bucket: temporal-payloads
       # Leave out for AWS S3.
@@ -698,27 +728,34 @@ The step panel then shows, for the input and output of each step:
   in the history, with a note that it is stored in S3 and a download button;
 - larger payloads: an icon, the size, the media type and the first
   `previewBytes` of text, and a download button; images (PNG, JPEG, GIF,
-  WebP up to 8 MiB) as a thumbnail;
-- without `temporal.payloads.s3`: "Stored externally (S3 is not configured
-  in Backstage)" with the bucket, key and SHA-256, and no error;
-- data that cannot be read or does not match its SHA-256: the error.
+  WebP up to 8 MiB) as a thumbnail. The SDK does not record a media type,
+  so the backend takes it from the encoding and, for binary data, from the
+  first bytes;
+- without `temporal.externalStorage.s3`: "Stored in External Storage (S3 is
+  not configured in Backstage)" with the bucket, key and SHA-256, and no
+  error;
+- a payload in another bucket, written by another driver, larger than
+  50 MiB, missing, or not matching its SHA-256: the error.
+
+The backend reads the stored payload itself (the S3 object is a Temporal
+`Payload` message). Payloads that the workers' codec encrypted before they
+were stored stay undecodable, like encrypted payloads in the history.
 
 Downloads go through the backend,
 `GET /api/temporal/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=<key>`,
 with the same checks as the history (`temporal.workflow.history.read`, or
-the list permissions without `entityRef`). The key must belong to a claim
-check in the history of that run, and the claim check must name the
-configured bucket, so a caller cannot read other objects. The backend
-streams the object and checks its SHA-256 on the way; on a mismatch it
-aborts the response. The S3 credentials stay in the backend: the plugin does
-not use presigned URLs, because a presigned URL works for anyone who has it
+the list permissions without `entityRef`). The key must belong to a
+reference in the history of that run, and the reference must name the
+configured bucket and driver, so a caller cannot read other objects. The
+backend downloads the object, checks its SHA-256 and decodes it before it
+sends the data. The S3 credentials stay in the backend: the plugin does not
+use presigned URLs, because a presigned URL works for anyone who has it
 until it expires, outside of the Backstage permission checks. The cost is
-that downloads pass through the backend, and the browser holds a download in
-memory before it saves it, so very large objects are better fetched from S3
-directly.
+that downloads pass through the backend (up to 50 MiB, the limit of the S3
+driver).
 
-The backend keeps up to 32 MiB of downloaded JSON in memory, by SHA-256, so
-reloading a page does not download the same data again.
+The backend keeps up to 32 MiB of downloaded objects in memory, by SHA-256,
+so reloading a page does not download the same data again.
 
 ## Workflow entities
 
@@ -1054,9 +1091,9 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
   with `control.allowedSignals` and `control.allowedUpdates`, or turn the
   operations off with `control.enabled: false`.
 - **Downloads are checked.** A payload can only be downloaded when its key
-  belongs to a claim check in the history of the run and names the
-  configured bucket; its SHA-256 is checked on the way. No presigned URLs
-  are handed out.
+  belongs to a reference in the history of the run that names the
+  configured bucket and driver; its SHA-256 is checked before anything is
+  sent. No presigned URLs are handed out.
 - **Images from S3** are shown from `blob:` URLs; allow `blob:` in
   `img-src` only (see [Installation](#backend)).
 
@@ -1096,8 +1133,9 @@ yarn workspace example-worker start
 
 Large payloads: start RustFS (an S3-compatible store) on port 9100, then the
 backend with `app-config.s3.yaml` and the example worker with the same
-`PAYLOAD_S3_*` variables. The worker then also runs `reportWorkflow`, with
-about 1 MB of JSON, 180 KiB of JSON and a PNG as outputs:
+`PAYLOAD_S3_*` variables. The worker then uses Temporal External Storage
+(threshold 128 KiB) and also runs `reportWorkflow`, with about 1 MB of JSON,
+180 KiB of JSON and a PNG as outputs:
 
 ```sh
 export PAYLOAD_S3_ENDPOINT=http://localhost:9100 PAYLOAD_S3_BUCKET=temporal-payloads
@@ -1105,7 +1143,7 @@ export PAYLOAD_S3_ACCESS_KEY=dev-access PAYLOAD_S3_SECRET_KEY=dev-secret-key
 docker compose -f examples/docker-compose.rustfs.yaml up -d
 yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml
 yarn workspace example-worker start
-SMOKE_S3=1 yarn test:e2e   # adds the S3 payload smoke test
+SMOKE_S3=1 yarn test:e2e   # adds the External Storage smoke test
 ```
 
 The example worker also runs two loops: `draftReviewWorkflow` (draft,

@@ -278,7 +278,7 @@ export interface WorkflowLlmCallResponse {
   raw?: JsonValue;
   /** Why there is no record, in words. */
   unavailable?: string;
-  /** The S3 claim check the record was read from. */
+  /** The payload in External Storage the record was read from. */
   external?: ExternalPayload;
   /** True when the record is of a failed attempt (failure details). */
   fromFailure?: boolean;

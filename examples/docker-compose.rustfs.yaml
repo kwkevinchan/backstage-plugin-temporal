@@ -1,5 +1,5 @@
-# RustFS, an S3-compatible object store, for local development of the S3
-# payload codec. The S3 API listens on localhost:9100 (not the default 9000).
+# RustFS, an S3-compatible object store, for local development of Temporal
+# External Storage. The S3 API listens on localhost:9100 (not the default 9000).
 #
 #   PAYLOAD_S3_ACCESS_KEY=... PAYLOAD_S3_SECRET_KEY=... \
 #     docker compose -f examples/docker-compose.rustfs.yaml up -d

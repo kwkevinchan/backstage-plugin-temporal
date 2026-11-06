@@ -66,7 +66,7 @@ import {
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
 import { readLoopState } from './loops';
-import { ExternalPayloads, findClaimCheckPayloads } from './payloads';
+import { ExternalPayloads, findReferencePayloads } from './payloads';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -528,7 +528,7 @@ export class WorkflowReader {
 
   /**
    * Reads the history of one run, oldest first, up to `max` events. With
-   * `payloads`, claim checks are resolved for display.
+   * `payloads`, payloads in External Storage are resolved for display.
    */
   private async readEvents(
     ref: WorkflowRef & { runId: string },
@@ -572,13 +572,18 @@ export class WorkflowReader {
   }
 
   /**
-   * The claim check with `key` in the history of one run (inputs, results,
-   * memo, failure details), or undefined. Downloads are limited to these,
-   * so a caller can only read data of runs it may read the history of.
+   * The storage reference with `key` in the history of one run (inputs,
+   * results, memo, failure details), or undefined. Downloads are limited to
+   * these, so a caller can only read data of runs it may read the history
+   * of.
    */
-  async findClaimCheck(ref: WorkflowRef & { runId: string }, key: string) {
+  async findStorageReference(
+    ref: WorkflowRef & { runId: string },
+    key: string,
+  ) {
     const { events } = await this.readEvents(ref, MAX_STEP_EVENTS);
-    return findClaimCheckPayloads(events).find(f => f.check.key === key)?.check;
+    return findReferencePayloads(events).find(f => f.reference.key === key)
+      ?.reference;
   }
 
   /**

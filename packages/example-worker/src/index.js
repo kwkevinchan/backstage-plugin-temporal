@@ -51,8 +51,8 @@
  * S3 payloads (optional): PAYLOAD_S3_ENDPOINT (for example
  * http://localhost:9100), PAYLOAD_S3_BUCKET (default temporal-payloads),
  * PAYLOAD_S3_REGION, PAYLOAD_S3_ACCESS_KEY, PAYLOAD_S3_SECRET_KEY. When the
- * endpoint is set, the client and the worker use the S3 payload codec and
- * the bucket is created when it is missing.
+ * endpoint is set, the client and the worker use Temporal External Storage
+ * (see payloads.js) and the bucket is created when it is missing.
  */
 const { Client, Connection } = require('@temporalio/client');
 const { NativeConnection, Worker } = require('@temporalio/worker');

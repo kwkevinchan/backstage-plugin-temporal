@@ -124,7 +124,7 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=8192
       SMOKE_APP: ${{ matrix.app }}
       SMOKE_SHOT_DIR: e2e-test-results/${{ matrix.app }}
-      # Large payloads in RustFS (S3-compatible), for the S3 payload test.
+      # Temporal External Storage in RustFS (S3-compatible), for the payload test.
       # Throwaway credentials of a container that only lives in this job.
       SMOKE_S3: '1'
       # A YAML workflow run by Zigflow, for the run on the Definition tab.
@@ -133,11 +133,11 @@ jobs:
       PAYLOAD_S3_BUCKET: temporal-payloads
       PAYLOAD_S3_ACCESS_KEY: ci-access
       PAYLOAD_S3_SECRET_KEY: ci-secret-key
-      APP_CONFIG_temporal_payloads_s3_endpoint: http://localhost:9100
-      APP_CONFIG_temporal_payloads_s3_bucket: temporal-payloads
-      APP_CONFIG_temporal_payloads_s3_forcePathStyle: 'true'
-      APP_CONFIG_temporal_payloads_s3_credentials_accessKeyId: ci-access
-      APP_CONFIG_temporal_payloads_s3_credentials_secretAccessKey: ci-secret-key
+      APP_CONFIG_temporal_externalStorage_s3_endpoint: http://localhost:9100
+      APP_CONFIG_temporal_externalStorage_s3_bucket: temporal-payloads
+      APP_CONFIG_temporal_externalStorage_s3_forcePathStyle: 'true'
+      APP_CONFIG_temporal_externalStorage_s3_credentials_accessKeyId: ci-access
+      APP_CONFIG_temporal_externalStorage_s3_credentials_secretAccessKey: ci-secret-key
     steps:
       - uses: actions/checkout@v4
 

@@ -1,14 +1,11 @@
 {
   "name": "@kwkevinchan/temporal-workflow-kit",
   "version": "0.0.0",
-  "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: an S3 payload codec (claim check), loop markers for generate, check and revise loops, and LLM step records (OpenTelemetry GenAI) for AI agent workflows",
+  "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: loop markers for generate, check and revise loops, and LLM step records (OpenTelemetry GenAI) for AI agent workflows",
   "license": "Apache-2.0",
   "keywords": [
     "temporal",
     "workflow",
-    "payload-codec",
-    "claim-check",
-    "s3",
     "loop",
     "ai",
     "llm",
@@ -25,16 +22,12 @@
     "directory": "plugins/temporal-workflow-kit"
   },
   "exports": {
-    "./s3": "./src/s3/index.ts",
     "./loop": "./src/loop/index.ts",
     "./llm": "./src/llm/index.ts",
     "./package.json": "./package.json"
   },
   "typesVersions": {
     "*": {
-      "s3": [
-        "src/s3/index.ts"
-      ],
       "loop": [
         "src/loop/index.ts"
       ],
@@ -62,19 +55,14 @@
     "postpack": "backstage-cli package postpack"
   },
   "peerDependencies": {
-    "@aws-sdk/client-s3": "^3.350.0",
     "@temporalio/workflow": "^1.12.0"
   },
   "peerDependenciesMeta": {
-    "@aws-sdk/client-s3": {
-      "optional": true
-    },
     "@temporalio/workflow": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.350.0",
     "@backstage/cli": "backstage:^",
     "@temporalio/activity": "~1.24.0",
     "@temporalio/client": "~1.24.0",

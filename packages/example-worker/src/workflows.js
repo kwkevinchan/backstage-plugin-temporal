@@ -208,8 +208,8 @@ const { buildReport, summarizeReport, renderChart } = proxyActivities({
 
 /**
  * Produces large outputs (about 1 MB of JSON, 180 KiB of JSON and a PNG).
- * With the S3 payload codec they are stored in S3 and the history keeps
- * claim checks. Started only when S3 is configured for the worker.
+ * With External Storage they are stored in S3 and the history keeps
+ * references. Started only when S3 is configured for the worker.
  */
 async function reportWorkflow(request) {
   const report = await buildReport(request);

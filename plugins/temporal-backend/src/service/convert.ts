@@ -16,7 +16,6 @@
 
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
-  CLAIM_CHECK_ENCODING,
   type ActivityStep,
   PendingActivity,
   WorkflowStepsResponse,
@@ -29,7 +28,10 @@ import {
   parseLlmMarker,
 } from '../common';
 import { linkLlmSteps, summarizeLlmCall } from './llm';
-import { claimCheckOf, EXTERNAL_PAYLOAD } from './payloads';
+import { EXTERNAL_PAYLOAD, referenceInfo, referenceOf } from './payloads';
+
+/** Encoding of a reference payload in the history. */
+const EXTERNAL_STORAGE_ENCODING = 'json/protobuf';
 
 /*
  * Conversion from Temporal API messages to the plugin's JSON types. The input
@@ -98,7 +100,10 @@ function isPayload(value: Json): boolean {
     typeof value.metadata === 'object' &&
     value.metadata !== null &&
     'encoding' in value.metadata &&
-    Object.keys(value).every(k => k === 'metadata' || k === 'data')
+    // `externalPayloads`: the size of a payload in External Storage.
+    Object.keys(value).every(
+      k => k === 'metadata' || k === 'data' || k === 'externalPayloads',
+    )
   );
 }
 
@@ -106,10 +111,10 @@ function isPayload(value: Json): boolean {
  * Decodes a payload like the default data converter. JSON payloads become
  * `{ encoding, value }`. Anything else (binary, protobuf, encrypted by a
  * codec, broken JSON) becomes `{ encoding, size, undecodable: true }`, since
- * the backend has no codec; the data itself is not sent. Claim checks of
- * payloads stored in S3 become `{ encoding: 'json/claim-check', external }`,
- * or the decoded data with `external` when it is shown inline (see
- * `ExternalPayloads.resolve`).
+ * the backend has no codec; the data itself is not sent. References of
+ * payloads in External Storage become `{ encoding, external }` (the
+ * encoding of the stored payload once it is read), or the decoded data with
+ * `external` when it is shown inline (see `ExternalPayloads.resolve`).
  */
 export function decodePayload(payload: Json): JsonObject {
   const external = payload[EXTERNAL_PAYLOAD];
@@ -117,23 +122,17 @@ export function decodePayload(payload: Json): JsonObject {
     if (external.state === 'inline') {
       return { ...decodePlainPayload(payload), external };
     }
-    return { encoding: CLAIM_CHECK_ENCODING, external };
-  }
-  // A claim check that was not looked at (no S3 configured).
-  const check = claimCheckOf(payload);
-  if (check) {
     return {
-      encoding: CLAIM_CHECK_ENCODING,
-      external: {
-        store: check.store,
-        bucket: check.bucket,
-        key: check.key,
-        size: check.size,
-        sha256: check.sha256,
-        encoding: check.encoding,
-        contentType: check.contentType,
-        state: 'unconfigured',
-      },
+      encoding: external.encoding || EXTERNAL_STORAGE_ENCODING,
+      external,
+    };
+  }
+  // A reference that was not looked at (no S3 configured).
+  const reference = referenceOf(payload);
+  if (reference) {
+    return {
+      encoding: EXTERNAL_STORAGE_ENCODING,
+      external: referenceInfo(reference) as unknown as JsonObject,
     };
   }
   return decodePlainPayload(payload);

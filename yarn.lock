@@ -4933,6 +4933,9 @@ __metadata:
     "@backstage/types": "backstage:^"
     "@grpc/grpc-js": "npm:^1.12.4"
     "@temporalio/client": "npm:~1.24.0"
+    "@temporalio/common": "npm:~1.24.0"
+    "@temporalio/external-storage-s3": "npm:~1.24.0"
+    "@temporalio/proto": "npm:~1.24.0"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
     express: "npm:^4.14.0"
@@ -4988,7 +4991,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/temporal-workflow-kit@workspace:plugins/temporal-workflow-kit"
   dependencies:
-    "@aws-sdk/client-s3": "npm:^3.350.0"
     "@backstage/cli": "backstage:^"
     "@temporalio/activity": "npm:~1.24.0"
     "@temporalio/client": "npm:~1.24.0"
@@ -4996,11 +4998,8 @@ __metadata:
     "@temporalio/worker": "npm:~1.24.0"
     "@temporalio/workflow": "npm:~1.24.0"
   peerDependencies:
-    "@aws-sdk/client-s3": ^3.350.0
     "@temporalio/workflow": ^1.12.0
   peerDependenciesMeta:
-    "@aws-sdk/client-s3":
-      optional: true
     "@temporalio/workflow":
       optional: true
   languageName: unknown
@@ -7198,7 +7197,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@temporalio/common@npm:1.24.0":
+"@temporalio/common@npm:1.24.0, @temporalio/common@npm:~1.24.0":
   version: 1.24.0
   resolution: "@temporalio/common@npm:1.24.0"
   dependencies:
@@ -7221,6 +7220,27 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@temporalio/external-storage-s3-aws-sdk@npm:~1.24.0":
+  version: 1.24.0
+  resolution: "@temporalio/external-storage-s3-aws-sdk@npm:1.24.0"
+  dependencies:
+    "@temporalio/external-storage-s3": "npm:1.24.0"
+  peerDependencies:
+    "@aws-sdk/client-s3": ^3.0.0
+  checksum: 10c0/d35e0b99f3f7f5586abab5a6efe41714c3cff1cd00619678e3650ce8024c16ad49f4d3670d7b7c1552820f55465afd7807236735a6bcf4a66dbd438909159ac5
+  languageName: node
+  linkType: hard
+
+"@temporalio/external-storage-s3@npm:1.24.0, @temporalio/external-storage-s3@npm:~1.24.0":
+  version: 1.24.0
+  resolution: "@temporalio/external-storage-s3@npm:1.24.0"
+  dependencies:
+    "@temporalio/common": "npm:1.24.0"
+    "@temporalio/proto": "npm:1.24.0"
+  checksum: 10c0/4c7d3a75642d7e27c69f8e06f388c47924c7a94b2f45a4ad225ada8a45e33415519abd7e35733dd1ebe523c1c31c961e12f6919915fd544556651b2546a4b1f5
+  languageName: node
+  linkType: hard
+
 "@temporalio/nexus@npm:1.24.0":
   version: 1.24.0
   resolution: "@temporalio/nexus@npm:1.24.0"
@@ -7234,7 +7254,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@temporalio/proto@npm:1.24.0":
+"@temporalio/proto@npm:1.24.0, @temporalio/proto@npm:~1.24.0":
   version: 1.24.0
   resolution: "@temporalio/proto@npm:1.24.0"
   dependencies:
@@ -9700,6 +9720,7 @@ __metadata:
     lint-staged: "npm:^15.2.0"
     node-gyp: "npm:^10.0.0"
     prettier: "npm:^2.3.2"
+    protobufjs: "npm:^8.8.1"
     typescript: "npm:~5.8.0"
   languageName: unknown
   linkType: soft
@@ -13312,6 +13333,9 @@ __metadata:
     "@kwkevinchan/temporal-workflow-kit": "workspace:^"
     "@temporalio/activity": "npm:~1.24.0"
     "@temporalio/client": "npm:~1.24.0"
+    "@temporalio/common": "npm:~1.24.0"
+    "@temporalio/external-storage-s3": "npm:~1.24.0"
+    "@temporalio/external-storage-s3-aws-sdk": "npm:~1.24.0"
     "@temporalio/worker": "npm:~1.24.0"
     "@temporalio/workflow": "npm:~1.24.0"
   languageName: unknown
@@ -21119,7 +21143,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"protobufjs@npm:^8.7.1":
+"protobufjs@npm:^8.7.1, protobufjs@npm:^8.8.1":
   version: 8.8.1
   resolution: "protobufjs@npm:8.8.1"
   dependencies:

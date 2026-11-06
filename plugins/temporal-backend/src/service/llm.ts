@@ -273,7 +273,7 @@ function between(start?: string, end?: string): number | undefined {
 
 /**
  * The summary of a model call from its decoded result. `result` is the
- * decoded payload (`{ encoding, value }`, a claim check, or undecodable).
+ * decoded payload (`{ encoding, value }`, a stored payload, or undecodable).
  */
 export function summarizeLlmCall(
   node: Pick<

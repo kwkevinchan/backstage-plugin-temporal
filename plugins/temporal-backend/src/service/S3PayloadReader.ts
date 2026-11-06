@@ -15,9 +15,8 @@
  */
 
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import type { Readable } from 'node:stream';
 
-/** Connection to the S3-compatible service of the claim checks. */
+/** Connection to the S3-compatible service of External Storage. */
 export interface S3PayloadReaderOptions {
   /** Bucket of the payloads, the same as the workers use. */
   bucket: string;
@@ -35,12 +34,6 @@ export interface S3PayloadReaderOptions {
   };
   /** A ready S3 client, used instead of the options above (tests). */
   client?: Pick<S3Client, 'send'>;
-}
-
-/** A stored object as a stream. */
-export interface StoredObjectStream {
-  body: Readable;
-  contentLength?: number;
 }
 
 /**
@@ -90,33 +83,5 @@ export class S3PayloadReader {
     );
     if (!response.Body) throw new Error(`S3 object ${key} has no body`);
     return response.Body.transformToByteArray();
-  }
-
-  /** Reads the first `bytes` bytes of the object (fewer when it is shorter). */
-  async getStart(key: string, bytes: number): Promise<Uint8Array> {
-    if (bytes <= 0) return new Uint8Array();
-    const response = await this.client.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: key,
-        Range: `bytes=0-${bytes - 1}`,
-      }),
-    );
-    if (!response.Body) throw new Error(`S3 object ${key} has no body`);
-    const data = await response.Body.transformToByteArray();
-    // A service that ignores Range sends the whole object.
-    return data.length > bytes ? data.subarray(0, bytes) : data;
-  }
-
-  /** Reads the object as a stream, for downloads. */
-  async stream(key: string): Promise<StoredObjectStream> {
-    const response = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
-    if (!response.Body) throw new Error(`S3 object ${key} has no body`);
-    return {
-      body: response.Body as Readable,
-      contentLength: response.ContentLength,
-    };
   }
 }

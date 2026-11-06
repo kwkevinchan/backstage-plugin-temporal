@@ -14,24 +14,17 @@
  * limitations under the License.
  */
 
-import { createHash } from 'node:crypto';
-import { Transform } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
 import type { Response } from 'express';
-import type { ClaimCheck } from './claimCheck';
 import type { ExternalPayloads } from './payloads';
+import type { StorageReference } from './storageReference';
 
 const EXTENSIONS: Record<string, string> = {
   'application/json': 'json',
   'application/pdf': 'pdf',
-  'application/gzip': 'gz',
-  'application/zip': 'zip',
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/gif': 'gif',
   'image/webp': 'webp',
-  'text/plain': 'txt',
-  'text/csv': 'csv',
 };
 
 /** A media type that is safe to put in a header, or a generic one. */
@@ -42,60 +35,37 @@ export function safeContentType(contentType: string): string {
 }
 
 /** File name of a download: the SHA-256 with an extension for the type. */
-export function downloadFileName(check: ClaimCheck): string {
-  const ext = EXTENSIONS[safeContentType(check.contentType)] ?? 'bin';
-  return `payload-${check.sha256.slice(0, 16)}.${ext}`;
+export function downloadFileName(
+  reference: StorageReference,
+  contentType: string,
+): string {
+  const ext = EXTENSIONS[safeContentType(contentType)] ?? 'bin';
+  return `payload-${reference.sha256.slice(0, 16)}.${ext}`;
 }
 
 /**
- * Streams the stored data of a claim check as an attachment. The data is
- * hashed while it streams; when the size or SHA-256 differs from the claim
- * check, the response is aborted, so the client sees a failed download
- * instead of wrong data. There is no `Content-Length` for that reason.
+ * Sends the data of a stored payload as an attachment. The object is
+ * downloaded, checked against the SHA-256 of its reference and decoded
+ * before anything is sent, so a client never gets wrong data.
  */
 export async function sendStoredPayload(
   res: Response,
-  check: ClaimCheck,
+  reference: StorageReference,
   payloads: ExternalPayloads,
 ): Promise<void> {
-  const { body } = await payloads.stream(check);
+  const stored = await payloads.read(reference);
+  const contentType = safeContentType(stored.contentType);
   res.status(200);
-  res.setHeader('Content-Type', safeContentType(check.contentType));
+  res.setHeader('Content-Type', contentType);
   res.setHeader(
     'Content-Disposition',
-    `attachment; filename="${downloadFileName(check)}"`,
+    `attachment; filename="${downloadFileName(reference, contentType)}"`,
   );
   // Never rendered as a page of the backend origin.
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
   res.setHeader('Cache-Control', 'private, no-store');
-  res.setHeader('X-Payload-Sha256', check.sha256);
-
-  const hash = createHash('sha256');
-  let size = 0;
-  const verify = new Transform({
-    transform(chunk: Buffer, _encoding, callback) {
-      hash.update(chunk);
-      size += chunk.length;
-      callback(null, chunk);
-    },
-    flush(callback) {
-      const sha256 = hash.digest('hex');
-      if (size !== check.size || sha256 !== check.sha256) {
-        callback(
-          new Error(
-            `Stored payload ${check.key} does not match its claim check`,
-          ),
-        );
-        return;
-      }
-      callback();
-    },
-  });
-  try {
-    await pipeline(body, verify, res);
-  } catch (error) {
-    // Headers are sent; aborting the connection is the only signal left.
-    res.destroy(error as Error);
-  }
+  res.setHeader('X-Payload-Sha256', reference.sha256);
+  res.setHeader('Content-Length', String(stored.data.length));
+  res.end(Buffer.from(stored.data));
 }

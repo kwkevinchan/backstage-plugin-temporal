@@ -508,16 +508,16 @@ export async function createRouter(
       if (!key || key.length > 1024) throw new InputError('Invalid key');
       const { ref, workflow } = await loadWorkflow(req, 'history');
       if (!reader.payloads.configured) {
-        throw new NotFoundError('S3 payload storage is not configured');
+        throw new NotFoundError('External Storage (S3) is not configured');
       }
-      const check = await reader.findClaimCheck(
+      const reference = await reader.findStorageReference(
         { ...ref, runId: workflow.runId },
         key,
       );
-      if (!check) {
+      if (!reference) {
         throw new NotFoundError(`No stored payload ${key} in this run`);
       }
-      await sendStoredPayload(res, check, reader.payloads);
+      await sendStoredPayload(res, reference, reader.payloads);
     },
   );
 

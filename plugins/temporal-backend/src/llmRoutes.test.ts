@@ -17,9 +17,9 @@
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import request from 'supertest';
+import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -39,9 +39,7 @@ jest.mock('@aws-sdk/client-s3', () => {
       send: async (command: any) => {
         const data = mockObjects.get(command.input.Key);
         if (!data) throw new Error('NoSuchKey');
-        let body = data;
-        const range = /^bytes=(\d+)-(\d+)$/.exec(command.input.Range ?? '');
-        if (range) body = data.subarray(Number(range[1]), Number(range[2]) + 1);
+        const body = data;
         const stream = Readable.from([body]) as any;
         stream.transformToByteArray = async () => new Uint8Array(body);
         return { Body: stream, ContentLength: body.length };
@@ -51,7 +49,6 @@ jest.mock('@aws-sdk/client-s3', () => {
 });
 
 const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64');
-const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex');
 const ref = 'component:default/orders';
 const plain = (value: unknown) => ({
   metadata: { encoding: b64('json/plain') },
@@ -82,7 +79,6 @@ const bigRecord = {
     },
   },
 };
-const bigData = Buffer.from(JSON.stringify(bigRecord));
 const smallRecord = {
   'temporal.llm': {
     v: 1,
@@ -95,25 +91,26 @@ const smallRecord = {
     },
   },
 };
-const smallData = Buffer.from(JSON.stringify(smallRecord));
 
-function claimCheck(data: Buffer, key: string) {
-  return {
-    metadata: { encoding: b64('json/claim-check') },
-    data: b64(
-      JSON.stringify({
-        version: 1,
-        store: 's3',
-        bucket: 'payloads',
-        key,
-        size: data.length,
-        sha256: sha(data),
-        encoding: 'json/plain',
-        contentType: 'application/json',
-      }),
-    ),
-  };
-}
+/** The two records stored with the official S3 driver, and their objects. */
+const stored: Record<
+  'big' | 'small',
+  { payload: unknown; key: string; object: Buffer }
+> = {} as any;
+
+beforeAll(async () => {
+  const s3 = memoryS3();
+  for (const [name, value] of [
+    ['big', bigRecord],
+    ['small', smallRecord],
+  ] as const) {
+    const { payload, key } = await storeExternally(s3, value, {
+      workflowId: name,
+    });
+    const object = Buffer.from(s3.objects.get(`payloads/${key}`)!);
+    stored[name] = { payload, key, object };
+  }
+});
 
 function events() {
   return [
@@ -129,7 +126,7 @@ function events() {
       eventId: '3',
       activityTaskCompletedEventAttributes: {
         scheduledEventId: '2',
-        result: { payloads: [claimCheck(bigData, 'k/big')] },
+        result: { payloads: [structuredClone(stored.big.payload)] },
       },
     },
     {
@@ -143,7 +140,7 @@ function events() {
       eventId: '5',
       activityTaskCompletedEventAttributes: {
         scheduledEventId: '4',
-        result: { payloads: [claimCheck(smallData, 'k/small')] },
+        result: { payloads: [structuredClone(stored.small.payload)] },
       },
     },
     {
@@ -218,7 +215,7 @@ async function start(options: { history: boolean; s3?: boolean }) {
       ? {}
       : {
           temporal: {
-            payloads: {
+            externalStorage: {
               s3: {
                 bucket: 'payloads',
                 endpoint: 'http://localhost:9100',
@@ -247,8 +244,9 @@ const path = (rest: string) =>
 describe('LLM routes', () => {
   beforeEach(() => {
     mockObjects.clear();
-    mockObjects.set('k/big', bigData);
-    mockObjects.set('k/small', smallData);
+    for (const { key, object } of Object.values(stored)) {
+      mockObjects.set(key, object);
+    }
   });
 
   it('restores a record stored in S3 that is larger than the inline limit', async () => {
@@ -261,7 +259,7 @@ describe('LLM routes', () => {
       activityType: 'callModel',
       call: 'big',
       status: 'Completed',
-      external: { key: 'k/big', state: 'inline' },
+      external: { key: stored.big.key, state: 'inline' },
       record: {
         provider: 'openai',
         requestModel: 'gpt-big',

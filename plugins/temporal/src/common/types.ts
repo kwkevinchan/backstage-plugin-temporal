@@ -204,16 +204,20 @@ export interface WorkflowHistoryResponse {
 }
 
 /**
- * A payload stored in S3-compatible storage, with a claim check (encoding
- * `json/claim-check`) in the history.
+ * A payload in Temporal External Storage (the S3 driver of the Temporal
+ * SDKs), with a reference payload in the history.
  *
  * - `inline`: the data was downloaded and is shown as the `value` of the
  *   payload;
  * - `preview`: the data is larger than the backend shows inline, or not
  *   JSON; `preview` holds the start of text data;
  * - `unconfigured`: the backend has no S3 configuration
- *   (`temporal.payloads.s3`), only the claim check is shown;
- * - `error`: the data could not be read or did not match the claim check.
+ *   (`temporal.externalStorage.s3`), only the reference is shown;
+ * - `error`: the data could not be read or did not match the reference.
+ *
+ * `size`, `encoding` and `contentType` describe the stored payload once it
+ * is read; before that (`unconfigured`, `error`), `size` is the size the
+ * reference records and `encoding` and `contentType` are empty.
  *
  * `downloadable` payloads can be downloaded through the backend:
  * `GET <workflow path>/payloads/download?key=<key>`.
@@ -226,11 +230,14 @@ export interface ExternalPayload {
   key: string;
   /** Size of the data in bytes. */
   size: number;
-  /** SHA-256 of the data, lowercase hex. */
+  /** SHA-256 of the stored object, lowercase hex. */
   sha256: string;
-  /** Encoding of the original payload, for example `json/plain`. */
+  /** Encoding of the stored payload, for example `json/plain`. */
   encoding: string;
-  /** Media type of the data, for example `application/json` or `image/png`. */
+  /**
+   * Media type of the data, for example `application/json` or `image/png`
+   * (from the encoding, and for binary data from its first bytes).
+   */
   contentType: string;
   state: 'inline' | 'preview' | 'unconfigured' | 'error';
   /** Start of the data as UTF-8 text, for text media types. */
@@ -242,17 +249,10 @@ export interface ExternalPayload {
 }
 
 /**
- * Encoding of claim check payloads.
- *
- * @public
- */
-export const CLAIM_CHECK_ENCODING = 'json/claim-check';
-
-/**
  * A payload decoded with the default data converter. JSON payloads have a
  * `value`; payloads that cannot be decoded (binary, encrypted by a codec)
- * only show their encoding and size in bytes. Payloads stored in S3 have
- * `external`: with a `value` when the data is shown inline, without one
+ * only show their encoding and size in bytes. Payloads in External Storage
+ * have `external`: with a `value` when the data is shown inline, without one
  * otherwise.
  *
  * @public
@@ -265,7 +265,7 @@ export type DecodedPayload =
       undecodable: true;
       metadata?: JsonObject;
     }
-  | { encoding: typeof CLAIM_CHECK_ENCODING; external: ExternalPayload };
+  | { encoding: string; external: ExternalPayload };
 
 /**
  * One activity of a workflow run, from scheduling to its result.

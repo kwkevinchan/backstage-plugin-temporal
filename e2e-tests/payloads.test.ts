@@ -19,8 +19,8 @@ import { join } from 'node:path';
 import { expect, Page, test } from '@playwright/test';
 
 /*
- * Payloads stored in S3. Needs an S3-compatible service (for example
- * RustFS), `temporal.payloads.s3` in the backend config and the example
+ * Payloads in Temporal External Storage. Needs an S3-compatible service (for
+ * example RustFS), `temporal.externalStorage.s3` in the backend config and the example
  * worker started with PAYLOAD_S3_ENDPOINT, so that `reportWorkflow` ran.
  * Runs only when SMOKE_S3 is set.
  */
