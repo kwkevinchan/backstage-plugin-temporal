@@ -188,7 +188,7 @@ function DownloadButton(props: {
 function stateText(external: ExternalPayload): string {
   switch (external.state) {
     case 'unconfigured':
-      return 'Stored externally (S3 is not configured in Backstage)';
+      return 'Stored in External Storage (S3 is not configured in Backstage)';
     case 'error':
       return 'Stored in S3, could not be read';
     default:
@@ -217,7 +217,8 @@ export function ExternalPayloadView(props: {
         <Icon size={16} aria-hidden />
         <Text variant="body-small">{stateText(external)}</Text>
         <Text variant="body-small" color="secondary">
-          {formatBytes(external.size)} · {external.contentType}
+          {formatBytes(external.size)}
+          {external.contentType ? ` · ${external.contentType}` : ''}
         </Text>
       </Flex>
       {external.error && (

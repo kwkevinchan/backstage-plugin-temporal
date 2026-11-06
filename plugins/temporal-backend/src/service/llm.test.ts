@@ -246,7 +246,7 @@ describe('LLM records', () => {
     ).toBe('unreadable');
     expect(
       summarizeLlmCall({ status: 'Completed' }, 'c', {
-        encoding: 'json/claim-check',
+        encoding: 'json/protobuf',
         external: {},
       }).record,
     ).toBe('unreadable');

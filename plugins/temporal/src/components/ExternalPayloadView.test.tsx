@@ -24,7 +24,9 @@ import { PayloadView } from './PayloadView';
 const base: ExternalPayload = {
   store: 's3',
   bucket: 'payloads',
-  key: 'tp/default/wf-1/abc',
+  key: `v0/ns/default/wt/reportWorkflow/wi/wf-1/ri/run-1/d/sha256/${'a'.repeat(
+    64,
+  )}`,
   size: 1048576,
   sha256: 'a'.repeat(64),
   encoding: 'json/plain',
@@ -75,7 +77,7 @@ describe('payloads stored in S3', () => {
 
   it('shows size, preview and a download button', async () => {
     const download = renderWithApi(
-      { encoding: 'json/claim-check', external: base },
+      { encoding: 'json/plain', external: base },
       jest.fn(async () => new Blob(['{}'])),
     );
     expect(screen.getByText('Stored in S3')).toBeInTheDocument();
@@ -105,7 +107,7 @@ describe('payloads stored in S3', () => {
   it('shows images as a thumbnail', async () => {
     renderWithApi(
       {
-        encoding: 'json/claim-check',
+        encoding: 'binary/plain',
         external: {
           ...base,
           contentType: 'image/png',
@@ -121,23 +123,31 @@ describe('payloads stored in S3', () => {
     );
   });
 
-  it('shows the claim check when S3 is not configured', () => {
+  it('shows the reference when S3 is not configured', () => {
     render(
       <PayloadView
         payload={{
-          encoding: 'json/claim-check',
+          encoding: 'json/protobuf',
           external: {
             ...base,
+            size: 2048,
+            encoding: '',
+            contentType: '',
             state: 'unconfigured',
             preview: undefined,
+            previewTruncated: undefined,
             downloadable: undefined,
           },
         }}
       />,
     );
     expect(
-      screen.getByText('Stored externally (S3 is not configured in Backstage)'),
+      screen.getByText(
+        'Stored in External Storage (S3 is not configured in Backstage)',
+      ),
     ).toBeInTheDocument();
+    // No media type before the payload is read.
+    expect(screen.getByText('2 KB')).toBeInTheDocument();
     expect(
       screen.getByText(`s3://payloads/${base.key} · SHA-256 ${base.sha256}`),
     ).toBeInTheDocument();

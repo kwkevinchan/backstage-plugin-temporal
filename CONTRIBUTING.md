@@ -28,10 +28,17 @@ edit the backend files and run `yarn sync:common`. The `pre-commit` hook and
 CI fail when the copy is out of date, and both packages test their
 permissions against `test-fixtures/permissions.json`.
 
-The backend reads the claim checks of large payloads and the loop markers
-with its own code; the workflow kit writes them. Both are tested against
-`test-fixtures/claim-checks.json` and `test-fixtures/loop-markers.json`, so
-change the format there first.
+The backend reads the loop markers and LLM records with its own code; the
+workflow kit writes them. Both are tested against
+`test-fixtures/loop-markers.json` and `test-fixtures/llm-records.json`, so
+change the format there first. Large payloads use Temporal External
+Storage: the backend tests read payloads written by the official S3 driver
+(`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).
+
+The root `package.json` depends on `protobufjs@^8` only so that one copy of
+it is hoisted: `@temporalio/common` and `@temporalio/proto` must share it,
+or External Storage fails with "type must be a Type" (other dependencies
+want protobufjs 7).
 
 ## Git hooks and boundary checks
 

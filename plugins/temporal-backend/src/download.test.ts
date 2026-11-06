@@ -17,9 +17,9 @@
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import request from 'supertest';
+import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -38,9 +38,7 @@ jest.mock('@aws-sdk/client-s3', () => {
       send: async (command: any) => {
         const data = mockObjects.get(command.input.Key);
         if (!data) throw new Error('NoSuchKey');
-        let body = data;
-        const range = /^bytes=(\d+)-(\d+)$/.exec(command.input.Range ?? '');
-        if (range) body = data.subarray(Number(range[1]), Number(range[2]) + 1);
+        const body = data;
         const stream = Readable.from([body]) as any;
         stream.transformToByteArray = async () => new Uint8Array(body);
         return { Body: stream, ContentLength: body.length };
@@ -49,32 +47,22 @@ jest.mock('@aws-sdk/client-s3', () => {
   };
 });
 
-const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64');
-const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex');
 const ref = 'component:default/orders';
 const png = Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   Buffer.alloc(1000, 7),
 ]);
-const key = `tp/default/wf-1/${sha(png)}`;
+/** The image stored with the official S3 driver, and its S3 object. */
+let stored: Awaited<ReturnType<typeof storeExternally>>;
+let key: string;
+let object: Buffer;
 
-function claimCheckPayload(data: Buffer, k: string) {
-  return {
-    metadata: { encoding: b64('json/claim-check') },
-    data: b64(
-      JSON.stringify({
-        version: 1,
-        store: 's3',
-        bucket: 'payloads',
-        key: k,
-        size: data.length,
-        sha256: sha(data),
-        encoding: 'binary/plain',
-        contentType: 'image/png',
-      }),
-    ),
-  };
-}
+beforeAll(async () => {
+  const s3 = memoryS3();
+  stored = await storeExternally(s3, new Uint8Array(png));
+  key = stored.key;
+  object = Buffer.from(s3.objects.get(`payloads/${key}`)!);
+});
 
 async function start(options: {
   s3?: boolean;
@@ -90,7 +78,7 @@ async function start(options: {
               eventId: '1',
               eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
               workflowExecutionStartedEventAttributes: {
-                input: { payloads: [claimCheckPayload(png, key)] },
+                input: { payloads: [structuredClone(stored.payload)] },
               },
             },
           ],
@@ -108,7 +96,7 @@ async function start(options: {
   const config = options.s3
     ? {
         temporal: {
-          payloads: {
+          externalStorage: {
             s3: {
               bucket: 'payloads',
               endpoint: 'http://localhost:9100',
@@ -139,7 +127,7 @@ const download = (k: string) =>
 describe('payload downloads', () => {
   beforeEach(() => {
     mockObjects.clear();
-    mockObjects.set(key, png);
+    mockObjects.set(key, object);
   });
 
   it('downloads a stored payload of the run', async () => {
@@ -175,7 +163,7 @@ describe('payload downloads', () => {
       `/api/temporal/namespaces/default/workflows/wf-1/steps?entityRef=${ref}`,
     );
     expect(res.body.input).toEqual({
-      encoding: 'json/claim-check',
+      encoding: 'binary/plain',
       external: expect.objectContaining({
         state: 'preview',
         contentType: 'image/png',
@@ -211,12 +199,13 @@ describe('payload downloads', () => {
     expect(steps.body.input.external.state).toBe('unconfigured');
   });
 
-  it('aborts a download whose data does not match', async () => {
-    mockObjects.set(
-      key,
-      Buffer.concat([png.subarray(0, 999), Buffer.from([0])]),
-    );
+  it('refuses an object that does not match its reference', async () => {
+    const changed = Buffer.from(object);
+    changed[changed.length - 1] ^= 1;
+    mockObjects.set(key, changed);
     const { server } = await start({ s3: true });
-    await expect(request(server).get(download(key))).rejects.toThrow();
+    const res = await request(server).get(download(key));
+    expect(res.status).toBe(500);
+    expect(res.headers['content-type']).not.toBe('image/png');
   });
 });

@@ -15,61 +15,11 @@
  */
 
 import { ConfigReader } from '@backstage/config';
-import { createHash } from 'node:crypto';
+import { memoryS3, storeExternally } from '../__testUtils__/externalStorage';
 import { toWorkflowSteps } from './convert';
-import { ExternalPayloads, findClaimCheckPayloads } from './payloads';
+import { ExternalPayloads, findReferencePayloads } from './payloads';
 
 const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64');
-const sha = (data: Buffer) => createHash('sha256').update(data).digest('hex');
-
-/** In-memory store with the methods the backend uses. */
-function fakeStore(bucket = 'payloads') {
-  const objects = new Map<string, Buffer>();
-  const store = {
-    bucket,
-    get: jest.fn(async (key: string) => {
-      const data = objects.get(key);
-      if (!data) throw new Error(`NoSuchKey ${key}`);
-      return new Uint8Array(data);
-    }),
-    getStart: jest.fn(async (key: string, bytes: number) => {
-      const data = objects.get(key);
-      if (!data) throw new Error(`NoSuchKey ${key}`);
-      return new Uint8Array(data.subarray(0, bytes));
-    }),
-    stream: jest.fn(),
-  };
-  return { objects, store };
-}
-
-/** A claim check payload in protobuf JSON form, and its stored data. */
-function claimCheck(
-  data: Buffer,
-  options: {
-    key?: string;
-    bucket?: string;
-    encoding?: string;
-    contentType?: string;
-  } = {},
-) {
-  const check = {
-    version: 1,
-    store: 's3',
-    bucket: options.bucket ?? 'payloads',
-    key: options.key ?? `tp/default/wf-1/${sha(data)}`,
-    size: data.length,
-    sha256: sha(data),
-    encoding: options.encoding ?? 'json/plain',
-    contentType: options.contentType ?? 'application/json',
-  };
-  return {
-    check,
-    payload: {
-      metadata: { encoding: b64('json/claim-check') },
-      data: b64(JSON.stringify(check)),
-    },
-  };
-}
 
 function startedEvent(payload: unknown) {
   return {
@@ -82,103 +32,117 @@ function startedEvent(payload: unknown) {
 }
 
 describe('ExternalPayloads', () => {
-  const small = Buffer.from(JSON.stringify({ rows: [1, 2, 3] }));
-  const large = Buffer.from(JSON.stringify({ text: 'x'.repeat(5000) }));
+  const small = { rows: [1, 2, 3] };
+  const large = { text: 'x'.repeat(5000) };
+  const largeJson = JSON.stringify(large);
 
   it('shows small JSON payloads inline', async () => {
-    const { objects, store } = fakeStore();
-    const { check, payload } = claimCheck(small);
-    objects.set(check.key, small);
+    const s3 = memoryS3();
+    const store = s3.store();
+    const stored = await storeExternally(s3, small);
     const payloads = new ExternalPayloads({ store, maxInlineBytes: 1000 });
-    const events = [startedEvent(payload)];
+    const events = [startedEvent(stored.payload)];
     await payloads.resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
       encoding: 'json/plain',
       value: { rows: [1, 2, 3] },
       external: expect.objectContaining({
         state: 'inline',
-        key: check.key,
-        size: small.length,
+        key: stored.key,
+        size: JSON.stringify(small).length,
+        encoding: 'json/plain',
+        contentType: 'application/json',
         downloadable: true,
       }),
     });
     // The second read comes from the cache.
-    await payloads.resolve([startedEvent(claimCheck(small).payload)]);
+    const again = await storeExternally(s3, small);
+    await payloads.resolve([startedEvent(again.payload)]);
     expect(store.get).toHaveBeenCalledTimes(1);
   });
 
   it('shows the size and a preview of larger payloads', async () => {
-    const { objects, store } = fakeStore();
-    const { check, payload } = claimCheck(large);
-    objects.set(check.key, large);
+    const s3 = memoryS3();
+    const stored = await storeExternally(s3, large);
     const payloads = new ExternalPayloads({
-      store,
+      store: s3.store(),
       maxInlineBytes: 1000,
       previewBytes: 20,
     });
-    const events = [startedEvent(payload)];
+    const events = [startedEvent(stored.payload)];
     await payloads.resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
-      encoding: 'json/claim-check',
+      encoding: 'json/plain',
       external: {
         store: 's3',
         bucket: 'payloads',
-        key: check.key,
-        size: large.length,
-        sha256: check.sha256,
+        key: stored.key,
+        size: largeJson.length,
+        sha256: stored.sha256,
         encoding: 'json/plain',
         contentType: 'application/json',
         state: 'preview',
-        preview: large.subarray(0, 20).toString(),
+        preview: largeJson.slice(0, 20),
         previewTruncated: true,
         downloadable: true,
       },
     });
-    expect(store.get).not.toHaveBeenCalled();
   });
 
-  it('gives binary payloads no text preview', async () => {
-    const { objects, store } = fakeStore();
-    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
-    const { check, payload } = claimCheck(png, {
-      encoding: 'binary/plain',
-      contentType: 'image/png',
-    });
-    objects.set(check.key, png);
-    const events = [startedEvent(payload)];
-    await new ExternalPayloads({ store }).resolve(events);
+  it('gives binary payloads a media type and no text preview', async () => {
+    const s3 = memoryS3();
+    const png = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1,
+    ]);
+    const stored = await storeExternally(s3, png);
+    const events = [startedEvent(stored.payload)];
+    await new ExternalPayloads({ store: s3.store() }).resolve(events);
     const input = toWorkflowSteps(events, false).input as any;
-    expect(input.external.state).toBe('preview');
+    expect(input.encoding).toBe('binary/plain');
+    expect(input.external).toMatchObject({
+      state: 'preview',
+      contentType: 'image/png',
+      size: png.length,
+    });
     expect(input.external.preview).toBeUndefined();
-    expect(store.getStart).not.toHaveBeenCalled();
   });
 
-  it('shows the claim check when S3 is not configured', async () => {
-    const { check, payload } = claimCheck(large);
-    const events = [startedEvent(payload)];
+  it('shows the reference when S3 is not configured', async () => {
+    const s3 = memoryS3();
+    const stored = await storeExternally(s3, large);
+    const events = [startedEvent(stored.payload)];
     await new ExternalPayloads().resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
-      encoding: 'json/claim-check',
-      external: expect.objectContaining({
+      encoding: 'json/protobuf',
+      external: {
+        store: 's3',
+        bucket: 'payloads',
+        key: stored.key,
+        size: stored.size,
+        sha256: stored.sha256,
+        encoding: '',
+        contentType: '',
         state: 'unconfigured',
-        key: check.key,
-        size: large.length,
-      }),
+      },
     });
     // Without resolving, the converter shows the same.
     expect(
-      toWorkflowSteps([startedEvent(claimCheck(large).payload)], false).input,
+      toWorkflowSteps([startedEvent(stored.payload)], false).input,
     ).toEqual(toWorkflowSteps(events, false).input);
   });
 
-  it('reports data that does not match the SHA-256', async () => {
-    const { objects, store } = fakeStore();
-    const { check, payload } = claimCheck(small);
-    objects.set(check.key, Buffer.from(JSON.stringify({ rows: [9, 9, 9] })));
-    const events = [startedEvent(payload)];
-    await new ExternalPayloads({ store }).resolve(events);
+  it('reports objects that do not match the SHA-256', async () => {
+    const s3 = memoryS3();
+    const stored = await storeExternally(s3, small);
+    const other = await storeExternally(s3, { rows: [9, 9, 9] });
+    s3.objects.set(
+      `payloads/${stored.key}`,
+      s3.objects.get(`payloads/${other.key}`)!,
+    );
+    const events = [startedEvent(stored.payload)];
+    await new ExternalPayloads({ store: s3.store() }).resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
-      encoding: 'json/claim-check',
+      encoding: 'json/protobuf',
       external: expect.objectContaining({
         state: 'error',
         error: expect.stringMatching(/SHA-256/),
@@ -187,27 +151,39 @@ describe('ExternalPayloads', () => {
     });
   });
 
-  it('reports claim checks of another bucket and S3 errors', async () => {
-    const { store } = fakeStore();
-    const other = claimCheck(small, { bucket: 'elsewhere' });
-    const missing = claimCheck(small, { key: 'missing' });
-    const events = [startedEvent(other.payload), startedEvent(missing.payload)];
-    await new ExternalPayloads({ store }).resolve(events);
-    const [a, b] = events.map(e => toWorkflowSteps([e], false).input as any);
-    expect(a.external).toMatchObject({
+  it('reports another bucket, another driver and S3 errors', async () => {
+    const s3 = memoryS3();
+    const elsewhere = await storeExternally(s3, small, { bucket: 'elsewhere' });
+    const driver = await storeExternally(s3, small, { driverName: 'reports' });
+    const missing = await storeExternally(s3, { a: 1 });
+    s3.objects.clear();
+    const events = [elsewhere, driver, missing].map(s =>
+      startedEvent(s.payload),
+    );
+    await new ExternalPayloads({ store: s3.store() }).resolve(events);
+    const [a, b, c] = events.map(
+      e => (toWorkflowSteps([e], false).input as any).external,
+    );
+    expect(a).toMatchObject({
       state: 'error',
       error: 'Stored in bucket elsewhere; Backstage reads payloads',
     });
-    expect(b.external).toMatchObject({
+    expect(b).toMatchObject({
       state: 'error',
-      error: 'NoSuchKey missing',
+      error:
+        'Stored with the storage driver reports; Backstage reads aws.s3driver',
+    });
+    expect(c).toMatchObject({
+      state: 'error',
+      error: `NoSuchKey ${missing.key}`,
     });
   });
 
-  it('finds claim checks anywhere in the events', () => {
-    const one = claimCheck(small, { key: 'a' });
-    const two = claimCheck(large, { key: 'b' });
-    const found = findClaimCheckPayloads([
+  it('finds references anywhere in the events', async () => {
+    const s3 = memoryS3();
+    const one = await storeExternally(s3, small, { workflowId: 'a' });
+    const two = await storeExternally(s3, large, { workflowId: 'b' });
+    const found = findReferencePayloads([
       startedEvent(one.payload),
       {
         activityTaskCompletedEventAttributes: {
@@ -215,11 +191,16 @@ describe('ExternalPayloads', () => {
         },
       },
       startedEvent({
-        metadata: { encoding: b64('json/claim-check') },
+        metadata: {
+          encoding: b64('json/protobuf'),
+          messageType: b64('temporal.api.sdk.v1.ExternalStorageReference'),
+        },
         data: b64('{'),
       }),
     ]);
-    expect(found.map(f => f.check.key).sort()).toEqual(['a', 'b']);
+    expect(found.map(f => f.reference.key).sort()).toEqual(
+      [one.key, two.key].sort(),
+    );
   });
 
   it('reads its configuration', () => {
@@ -229,9 +210,10 @@ describe('ExternalPayloads', () => {
     const payloads = ExternalPayloads.fromConfig(
       new ConfigReader({
         temporal: {
-          payloads: {
+          externalStorage: {
             s3: {
               bucket: 'b',
+              driverName: 'reports',
               endpoint: 'http://localhost:9100',
               forcePathStyle: true,
               credentials: { accessKeyId: 'a', secretAccessKey: 's' },
@@ -242,13 +224,28 @@ describe('ExternalPayloads', () => {
       }),
     );
     expect(payloads.configured).toBe(true);
+    expect(payloads.driverName).toBe('reports');
     expect(payloads.maxInlineBytes).toBe(10);
     expect(payloads.previewBytes).toBe(2048);
+    expect(
+      ExternalPayloads.fromConfig(
+        new ConfigReader({
+          temporal: {
+            externalStorage: {
+              s3: {
+                bucket: 'b',
+                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+              },
+            },
+          },
+        }),
+      ).driverName,
+    ).toBe('aws.s3driver');
     expect(() =>
       ExternalPayloads.fromConfig(
         new ConfigReader({
           temporal: {
-            payloads: {
+            externalStorage: {
               s3: {
                 bucket: 'b',
                 credentials: { accessKeyId: 'a', secretAccessKey: 's' },

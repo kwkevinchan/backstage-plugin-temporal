@@ -19,15 +19,16 @@ backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
 ```
 
 It needs the catalog and the permission framework, and
-`temporal.connection` in the app config. Payloads stored in S3 by the `/s3` codec of
-`@kwkevinchan/temporal-workflow-kit` are shown when `temporal.payloads.s3` is
-configured; allow `blob:` in `backend.csp.img-src` for their image
+`temporal.connection` in the app config. Payloads that workers store in S3
+with Temporal External Storage are shown when `temporal.externalStorage.s3`
+is configured; allow `blob:` in `backend.csp.img-src` for their image
 thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
 permission policy.
 
-The backend reads claim checks and the S3 objects behind them with its own
-code and the AWS SDK; it does not depend on the workflow kit (a worker
-package).
+The backend reads the External Storage references and the S3 objects behind
+them with its own code and the AWS SDK; it does not depend on the
+experimental driver packages of the Temporal SDK or on the workflow kit (a
+worker package).
 
 ## Exports
 
