@@ -8,12 +8,12 @@ Shows Temporal workflows next to the catalog entities that own them: a
 **Temporal** tab with the workflow executions and their progress, a details page with
 the step graph, a **Timeline** tab (steps on a time axis), the loops of AI
 workflows, the LLM steps of agent workflows (model calls with their input,
-thinking, output, tool calls and tokens), events and details, the workflow controls, a
-**Definition** tab (the YAML of a Serverless Workflow next to its graph, with
-a run on top), cards for
+thinking, output, tool calls and tokens), events and details, the workflow controls, cards for
 `TemporalWorkflow` entities (one entity is one workflow type and its
 definition) and a **Workflows** page. Works with the legacy
-and the new frontend system of Backstage 1.56.
+and the new frontend system of Backstage 1.56. The **Definition** tab for
+workflows written in YAML (Zigflow) is a separate package,
+[`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](../temporal-module-zigflow/README.md).
 
 ## Installation
 
@@ -38,7 +38,6 @@ Legacy frontend system:
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | `temporalPlugin`                                                                      | The plugin.                                             |
 | `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.            |
-| `EntityTemporalDefinitionContent`                                                     | Definition tab of `TemporalWorkflow` entities.          |
 | `TemporalPage`                                                                        | Workflows page: the workflow executions of a namespace. |
 | `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.      |
 | `EntityTemporalWorkflowStatsCard`                                                     | Recent run statistics of an entity.                     |

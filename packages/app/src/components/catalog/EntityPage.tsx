@@ -35,7 +35,6 @@ import {
 } from '@backstage/plugin-org';
 import {
   EntityTemporalContent,
-  EntityTemporalDefinitionContent,
   EntityTemporalRelatedWorkflowsCard,
   EntityTemporalWorkflowSummaryCard,
   isTemporalAvailable,
@@ -44,6 +43,7 @@ import {
   createTemporalControlActionDef,
   TemporalWorkflowActionDef,
 } from '@kwkevinchan/backstage-plugin-temporal';
+import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-temporal-module-zigflow';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 
 export const temporalWorkflowActions: TemporalWorkflowActionDef[] = [
@@ -124,7 +124,8 @@ const componentPage = (
 
 // TemporalWorkflow entities: overview with the workflow summary, the
 // Temporal tab with recent run statistics and the runs, and the Definition
-// tab (the YAML and its graph, or links to the code).
+// tab of @kwkevinchan/backstage-plugin-temporal-module-zigflow (the YAML and its
+// graph, or links to the code).
 const temporalWorkflowPage = (
   <EntityLayout>
     <EntityLayout.Route path="/" title="Overview">

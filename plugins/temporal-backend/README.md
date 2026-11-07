@@ -58,7 +58,6 @@ in the repository README for an example.
 | GET    | `/workflows`                                                                        | `temporal.workflow.list`         |
 | GET    | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.read`         |
 | GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                   | `temporal.workflow.read`         |
-| GET    | `/entities/:kind/:namespace/:name/definition`                                       | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                        | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                | `temporal.workflow.history.read` |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                  | `temporal.workflow.history.read` |

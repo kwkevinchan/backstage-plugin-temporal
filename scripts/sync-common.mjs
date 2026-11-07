@@ -21,10 +21,12 @@
  *
  * Backstage does not let a frontend plugin import a backend plugin (or the
  * other way round), so the permissions, types, annotation constants and API
- * paths live in both packages. The backend has the original
- * (`plugins/temporal-backend/src/common`); the frontend has a copy
- * (`plugins/temporal/src/common`) with the same files, each with a note
- * after the license header. Tests (`*.test.ts`) stay in the backend.
+ * paths live in both packages. The backend has the original; the frontend
+ * has a copy with the same files, each with a note after the license
+ * header. Tests (`*.test.ts`) stay in the backend. The pairs:
+ *
+ *   plugins/temporal-backend/src/common                → plugins/temporal/src/common
+ *   plugins/temporal-backend-module-zigflow/src/common → plugins/temporal-module-zigflow/src/common
  *
  * Usage:
  *   node scripts/sync-common.mjs           # write the frontend copy
@@ -43,12 +45,17 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const SOURCE = 'plugins/temporal-backend/src/common';
-const TARGET = 'plugins/temporal/src/common';
+const PAIRS = [
+  ['plugins/temporal-backend/src/common', 'plugins/temporal/src/common'],
+  [
+    'plugins/temporal-backend-module-zigflow/src/common',
+    'plugins/temporal-module-zigflow/src/common',
+  ],
+];
 const HEADER_END = ' */\n';
 
 /** The frontend copy of one backend file. */
-export function copyOf(name, text) {
+export function copyOf(name, text, SOURCE = PAIRS[0][0]) {
   const note =
     `\n// Copy of ${SOURCE}/${name}, written by scripts/sync-common.mjs.\n` +
     '// Edit the backend file and run `yarn sync:common`.\n';
@@ -60,7 +67,7 @@ export function copyOf(name, text) {
   return text.slice(0, at) + note + text.slice(at);
 }
 
-function sourceFiles() {
+function sourceFiles(SOURCE) {
   return readdirSync(join(root, SOURCE))
     .filter(f => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
     .sort();
@@ -68,10 +75,24 @@ function sourceFiles() {
 
 function main() {
   const check = process.argv.includes('--check');
+  let failed = false;
+  for (const [source, target] of PAIRS) {
+    failed = syncPair(source, target, check) || failed;
+  }
+  if (failed) {
+    console.error(
+      'The frontend copy of the shared definitions is out of date. Edit the backend files and run `yarn sync:common`.',
+    );
+    process.exit(1);
+  }
+}
+
+/** Writes or checks one copy; true when the check found a difference. */
+function syncPair(SOURCE, TARGET, check) {
   const expected = new Map(
-    sourceFiles().map(f => [
+    sourceFiles(SOURCE).map(f => [
       f,
-      copyOf(f, readFileSync(join(root, SOURCE, f), 'utf8')),
+      copyOf(f, readFileSync(join(root, SOURCE, f), 'utf8'), SOURCE),
     ]),
   );
   const targetDir = join(root, TARGET);
@@ -103,16 +124,11 @@ function main() {
     }
   }
 
-  if (problems.length > 0) {
-    for (const p of problems) console.error(p);
-    console.error(
-      'The frontend copy of the shared definitions is out of date. Edit the backend files and run `yarn sync:common`.',
-    );
-    process.exit(1);
-  }
-  if (check) {
+  for (const p of problems) console.error(p);
+  if (check && problems.length === 0) {
     console.log(`${TARGET} matches ${SOURCE} (${expected.size} files)`);
   }
+  return problems.length > 0;
 }
 
 main();

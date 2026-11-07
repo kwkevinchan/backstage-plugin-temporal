@@ -19,7 +19,6 @@ import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 import { ResponseError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import {
-  buildEntityDefinitionPath,
   buildEntityWorkflowStatsPath,
   buildWorkflowActionPath,
   buildWorkflowOperationPath,
@@ -30,7 +29,6 @@ import {
   buildLlmCallPath,
   buildWorkflowPath,
   WORKFLOWS_PATH,
-  WorkflowDefinitionResponse,
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowLlmCallResponse,
@@ -141,10 +139,6 @@ export class TemporalClient implements TemporalApi {
       buildEntityWorkflowStatsPath(parseEntityRef(entityRef)) +
         queryString({ limit: options?.limit }),
     );
-  }
-
-  getEntityDefinition(entityRef: string): Promise<WorkflowDefinitionResponse> {
-    return this.get(buildEntityDefinitionPath(parseEntityRef(entityRef)));
   }
 
   getWorkflow(

@@ -26,13 +26,21 @@ import {
 } from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { temporalApiRef } from '../../extensions';
 import { mockTemporalApi } from '../../testData';
-import type {
-  WorkflowDefinitionResponse,
+
+import {
+  temporalApiRef,
   WorkflowGraphResponse,
-} from '../../common';
+} from '@kwkevinchan/backstage-plugin-temporal';
+import type { WorkflowDefinitionResponse } from '../../common/definition';
+import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { EntityTemporalDefinitionContentPage } from './DefinitionContent';
+
+jest.mock('../../api', () => ({
+  loadEntityDefinition: (_apis: unknown, entityRef: string) =>
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('../../testData').mockGetEntityDefinition(entityRef),
+}));
 
 const content = readFileSync(
   join(__dirname, '../../../../../test-fixtures/definitions/every-task.yaml'),
@@ -128,7 +136,10 @@ function render(
   return renderInTestApp(
     <TestApiProvider
       apis={[
-        [temporalApiRef, api],
+        [temporalApiRef, api as any],
+        // The definition route is mocked (jest.mock of ../../api).
+        [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
+        [fetchApiRef, { fetch: jest.fn() }],
         [permissionApiRef, mockApis.permission()],
       ]}
     >

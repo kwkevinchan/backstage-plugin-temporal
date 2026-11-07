@@ -17,15 +17,17 @@
 import { ReactNode, useMemo } from 'react';
 import { Edge, MarkerType, ReactFlowProvider } from '@xyflow/react';
 import { Flex } from '@backstage/ui';
-import { graphHeight, layoutSteps } from '../graph/layout';
 import {
   flowNodeBase,
   GraphCanvas,
+  graphHeight,
+  layoutSteps,
   RELAYOUT_DELAY_MS,
   useSettledWidth,
   ViewButtons,
-} from '../graph/GraphCanvas';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { tp } from '../styles';
+
 import { DefinitionFlowNode, DefinitionNode } from './DefinitionNode';
 import type { DefinitionGraph as Graph } from './dslGraph';
 import type { DefinitionOverlay } from './overlay';

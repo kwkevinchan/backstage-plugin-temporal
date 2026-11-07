@@ -40,6 +40,10 @@ backend.add(
 );
 
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Definition files of TemporalWorkflow entities written for Zigflow.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow'),
+);
 // Example custom workflow action (Escalate on ticket workflows).
 backend.add(escalateActionModule);
 

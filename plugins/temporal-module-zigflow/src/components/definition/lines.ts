@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { WorkflowDefinitionTask } from '../../common';
+import type { WorkflowDefinitionTask } from '../../common/definition';
 
 /**
  * The task at a line of the file: the innermost task whose lines contain

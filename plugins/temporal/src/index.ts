@@ -30,7 +30,6 @@
 export {
   temporalPlugin,
   EntityTemporalContent,
-  EntityTemporalDefinitionContent,
   TemporalPage,
   EntityTemporalWorkflowSummaryCard,
   EntityTemporalWorkflowStatsCard,
@@ -65,9 +64,6 @@ export type {
   TemporalDefinitionFormat,
   TemporalWorkflowDefinitionSpec,
   TemporalWorkflowEntityV1alpha1,
-  WorkflowDefinitionError,
-  WorkflowDefinitionResponse,
-  WorkflowDefinitionTask,
   WorkflowControlOperation,
   WorkflowDeadline,
   WorkflowDetail,
