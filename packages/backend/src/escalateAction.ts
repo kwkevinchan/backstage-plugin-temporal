@@ -15,7 +15,7 @@
  */
 
 import { createBackendModule } from '@backstage/backend-plugin-api';
-import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { temporalControlExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
@@ -29,7 +29,7 @@ export const escalateActionModule = createBackendModule({
   moduleId: 'example-escalate-action',
   register(reg) {
     reg.registerInit({
-      deps: { temporal: temporalExtensionPoint },
+      deps: { temporal: temporalControlExtensionPoint },
       async init({ temporal }) {
         temporal.addControlAction({
           id: 'escalate',

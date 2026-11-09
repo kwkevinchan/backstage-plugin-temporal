@@ -125,6 +125,39 @@ export function buildWorkflowActionPath(
 }
 
 /**
+ * Builds the path of the handler list of one workflow execution:
+ * `.../handlers`.
+ *
+ * @public
+ */
+export function buildWorkflowHandlersPath(ref: WorkflowRef): string {
+  return `${buildWorkflowPath(ref)}/handlers`;
+}
+
+/**
+ * A signal, update or query that a workflow defines.
+ *
+ * @public
+ */
+export interface WorkflowHandler {
+  name: string;
+  description?: string;
+}
+
+/**
+ * The handlers of a running workflow, from the metadata query of the
+ * Temporal SDKs (`GET .../handlers`). Empty when no worker answers it.
+ * Names starting with `__` (the SDKs' own) are left out.
+ *
+ * @public
+ */
+export interface WorkflowHandlersResponse {
+  signals: WorkflowHandler[];
+  updates: WorkflowHandler[];
+  queries: WorkflowHandler[];
+}
+
+/**
  * Longest signal, update or query name the backend accepts.
  *
  * @public

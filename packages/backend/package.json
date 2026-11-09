@@ -36,6 +36,7 @@
     "@backstage/plugin-permission-node": "backstage:^",
     "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-backend-module-control": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",

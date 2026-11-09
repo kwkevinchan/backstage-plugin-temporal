@@ -83,7 +83,8 @@ workflow definition.
 | Package                                                                                                    | Role                   | Install in        | Purpose                                                                                                                                                                                       |
 | ---------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections; `./ui` for companion packages. |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin         | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy.          |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin         | Backstage backend | REST API under `/api/temporal`: read workflows, queries, permission checks.                                                                                                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](plugins/temporal-backend-module-control) | backend-plugin-module  | Backstage backend | Start, signal, update, cancel, terminate, rerun and custom actions (optional; without it the plugin only reads).                                                                              |
 | [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library         | (dependency)      | Permissions, API types, annotation constants and the `TemporalWorkflow` kind. Import it in permission policies and modules.                                                                   |
 | [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library           | (dependency)      | `temporalServiceRef` (shared Temporal client) and `temporalExtensionPoint`, for backend modules.                                                                                              |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module  | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                                   |
@@ -143,6 +144,11 @@ yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-catalog-backend-mo
 
 ```ts
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Optional: start, signal, update, cancel, terminate, rerun and custom
+// actions. Without it the plugin only reads.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-temporal-backend-module-control'),
+);
 // Optional: the TemporalWorkflow kind.
 backend.add(
   import('@kwkevinchan/backstage-plugin-catalog-backend-module-temporal'),
@@ -486,9 +492,8 @@ temporal:
     entityRef: BackstageEntityRef
     # Keyword attribute set to the user who started a workflow from Backstage.
     initiator: BackstageInitiator
-  # Optional: operations that change workflows, see Workflow controls.
+  # Optional (control module): limit the signals and updates that may be sent.
   control:
-    enabled: true
     allowedSignals: [addNote, close]
     allowedUpdates: [setPriority]
   # Optional: large payloads in Temporal External Storage, see Large payloads.
@@ -515,7 +520,6 @@ temporal:
 | `webUi.baseUrl`                     |                | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
 | `searchAttributes.entityRef`        |                | Keyword search attribute with the entity reference of a workflow.                                      |
 | `searchAttributes.initiator`        |                | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
-| `control.enabled`                   | `true`         | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
 | `control.allowedSignals`            | (all)          | Signal names that may be sent.                                                                         |
 | `control.allowedUpdates`            | (all)          | Update names that may be sent.                                                                         |
 | `externalStorage.s3.bucket`         | (required)     | Bucket the workers store payloads in.                                                                  |
@@ -748,6 +752,7 @@ rejected so they cannot change the visibility query.
 | `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                |
 | `temporal.workflow.list`         | `temporal-workflow` | Workflows page; details and step graph without an entity         |
 | `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity              |
+| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                |
 | `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity, or from the Workflows page       |
 | `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                    |
 | `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)          |
@@ -803,6 +808,11 @@ The permission backend sends this conditional decision to the catalog to
 resolve; this is covered by an integration test in the backend plugin.
 
 ## Workflow controls
+
+The operations that change workflows come from the control module
+(`@kwkevinchan/backstage-plugin-temporal-backend-module-control`); without
+it the backend has no such routes and the plugin only reads. Query stays in
+the core plugin and needs `temporal.workflow.query`.
 
 The details page has an action bar with the operations that fit the run:
 
@@ -926,8 +936,10 @@ the entity tab and of the Workflows page. In the legacy system, pass
 
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-node`, and custom workflow actions
-with `addControlAction()`. An action is served as
+`@kwkevinchan/backstage-plugin-temporal-node`, and, with the control module
+installed, custom workflow actions with
+`temporalControlExtensionPoint.addControlAction()` from
+`@kwkevinchan/backstage-plugin-temporal-node/alpha`. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
 call with the auditor and passes a Temporal client to `handle`:
@@ -995,8 +1007,8 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
 - **Operations are recorded.** Every operation is checked with the
   permission framework and recorded with the auditor, and the Temporal
   history shows the user as the identity. Limit signal and update names
-  with `control.allowedSignals` and `control.allowedUpdates`, or turn the
-  operations off with `control.enabled: false`.
+  with `control.allowedSignals` and `control.allowedUpdates`, or leave
+  the control module out to keep the plugin read-only.
 - **Downloads are checked.** A payload can only be downloaded when its key
   belongs to a reference in the history of the run that names the
   configured bucket and driver; its SHA-256 is checked before anything is

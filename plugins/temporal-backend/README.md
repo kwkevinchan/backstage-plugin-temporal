@@ -40,9 +40,8 @@ import:
   root-scoped service with one shared Temporal connection, configured under
   `temporal.connection` (address, namespaces, `auth` with `none` or
   `bearer`; only `@temporalio/client` is used), and `temporalExtensionPoint`:
-  `addWorkflowEnricher()` adds data to workflow summaries;
-  `addControlAction()` adds a custom workflow action, served as
-  `POST .../actions/:actionId` and checked with its own permission.
+  `addWorkflowEnricher()` adds data to workflow summaries. Custom workflow
+  actions come with the control module.
 - `@kwkevinchan/backstage-plugin-temporal-common`: the permissions
   (`temporalPermissions`, `temporalWorkflowReadPermission` and the others)
   for permission policies, the annotation constants, the `TemporalWorkflow`
@@ -66,15 +65,22 @@ in the repository README for an example.
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops`                  | `temporal.workflow.read`         |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId`     | `temporal.workflow.history.read` |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=` | `temporal.workflow.history.read` |
-| POST   | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.start`        |
-| POST   | `/workflows`                                                                        | `temporal.workflow.start` + list |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/signal`                                    | `temporal.workflow.signal`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/update`                                    | `temporal.workflow.update`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                     | `temporal.workflow.read`         |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/cancel`                                    | `temporal.workflow.cancel`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/terminate`                                 | `temporal.workflow.terminate`    |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/rerun`                                     | `temporal.workflow.rerun`        |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/actions/:actionId`                         | the action's permission          |
+| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                  | `temporal.workflow.read`         |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                     | `temporal.workflow.query` + read |
+
+With the control module
+([`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control)):
+
+| Method | Path                                                        | Permission                       |
+| ------ | ----------------------------------------------------------- | -------------------------------- |
+| POST   | `/entities/:kind/:namespace/:name/workflows`                | `temporal.workflow.start`        |
+| POST   | `/workflows`                                                | `temporal.workflow.start` + list |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/signal`            | `temporal.workflow.signal`       |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/update`            | `temporal.workflow.update`       |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/cancel`            | `temporal.workflow.cancel`       |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/terminate`         | `temporal.workflow.terminate`    |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/rerun`             | `temporal.workflow.rerun`        |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/actions/:actionId` | the action's permission          |
 
 Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
@@ -92,6 +98,10 @@ rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 `namespace` on `/workflows`). Update, query and actions answer `{ result }`;
 start and rerun answer the new `{ namespace, workflowId, runId }`. Signal,
 update, cancel and terminate answer 409 when the workflow is not running.
-`temporal.control.enabled: false` turns every route that changes workflows
-off (404); `temporal.control.allowedSignals` and `allowedUpdates` limit the
-names (400 for others).
+The routes that change workflows (signal, update, cancel, terminate, rerun,
+start, custom actions) come from the control module,
+[`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control);
+without it they do not exist (404). Query and `GET .../handlers` (the
+signals, updates and queries a running workflow defines) stay in this
+plugin: a query needs `temporal.workflow.query`, the handler list only the
+read permission.

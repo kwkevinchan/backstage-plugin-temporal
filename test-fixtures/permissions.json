@@ -34,6 +34,14 @@
       "resourceType": "temporal-workflow"
     },
     {
+      "name": "temporal.workflow.query",
+      "attributes": {
+        "action": "read"
+      },
+      "type": "resource",
+      "resourceType": "catalog-entity"
+    },
+    {
       "name": "temporal.workflow.start",
       "attributes": {
         "action": "create"

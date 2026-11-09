@@ -19,14 +19,7 @@ import {
   createExtensionPoint,
 } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
-import type { ResourcePermission } from '@backstage/plugin-permission-common';
-import type { JsonValue } from '@backstage/types';
-import type {
-  WorkflowDetail,
-  WorkflowRef,
-  WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import type { Client } from '@temporalio/client';
+import type { WorkflowSummary } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * Context passed to a {@link TemporalWorkflowEnricher}.
@@ -60,52 +53,12 @@ export interface TemporalWorkflowEnricher {
 }
 
 /**
- * Context passed to a {@link TemporalControlAction}.
- *
- * @public
- */
-export interface TemporalControlActionContext {
-  /**
-   * The entity the workflow belongs to. Undefined for a workflow opened from
-   * the Workflows page that is not linked to an entity.
-   */
-  entity?: Entity;
-  /** The workflow the action runs on, as read just before. */
-  workflow: WorkflowDetail;
-  credentials: BackstageCredentials;
-  /** Temporal client of the workflow's namespace. */
-  client: Client;
-}
-
-/**
- * A custom action on a workflow, served as `POST .../actions/:actionId`.
- * The backend reads the workflow and checks `permission` on its entity
- * before `handle` runs, and records the call with the auditor. `body` is
- * the JSON request body. The returned value is sent back as `{ result }`.
- *
- * @public
- */
-export interface TemporalControlAction {
-  /** Letters, digits, `.`, `_` and `-`, starting with a letter. */
-  id: string;
-  permission: ResourcePermission<'catalog-entity'>;
-  /** Only allow the action when this returns true, for example on running workflows. */
-  filter?: (workflow: WorkflowDetail) => boolean;
-  handle(
-    ref: Required<WorkflowRef>,
-    body: JsonValue | undefined,
-    context: TemporalControlActionContext,
-  ): Promise<JsonValue | void>;
-}
-
-/**
  * Extension point of the Temporal backend plugin.
  *
  * @public
  */
 export interface TemporalExtensionPoint {
   addWorkflowEnricher(enricher: TemporalWorkflowEnricher): void;
-  addControlAction(action: TemporalControlAction): void;
 }
 
 /**

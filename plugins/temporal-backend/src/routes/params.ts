@@ -20,7 +20,11 @@ import {
   stringifyEntityRef,
 } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
-import type { WorkflowRef } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { JsonValue } from '@backstage/types';
+import {
+  MAX_CONTROL_NAME_LENGTH,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { Request } from 'express';
 
 // Parsing and validation of request parameters, shared by the routes.
@@ -83,4 +87,30 @@ export function workflowRefFromParams(req: Request): WorkflowRef {
     throw new InputError('Invalid workflowId');
   }
   return { namespace, workflowId, runId: runId || undefined };
+}
+
+/** The `name` and `args` of a message body (`POST .../query`). */
+export function parseMessageBody(req: Request): {
+  name: string;
+  args?: JsonValue[];
+} {
+  const body = req.body ?? {};
+  if (typeof body !== 'object' || Array.isArray(body)) {
+    throw new InputError('The request body must be a JSON object');
+  }
+  const { name, args } = body as Record<string, unknown>;
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    name.length > MAX_CONTROL_NAME_LENGTH
+  ) {
+    throw new InputError('name is required');
+  }
+  if (args !== undefined && args !== null && !Array.isArray(args)) {
+    throw new InputError('args must be an array of arguments');
+  }
+  return {
+    name: name.trim(),
+    args: (args ?? undefined) as JsonValue[] | undefined,
+  };
 }

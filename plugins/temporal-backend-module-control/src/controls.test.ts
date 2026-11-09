@@ -24,22 +24,22 @@ import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   TemporalControlAction,
-  temporalExtensionPoint,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+  temporalControlExtensionPoint,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import {
   TemporalService,
   temporalServiceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import request from 'supertest';
-import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
-import { temporalPlugin } from './plugin';
+import { temporalAccessServiceFactory } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
 import {
   createFakeWorkflowService,
   executionInfo,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
-} from './testUtils';
+} from './__testUtils__/fakes';
+import temporalModuleControl from './index';
 
 const json = (value: unknown) => ({
   metadata: { encoding: Buffer.from('json/plain') },
@@ -160,8 +160,9 @@ async function start(options?: {
     getWebUiUrl: () => undefined,
   };
   const features: any[] = [
-    temporalPlugin,
+    // The test backend adds an empty temporal plugin for the module.
     temporalAccessServiceFactory,
+    temporalModuleControl,
     catalogServiceMock.factory({
       entities: [ordersEntity, otherEntity, orderWorkflowEntity],
     }),
@@ -184,7 +185,7 @@ async function start(options?: {
         moduleId: 'test-action',
         register(reg) {
           reg.registerInit({
-            deps: { temporal: temporalExtensionPoint },
+            deps: { temporal: temporalControlExtensionPoint },
             async init({ temporal }) {
               temporal.addControlAction(action);
             },
@@ -291,28 +292,6 @@ describe('workflow controls', () => {
     expect(res.status).toBe(400);
     expect(res.body.error.message).toContain('priority must be low or high');
     expect(auditEvent.fail).toHaveBeenCalled();
-  });
-
-  it('queries with the read permission only', async () => {
-    const { server, workflowService, permissions } = await start({
-      deny: [
-        'temporal.workflow.signal',
-        'temporal.workflow.update',
-        'temporal.workflow.cancel',
-      ],
-    });
-    const res = await request(server)
-      .post(`${wf}/query${withEntity}`)
-      .send({ name: 'state' });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ result: { notes: ['hello'] } });
-    expect(workflowService.queryWorkflow.mock.calls[0][0]).toMatchObject({
-      query: { queryType: 'state' },
-    });
-    const names = permissions.authorize.mock.calls.flatMap(([reqs]) =>
-      reqs.map((r: any) => r.permission.name),
-    );
-    expect(names).toEqual(['temporal.workflow.read']);
   });
 
   it('cancels and terminates with a reason', async () => {
@@ -493,28 +472,6 @@ describe('workflow controls', () => {
       expect(auditor.createEvent).not.toHaveBeenCalled();
     },
   );
-
-  it.each(controlRoutes)(
-    'answers 404 for %s when the controls are disabled',
-    async (_operation, path, payload) => {
-      const { server, workflowService } = await start({
-        control: { enabled: false },
-      });
-      const res = await request(server)
-        .post(`${path}${withEntity}`)
-        .send(payload);
-      expect(res.status).toBe(404);
-      expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
-    },
-  );
-
-  it('keeps queries when the controls are disabled', async () => {
-    const { server } = await start({ control: { enabled: false } });
-    const res = await request(server)
-      .post(`${wf}/query${withEntity}`)
-      .send({ name: 'state' });
-    expect(res.status).toBe(200);
-  });
 
   it('answers 400 for signals and updates that are not allowed', async () => {
     const { server, workflowService } = await start({

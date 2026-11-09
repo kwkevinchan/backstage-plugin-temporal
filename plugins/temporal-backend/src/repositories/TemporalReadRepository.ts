@@ -15,6 +15,7 @@
  */
 
 import {
+  ConflictError,
   InputError,
   NotFoundError,
   ServiceUnavailableError,
@@ -24,6 +25,8 @@ import type { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-nod
 
 /** gRPC status codes used to map Temporal errors to HTTP errors. */
 const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_DEADLINE_EXCEEDED = 4;
+const GRPC_FAILED_PRECONDITION = 9;
 const GRPC_NOT_FOUND = 5;
 const GRPC_UNAVAILABLE = 14;
 
@@ -37,6 +40,17 @@ export function mapTemporalError(error: unknown): never {
     throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
   }
   throw error;
+}
+
+/** Like {@link mapTemporalError}, with the errors of a query. */
+function mapQueryError(error: unknown): never {
+  const code = (error as { code?: unknown })?.code;
+  const message = (error as Error)?.message ?? String(error);
+  if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
+  if (code === GRPC_DEADLINE_EXCEEDED) {
+    throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
+  }
+  return mapTemporalError(error);
 }
 
 /** The protobuf JSON of a Temporal response message. */
@@ -135,25 +149,26 @@ export class TemporalReadRepository {
   }
 
   /**
-   * Runs a query on a workflow, giving up after `timeoutMs`. Returns the
-   * encoded result (protobuf JSON payloads), or `rejected` when the
-   * workflow's state rejects queries.
+   * Runs a query on a workflow, with encoded `args`, giving up after
+   * `timeoutMs` when given. Returns the encoded result (protobuf JSON
+   * payloads), or `rejected` when the workflow's state rejects queries.
    */
   async query(
     ref: WorkflowRef & { runId: string },
     queryType: string,
-    timeoutMs: number,
+    options: { args?: unknown; timeoutMs?: number } = {},
   ): Promise<{ rejected: boolean; result?: any }> {
     const connection = await this.temporal.getConnection();
-    const response: any = await connection.withDeadline(
-      Date.now() + timeoutMs,
-      () =>
-        connection.workflowService.queryWorkflow({
-          namespace: ref.namespace,
-          execution: { workflowId: ref.workflowId, runId: ref.runId },
-          query: { queryType },
-        }),
-    );
+    const call = () =>
+      connection.workflowService.queryWorkflow({
+        namespace: ref.namespace,
+        execution: { workflowId: ref.workflowId, runId: ref.runId },
+        query: { queryType, queryArgs: options.args as any },
+      });
+    const response: any = await (options.timeoutMs
+      ? connection.withDeadline(Date.now() + options.timeoutMs, call)
+      : call()
+    ).catch(mapQueryError);
     if (response.queryRejected) return { rejected: true };
     return { rejected: false, result: toJson(response.queryResult) };
   }

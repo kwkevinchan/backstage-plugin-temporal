@@ -23,11 +23,14 @@
 
 import {
   BackstageCredentials,
+  createExtensionPoint,
   createServiceRef,
 } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import { createPermissionResourceRef } from '@backstage/plugin-permission-node';
+import type { JsonValue } from '@backstage/types';
+import type { Client } from '@temporalio/client';
 import {
   RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   WorkflowDetail,
@@ -188,3 +191,64 @@ export const temporalAccessServiceRef = createServiceRef<TemporalAccessService>(
     scope: 'plugin',
   },
 );
+
+/**
+ * Context passed to a {@link TemporalControlAction}.
+ *
+ * @alpha
+ */
+export interface TemporalControlActionContext {
+  /**
+   * The entity the workflow belongs to. Undefined for a workflow opened from
+   * the Workflows page that is not linked to an entity.
+   */
+  entity?: Entity;
+  /** The workflow the action runs on, as read just before. */
+  workflow: WorkflowDetail;
+  credentials: BackstageCredentials;
+  /** Temporal client of the workflow's namespace. */
+  client: Client;
+}
+
+/**
+ * A custom action on a workflow, served as `POST .../actions/:actionId`.
+ * The backend reads the workflow and checks `permission` on its entity
+ * before `handle` runs, and records the call with the auditor. `body` is
+ * the JSON request body. The returned value is sent back as `{ result }`.
+ *
+ * @alpha
+ */
+export interface TemporalControlAction {
+  /** Letters, digits, `.`, `_` and `-`, starting with a letter. */
+  id: string;
+  permission: ResourcePermission<'catalog-entity'>;
+  /** Only allow the action when this returns true, for example on running workflows. */
+  filter?: (workflow: WorkflowDetail) => boolean;
+  handle(
+    ref: Required<WorkflowRef>,
+    body: JsonValue | undefined,
+    context: TemporalControlActionContext,
+  ): Promise<JsonValue | void>;
+}
+
+/**
+ * Extension point of the control module
+ * (`@kwkevinchan/backstage-plugin-temporal-backend-module-control`): custom
+ * workflow actions, served as `POST .../actions/:actionId`.
+ *
+ * @alpha
+ */
+export interface TemporalControlExtensionPoint {
+  addControlAction(action: TemporalControlAction): void;
+}
+
+/**
+ * Extension point of the control module. Available when the control module
+ * is installed.
+ *
+ * @alpha
+ */
+export const temporalControlExtensionPoint =
+  createExtensionPoint<TemporalControlExtensionPoint>({
+    id: 'temporal.control',
+  });

@@ -72,26 +72,6 @@ export interface Config {
        */
       initiator?: string;
     };
-    /** Operations that change workflows: start, signal, update, cancel, terminate, rerun. */
-    control?: {
-      /**
-       * Serve the operations. Defaults to true; each one is still checked
-       * with the permission framework. When false, they answer 404 and the
-       * frontend hides them; queries keep working.
-       * @visibility frontend
-       */
-      enabled?: boolean;
-      /**
-       * Signal names that may be sent. Empty or absent allows every name.
-       * @visibility frontend
-       */
-      allowedSignals?: string[];
-      /**
-       * Update names that may be sent. Empty or absent allows every name.
-       * @visibility frontend
-       */
-      allowedUpdates?: string[];
-    };
     /**
      * Temporal External Storage: payloads that workers store outside the
      * workflow history with the `ExternalStorage` of the Temporal SDKs.
