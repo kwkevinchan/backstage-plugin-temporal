@@ -67,16 +67,3 @@ export function buildEntityWorkflowStatsPath(
     '/workflow-stats',
   );
 }
-
-/**
- * Builds the path of the definition of a `TemporalWorkflow` entity, relative
- * to the backend plugin root: `/entities/:kind/:namespace/:name/definition`.
- *
- * @public
- */
-export function buildEntityDefinitionPath(entity: CompoundEntityRef): string {
-  return buildEntityWorkflowsPath(entity).replace(
-    /\/workflows$/,
-    '/definition',
-  );
-}

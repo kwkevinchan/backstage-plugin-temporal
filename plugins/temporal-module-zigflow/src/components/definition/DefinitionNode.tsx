@@ -40,8 +40,9 @@ import {
   isActiveStatus,
   statusLabel,
   statusTone,
-} from '../WorkflowStatusLabel';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { tp } from '../styles';
+
 import type { DefinitionGraphNode, DefinitionNodeKind } from './dslGraph';
 import type { TaskRunMark } from './overlay';
 

@@ -24,7 +24,9 @@ discuss larger changes before sending a pull request.
 The permissions, types, annotation constants and API paths are written once,
 in `plugins/temporal-backend/src/common`. Backstage does not let the frontend
 plugin import the backend plugin, so `plugins/temporal/src/common` is a copy:
-edit the backend files and run `yarn sync:common`. The `pre-commit` hook and
+edit the backend files and run `yarn sync:common`. The Zigflow modules work
+the same way: `plugins/temporal-backend-module-zigflow/src/common` is the
+original, `plugins/temporal-module-zigflow/src/common` the copy. The `pre-commit` hook and
 CI fail when the copy is out of date, and both packages test their
 permissions against `test-fixtures/permissions.json`.
 

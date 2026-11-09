@@ -51,11 +51,7 @@ import {
   temporalWorkflowSectionDataRef,
 } from './extensions/blueprints';
 import { TemporalClient } from './api';
-import {
-  definitionContentRouteRef,
-  entityContentRouteRef,
-  rootRouteRef,
-} from './routes';
+import { entityContentRouteRef, rootRouteRef } from './routes';
 
 export {
   TemporalWorkflowActionBlueprint,
@@ -131,27 +127,6 @@ export const temporalEntityContent = EntityContentBlueprint.make({
 });
 
 /**
- * Definition tab of `TemporalWorkflow` entities: the YAML of a workflow
- * written in the Serverless Workflow DSL next to its graph, with one run on
- * top; links to the source for workflows written in code.
- *
- * @alpha
- */
-export const temporalDefinitionContent = EntityContentBlueprint.make({
-  name: 'definition',
-  params: {
-    path: 'definition',
-    title: 'Definition',
-    routeRef: convertLegacyRouteRef(definitionContentRouteRef),
-    filter: isTemporalWorkflowEntity,
-    loader: () =>
-      import('./components/definition/DefinitionContent').then(m =>
-        compatWrapper(<m.EntityTemporalDefinitionContentPage />),
-      ),
-  },
-});
-
-/**
  * Workflows page on `/temporal`. Its title and icon make the app list it in
  * the sidebar. Workflow actions and sections come from
  * {@link temporalWorkflowExtensionsApi}, as on the entity tab.
@@ -216,13 +191,11 @@ export default createFrontendPlugin({
     temporalWorkflowExtensionsApi,
     temporalPage,
     temporalEntityContent,
-    temporalDefinitionContent,
     temporalWorkflowSummaryCard,
     temporalRelatedWorkflowsCard,
   ],
   routes: convertLegacyRouteRefs({
     root: rootRouteRef,
     entityContent: entityContentRouteRef,
-    definitionContent: definitionContentRouteRef,
   }),
 });

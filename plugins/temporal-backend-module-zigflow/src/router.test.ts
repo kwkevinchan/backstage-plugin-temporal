@@ -19,13 +19,36 @@ import type { Entity } from '@backstage/catalog-model';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import request from 'supertest';
-import { temporalPlugin } from './plugin';
-import {
-  createFakeWorkflowService,
-  fakeTemporalServiceFactory,
-  orderWorkflowEntity,
-  ordersEntity,
-} from './testUtils';
+import { createBackendPlugin } from '@backstage/backend-plugin-api';
+import { temporalModuleZigflow } from './module';
+
+// The module adds a route to the Temporal backend plugin; a stand-in plugin
+// with the same id is enough to mount it.
+const temporalPluginStandIn = createBackendPlugin({
+  pluginId: 'temporal',
+  register(env) {
+    env.registerInit({ deps: {}, async init() {} });
+  },
+});
+
+const ordersEntity: Entity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Component',
+  metadata: { name: 'orders', namespace: 'default' },
+  spec: { type: 'service', owner: 'group:default/team-a' },
+};
+
+/** A workflow written in code: no spec.definition. */
+const orderWorkflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'order-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'orderWorkflow',
+    taskQueue: 'orders',
+  },
+};
 
 const yamlWorkflow: Entity = {
   apiVersion: 'temporal.io/v1alpha1',
@@ -63,7 +86,8 @@ async function start(result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY) {
   }));
   const { server } = await startTestBackend({
     features: [
-      temporalPlugin,
+      temporalPluginStandIn,
+      temporalModuleZigflow,
       catalogServiceMock.factory({
         entities: [
           ordersEntity,
@@ -72,7 +96,6 @@ async function start(result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY) {
           badDefinition,
         ],
       }),
-      fakeTemporalServiceFactory(createFakeWorkflowService()),
       mockServices.permissions.factory(result ? { result } : undefined),
       mockServices.urlReader.mock({ readUrl }).factory,
     ],

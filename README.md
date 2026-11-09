@@ -51,13 +51,12 @@ workflow definition.
   calls and the usage. The records follow the OpenTelemetry GenAI
   conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
   [LLM steps](#llm-steps)).
-- **Workflow definitions.** A **Definition** tab on `TemporalWorkflow`
-  entities shows a workflow written in YAML (CNCF Serverless Workflow DSL
-  1.0, as [Zigflow](https://github.com/zigflow/zigflow) runs it) next to its
-  graph: selecting a task in one selects it in the other, and a run can be
-  laid over the graph (done, running, failed, not reached). Workflows written
-  in code get links to their source (see
-  [Workflow definitions](#workflow-definitions)).
+- **Workflow definitions (separate packages).** For workflows written in
+  YAML (CNCF Serverless Workflow DSL 1.0, as
+  [Zigflow](https://github.com/zigflow/zigflow) runs it),
+  `@kwkevinchan/backstage-plugin-temporal-module-zigflow` adds a **Definition** tab
+  to `TemporalWorkflow` entities: the YAML next to its graph, with a run laid
+  over it (see [Workflow definitions](#workflow-definitions)).
 - **Large payloads in External Storage.** Payloads that workers store in
   S3 with Temporal External Storage (the `ExternalStorage` of the Temporal
   SDKs and its S3 driver) are shown as JSON, as a preview or as an image,
@@ -81,12 +80,14 @@ workflow definition.
 
 ## Packages
 
-| Package                                                                                                    | Role                  | Install in        | Purpose                                                                                                                                                                              |
-| ---------------------------------------------------------------------------------------------------------- | --------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin       | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections.                       |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin        | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy. |
-| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                          |
-| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library          | Your workers      | Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                |
+| Package                                                                                                    | Role                   | Install in        | Purpose                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections; `./ui` for companion packages. |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin         | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy.          |
+| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module  | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                 | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional).                                                                                                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow) | backend-plugin-module  | Backstage backend | Reads the definition files for that tab (optional, with the module above).                                                                                                                    |
+| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library           | Your workers      | Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                         |
 
 Which ones to install:
 
@@ -96,6 +97,8 @@ Which ones to install:
   backend.
 - **With loops or LLM steps of AI workflows:** the workflow kit in your
   Temporal workers (not in Backstage).
+- **With workflows written in YAML for Zigflow:** the two Zigflow modules
+  (frontend and backend) for the Definition tab.
 - **With large payloads in External Storage:** nothing more; the backend
   reads the references itself and only needs `temporal.externalStorage.s3`.
 
@@ -121,10 +124,7 @@ load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
 1.56 do). Light and dark themes follow the app theme. The step graph uses
 [React Flow](https://reactflow.dev) (`@xyflow/react`) with the
 [dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed; the
-timeline is drawn with plain HTML and CSS. The YAML of the Definition tab
-is colored with `react-syntax-highlighter` (MIT, already in every app through
-`@backstage/core-components`) and only the YAML grammar of highlight.js
-(BSD-3-Clause): about 40 KB minified (14 KB gzipped), loaded with the tab.
+timeline is drawn with plain HTML and CSS.
 The backend parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
 
 ## Installation
@@ -183,7 +183,7 @@ export default createApp({ features: [temporalPlugin /* ... */] });
 
 This adds a **Temporal** tab to entities of any kind that have Temporal
 annotations, to `TemporalWorkflow` entities and to entities that depend on
-them; a **Definition** tab to `TemporalWorkflow` entities; a summary card on the overview of `TemporalWorkflow` entities; a card
+them; a summary card on the overview of `TemporalWorkflow` entities; a card
 with the workflow entities on the overview of entities that depend on them;
 and the **Workflows** page on `/temporal`. The page has a title and an icon,
 so the app lists it in the sidebar with the nav items it discovers from pages
@@ -215,7 +215,6 @@ For `TemporalWorkflow` entities, add a page to the `EntitySwitch`:
 
 ```tsx
 import {
-  EntityTemporalDefinitionContent,
   EntityTemporalRelatedWorkflowsCard,
   EntityTemporalWorkflowSummaryCard,
   getDependsOnTemporalWorkflowRefs,
@@ -236,9 +235,6 @@ const temporalWorkflowPage = (
     </EntityLayout.Route>
     <EntityLayout.Route path="/temporal" title="Temporal">
       <EntityTemporalContent />
-    </EntityLayout.Route>
-    <EntityLayout.Route path="/definition" title="Definition">
-      <EntityTemporalDefinitionContent />
     </EntityLayout.Route>
   </EntityLayout>
 );
@@ -441,120 +437,25 @@ thinking and tool arguments and results need
 
 ## Workflow definitions
 
-Workflows written in YAML can show their definition on the **Definition**
-tab of their `TemporalWorkflow` entity. The format is the CNCF Serverless
-Workflow DSL 1.0 (now called the Open Workflow Specification) in the flavor
-that [Zigflow](https://github.com/zigflow/zigflow) 0.18 runs on Temporal:
-`document.dsl: 1.0.0`, `document.workflowType` and `document.taskQueue`
-(the standard `document.name` works too).
+Workflows written in YAML (CNCF Serverless Workflow DSL 1.0, as
+[Zigflow](https://github.com/zigflow/zigflow) runs it on Temporal) can show
+their definition on a **Definition** tab of their `TemporalWorkflow` entity:
+the YAML next to its graph, with a run laid over it. The tab is not part of
+this plugin; it comes in two separate packages, so apps without Zigflow do
+not carry it:
+
+| Package                                                         | Adds                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `@kwkevinchan/backstage-plugin-temporal-module-zigflow`         | The Definition tab (frontend, both frontend systems)               |
+| `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow` | The route that reads the definition files (module of this backend) |
+
+Setup, the `spec.definition` field of the entity and the configuration
+(`temporal.definitions`) are in the
+[Zigflow package README](plugins/temporal-module-zigflow/README.md).
 
 | Definition tab: YAML and graph                        | A run on top of the graph                                         |
 | ----------------------------------------------------- | ----------------------------------------------------------------- |
 | ![YAML next to its graph](docs/images/definition.png) | ![A run laid over the definition](docs/images/definition-run.png) |
-
-### The entity
-
-```yaml
-apiVersion: temporal.io/v1alpha1
-kind: TemporalWorkflow
-metadata:
-  name: order-fulfillment
-spec:
-  owner: group:default/orders-team
-  workflowType: order-fulfillment
-  taskQueue: orders-zigflow
-  definition:
-    format: serverless-workflow
-    target: ./workflows/order-fulfillment.yaml
-```
-
-`spec.definition` has two fields, both required:
-
-| Field    | Meaning                                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` | `serverless-workflow`. The only format for now; the field leaves room for others without guessing from the file.                                  |
-| `target` | A path relative to the file the entity was read from (`backstage.io/managed-by-location`), or an absolute `http(s)` URL. At most 2048 characters. |
-
-Why this shape: `target` means the same as `spec.target` of Backstage
-`Location` entities (relative or absolute), and an object with a `format`
-can take other DSLs later. The file is not inlined into the entity (as
-`$text` placeholders of API entities are): the catalog would store a copy
-of every file in every entity, without the size limit and the checks below,
-and would show changes only after the next refresh. The backend reads the
-file when the tab opens instead.
-
-Workflows written in code leave `spec.definition` out. Their Definition tab
-links to the source from the `backstage.io/source-location` and
-`backstage.io/view-url` annotations, without reading any file.
-
-### Reading the file
-
-- The backend reads the file with Backstage's URL reader, so only hosts of a
-  configured integration (or `backend.reading.allow`) are read. A relative
-  `target` is resolved against the entity's location with the integration's
-  rules. Other URL schemes are rejected.
-- Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
-  are not read; the backend stops reading at the limit.
-- The YAML is parsed without running anything: YAML 1.2 core schema, no
-  custom tags, no merge keys, unique keys, and at most 100 aliases, so
-  "billion laughs" files fail instead of filling the memory. A file that is
-  not valid YAML is still shown, with the line of the error.
-- Entities from `file:` locations (a development catalog) are read only with
-  `temporal.definitions.readFileLocations: true`, and only files in the
-  folder of the entity file or below it.
-- The route is `GET /entities/:kind/:namespace/:name/definition` and needs
-  `temporal.workflow.read` on the entity, like the workflow list: a
-  definition describes the workflow, without inputs or results.
-
-### The tab
-
-- Left: the YAML, read-only, with line numbers and colors. Pressing a line
-  (or moving with the arrow keys) selects the innermost task around it.
-- Right: the graph, drawn and laid out like the step graph of a run (React
-  Flow and dagre, top to bottom, at least 12px text at the zoom it opens
-  with). Pressing a box marks its lines in the YAML and scrolls to them.
-
-| Task                         | Drawn as                                                                                  |
-| ---------------------------- | ----------------------------------------------------------------------------------------- |
-| `call`, `run`, `set`, `emit` | A box with what it calls or runs (activity, HTTP, gRPC, child workflow, shell, ...)       |
-| `switch`                     | A box with one arrow per case, labeled with the case, to its `then`                       |
-| `fork`                       | A box, one arrow per branch, and a **Join** (or **First to finish** with `compete`) box   |
-| `for` (with `while`)         | A box, an arrow into the body (`each`), a dashed arrow back (`next`) and one out (`done`) |
-| `try` / `catch`              | A box, its body, a **Catch** box reached by a dashed red arrow, an arrow back for `retry` |
-| `wait`, `listen`             | A box with the duration, or the signal, update or events it waits for                     |
-| `do`                         | A box followed by its tasks                                                               |
-| `raise`                      | A box without an arrow out                                                                |
-| anything else                | A plain box marked **unsupported**; the rest of the graph is drawn as usual               |
-
-`then: continue | exit | end | <task>` on tasks and cases are followed;
-`if` and the retry policy of `metadata.activityOptions` show as badges.
-
-### A run on top
-
-**Show a run** lists the recent runs of the entity. The boxes of the tasks
-then take the colors of the run: done, running, failed, and dimmed for
-tasks the run did not reach (in a closed run) or has not reached yet. A
-task that ran more than once (a loop) shows how many times. **Open the run**
-opens its details on the Temporal tab.
-
-The history of a run does not name the tasks. The tab matches events to
-tasks by the names Zigflow 0.18 gives what it starts:
-
-| Task                                                         | Event in the history                                                                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `call: http`, `call: grpc`, `run` (shell, script, container) | Activity of type `<workflowType>.<task path>` (names from the top, with `try` and `catch` segments; `.` and `\` escaped) |
-| `call: activity`                                             | Activity of the type in `with.name`                                                                                      |
-| `run: workflow`                                              | Child workflow of the type in `workflow.type`                                                                            |
-| A `fork` branch                                              | Child workflow `workflow_fork_<fork>_<branch>`                                                                           |
-| The target of a `switch` case (a `do` task)                  | Child workflow named after the task                                                                                      |
-| `listen` for signals or updates                              | The signals or updates by name (`all`: every one must arrive)                                                            |
-
-Not marked, because no event names them: `set`, `switch`, `wait` (its timer
-has no name), `raise`, the boxes of `do`, `for` and `try`, and tasks that
-run inside a child workflow (fork branches, switch targets). A name that two
-tasks share (two `call: activity` of the same activity) is not marked
-either, since the history cannot tell them apart. Steps of the run that
-match no task are counted under the legend.
 
 ## Configuration
 
@@ -588,10 +489,6 @@ temporal:
     enabled: true
     allowedSignals: [addNote, close]
     allowedUpdates: [setPriority]
-  # Optional: definition files of TemporalWorkflow entities.
-  definitions:
-    maxBytes: 1048576
-    readFileLocations: false
   # Optional: large payloads in Temporal External Storage, see Large payloads.
   externalStorage:
     s3:
@@ -619,8 +516,6 @@ temporal:
 | `control.enabled`                   | `true`         | When `false`, the operations answer 404 and are hidden; queries keep working.                          |
 | `control.allowedSignals`            | (all)          | Signal names that may be sent.                                                                         |
 | `control.allowedUpdates`            | (all)          | Update names that may be sent.                                                                         |
-| `definitions.maxBytes`              | `1048576`      | Largest definition file read, in bytes (at most 8 MiB).                                                |
-| `definitions.readFileLocations`     | `false`        | Read definitions next to entities from `file:` locations (development catalogs).                       |
 | `externalStorage.s3.bucket`         | (required)     | Bucket the workers store payloads in.                                                                  |
 | `externalStorage.s3.driverName`     | `aws.s3driver` | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                         |
 | `externalStorage.s3.endpoint`       | AWS S3         | Endpoint of an S3-compatible service.                                                                  |
@@ -843,18 +738,18 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type    | Used for                                                   |
-| -------------------------------- | ---------------- | ---------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph, progress, definition   |
-| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                          |
-| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity   |
-| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity        |
-| `temporal.workflow.start`        | `catalog-entity` | Start a workflow of the entity, or from the Workflows page |
-| `temporal.workflow.signal`       | `catalog-entity` | Send a signal                                              |
-| `temporal.workflow.update`       | `catalog-entity` | Send an update (also used by the example custom action)    |
-| `temporal.workflow.cancel`       | `catalog-entity` | Ask a running workflow to cancel                           |
-| `temporal.workflow.terminate`    | `catalog-entity` | Terminate a running workflow, with a reason                |
-| `temporal.workflow.rerun`        | `catalog-entity` | Start a run again with the same input                      |
+| Permission                       | Resource type    | Used for                                                         |
+| -------------------------------- | ---------------- | ---------------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph, progress, Zigflow definition |
+| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                                |
+| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity         |
+| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity              |
+| `temporal.workflow.start`        | `catalog-entity` | Start a workflow of the entity, or from the Workflows page       |
+| `temporal.workflow.signal`       | `catalog-entity` | Send a signal                                                    |
+| `temporal.workflow.update`       | `catalog-entity` | Send an update (also used by the example custom action)          |
+| `temporal.workflow.cancel`       | `catalog-entity` | Ask a running workflow to cancel                                 |
+| `temporal.workflow.terminate`    | `catalog-entity` | Terminate a running workflow, with a reason                      |
+| `temporal.workflow.rerun`        | `catalog-entity` | Start a run again with the same input                            |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`

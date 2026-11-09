@@ -19,6 +19,7 @@ import catalogPlugin from '@backstage/plugin-catalog/alpha';
 import orgPlugin from '@backstage/plugin-org/alpha';
 import userSettingsPlugin from '@backstage/plugin-user-settings/alpha';
 import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import temporalZigflowModule from '@kwkevinchan/backstage-plugin-temporal-module-zigflow/alpha';
 import { navModule } from './modules/nav';
 import { signInModule } from './modules/signIn';
 import { temporalExtrasModule } from './modules/temporal';
@@ -29,6 +30,7 @@ export default createApp({
     orgPlugin,
     userSettingsPlugin,
     temporalPlugin,
+    temporalZigflowModule,
     navModule,
     signInModule,
     temporalExtrasModule,

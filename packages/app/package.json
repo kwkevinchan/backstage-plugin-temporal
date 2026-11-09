@@ -34,6 +34,7 @@
     "@backstage/theme": "backstage:^",
     "@backstage/ui": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-module-zigflow": "workspace:^",
     "@material-ui/core": "^4.12.2",
     "@material-ui/icons": "^4.9.1",
     "react": "^18.0.2",

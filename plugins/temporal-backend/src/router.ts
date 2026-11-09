@@ -35,7 +35,6 @@ import {
 } from '@backstage/plugin-permission-common';
 import {
   getDependsOnTemporalWorkflowRefs,
-  getTemporalWorkflowDefinitionSpec,
   isTemporalWorkflowEntity,
   parseTemporalWorkflowSpec,
   temporalWorkflowHistoryListPermission,
@@ -51,7 +50,6 @@ import { TemporalService } from './service/TemporalService';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { sendStoredPayload } from './service/download';
-import { DefinitionReader } from './service/definition';
 import { addControlRoutes } from './controlRoutes';
 import { WorkflowController } from './service/WorkflowController';
 import { parseStatus } from './service/query';
@@ -71,8 +69,6 @@ export interface RouterOptions {
   permissions: PermissionsService;
   catalog: CatalogService;
   reader: WorkflowReader;
-  /** Reads the definition files of `TemporalWorkflow` entities. */
-  definitions?: DefinitionReader;
   /** When set, the routes that change workflows are served too. */
   controls?: {
     auditor: AuditorService;
@@ -378,33 +374,6 @@ export async function createRouter(
       );
       const limit = parsePageSize(req.query.limit, STATS_LIMIT, 'limit');
       res.json(await reader.stats(context, { limit }));
-    },
-  );
-
-  // The definition file of a TemporalWorkflow entity. It describes the
-  // workflow, without inputs or results, so the read permission is enough.
-  router.get(
-    '/entities/:kind/:namespace/:name/definition',
-    async (req, res) => {
-      const credentials = await httpAuth.credentials(req);
-      const entityRef = entityRefFromParams(req);
-      await authorize(temporalWorkflowReadPermission, entityRef, credentials);
-      const entity = await catalog.getEntityByRef(entityRef, { credentials });
-      if (!entity || !isTemporalWorkflowEntity(entity)) {
-        throw new NotFoundError(`No TemporalWorkflow entity ${entityRef}`);
-      }
-      let spec;
-      try {
-        spec = getTemporalWorkflowDefinitionSpec(entity);
-      } catch (error) {
-        throw new InputError(
-          error instanceof Error ? error.message : 'Invalid spec.definition',
-        );
-      }
-      if (!spec || !options.definitions) {
-        throw new NotFoundError(`${entityRef} has no spec.definition`);
-      }
-      res.json(await options.definitions.read(entity, spec));
     },
   );
 

@@ -707,9 +707,6 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
     listWorkflows: jest.fn().mockResolvedValue(listResponse),
     getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
-    getEntityDefinition: jest
-      .fn()
-      .mockRejectedValue(new Error('No definition')),
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
     getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),

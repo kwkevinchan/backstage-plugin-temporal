@@ -25,24 +25,35 @@ import {
   parseLocationRef,
   stringifyEntityRef,
 } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
+import {
+  discoveryApiRef,
+  fetchApiRef,
+  useApi,
+} from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { Alert, ButtonLink, Flex, Link, Select, Text } from '@backstage/ui';
 import { RiExternalLinkLine } from '@remixicon/react';
 import {
   getTemporalWorkflowDefinitionSpec,
   isTemporalWorkflowEntity,
+  temporalApiRef,
+  WorkflowSummary,
+} from '@kwkevinchan/backstage-plugin-temporal';
+import {
+  DefinitionList,
+  ErrorAlert,
+  Loading,
+  PanelCard,
+  statusLabel,
+  workflowLink,
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
+import {
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
-  WorkflowSummary,
-} from '../../common';
-import { temporalApiRef } from '../../extensions';
-import { ErrorAlert, Loading } from '../feedback';
-import { PanelCard } from '../PanelCard';
-import { DefinitionList } from '../StepDrawer';
-import { statusLabel } from '../WorkflowStatusLabel';
-import { workflowLink } from '../WorkflowRunsTable';
+} from '../../common/definition';
+import { loadEntityDefinition } from '../../api';
 import { tp } from '../styles';
+
 import { DefinitionGraph } from './DefinitionGraph';
 import { markLabel } from './DefinitionNode';
 import { buildDefinitionGraph, DefinitionGraph as Graph } from './dslGraph';
@@ -418,11 +429,12 @@ function DefinitionView(props: {
 
 /** Loads and shows the definition of a `TemporalWorkflow` entity. */
 function LoadedDefinition(props: { entity: Entity }) {
-  const api = useApi(temporalApiRef);
+  const discoveryApi = useApi(discoveryApiRef);
+  const fetchApi = useApi(fetchApiRef);
   const entityRef = stringifyEntityRef(props.entity);
   const state = useAsync(
-    () => api.getEntityDefinition(entityRef),
-    [api, entityRef],
+    () => loadEntityDefinition({ discoveryApi, fetchApi }, entityRef),
+    [discoveryApi, fetchApi, entityRef],
   );
   if (state.loading) return <Loading rows={6} label="Loading the definition" />;
   if (state.error) {

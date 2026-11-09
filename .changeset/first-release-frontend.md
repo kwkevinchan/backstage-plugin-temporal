@@ -20,11 +20,9 @@ system (`./alpha`).
   LLM panel with the input, thinking, output, tool calls (with a link to
   their steps) and usage, copy buttons and the raw record. The Loops tab adds
   up the tokens of each round.
-- A Definition tab on `TemporalWorkflow` entities: the YAML of a workflow
-  written in the Serverless Workflow DSL (`spec.definition`, as Zigflow runs
-  it) next to its graph, selecting each other, with a run of the workflow on
-  top (done, running, failed, not reached). Workflows written in code get
-  links to their source.
+- A `./ui` entry point with the building blocks of the pages (the graph
+  canvas and its layout, status helpers, panels, the style class names) for
+  companion packages such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`.
 - Workflow lists keep their filters, page and page size in the URL, so the
   browser's back button and the "All workflows" link return to the same
   page. Paging and filtering replace the history entry instead of adding

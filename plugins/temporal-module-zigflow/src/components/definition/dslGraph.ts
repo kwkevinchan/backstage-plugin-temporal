@@ -18,7 +18,7 @@ import {
   definitionTaskItem,
   definitionTaskLists,
   jsonPointerSegment,
-} from '../../common';
+} from '../../common/definition';
 
 /*
  * A workflow definition in the Serverless Workflow DSL 1.0 as boxes and

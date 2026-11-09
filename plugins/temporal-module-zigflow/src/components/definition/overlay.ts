@@ -15,11 +15,11 @@
  */
 
 import {
-  walkDefinitionTasks,
   WorkflowGraphNode,
   WorkflowGraphResponse,
   WorkflowNodeStatus,
-} from '../../common';
+} from '@kwkevinchan/backstage-plugin-temporal';
+import { walkDefinitionTasks } from '../../common/definition';
 import { listenEvents, taskKind } from './dslGraph';
 
 /*
