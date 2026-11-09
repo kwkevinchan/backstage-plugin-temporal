@@ -41,7 +41,6 @@
   "dependencies": {
     "@backstage/backend-plugin-api": "backstage:^",
     "@backstage/catalog-model": "backstage:^",
-    "@backstage/plugin-catalog-common": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
   },
