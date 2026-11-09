@@ -104,6 +104,24 @@ describe('findSymbolLines', () => {
     });
   });
 
+  it('skips default values and return types to find the body', () => {
+    const source = [
+      'export async function demoAgent(partial: Partial<In> = {}): Promise<{ ok: boolean }> {', // 1
+      '  const a = { b: 1 };', // 2
+      '  return { ok: true };', // 3
+      '}', // 4
+      'const oneLine = () => { return 1; };', // 5
+    ].join('\n');
+    expect(findSymbolLines(source, 'demoAgent', 'typescript')).toEqual({
+      startLine: 1,
+      endLine: 4,
+    });
+    expect(findSymbolLines(source, 'oneLine', 'typescript')).toEqual({
+      startLine: 5,
+      endLine: 5,
+    });
+  });
+
   it('finds a Python function by its indented block', () => {
     const py = [
       '@workflow.defn', // 1
