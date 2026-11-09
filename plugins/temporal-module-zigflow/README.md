@@ -69,10 +69,12 @@ import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-t
 </EntityLayout.Route>;
 ```
 
-The YAML is colored with `react-syntax-highlighter` (MIT, already in every
-app through `@backstage/core-components`) and only the YAML grammar of
-highlight.js (BSD-3-Clause): about 40 KB minified (14 KB gzipped), loaded
-with the tab.
+The YAML is shown in a read-only [CodeMirror 6](https://codemirror.net/)
+editor, using only its official packages (`@codemirror/view`, `state`,
+`language`, `lang-yaml` and `@lezer/highlight`, all MIT): about 290 KB
+minified (95 KB gzipped), loaded with the tab. The selected task, the cursor
+and a parse error are line decorations of the editor, so they always line up
+with the text.
 
 ## The entity
 

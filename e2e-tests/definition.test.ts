@@ -128,6 +128,19 @@ for (const theme of ['light', 'dark']) {
     const band = page.getByTestId('definition-yaml-band');
     await expect(band).toHaveAttribute('data-start', '78');
     await expect(band).toBeInViewport();
+    // The band lines up with the text of its first line.
+    const bandBox = await band.boundingBox();
+    const lineText = await yaml.locator('[data-line="78"]').evaluate(line => {
+      const range = document.createRange();
+      range.selectNodeContents(line);
+      const rect = range.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    });
+    expect(bandBox).not.toBeNull();
+    expect(lineText.top).toBeGreaterThanOrEqual(bandBox!.y - 1);
+    expect(lineText.bottom).toBeLessThanOrEqual(
+      bandBox!.y + bandBox!.height + 1,
+    );
     await expect(page.getByTestId('definition-task')).toContainText('78–96');
     await shot(page, `${theme}-definition-02-box-selects-lines`);
 

@@ -40,92 +40,91 @@
 }
 .tp-yaml {
   position: relative;
-  /* As tall as the largest graph area, with the toolbar above it. */
-  max-height: 760px;
-  overflow: auto;
   border: 1px solid var(--bui-border-1);
   border-radius: var(--bui-radius-3, 8px);
   background: var(--bui-bg-neutral-1);
   color: var(--bui-fg-primary);
-  cursor: text;
+  overflow: hidden;
 }
 .tp-yaml:focus-visible {
   outline: 2px solid var(--bui-ring);
   outline-offset: 2px;
 }
-.tp-yaml-inner {
-  position: relative;
-  min-width: max-content;
-  padding: var(--bui-space-2, 8px) 0;
-}
-.tp-yaml-code {
-  position: relative;
-  z-index: 1;
-  margin: 0;
+/* CodeMirror: the editor scrolls itself, as tall as the largest graph area
+   with the toolbar above it. */
+.tp-yaml :global(.cm-editor) {
+  max-height: 760px;
   background: transparent;
-  font-family: var(--bui-font-monospace);
+  color: inherit;
   font-size: 13px;
+}
+.tp-yaml :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+.tp-yaml :global(.cm-scroller) {
+  overflow: auto;
+  font-family: var(--bui-font-monospace);
   line-height: 20px;
-  white-space: pre;
 }
-.tp-yaml-code code {
-  font-family: inherit;
-  white-space: pre !important;
+.tp-yaml :global(.cm-content) {
+  padding: var(--bui-space-2, 8px) 0;
+  cursor: text;
 }
-.tp-yaml-line {
-  display: block;
-  padding-right: var(--bui-space-3, 12px);
+.tp-yaml :global(.cm-line) {
+  padding: 0 var(--bui-space-3, 12px) 0 var(--bui-space-2, 8px);
+  border-left: 3px solid transparent;
 }
-.tp-yaml-code :global(.react-syntax-highlighter-line-number) {
-  display: inline-block;
-  min-width: 3.5em !important;
-  padding-right: 1em !important;
-  text-align: right;
-  color: var(--bui-fg-secondary) !important;
-  user-select: none;
+/* The gutter stays on the left when the lines scroll sideways: it needs the
+   background of the box, or the text shows through the numbers. */
+.tp-yaml :global(.cm-gutters) {
+  background: var(--bui-bg-neutral-1);
+  border-right: none;
+  color: var(--bui-fg-secondary);
+  cursor: pointer;
 }
-.tp-yaml-band,
-.tp-yaml-cursor,
-.tp-yaml-error {
-  position: absolute;
-  left: 0;
-  right: 0;
-  pointer-events: none;
+.tp-yaml :global(.cm-lineNumbers .cm-gutterElement) {
+  min-width: 3em;
+  padding: 0 0.5em 0 0.75em;
 }
-.tp-yaml-band {
+.tp-yaml :global(.cm-line).tp-yaml-band {
   background: color-mix(in srgb, var(--bui-fg-info) 16%, transparent);
-  border-left: 3px solid var(--bui-fg-info);
+  border-left-color: var(--bui-fg-info);
 }
-.tp-yaml-cursor {
+.tp-yaml :global(.cm-line).tp-yaml-cursor {
   background: color-mix(in srgb, var(--bui-fg-primary) 7%, transparent);
 }
-.tp-yaml-error {
-  background: color-mix(in srgb, var(--bui-fg-danger) 16%, transparent);
-  border-left: 3px solid var(--bui-fg-danger);
+.tp-yaml :global(.cm-line).tp-yaml-band.tp-yaml-cursor {
+  background: color-mix(in srgb, var(--bui-fg-info) 26%, transparent);
 }
-.tp-yaml-code :global(.hljs-attr) {
+.tp-yaml :global(.cm-line).tp-yaml-error {
+  background: color-mix(in srgb, var(--bui-fg-danger) 16%, transparent);
+  border-left-color: var(--bui-fg-danger);
+}
+/* Syntax colors (classes of @lezer/highlight's classHighlighter). */
+.tp-yaml :global(.tok-propertyName),
+.tp-yaml :global(.tok-definition) {
   color: var(--bui-fg-info);
 }
-.tp-yaml-code :global(.hljs-string) {
+.tp-yaml :global(.tok-string) {
   color: var(--bui-fg-success);
 }
-.tp-yaml-code :global(.hljs-number),
-.tp-yaml-code :global(.hljs-literal) {
+.tp-yaml :global(.tok-number),
+.tp-yaml :global(.tok-bool),
+.tp-yaml :global(.tok-atom),
+.tp-yaml :global(.tok-literal) {
   color: var(--bui-fg-warning);
 }
-.tp-yaml-code :global(.hljs-comment) {
+.tp-yaml :global(.tok-comment) {
   color: var(--bui-fg-secondary);
   font-style: italic;
 }
-.tp-yaml-code :global(.hljs-bullet),
-.tp-yaml-code :global(.hljs-meta),
-.tp-yaml-code :global(.hljs-type),
-.tp-yaml-code :global(.hljs-keyword) {
+.tp-yaml :global(.tok-meta),
+.tp-yaml :global(.tok-keyword),
+.tp-yaml :global(.tok-typeName),
+.tp-yaml :global(.tok-punctuation) {
   color: var(--bui-fg-secondary);
 }
-.tp-yaml-code :global(.hljs-template-variable),
-.tp-yaml-code :global(.hljs-variable),
-.tp-yaml-code :global(.hljs-subst) {
+.tp-yaml :global(.tok-labelName) {
   color: color-mix(in srgb, var(--bui-fg-info) 55%, var(--bui-fg-danger));
 }
 
