@@ -14,22 +14,25 @@
  * limitations under the License.
  */
 
-/// <reference types="react-syntax-highlighter" />
+import { useEffect, useRef } from 'react';
+import { yaml } from '@codemirror/lang-yaml';
+import { syntaxHighlighting } from '@codemirror/language';
 import {
-  KeyboardEvent,
-  memo,
-  MouseEvent,
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
-import SyntaxHighlighter from 'react-syntax-highlighter/dist/esm/light';
-import yamlLanguage from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
+  Compartment,
+  EditorState,
+  RangeSetBuilder,
+  Text,
+} from '@codemirror/state';
+import {
+  Decoration,
+  DecorationSet,
+  EditorView,
+  lineNumbers,
+  ViewPlugin,
+  ViewUpdate,
+} from '@codemirror/view';
+import { classHighlighter } from '@lezer/highlight';
 import { tp } from '../styles';
-
-// Only the YAML grammar of highlight.js is loaded.
-SyntaxHighlighter.registerLanguage('yaml', yamlLanguage);
 
 /** Lines of a range, from 1. */
 export interface LineRange {
@@ -52,152 +55,231 @@ export interface YamlViewProps {
 }
 
 /**
- * The highlighted text. Only the content changes it, so moving the
- * selection does not highlight the file again.
+ * Gives every rendered line its number as `data-line`, so a click (and the
+ * tests) can find the line. CodeMirror renders only the lines near the
+ * visible part, so this follows the viewport.
  */
-const Code = memo(function CodeView(props: { content: string }) {
-  return (
-    <SyntaxHighlighter
-      language="yaml"
-      useInlineStyles={false}
-      showLineNumbers
-      wrapLines
-      lineProps={(line: number) => ({
-        'data-line': line,
-        className: tp('tp-yaml-line'),
-      })}
-      PreTag="div"
-      className={tp('tp-yaml-code')}
-    >
-      {props.content}
-    </SyntaxHighlighter>
-  );
-});
+const lineNumberAttributes = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = numberLines(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = numberLines(update.view);
+      }
+    }
+  },
+  { decorations: plugin => plugin.decorations },
+);
 
-function lineElement(root: HTMLElement | null, line: number) {
-  return root?.querySelector<HTMLElement>(`[data-line="${line}"]`) ?? null;
+function numberLines(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  const { doc } = view.state;
+  const last = doc.lineAt(view.viewport.to).number;
+  for (let n = doc.lineAt(view.viewport.from).number; n <= last; n++) {
+    builder.add(
+      doc.line(n).from,
+      doc.line(n).from,
+      Decoration.line({ attributes: { 'data-line': String(n) } }),
+    );
+  }
+  return builder.finish();
 }
 
-/** Top and height of the lines `range` in the code. */
-function bandOf(root: HTMLElement | null, range: LineRange | undefined) {
-  if (!range) return undefined;
-  const first = lineElement(root, range.startLine);
-  const last = lineElement(root, range.endLine) ?? first;
-  if (!first || !last) return undefined;
-  return {
-    top: first.offsetTop,
-    height: last.offsetTop + last.offsetHeight - first.offsetTop,
-  };
+interface Marks {
+  highlight?: LineRange;
+  cursorLine?: number;
+  errorLine?: number;
 }
 
 /**
- * Read-only YAML with line numbers and syntax colors. The lines of the
- * selected task are marked; pressing a line (or the arrow keys) moves the
- * cursor to it.
+ * Line decorations for the selected task (a band with a bar on the left),
+ * the cursor and a parse error. They are part of the lines, so they always
+ * line up with the text.
+ */
+function markLines(doc: Text, marks: Marks): DecorationSet {
+  const lines = new Map<
+    number,
+    { classes: string[]; attributes: Record<string, string> }
+  >();
+  const at = (n: number) => {
+    let entry = lines.get(n);
+    if (!entry) {
+      entry = { classes: [], attributes: {} };
+      lines.set(n, entry);
+    }
+    return entry;
+  };
+  const inDoc = (n: number | undefined): n is number =>
+    n !== undefined && n >= 1 && n <= doc.lines;
+  const { highlight, cursorLine, errorLine } = marks;
+  if (highlight && inDoc(highlight.startLine)) {
+    const end = Math.min(
+      Math.max(highlight.endLine, highlight.startLine),
+      doc.lines,
+    );
+    for (let n = highlight.startLine; n <= end; n++) {
+      at(n).classes.push(tp('tp-yaml-band'));
+    }
+    Object.assign(at(highlight.startLine).attributes, {
+      'data-testid': 'definition-yaml-band',
+      'data-start': String(highlight.startLine),
+      'data-end': String(highlight.endLine),
+    });
+  }
+  if (inDoc(errorLine)) at(errorLine).classes.push(tp('tp-yaml-error'));
+  if (inDoc(cursorLine)) at(cursorLine).classes.push(tp('tp-yaml-cursor'));
+
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const n of [...lines.keys()].sort((a, b) => a - b)) {
+    const { classes, attributes } = lines.get(n)!;
+    builder.add(
+      doc.line(n).from,
+      doc.line(n).from,
+      Decoration.line({ class: classes.join(' '), attributes }),
+    );
+  }
+  return builder.finish();
+}
+
+/**
+ * Read-only YAML in CodeMirror, with line numbers and syntax colors. The
+ * lines of the selected task are marked; pressing a line (or the arrow keys)
+ * moves the cursor to it.
  */
 export function YamlView(props: YamlViewProps) {
-  const { content, highlight, cursorLine, onLineSelect, errorLine } = props;
-  const scroller = useRef<HTMLDivElement>(null);
-  const code = useRef<HTMLDivElement>(null);
-  const [band, setBand] = useState<{ top: number; height: number }>();
-  const [cursor, setCursor] = useState<{ top: number; height: number }>();
-  const [error, setError] = useState<{ top: number; height: number }>();
-  const lineCount = content.split('\n').length;
+  const { content, highlight, cursorLine, onLineSelect, errorLine, scrollKey } =
+    props;
+  const host = useRef<HTMLDivElement>(null);
+  const view = useRef<EditorView>();
+  const marks = useRef(new Compartment());
+  // The editor's handlers read the latest props.
+  const latest = useRef({ onLineSelect, cursorLine });
+  latest.current = { onLineSelect, cursorLine };
 
-  useLayoutEffect(() => {
-    setBand(bandOf(code.current, highlight));
-    setCursor(
-      cursorLine
-        ? bandOf(code.current, { startLine: cursorLine, endLine: cursorLine })
-        : undefined,
-    );
-    setError(
-      errorLine
-        ? bandOf(code.current, { startLine: errorLine, endLine: errorLine })
-        : undefined,
-    );
+  // The editor lives as long as the component; the content replaces the
+  // document.
+  useEffect(() => {
+    if (!host.current) return undefined;
+    const editor = new EditorView({
+      parent: host.current,
+      state: EditorState.create({
+        doc: content,
+        extensions: [
+          EditorState.readOnly.of(true),
+          EditorView.editable.of(false),
+          // CodeMirror marks its content as a read-only, multiline textbox.
+          EditorView.contentAttributes.of({
+            'aria-label': 'Workflow definition',
+          }),
+          // CodeMirror's content is the focusable, read-only textbox; it
+          // takes the clicks on lines and the arrow keys.
+          EditorView.contentAttributes.of({ tabindex: '0' }),
+          EditorView.domEventHandlers({
+            click(event) {
+              const line = (event.target as HTMLElement)
+                .closest('[data-line]')
+                ?.getAttribute('data-line');
+              if (line) latest.current.onLineSelect(Number(line));
+            },
+            keydown(event, cm) {
+              if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                return false;
+              }
+              event.preventDefault();
+              const from = latest.current.cursorLine ?? 0;
+              const last = cm.state.doc.lines;
+              const next =
+                event.key === 'ArrowDown'
+                  ? Math.min(last, from + 1)
+                  : Math.max(1, from - 1);
+              latest.current.onLineSelect(next);
+              cm.dispatch({
+                effects: EditorView.scrollIntoView(
+                  cm.state.doc.line(next).from,
+                  { y: 'nearest' },
+                ),
+              });
+              return true;
+            },
+          }),
+          // The line numbers are outside the lines: the gutter gives the line.
+          lineNumbers({
+            domEventHandlers: {
+              click(cm, block) {
+                latest.current.onLineSelect(
+                  cm.state.doc.lineAt(block.from).number,
+                );
+                return true;
+              },
+            },
+          }),
+          yaml(),
+          syntaxHighlighting(classHighlighter),
+          lineNumberAttributes,
+          marks.current.of([]),
+        ],
+      }),
+    });
+    view.current = editor;
+    return () => {
+      editor.destroy();
+      view.current = undefined;
+    };
+    // Created once; the effects below follow the props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A new content replaces the document; the marks are computed for the
+  // document they will be on, in the same transaction.
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor) return;
+    const changed = editor.state.doc.toString() !== content;
+    const doc = changed ? editor.state.toText(content) : editor.state.doc;
+    editor.dispatch({
+      ...(changed && {
+        changes: { from: 0, to: editor.state.doc.length, insert: content },
+      }),
+      effects: marks.current.reconfigure(
+        EditorView.decorations.of(
+          markLines(doc, { highlight, cursorLine, errorLine }),
+        ),
+      ),
+    });
   }, [content, highlight, cursorLine, errorLine]);
 
   // Scroll the selected task into view when the selection comes from the
-  // graph (a new scroll key).
-  const { scrollKey } = props;
-  useLayoutEffect(() => {
-    const box = scroller.current;
-    const target = bandOf(code.current, highlight);
-    if (!box || !target || scrollKey === undefined) return;
-    const visibleTop = box.scrollTop;
-    const visibleBottom = visibleTop + box.clientHeight;
-    if (target.top >= visibleTop && target.top + 24 <= visibleBottom) return;
-    box.scrollTo?.({ top: Math.max(0, target.top - 32), behavior: 'smooth' });
-    // jsdom has no scrollTo.
-    if (!box.scrollTo) box.scrollTop = Math.max(0, target.top - 32);
-    // Only a new scroll key scrolls; the band follows the content.
+  // graph (a new scroll key), unless its first line is already visible.
+  useEffect(() => {
+    const editor = view.current;
+    if (!editor || !highlight || scrollKey === undefined) return;
+    if (
+      highlight.startLine < 1 ||
+      highlight.startLine > editor.state.doc.lines
+    ) {
+      return;
+    }
+    const pos = editor.state.doc.line(highlight.startLine).from;
+    const block = editor.lineBlockAt(pos);
+    const scroller = editor.scrollDOM;
+    const top = block.top + editor.documentPadding.top;
+    if (
+      top >= scroller.scrollTop &&
+      top + 24 <= scroller.scrollTop + scroller.clientHeight
+    ) {
+      return;
+    }
+    editor.dispatch({
+      effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin: 32 }),
+    });
+    // Only a new scroll key scrolls; the marks follow the props.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollKey]);
 
-  const onClick = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      const line = (event.target as HTMLElement)
-        .closest('[data-line]')
-        ?.getAttribute('data-line');
-      if (line) onLineSelect(Number(line));
-    },
-    [onLineSelect],
-  );
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const from = cursorLine ?? 0;
-    const next =
-      event.key === 'ArrowDown'
-        ? Math.min(lineCount, from + 1)
-        : Math.max(1, from - 1);
-    onLineSelect(next);
-    const element = lineElement(code.current, next);
-    element?.scrollIntoView?.({ block: 'nearest' });
-  };
-
   return (
-    <div
-      ref={scroller}
-      className={tp('tp-yaml')}
-      role="textbox"
-      aria-readonly="true"
-      aria-multiline="true"
-      aria-label="Workflow definition"
-      tabIndex={0}
-      data-testid="definition-yaml"
-      onClick={onClick}
-      onKeyDown={onKeyDown}
-    >
-      <div ref={code} className={tp('tp-yaml-inner')}>
-        {band && (
-          <div
-            className={tp('tp-yaml-band')}
-            style={{ top: band.top, height: band.height }}
-            data-testid="definition-yaml-band"
-            data-start={highlight?.startLine}
-            data-end={highlight?.endLine}
-            aria-hidden
-          />
-        )}
-        {error && (
-          <div
-            className={tp('tp-yaml-error')}
-            style={{ top: error.top, height: error.height }}
-            aria-hidden
-          />
-        )}
-        {cursor && (
-          <div
-            className={tp('tp-yaml-cursor')}
-            style={{ top: cursor.top, height: cursor.height }}
-            aria-hidden
-          />
-        )}
-        <Code content={content} />
-      </div>
-    </div>
+    <div ref={host} className={tp('tp-yaml')} data-testid="definition-yaml" />
   );
 }

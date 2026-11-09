@@ -151,6 +151,13 @@ function render(
   );
 }
 
+/** The numbers of the rendered lines that carry a mark class. */
+function markedLines(yaml: HTMLElement, mark: string): number[] {
+  return [...yaml.querySelectorAll<HTMLElement>('[data-line]')]
+    .filter(line => line.className.split(/\s+/).includes(mark))
+    .map(line => Number(line.getAttribute('data-line')));
+}
+
 describe('Definition tab', () => {
   it('links to the source of a workflow written in code', async () => {
     const api = mockTemporalApi();
@@ -196,6 +203,15 @@ describe('Definition tab', () => {
       '28',
     );
     expect(screen.getByTestId('definition-task')).toHaveTextContent('28–32');
+    // The marks are on the lines themselves, so they cannot drift from the
+    // text: the band starts on line 28, covers 28–32 and nothing else, and
+    // the cursor is on the line pressed.
+    expect(screen.getByTestId('definition-yaml-band')).toHaveAttribute(
+      'data-line',
+      '28',
+    );
+    expect(markedLines(yaml, 'tp-yaml-band')).toEqual([28, 29, 30, 31, 32]);
+    expect(markedLines(yaml, 'tp-yaml-cursor')).toEqual([30]);
 
     // A box selects its lines.
     fireEvent.click(screen.getByTestId('definition-node-/do/0/validate'));
@@ -208,12 +224,15 @@ describe('Definition tab', () => {
     ).toHaveAttribute('aria-pressed', 'false');
 
     // The arrow keys move the cursor line, and the selection with it.
-    fireEvent.keyDown(yaml, { key: 'ArrowDown' });
-    fireEvent.keyDown(yaml, { key: 'ArrowDown' });
+    fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowDown' });
+    fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowDown' });
     expect(
       screen.getByTestId('definition-node-/do/0/validate'),
     ).toHaveAttribute('aria-pressed', 'true');
-    for (let i = 0; i < 5; i++) fireEvent.keyDown(yaml, { key: 'ArrowDown' });
+    for (let i = 0; i < 5; i++)
+      fireEvent.keyDown(yaml.querySelector('.cm-content')!, {
+        key: 'ArrowDown',
+      });
     expect(screen.getByTestId('definition-node-/do/1/route')).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -267,7 +286,21 @@ describe('Definition tab', () => {
       'The definition is not valid YAML (line 2)',
     );
     expect(screen.getByTestId('definition-yaml')).toHaveTextContent('a: [');
+    expect(
+      markedLines(screen.getByTestId('definition-yaml'), 'tp-yaml-error'),
+    ).toEqual([2]);
     expect(screen.queryByTestId('definition-graph')).not.toBeInTheDocument();
+
+    // The arrow keys stop at the first and the last line.
+    const yaml = screen.getByTestId('definition-yaml');
+    fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowUp' });
+    fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowUp' });
+    expect(markedLines(yaml, 'tp-yaml-cursor')).toEqual([1]);
+    for (let i = 0; i < 5; i++)
+      fireEvent.keyDown(yaml.querySelector('.cm-content')!, {
+        key: 'ArrowDown',
+      });
+    expect(markedLines(yaml, 'tp-yaml-cursor')).toEqual([3]);
   });
 
   it('says why a file could not be read', async () => {

@@ -63,10 +63,14 @@
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
+    "@codemirror/lang-yaml": "^6.0.0",
+    "@codemirror/language": "^6.0.0",
+    "@codemirror/state": "^6.0.0",
+    "@codemirror/view": "^6.0.0",
     "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
+    "@lezer/highlight": "^1.0.0",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@xyflow/react": "^12.12.0",
-    "react-syntax-highlighter": "^15.4.5",
     "react-use": "^17.2.4"
   },
   "peerDependencies": {
@@ -81,7 +85,6 @@
     "@backstage/test-utils": "backstage:^",
     "@testing-library/jest-dom": "^6.0.0",
     "@testing-library/react": "^14.0.0",
-    "@types/react-syntax-highlighter": "^15.0.0",
     "react": "^16.13.1 || ^17.0.0 || ^18.0.0",
     "react-dom": "^16.13.1 || ^17.0.0 || ^18.0.0",
     "react-router-dom": "^6.0.0",
