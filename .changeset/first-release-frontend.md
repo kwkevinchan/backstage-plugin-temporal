@@ -35,3 +35,7 @@ system (`./alpha`).
   `createTemporalControlActionDef()` for the legacy system.
 - The permissions (the same objects as in the backend package), the
   annotation constants and the response types of the backend API.
+- A step titled by the summary the workflow gave it (Temporal user
+  metadata, e.g. the `summary` activity option), with the activity type
+  below it. Workflow lists in the order of the Temporal UI: status, the
+  workflow ID (link), the workflow type (link to its entity).

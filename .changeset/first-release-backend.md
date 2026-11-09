@@ -22,3 +22,4 @@ First release of the backend plugin.
   custom control actions of backend modules.
 - The permissions (`temporalPermissions`), the types and the annotation
   constants of the plugin, for permission policies and modules.
+- Graph steps carry the summary of their event (Temporal user metadata).

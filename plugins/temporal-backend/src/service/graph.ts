@@ -85,6 +85,21 @@ function memoValue(memo: Json, key: string): unknown {
   return 'value' in decoded ? decoded.value : undefined;
 }
 
+/**
+ * The summary of the step an event starts: Temporal's user metadata, a
+ * `json/plain` text set by the workflow (for example the `summary` option
+ * of an activity, a timer or a child workflow). First line only.
+ */
+function summaryOf(event: Json): string | undefined {
+  const payload = event.userMetadata?.summary;
+  if (!payload) return undefined;
+  const decoded = decodePayload(payload);
+  const value = 'value' in decoded ? decoded.value : undefined;
+  if (typeof value !== 'string') return undefined;
+  const line = value.trim().split('\n')[0].trim();
+  return line || undefined;
+}
+
 /** Most arrows of one graph; beyond that the graph is too dense to read. */
 export const MAX_GRAPH_EDGES = 5000;
 
@@ -227,6 +242,8 @@ export function buildWorkflowGraph(
       events: [],
       first: num(event.eventId),
     };
+    const summary = summaryOf(event);
+    if (summary) node.summary = summary;
     nodes.push(node);
     byKey.set(key, node);
     return node;

@@ -113,7 +113,16 @@ export function stepBoxText(
         .join(' · '),
     };
   }
-  return { title: node.name, subtitle: stepSubtitle(node, now, options) };
+  const subtitle = stepSubtitle(node, now, options);
+  // A summary from the workflow reads better than the activity type; the
+  // type stays in the subtitle.
+  if (node.summary) {
+    return {
+      title: node.summary,
+      subtitle: [node.name, subtitle].filter(Boolean).join(' · '),
+    };
+  }
+  return { title: node.name, subtitle };
 }
 
 /** Retries of an activity, as `×3` for the third attempt. */

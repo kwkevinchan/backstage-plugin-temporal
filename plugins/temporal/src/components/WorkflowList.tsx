@@ -88,8 +88,10 @@ export function WorkflowList(props: { title?: string }) {
   );
   const scrollRef = useListScroll(Boolean(value) && !loading);
 
-  // Runs listed through a TemporalWorkflow entity the entity depends on.
-  const showWorkflowEntity = value?.items.some(i => i.workflowEntityRef);
+  // A TemporalWorkflow entity lists the runs of its one workflow type.
+  const isWorkflowTypeEntity = entityRef
+    .toLocaleLowerCase('en-US')
+    .startsWith('temporalworkflow:');
 
   return (
     <div ref={scrollRef}>
@@ -130,7 +132,7 @@ export function WorkflowList(props: { title?: string }) {
             label="Workflow executions"
             items={value?.items ?? []}
             entityRef={entityRef}
-            entityColumn={showWorkflowEntity ? 'workflow' : undefined}
+            hideType={isWorkflowTypeEntity}
             pending={loading}
             emptyText={
               status

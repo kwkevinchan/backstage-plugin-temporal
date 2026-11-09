@@ -146,48 +146,64 @@ interface ColumnDef {
 }
 
 /**
- * Workflow executions as a table: workflow type first, then the workflow
- * ID, status, progress and times. `entityRef` is passed
- * to the progress requests, so they are checked on that entity.
+ * Workflow executions as a table, in the order of the Temporal UI: status,
+ * the workflow ID (the link to the run), the workflow type (a link to its
+ * TemporalWorkflow entity when there is one), progress and times.
+ * `entityRef` is passed to the progress requests, so they are checked on
+ * that entity.
  */
 export function WorkflowRunsTable(props: {
   label: string;
   items: WorkflowSummary[];
   entityRef?: string;
   showTaskQueue?: boolean;
-  /** `workflow`: the TemporalWorkflow entity; `any`: entity of any kind. */
-  entityColumn?: 'workflow' | 'any';
+  /**
+   * Hides the workflow type: the list of a TemporalWorkflow entity has one
+   * type only.
+   */
+  hideType?: boolean;
+  /** Adds the entity a workflow belongs to (the Workflows page). */
+  showEntity?: boolean;
   emptyText: string;
   pending?: boolean;
 }) {
   const columns: ColumnDef[] = [
-    {
-      id: 'type',
-      title: 'Workflow type',
-      cell: item => <Text variant="body-small">{item.workflowType}</Text>,
-    },
-    {
-      id: 'workflowId',
-      title: 'Workflow ID',
-      cell: item => (
-        <Link href={workflowLink(item)} variant="body-small">
-          {item.workflowId}
-        </Link>
-      ),
-    },
     {
       id: 'status',
       title: 'Status',
       cell: item => <WorkflowStatusLabel status={item.status} />,
     },
     {
-      id: 'progress',
-      title: 'Progress',
+      id: 'workflowId',
+      title: 'Workflow ID',
       cell: item => (
-        <WorkflowProgress workflow={item} entityRef={props.entityRef} />
+        <Link href={workflowLink(item)} variant="body-small" color="info">
+          {item.workflowId}
+        </Link>
       ),
     },
   ];
+  if (!props.hideType) {
+    columns.push({
+      id: 'type',
+      title: 'Workflow type',
+      cell: item =>
+        item.workflowEntityRef ? (
+          <EntityRefLink entityRef={item.workflowEntityRef}>
+            {item.workflowType}
+          </EntityRefLink>
+        ) : (
+          <Text variant="body-small">{item.workflowType}</Text>
+        ),
+    });
+  }
+  columns.push({
+    id: 'progress',
+    title: 'Progress',
+    cell: item => (
+      <WorkflowProgress workflow={item} entityRef={props.entityRef} />
+    ),
+  });
   if (props.showTaskQueue) {
     columns.push({
       id: 'taskQueue',
@@ -213,18 +229,12 @@ export function WorkflowRunsTable(props: {
       ),
     },
   );
-  if (props.entityColumn) {
+  if (props.showEntity) {
     columns.push({
       id: 'entity',
-      title:
-        props.entityColumn === 'workflow' ? 'Workflow type entity' : 'Entity',
-      cell: item => {
-        const ref =
-          props.entityColumn === 'workflow'
-            ? item.workflowEntityRef
-            : item.workflowEntityRef ?? item.entityRef;
-        return ref ? <EntityRefLink entityRef={ref} /> : null;
-      },
+      title: 'Entity',
+      cell: item =>
+        item.entityRef ? <EntityRefLink entityRef={item.entityRef} /> : null,
     });
   }
 

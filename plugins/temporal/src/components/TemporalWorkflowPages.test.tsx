@@ -110,6 +110,12 @@ describe('TemporalWorkflow entity tab', () => {
       screen.getByRole('heading', { name: 'Workflow executions' }),
     ).toBeInTheDocument();
     expect(await screen.findByText('order-1')).toBeInTheDocument();
+    // One workflow type: its runs list leaves out the type column.
+    expect(
+      within(screen.getByRole('grid', { name: 'Workflow executions' }))
+        .getAllByRole('columnheader')
+        .map(h => h.textContent),
+    ).not.toContain('Workflow type');
     expect(api.listEntityWorkflows).toHaveBeenCalledWith(
       'temporalworkflow:default/order-workflow',
       expect.anything(),
@@ -151,9 +157,16 @@ describe('Temporal tab of a component that depends on workflows', () => {
       name: 'Workflow executions',
     });
     expect(within(runs).getByText('deploy-1')).toBeInTheDocument();
-    expect(within(runs).getByText('Workflow type entity')).toBeInTheDocument();
+    // Temporal UI order: status, the run's ID, then its type, which links
+    // to the TemporalWorkflow entity.
     expect(
-      within(runs).getByRole('link', { name: /order-workflow/ }),
+      within(runs)
+        .getAllByRole('columnheader')
+        .slice(0, 3)
+        .map(h => h.textContent),
+    ).toEqual(['Status', 'Workflow ID', 'Workflow type']);
+    expect(
+      within(runs).getAllByRole('link', { name: 'orderWorkflow' })[0],
     ).toHaveAttribute(
       'href',
       '/catalog/default/temporalworkflow/order-workflow',

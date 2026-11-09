@@ -134,3 +134,22 @@ describe('isMarkerStep', () => {
     expect(isMarkerStep(timer())).toBe(false);
   });
 });
+
+describe('stepBoxText with a summary', () => {
+  it('titles the box with the summary and keeps the type below it', () => {
+    const activity: WorkflowGraphNode = {
+      id: 'activity-5',
+      kind: 'activity',
+      name: 'chargeCard',
+      summary: 'Charge order 1001',
+      status: 'Completed',
+      events: [],
+    };
+    const text = stepBoxText(activity, now);
+    expect(text.title).toBe('Charge order 1001');
+    expect(text.subtitle.startsWith('chargeCard')).toBe(true);
+    expect(stepBoxText({ ...activity, summary: undefined }, now).title).toBe(
+      'chargeCard',
+    );
+  });
+});

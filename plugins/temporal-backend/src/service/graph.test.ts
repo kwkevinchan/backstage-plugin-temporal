@@ -101,6 +101,26 @@ const edgePairs = (graph: ReturnType<typeof buildWorkflowGraph>) =>
   graph.edges.map(e => `${e.source}>${e.target}`);
 
 describe('buildWorkflowGraph', () => {
+  it('reads the summary the workflow gave a step', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const charge = h.schedule('chargeCard', '1');
+    // Temporal user metadata: a json/plain payload on the event itself.
+    h.events[charge - 1].userMetadata = {
+      summary: payloads('Charge order 1001\nsecond line').payloads[0],
+    };
+    h.started(charge);
+    h.completed(charge, { ok: true });
+    const plain = h.schedule('sendEmail', '2');
+    h.started(plain);
+    h.completed(plain, {});
+    const graph = buildWorkflowGraph(h.events, options());
+    const byName = (name: string) => graph.nodes.find(n => n.name === name)!;
+    expect(byName('chargeCard').summary).toBe('Charge order 1001');
+    expect(byName('sendEmail').summary).toBeUndefined();
+  });
+
   it('links sequential activities in event order', () => {
     const h = history();
     h.start();
