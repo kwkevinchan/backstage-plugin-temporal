@@ -16,7 +16,7 @@
 
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Config } from '@backstage/config';
-import type { ExternalPayload } from '../common';
+import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   contentTypeOf,
   DEFAULT_S3_DRIVER_NAME,

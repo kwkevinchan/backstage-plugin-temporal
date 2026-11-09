@@ -22,7 +22,10 @@ import {
   useState,
 } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
-import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
+import {
+  WORKFLOW_STATUSES,
+  WorkflowStatus,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /*
  * State of the workflow lists, kept when the user opens a workflow and comes

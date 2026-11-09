@@ -23,7 +23,7 @@ import {
   WORKFLOW_STATUSES,
   WorkflowStatus,
   WorkflowSummary,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 const ENTITY_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,511}$/;
 const SEARCH_ATTRIBUTE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;

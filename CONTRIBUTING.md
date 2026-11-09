@@ -21,14 +21,17 @@ discuss larger changes before sending a pull request.
 
 ## Shared definitions
 
-The permissions, types, annotation constants and API paths are written once,
-in `plugins/temporal-backend/src/common`. Backstage does not let the frontend
-plugin import the backend plugin, so `plugins/temporal/src/common` is a copy:
-edit the backend files and run `yarn sync:common`. The Zigflow modules work
-the same way: `plugins/temporal-backend-module-zigflow/src/common` is the
-original, `plugins/temporal-module-zigflow/src/common` the copy. The `pre-commit` hook and
-CI fail when the copy is out of date, and both packages test their
-permissions against `test-fixtures/permissions.json`.
+The permissions, types, annotation constants, API paths and the
+`TemporalWorkflow` entity schema live in `plugins/temporal-common`
+(`@kwkevinchan/backstage-plugin-temporal-common`). Backstage does not let a
+frontend plugin import a backend plugin, so both import this package; its
+tests check the permissions against `test-fixtures/permissions.json`.
+
+The Zigflow modules share one file by copying instead:
+`plugins/temporal-backend-module-zigflow/src/common` is the original,
+`plugins/temporal-module-zigflow/src/common` the copy. Edit the backend file
+and run `yarn sync:common`; the `pre-commit` hook and CI fail when the copy is
+out of date.
 
 The backend reads the loop markers and LLM records with its own code; the
 workflow kit writes them. Both are tested against

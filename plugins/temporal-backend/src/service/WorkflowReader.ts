@@ -49,7 +49,7 @@ import {
   ExternalPayload,
   parseLlmMarker,
   WorkflowLlmCallResponse,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { JsonObject } from '@backstage/types';
 import { TemporalService } from './TemporalService';
 import { TemporalWorkflowEnricher } from '../extensions';

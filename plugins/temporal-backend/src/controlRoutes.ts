@@ -46,7 +46,7 @@ import {
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
   WorkflowRef,
-} from './common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalControlAction } from './extensions';
 import { TemporalService } from './service/TemporalService';
 import express, { Request } from 'express';

@@ -37,6 +37,7 @@
     "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "app": "workspace:^",
     "better-sqlite3": "^12.0.0",
     "node-gyp": "^10.0.0",

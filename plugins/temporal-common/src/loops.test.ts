@@ -16,30 +16,29 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { temporalPermissions } from './permissions';
+import { parseLoopMarker } from './loops';
 
 /**
- * The permissions are defined in the backend and copied to the frontend
- * (scripts/sync-common.mjs). Both packages are tested against the same list,
- * so a policy written with the backend objects matches what the frontend
- * asks for.
+ * Shared examples of the marker format; the loop helpers of
+ * `@kwkevinchan/temporal-workflow-kit/loop` are tested against the same file.
  */
-const expected = JSON.parse(
+const EXAMPLES: [string, ReturnType<typeof parseLoopMarker>][] = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../../test-fixtures/permissions.json'),
+    resolve(__dirname, '../../../test-fixtures/loop-markers.json'),
     'utf8',
   ),
-).permissions;
+).examples.map((e: { text: string; marker: unknown }) => [
+  e.text,
+  e.marker ?? undefined,
+]);
 
-describe('permissions (shared list)', () => {
-  it('match test-fixtures/permissions.json', () => {
-    expect(
-      temporalPermissions.map(p => ({
-        name: p.name,
-        attributes: p.attributes,
-        type: p.type,
-        ...(p.type === 'resource' ? { resourceType: p.resourceType } : {}),
-      })),
-    ).toEqual(expected);
+describe('parseLoopMarker', () => {
+  it.each(EXAMPLES)('parses %s', (text, marker) => {
+    expect(parseLoopMarker(text)).toEqual(marker);
+  });
+
+  it('ignores missing IDs', () => {
+    expect(parseLoopMarker(undefined)).toBeUndefined();
+    expect(parseLoopMarker('')).toBeUndefined();
   });
 });

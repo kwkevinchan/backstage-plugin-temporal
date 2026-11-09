@@ -15,7 +15,10 @@
  */
 
 import type { ReactNode } from 'react';
-import type { WorkflowGraphNode, WorkflowRef } from '../common';
+import type {
+  WorkflowGraphNode,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { Button, ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react';
 import { LlmPanel } from './llm/LlmPanel';

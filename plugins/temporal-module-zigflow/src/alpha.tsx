@@ -24,7 +24,7 @@
 import { compatWrapper } from '@backstage/core-compat-api';
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
-import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal';
+import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * Definition tab of `TemporalWorkflow` entities

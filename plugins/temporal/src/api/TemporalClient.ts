@@ -40,7 +40,7 @@ import {
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { TemporalApi } from '../extensions';
 
 function queryString(params: Record<string, string | number | undefined>) {

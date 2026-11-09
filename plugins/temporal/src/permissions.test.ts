@@ -16,7 +16,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { temporalPermissions } from './common';
+import { temporalPermissions } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * The permissions are defined in the backend and copied to the frontend

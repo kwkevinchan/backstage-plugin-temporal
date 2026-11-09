@@ -20,7 +20,7 @@ import {
   createExtensionDataRef,
   ExtensionBoundary,
 } from '@backstage/frontend-plugin-api';
-import type { WorkflowDetail } from '../common';
+import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   TemporalControlActionButton,
   TemporalWorkflowActionDef,

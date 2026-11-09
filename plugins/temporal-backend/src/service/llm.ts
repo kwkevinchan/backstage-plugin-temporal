@@ -15,7 +15,11 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import { LLM_RECORD_KEY, LLM_TOOL_RESULT_KEY, parseLlmMarker } from '../common';
+import {
+  LLM_RECORD_KEY,
+  LLM_TOOL_RESULT_KEY,
+  parseLlmMarker,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmMessage,
@@ -26,7 +30,7 @@ import type {
   WorkflowLlmUsage,
   WorkflowNodeStatus,
   WorkflowToolLink,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /*
  * Records of model calls. A model call activity (activity ID `llm/...`)

@@ -18,7 +18,7 @@ import type { ComponentType } from 'react';
 import type { Entity } from '@backstage/catalog-model';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import type { WorkflowDetail } from '../common';
+import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * Props of components shown on the workflow details page.

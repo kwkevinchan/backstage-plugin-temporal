@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { WorkflowListResponse } from '@kwkevinchan/backstage-plugin-temporal';
+import type { WorkflowListResponse } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /** Runs of the entity, for the run picker of the Definition tab. */
 export const listResponse: WorkflowListResponse = {

@@ -31,7 +31,7 @@ import type {
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStepsResponse,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { TemporalWorkflowExtensionsApi } from './extensions';
 
 /**

@@ -42,7 +42,7 @@ export type {
 } from './components';
 export { TemporalClient } from './api';
 export * from './extensions';
-export * from './common/permissions';
+export * from '@kwkevinchan/backstage-plugin-temporal-common';
 export {
   getDependsOnTemporalWorkflowRefs,
   getTemporalWorkflowDefinitionSpec,
@@ -55,7 +55,7 @@ export {
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
   TEMPORAL_DEFINITION_FORMATS,
   WORKFLOW_STATUSES,
-} from './common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 export type {
   ActivityStep,
   DecodedPayload,
@@ -98,4 +98,4 @@ export type {
   WorkflowStepsResponse,
   WorkflowSummary,
   WorkflowTerminateRequest,
-} from './common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';

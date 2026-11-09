@@ -70,6 +70,7 @@
     "@codemirror/state": "^6.0.0",
     "@codemirror/view": "^6.0.0",
     "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "@lezer/highlight": "^1.0.0",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@xyflow/react": "^12.12.0",

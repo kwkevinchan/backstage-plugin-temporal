@@ -27,7 +27,7 @@ import {
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
   WorkflowRef,
-} from '../../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalApi, temporalApiRef } from '../../extensions';
 import {
   Alert,

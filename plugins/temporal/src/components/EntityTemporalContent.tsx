@@ -23,7 +23,7 @@ import {
   isTemporalWorkflowEntity,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowSectionDef,

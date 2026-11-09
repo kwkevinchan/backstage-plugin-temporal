@@ -18,7 +18,7 @@ import { useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import type { WorkflowDetail } from '../../common';
+import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalControlActionButton, temporalApiRef } from '../../extensions';
 import {
   Alert,
