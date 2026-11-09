@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Background,
+  BaseEdge,
   Controls,
   Edge,
+  EdgeProps,
+  EdgeTypes,
+  getSmoothStepPath,
   Node,
   NodeTypes,
   ReactFlow,
@@ -50,6 +54,51 @@ export const MAX_ZOOM = 2;
  * every frame.
  */
 export const RELAYOUT_DELAY_MS = 150;
+
+/**
+ * An arrow into a later row of a wrapped graph. A plain smooth step turns
+ * halfway between its two ends, which can run along the boxes of a taller
+ * column in the source row; this one turns in the gap between the rows.
+ */
+function RowGapEdge(props: EdgeProps<Edge<{ centerY: number }>>) {
+  const [path] = getSmoothStepPath({
+    sourceX: props.sourceX,
+    sourceY: props.sourceY,
+    sourcePosition: props.sourcePosition,
+    targetX: props.targetX,
+    targetY: props.targetY,
+    targetPosition: props.targetPosition,
+    centerY: props.data?.centerY,
+  });
+  return (
+    <BaseEdge
+      id={props.id}
+      path={path}
+      markerEnd={props.markerEnd}
+      style={props.style}
+    />
+  );
+}
+
+const edgeTypes: EdgeTypes = { rowGap: RowGapEdge };
+
+/**
+ * The edges of a wrapped graph: a smooth step into a later row turns in the
+ * gap below the row of its source.
+ */
+export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
+  const gaps = layout.rowGaps;
+  if (!gaps?.length) return edges;
+  return edges.map(edge => {
+    if (edge.type !== 'smoothstep') return edge;
+    const source = layout.positions.get(edge.source);
+    const target = layout.positions.get(edge.target);
+    if (!source || !target) return edge;
+    const centerY = gaps.find(g => g > source.y && g < target.y);
+    if (centerY === undefined) return edge;
+    return { ...edge, type: 'rowGap', data: { ...edge.data, centerY } };
+  });
+}
 
 /** Position and size of a laid out box, as React Flow takes them. */
 export function flowNodeBase(layout: StepLayout, id: string) {
@@ -93,6 +142,10 @@ export interface GraphCanvasProps<N extends Node> {
  */
 export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   const { layout, onSelect } = props;
+  const edges = useMemo(
+    () => routeRowGaps(layout, props.edges),
+    [layout, props.edges],
+  );
   // The selected box, else the focused one, is moved into view.
   const target = props.selectedId ?? props.focusId;
   const flow = useReactFlow<N, Edge>();
@@ -193,8 +246,9 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   return (
     <ReactFlow<N, Edge>
       nodes={props.nodes}
-      edges={props.edges}
+      edges={edges}
       nodeTypes={props.nodeTypes}
+      edgeTypes={edgeTypes}
       minZoom={MIN_ZOOM}
       maxZoom={MAX_ZOOM}
       zoomOnScroll={false}

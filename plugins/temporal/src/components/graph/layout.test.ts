@@ -16,6 +16,7 @@
 
 import type { WorkflowGraphNode } from '../../common';
 import { graphResponse } from '../../testData';
+import { routeRowGaps } from './GraphCanvas';
 import {
   graphHeight,
   initialViewport,
@@ -24,6 +25,7 @@ import {
   MAX_GRAPH_HEIGHT,
   MIN_GRAPH_HEIGHT,
   NODE_FONT_SIZE,
+  NODE_HEIGHT,
   NODE_WIDTH,
   panIntoView,
   READABLE_ZOOM,
@@ -124,6 +126,64 @@ describe('layoutSteps', () => {
       height: graphHeight(layout, 1000),
     });
     expect(view.zoom).toBe(1);
+  });
+
+  it('keeps the gap between rows clear for the arrows into the next row', () => {
+    // start → (a | b) → c → … : the parallel column makes the first row
+    // taller than its single steps.
+    const nodes = ['start', 'a', 'b', 'c', 'd', 'e', 'f', 'end'].map(id =>
+      node(id),
+    );
+    const edges = edgesOf(
+      ['start', 'a'],
+      ['start', 'b'],
+      ['a', 'c'],
+      ['b', 'c'],
+      ['c', 'd'],
+      ['d', 'e'],
+      ['e', 'f'],
+      ['f', 'end'],
+    );
+    const layout = layoutSteps(nodes, edges, 900);
+    expect(layout.wrapped).toBe(true);
+    const gaps = layout.rowGaps!;
+    expect(gaps.length).toBeGreaterThan(0);
+    const bottomOfRow = Math.max(
+      ...[...layout.positions.values()]
+        .filter(p => p.y < gaps[0])
+        .map(p => p.y + NODE_HEIGHT),
+    );
+    const topOfNext = Math.min(
+      ...[...layout.positions.values()]
+        .filter(p => p.y > gaps[0])
+        .map(p => p.y),
+    );
+    // The gap is between the lowest box of a row and the next row.
+    expect(gaps[0]).toBeGreaterThan(bottomOfRow);
+    expect(gaps[0]).toBeLessThan(topOfNext);
+
+    // An arrow from the row's last column into the next row turns in it;
+    // arrows within a row stay plain smooth steps.
+    const flowEdges = edges.map(({ source, target }) => ({
+      id: `${source}-${target}`,
+      source,
+      target,
+      type: 'smoothstep',
+    }));
+    const routed = routeRowGaps(layout, flowEdges);
+    const across = routed.filter(e => e.type === 'rowGap');
+    expect(across.length).toBeGreaterThan(0);
+    for (const e of across) {
+      // The first gap below its source: between the two rows it joins.
+      const centerY = (e.data as { centerY: number }).centerY;
+      const from = layout.positions.get(e.source)!.y;
+      expect(centerY).toBe(gaps.find(g => g > from));
+      expect(layout.positions.get(e.target)!.y).toBeGreaterThan(centerY);
+    }
+    expect(routed.find(e => e.id === 'start-a')!.type).toBe('smoothstep');
+    // A layout in one row leaves the edges as they are.
+    const flat = layoutSteps(nodes, edges, 4000);
+    expect(routeRowGaps(flat, flowEdges)).toBe(flowEdges);
   });
 
   it('lays out top to bottom without wrapping when asked', () => {

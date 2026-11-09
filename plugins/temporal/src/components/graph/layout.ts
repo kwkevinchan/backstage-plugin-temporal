@@ -153,6 +153,11 @@ export interface StepLayout {
   height: number;
   /** True when the columns were wrapped into more than one row. */
   wrapped: boolean;
+  /**
+   * In a wrapped graph, the y of the middle of the gap below each row but
+   * the last: an arrow into a later row runs across it, clear of the boxes.
+   */
+  rowGaps?: number[];
 }
 
 /** Space between the rows of a graph laid out top to bottom. */
@@ -276,10 +281,12 @@ function wrapColumns(layout: StepLayout, width: number): StepLayout {
     bottom[r] = Math.max(bottom[r], p.y + boxSize(layout, id).height);
   }
   const offsets: number[] = [];
+  const rowGaps: number[] = [];
   let y = MARGIN;
   for (let r = 0; r < rowCount; r++) {
     offsets.push(y);
     if (top[r] !== Infinity) y += bottom[r] - top[r] + WRAP_GAP;
+    if (r < rowCount - 1) rowGaps.push(y - WRAP_GAP / 2);
   }
 
   const positions = new Map<string, { x: number; y: number }>();
@@ -299,6 +306,7 @@ function wrapColumns(layout: StepLayout, width: number): StepLayout {
     width: 2 * MARGIN + widest,
     height: y - WRAP_GAP + MARGIN,
     wrapped: true,
+    rowGaps,
   };
   if (layout.sizes) wrapped.sizes = layout.sizes;
   return wrapped;
