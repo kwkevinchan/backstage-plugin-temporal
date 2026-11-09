@@ -135,6 +135,12 @@ export interface WorkflowGraphNode {
   kind: WorkflowNodeKind;
   /** Activity type, timer ID, signal or update name, child workflow type. */
   name: string;
+  /**
+   * One-line summary the workflow gave the step (Temporal user metadata,
+   * for example the `summary` activity option). Shown as the step's title,
+   * with `name` below it.
+   */
+  summary?: string;
   status: WorkflowNodeStatus;
   /** Internal steps (workflow tasks, other events) are hidden by default. */
   internal?: boolean;

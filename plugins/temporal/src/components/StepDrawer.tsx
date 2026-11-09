@@ -137,6 +137,7 @@ export function StepDrawer(props: StepDrawerProps) {
       <div className={tp('tp-section')}>
         <DefinitionList
           items={[
+            ['Summary', step.summary],
             ['Waiting for', step.waitingFor],
             [
               step.deadline?.kind === 'timeout' ? 'Times out' : 'Fires',

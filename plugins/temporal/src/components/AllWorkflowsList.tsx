@@ -171,7 +171,7 @@ export function AllWorkflowsList() {
             label="Workflow executions"
             items={value?.items ?? []}
             showTaskQueue
-            entityColumn="any"
+            showEntity
             pending={loading}
             emptyText="No Temporal workflows match these filters."
           />

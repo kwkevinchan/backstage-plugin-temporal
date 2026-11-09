@@ -458,13 +458,14 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     page.getByRole('heading', { name: 'Recent runs' }),
   ).toBeVisible();
   await expect(page.getByRole('group', { name: 'Succeeded' })).toBeVisible();
+  // The runs of one workflow type: no type column, found by their IDs.
   const entityRuns = table(page, 'Workflow executions');
-  await expect(entityRuns.getByText('orderWorkflow').first()).toBeVisible();
-  await expect(entityRuns).not.toContainText('paymentWorkflow');
+  await expect(entityRuns.getByText(/^example-order-/).first()).toBeVisible();
+  await expect(entityRuns).not.toContainText('example-payment-');
   await shot('15-temporal-workflow-runs');
 
   // 14. A run of the workflow entity.
-  await openRun(entityRuns, 'orderWorkflow');
+  await openRun(entityRuns, 'example-order-');
   await expect(step(page, /^reserveStock, Completed/)).toBeVisible();
   await shot('16-temporal-workflow-run');
 

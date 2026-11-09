@@ -29,6 +29,7 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
+  WorkflowLoopMarker,
 } from '../common';
 import {
   decodePayload,
@@ -83,6 +84,33 @@ function memoValue(memo: Json, key: string): unknown {
   if (!payload) return undefined;
   const decoded = decodePayload(payload);
   return 'value' in decoded ? decoded.value : undefined;
+}
+
+/**
+ * The summary of the step an event starts: Temporal's user metadata, a
+ * `json/plain` text set by the workflow (for example the `summary` option
+ * of an activity, a timer or a child workflow). First line only.
+ */
+function summaryOf(event: Json): string | undefined {
+  const payload = event.userMetadata?.summary;
+  if (!payload) return undefined;
+  const decoded = decodePayload(payload);
+  const value = 'value' in decoded ? decoded.value : undefined;
+  if (typeof value !== 'string') return undefined;
+  const line = value.trim().split('\n')[0].trim();
+  return line || undefined;
+}
+
+/**
+ * The summary the loop helper of temporal-workflow-kit writes for the
+ * Temporal UI (`<loop> · round <n> · <step>`). The graph already shows the
+ * loop and the round, so it is not used as the step's title.
+ */
+function isLoopSummary(summary: string, loop: WorkflowLoopMarker | undefined) {
+  return (
+    !!loop &&
+    summary === `${loop.loop} · round ${loop.iteration} · ${loop.step}`
+  );
 }
 
 /** Most arrows of one graph; beyond that the graph is too dense to read. */
@@ -227,6 +255,8 @@ export function buildWorkflowGraph(
       events: [],
       first: num(event.eventId),
     };
+    const summary = summaryOf(event);
+    if (summary && !isLoopSummary(summary, init.loop)) node.summary = summary;
     nodes.push(node);
     byKey.set(key, node);
     return node;

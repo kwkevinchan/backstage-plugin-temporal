@@ -79,7 +79,7 @@ describe('Workflows page', () => {
     );
     expect(within(table).getAllByText('orders').length).toBeGreaterThan(0);
     expect(
-      within(table).getByRole('link', { name: /order-workflow/ }),
+      within(table).getAllByRole('link', { name: 'orderWorkflow' })[0],
     ).toHaveAttribute(
       'href',
       '/catalog/default/temporalworkflow/order-workflow',
