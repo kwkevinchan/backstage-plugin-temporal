@@ -46,7 +46,7 @@
   color: var(--bui-fg-primary);
   overflow: hidden;
 }
-.tp-yaml:focus-visible {
+.tp-yaml :global(.cm-content:focus-visible) {
   outline: 2px solid var(--bui-ring);
   outline-offset: 2px;
 }

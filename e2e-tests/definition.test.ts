@@ -57,6 +57,21 @@ async function openDefinition(page: Page, name: string) {
     .click();
 }
 
+/**
+ * A line of the YAML, scrolled into the editor first: CodeMirror renders only
+ * the lines near the visible part.
+ */
+async function yamlLine(page: Page, line: number) {
+  const yaml = page.getByTestId('definition-yaml');
+  await yaml.locator('.cm-scroller').evaluate((scroller, n) => {
+    const lineHeight = parseFloat(getComputedStyle(scroller).lineHeight) || 20;
+    scroller.scrollTop = Math.max(0, (n - 5) * lineHeight);
+  }, line);
+  const element = yaml.locator(`[data-line="${line}"]`);
+  await element.waitFor();
+  return element;
+}
+
 /** True when the whole box is inside the area of the graph. */
 async function insideGraph(page: Page, box: Locator) {
   const area = await page.getByTestId('definition-graph').boundingBox();
@@ -128,24 +143,35 @@ for (const theme of ['light', 'dark']) {
     const band = page.getByTestId('definition-yaml-band');
     await expect(band).toHaveAttribute('data-start', '78');
     await expect(band).toBeInViewport();
-    // The band lines up with the text of its first line.
+    // The band is the line itself; it lines up with its number in the gutter
+    // and covers the lines of the task (78–96) and nothing else.
     const bandBox = await band.boundingBox();
-    const lineText = await yaml.locator('[data-line="78"]').evaluate(line => {
-      const range = document.createRange();
-      range.selectNodeContents(line);
-      const rect = range.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom };
-    });
+    const numberBox = await yaml
+      .locator('.cm-lineNumbers .cm-gutterElement', { hasText: /^78$/ })
+      .boundingBox();
     expect(bandBox).not.toBeNull();
-    expect(lineText.top).toBeGreaterThanOrEqual(bandBox!.y - 1);
-    expect(lineText.bottom).toBeLessThanOrEqual(
-      bandBox!.y + bandBox!.height + 1,
+    expect(numberBox).not.toBeNull();
+    expect(Math.abs(numberBox!.y - bandBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(numberBox!.height - bandBox!.height)).toBeLessThanOrEqual(
+      1,
     );
+    await expect(yaml.locator('.cm-line.tp-yaml-band')).toHaveCount(19);
+    // The band has a color in both themes (a missing token makes it clear).
+    expect(
+      await band.evaluate(e => getComputedStyle(e).backgroundColor),
+    ).not.toBe('rgba(0, 0, 0, 0)');
     await expect(page.getByTestId('definition-task')).toContainText('78–96');
     await shot(page, `${theme}-definition-02-box-selects-lines`);
 
+    // A box whose first line is already visible does not scroll the YAML.
+    const scroller = yaml.locator('.cm-scroller');
+    const scrollTop = await scroller.evaluate(s => s.scrollTop);
+    await page.getByTestId('definition-node-/do/5/cooldown').click();
+    await expect(band).toHaveAttribute('data-start', '98');
+    expect(await scroller.evaluate(s => s.scrollTop)).toBe(scrollTop);
+
     // A line of the YAML selects the innermost task around it.
-    await yaml.locator('[data-line="41"]').click();
+    await (await yamlLine(page, 41)).click();
     await expect(
       page.getByTestId('definition-node-/do/1/packItems/do/0/pack'),
     ).toHaveAttribute('aria-pressed', 'true');
@@ -237,10 +263,7 @@ test.describe('definition with a Zigflow run', () => {
         'Completed',
       );
       // The line of chargeCard moves the graph to its box.
-      await page
-        .getByTestId('definition-yaml')
-        .locator('[data-line="82"]')
-        .click();
+      await (await yamlLine(page, 82)).click();
       await expect(node('/do/4/charge/try/0/chargeCard')).toHaveAttribute(
         'aria-pressed',
         'true',

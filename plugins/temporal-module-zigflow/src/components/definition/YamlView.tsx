@@ -14,13 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  KeyboardEvent,
-  MouseEvent,
-  useCallback,
-  useEffect,
-  useRef,
-} from 'react';
+import { useEffect, useRef } from 'react';
 import { yaml } from '@codemirror/lang-yaml';
 import { syntaxHighlighting } from '@codemirror/language';
 import {
@@ -161,7 +155,9 @@ export function YamlView(props: YamlViewProps) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView>();
   const marks = useRef(new Compartment());
-  const lineCount = content.split('\n').length;
+  // The editor's handlers read the latest props.
+  const latest = useRef({ onLineSelect, cursorLine });
+  latest.current = { onLineSelect, cursorLine };
 
   // The editor lives as long as the component; the content replaces the
   // document.
@@ -174,7 +170,52 @@ export function YamlView(props: YamlViewProps) {
         extensions: [
           EditorState.readOnly.of(true),
           EditorView.editable.of(false),
-          lineNumbers(),
+          // CodeMirror marks its content as a read-only, multiline textbox.
+          EditorView.contentAttributes.of({
+            'aria-label': 'Workflow definition',
+          }),
+          // CodeMirror's content is the focusable, read-only textbox; it
+          // takes the clicks on lines and the arrow keys.
+          EditorView.contentAttributes.of({ tabindex: '0' }),
+          EditorView.domEventHandlers({
+            click(event) {
+              const line = (event.target as HTMLElement)
+                .closest('[data-line]')
+                ?.getAttribute('data-line');
+              if (line) latest.current.onLineSelect(Number(line));
+            },
+            keydown(event, cm) {
+              if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') {
+                return false;
+              }
+              event.preventDefault();
+              const from = latest.current.cursorLine ?? 0;
+              const last = cm.state.doc.lines;
+              const next =
+                event.key === 'ArrowDown'
+                  ? Math.min(last, from + 1)
+                  : Math.max(1, from - 1);
+              latest.current.onLineSelect(next);
+              cm.dispatch({
+                effects: EditorView.scrollIntoView(
+                  cm.state.doc.line(next).from,
+                  { y: 'nearest' },
+                ),
+              });
+              return true;
+            },
+          }),
+          // The line numbers are outside the lines: the gutter gives the line.
+          lineNumbers({
+            domEventHandlers: {
+              click(cm, block) {
+                latest.current.onLineSelect(
+                  cm.state.doc.lineAt(block.from).number,
+                );
+                return true;
+              },
+            },
+          }),
           yaml(),
           syntaxHighlighting(classHighlighter),
           lineNumberAttributes,
@@ -191,21 +232,20 @@ export function YamlView(props: YamlViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const editor = view.current;
-    if (!editor || editor.state.doc.toString() === content) return;
-    editor.dispatch({
-      changes: { from: 0, to: editor.state.doc.length, insert: content },
-    });
-  }, [content]);
-
+  // A new content replaces the document; the marks are computed for the
+  // document they will be on, in the same transaction.
   useEffect(() => {
     const editor = view.current;
     if (!editor) return;
+    const changed = editor.state.doc.toString() !== content;
+    const doc = changed ? editor.state.toText(content) : editor.state.doc;
     editor.dispatch({
+      ...(changed && {
+        changes: { from: 0, to: editor.state.doc.length, insert: content },
+      }),
       effects: marks.current.reconfigure(
         EditorView.decorations.of(
-          markLines(editor.state.doc, { highlight, cursorLine, errorLine }),
+          markLines(doc, { highlight, cursorLine, errorLine }),
         ),
       ),
     });
@@ -239,59 +279,7 @@ export function YamlView(props: YamlViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollKey]);
 
-  const onClick = useCallback(
-    (event: MouseEvent<HTMLDivElement>) => {
-      const marked = (event.target as HTMLElement)
-        .closest('[data-line]')
-        ?.getAttribute('data-line');
-      if (marked) {
-        onLineSelect(Number(marked));
-        return;
-      }
-      // The line numbers are in the gutter, outside the lines.
-      const editor = view.current;
-      if (!editor || !(event.target as HTMLElement).closest('.cm-gutters')) {
-        return;
-      }
-      const block = editor.lineBlockAtHeight(
-        event.clientY - editor.documentTop,
-      );
-      onLineSelect(editor.state.doc.lineAt(block.from).number);
-    },
-    [onLineSelect],
-  );
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-    event.preventDefault();
-    const from = cursorLine ?? 0;
-    const next =
-      event.key === 'ArrowDown'
-        ? Math.min(lineCount, from + 1)
-        : Math.max(1, from - 1);
-    onLineSelect(next);
-    const editor = view.current;
-    if (editor && next >= 1 && next <= editor.state.doc.lines) {
-      editor.dispatch({
-        effects: EditorView.scrollIntoView(editor.state.doc.line(next).from, {
-          y: 'nearest',
-        }),
-      });
-    }
-  };
-
   return (
-    <div
-      ref={host}
-      className={tp('tp-yaml')}
-      role="textbox"
-      aria-readonly="true"
-      aria-multiline="true"
-      aria-label="Workflow definition"
-      tabIndex={0}
-      data-testid="definition-yaml"
-      onClick={onClick}
-      onKeyDown={onKeyDown}
-    />
+    <div ref={host} className={tp('tp-yaml')} data-testid="definition-yaml" />
   );
 }
