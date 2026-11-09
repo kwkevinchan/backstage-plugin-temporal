@@ -29,6 +29,7 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
+  WorkflowLoopMarker,
 } from '../common';
 import {
   decodePayload,
@@ -98,6 +99,18 @@ function summaryOf(event: Json): string | undefined {
   if (typeof value !== 'string') return undefined;
   const line = value.trim().split('\n')[0].trim();
   return line || undefined;
+}
+
+/**
+ * The summary the loop helper of temporal-workflow-kit writes for the
+ * Temporal UI (`<loop> · round <n> · <step>`). The graph already shows the
+ * loop and the round, so it is not used as the step's title.
+ */
+function isLoopSummary(summary: string, loop: WorkflowLoopMarker | undefined) {
+  return (
+    !!loop &&
+    summary === `${loop.loop} · round ${loop.iteration} · ${loop.step}`
+  );
 }
 
 /** Most arrows of one graph; beyond that the graph is too dense to read. */
@@ -243,7 +256,7 @@ export function buildWorkflowGraph(
       first: num(event.eventId),
     };
     const summary = summaryOf(event);
-    if (summary) node.summary = summary;
+    if (summary && !isLoopSummary(summary, init.loop)) node.summary = summary;
     nodes.push(node);
     byKey.set(key, node);
     return node;
