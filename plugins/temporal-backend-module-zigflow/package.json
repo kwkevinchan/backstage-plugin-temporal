@@ -50,7 +50,7 @@
     "@backstage/plugin-permission-common": "backstage:^",
     "@backstage/types": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
-    "express": "^4.14.0",
+    "express": "^4.22.0",
     "express-promise-router": "^4.1.0",
     "yaml": "^2.7.0"
   },

@@ -3466,26 +3466,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@dagrejs/dagre@npm:~3.1.3":
-  version: 3.1.3
-  resolution: "@dagrejs/dagre@npm:3.1.3"
-  dependencies:
-    "@dagrejs/graphlib": "npm:4.0.6"
-  checksum: 10c0/d3f458df6492d810e6b40124a2d04da0dd5f4c7e4ebc24a6f8c695c23b8a0a610c242a118033622f82305eb6684cba0e66e74a268b9d5203168bb9ed0c42f3c2
-  languageName: node
-  linkType: hard
-
 "@dagrejs/graphlib@npm:2.2.4":
   version: 2.2.4
   resolution: "@dagrejs/graphlib@npm:2.2.4"
   checksum: 10c0/14597ea9294c46b2571aee78bcaad3a24e3e5e0ebcdf198b6eae5b3805f99af727ac54a477dd9152e8b0a576efea0528fb7d4919c74801e9f669c90e5e6f5bd9
-  languageName: node
-  linkType: hard
-
-"@dagrejs/graphlib@npm:4.0.6":
-  version: 4.0.6
-  resolution: "@dagrejs/graphlib@npm:4.0.6"
-  checksum: 10c0/b08acb367f3f855635006e6f67a7b63eff6d796efbdd7d132ac61c144717b856ffe8bd7098790763e059c66d8af9d5621e783d8f90054c2f2083d4ca50e4f12f
   languageName: node
   linkType: hard
 
@@ -4975,7 +4959,6 @@ __metadata:
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
     "@backstage/cli": "backstage:^"
-    "@backstage/plugin-catalog-common": "backstage:^"
     "@backstage/plugin-catalog-node": "backstage:^"
     "@backstage/types": "backstage:^"
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
@@ -4999,7 +4982,7 @@ __metadata:
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
-    express: "npm:^4.14.0"
+    express: "npm:^4.22.0"
     express-promise-router: "npm:^4.1.0"
     supertest: "npm:^6.2.4"
     yaml: "npm:^2.7.0"
@@ -5031,7 +5014,7 @@ __metadata:
     "@temporalio/proto": "npm:~1.24.0"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
-    express: "npm:^4.14.0"
+    express: "npm:^4.22.0"
     express-promise-router: "npm:^4.1.0"
     supertest: "npm:^6.2.4"
   languageName: unknown
@@ -5063,14 +5046,14 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
     "@xyflow/react": "npm:^12.12.0"
-    react: "npm:^16.13.1 || ^17.0.0 || ^18.0.0"
-    react-dom: "npm:^16.13.1 || ^17.0.0 || ^18.0.0"
+    react: "npm:^18.0.0"
+    react-dom: "npm:^18.0.0"
     react-router-dom: "npm:^6.0.0"
     react-use: "npm:^17.2.4"
     yaml: "npm:^2.7.0"
   peerDependencies:
-    react: ^16.13.1 || ^17.0.0 || ^18.0.0
-    react-dom: ^16.13.1 || ^17.0.0 || ^18.0.0
+    react: ^18.0.0
+    react-dom: ^18.0.0
     react-router-dom: ^6.0.0
   languageName: unknown
   linkType: soft
@@ -5097,19 +5080,19 @@ __metadata:
     "@backstage/types": "backstage:^"
     "@backstage/ui": "backstage:^"
     "@backstage/version-bridge": "backstage:^"
-    "@dagrejs/dagre": "npm:~3.1.3"
+    "@dagrejs/dagre": "npm:^1.1.4"
     "@remixicon/react": "npm:>=4.6.0 <4.9.0"
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
     "@testing-library/user-event": "npm:^14.0.0"
     "@xyflow/react": "npm:^12.12.0"
-    react: "npm:^16.13.1 || ^17.0.0 || ^18.0.0"
-    react-dom: "npm:^16.13.1 || ^17.0.0 || ^18.0.0"
+    react: "npm:^18.0.0"
+    react-dom: "npm:^18.0.0"
     react-router-dom: "npm:^6.0.0"
     react-use: "npm:^17.2.4"
   peerDependencies:
-    react: ^16.13.1 || ^17.0.0 || ^18.0.0
-    react-dom: ^16.13.1 || ^17.0.0 || ^18.0.0
+    react: ^18.0.0
+    react-dom: ^18.0.0
     react-router-dom: ^6.0.0
   languageName: unknown
   linkType: soft
@@ -21659,7 +21642,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-dom@npm:^16.13.1 || ^17.0.0 || ^18.0.0, react-dom@npm:^18.0.2":
+"react-dom@npm:^18.0.0, react-dom@npm:^18.0.2":
   version: 18.3.1
   resolution: "react-dom@npm:18.3.1"
   dependencies:
@@ -21960,7 +21943,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^16.13.1 || ^17.0.0 || ^18.0.0, react@npm:^18.0.2":
+"react@npm:^18.0.0, react@npm:^18.0.2":
   version: 18.3.1
   resolution: "react@npm:18.3.1"
   dependencies:

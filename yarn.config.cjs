@@ -22,16 +22,12 @@ const REPO_URL = 'https://github.com/kwkevinchan/backstage-plugin-temporal';
 const SCOPE = '@kwkevinchan/';
 const NPMJS = 'https://registry.npmjs.org/';
 /**
- * Library for Temporal workers: `/s3` (payload codec) and `/loop` (runs in
- * the workflow sandbox). It has no runtime dependencies; the AWS and
- * Temporal SDKs are optional peer dependencies, so a worker that only uses
- * `/loop` does not install the AWS SDK.
+ * Library for Temporal workers: `/loop` (loop marks) and `/llm` (LLM steps),
+ * both running in the workflow sandbox. It has no runtime dependencies; the
+ * Temporal workflow SDK is an optional peer dependency.
  */
 const WORKFLOW_KIT = '@kwkevinchan/temporal-workflow-kit';
-const WORKFLOW_KIT_PEERS = new Set([
-  '@aws-sdk/client-s3',
-  '@temporalio/workflow',
-]);
+const WORKFLOW_KIT_PEERS = new Set(['@temporalio/workflow']);
 
 const BACKEND_ROLES = new Set([
   'backend',

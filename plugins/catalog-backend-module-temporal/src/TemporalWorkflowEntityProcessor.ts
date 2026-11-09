@@ -26,7 +26,7 @@ import {
   RELATION_OWNER_OF,
   RELATION_PART_OF,
 } from '@backstage/catalog-model';
-import type { LocationSpec } from '@backstage/plugin-catalog-common';
+import type { LocationSpec } from '@backstage/plugin-catalog-node';
 import {
   CatalogProcessor,
   CatalogProcessorEmit,
