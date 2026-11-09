@@ -18,7 +18,6 @@ import {
   AuditorService,
   BackstageCredentials,
   HttpAuthService,
-  PermissionsService,
 } from '@backstage/backend-plugin-api';
 import { parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import {
@@ -27,10 +26,7 @@ import {
   NotAllowedError,
   NotFoundError,
 } from '@backstage/errors';
-import {
-  AuthorizeResult,
-  ResourcePermission,
-} from '@backstage/plugin-permission-common';
+import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   isValidControlActionId,
@@ -47,12 +43,19 @@ import {
   WorkflowDetail,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalControlAction } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+import {
+  TemporalControlAction,
+  TemporalService,
+} from '@kwkevinchan/backstage-plugin-temporal-node';
 import express, { Request } from 'express';
-import { WorkflowController } from './service/WorkflowController';
-import { matchesSource } from './service/query';
-import { EntityContext } from './service/WorkflowReader';
+import {
+  DefaultTemporalAccessService,
+  WorkflowAccessLevel,
+} from '../access/DefaultTemporalAccessService';
+import { WorkflowController } from '../services/WorkflowController';
+import { matchesSource } from '../services/query';
+import { EntityContext } from '../services/WorkflowQueries';
+import { entityRefFromParams } from './params';
 
 /** A workflow loaded with the read checks of the router. */
 export interface LoadedWorkflow {
@@ -64,7 +67,7 @@ export interface LoadedWorkflow {
 
 export interface ControlRouteOptions {
   httpAuth: HttpAuthService;
-  permissions: PermissionsService;
+  access: DefaultTemporalAccessService;
   auditor: AuditorService;
   temporal: TemporalService;
   controller: WorkflowController;
@@ -72,15 +75,8 @@ export interface ControlRouteOptions {
   workflowPaths: string[];
   loadWorkflow(
     req: Request,
-    level: 'read' | 'history',
+    level: WorkflowAccessLevel,
   ): Promise<LoadedWorkflow>;
-  loadEntity(
-    entityRef: string,
-    permission: ResourcePermission<'catalog-entity'>,
-    credentials: BackstageCredentials,
-  ): Promise<EntityContext>;
-  canListAll(credentials: BackstageCredentials): Promise<boolean>;
-  entityRefFromParams(req: Request): string;
 }
 
 /** Longest terminate reason. */
@@ -183,7 +179,7 @@ export function addControlRoutes(
   router: express.Router,
   options: ControlRouteOptions,
 ) {
-  const { httpAuth, permissions, auditor, controller, workflowPaths } = options;
+  const { httpAuth, access, auditor, controller, workflowPaths } = options;
   const controlEnabled = controller.options.enabled;
 
   function checkEnabled() {
@@ -212,24 +208,8 @@ export function addControlRoutes(
     entityRef: string | undefined,
     credentials: BackstageCredentials,
   ): Promise<string | undefined> {
-    if (entityRef) {
-      const [decision] = await permissions.authorize(
-        [{ permission, resourceRef: entityRef }],
-        { credentials },
-      );
-      if (decision.result !== AuthorizeResult.ALLOW) {
-        throw new NotAllowedError();
-      }
-      return entityRef;
-    }
-    const [decision] = await permissions.authorizeConditional(
-      [{ permission }],
-      { credentials },
-    );
-    if (decision.result !== AuthorizeResult.ALLOW) {
-      throw new NotAllowedError();
-    }
-    return undefined;
+    await access.authorizeOn(permission, entityRef, credentials);
+    return entityRef;
   }
 
   /** Records an operation with the auditor and runs it. */
@@ -456,7 +436,7 @@ export function addControlRoutes(
       loaded.context?.entity ??
       (entityRef
         ? (
-            await options
+            await access
               .loadEntity(entityRef, action.permission, loaded.credentials)
               .catch(() => undefined)
           )?.entity
@@ -501,8 +481,8 @@ export function addControlRoutes(
     async (req, res) => {
       checkEnabled();
       const credentials = await httpAuth.credentials(req);
-      const context = await options.loadEntity(
-        options.entityRefFromParams(req),
+      const context = await access.loadEntity(
+        entityRefFromParams(req),
         temporalWorkflowStartPermission,
         credentials,
       );
@@ -551,7 +531,7 @@ export function addControlRoutes(
   router.post('/workflows', async (req, res) => {
     checkEnabled();
     const credentials = await httpAuth.credentials(req);
-    if (!(await options.canListAll(credentials))) {
+    if (!(await access.canListAll(credentials))) {
       throw new NotAllowedError();
     }
     await authorizeOn(temporalWorkflowStartPermission, undefined, credentials);

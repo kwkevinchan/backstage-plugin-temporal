@@ -15,8 +15,8 @@
  */
 
 import type { Response } from 'express';
-import type { ExternalPayloads } from './payloads';
-import type { StorageReference } from './storageReference';
+import type { PayloadStore } from '../repositories/PayloadStore';
+import type { StorageReference } from '../repositories/storageReference';
 
 const EXTENSIONS: Record<string, string> = {
   'application/json': 'json',
@@ -51,7 +51,7 @@ export function downloadFileName(
 export async function sendStoredPayload(
   res: Response,
   reference: StorageReference,
-  payloads: ExternalPayloads,
+  payloads: PayloadStore,
 ): Promise<void> {
   const stored = await payloads.read(reference);
   const contentType = safeContentType(stored.contentType);

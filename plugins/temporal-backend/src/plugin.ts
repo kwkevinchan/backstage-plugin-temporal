@@ -29,13 +29,15 @@ import {
   TemporalWorkflowEnricher,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { createRouter } from './router';
-import { ExternalPayloads } from './service/payloads';
+import { DefaultTemporalAccessService } from './access/DefaultTemporalAccessService';
+import { TemporalReadRepository } from './repositories/TemporalReadRepository';
+import { createRouter } from './routes/router';
+import { PayloadStore } from './repositories/PayloadStore';
 import {
   readControlOptions,
   WorkflowController,
-} from './service/WorkflowController';
-import { WorkflowReader } from './service/WorkflowReader';
+} from './services/WorkflowController';
+import { WorkflowQueries } from './services/WorkflowQueries';
 
 /**
  * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
@@ -96,19 +98,26 @@ export const temporalPlugin = createBackendPlugin({
         if (!controlOptions.enabled) {
           logger.info('Temporal workflow controls are disabled');
         }
-        const reader = new WorkflowReader(
+        // Layers: routes → access (permissions, catalog) → services (use
+        // cases) → repositories (Temporal, S3).
+        const queries = new WorkflowQueries(
           temporal,
           enrichers,
           logger,
-          ExternalPayloads.fromConfig(config, logger),
+          PayloadStore.fromConfig(config, logger),
+          new TemporalReadRepository(temporal),
+        );
+        const access = new DefaultTemporalAccessService(
+          permissions,
+          catalog,
+          queries,
         );
         const controller = new WorkflowController(temporal, controlOptions);
         httpRouter.use(
           await createRouter({
             httpAuth,
-            permissions,
-            catalog,
-            reader,
+            access,
+            queries,
             controls: {
               auditor,
               temporal,

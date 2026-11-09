@@ -28,7 +28,11 @@ import {
   parseLlmMarker,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { linkLlmSteps, summarizeLlmCall } from './llm';
-import { EXTERNAL_PAYLOAD, referenceInfo, referenceOf } from './payloads';
+import {
+  EXTERNAL_PAYLOAD,
+  referenceInfo,
+  referenceOf,
+} from '../repositories/PayloadStore';
 
 /** Encoding of a reference payload in the history. */
 const EXTERNAL_STORAGE_ENCODING = 'json/protobuf';
@@ -114,7 +118,7 @@ function isPayload(value: Json): boolean {
  * the backend has no codec; the data itself is not sent. References of
  * payloads in External Storage become `{ encoding, external }` (the
  * encoding of the stored payload once it is read), or the decoded data with
- * `external` when it is shown inline (see `ExternalPayloads.resolve`).
+ * `external` when it is shown inline (see `PayloadStore.resolve`).
  */
 export function decodePayload(payload: Json): JsonObject {
   const external = payload[EXTERNAL_PAYLOAD];

@@ -48,7 +48,7 @@ export function memoryS3() {
         return data;
       },
     },
-    /** What `ExternalPayloads` reads with, for one bucket. */
+    /** What `PayloadStore` reads with, for one bucket. */
     store(bucket = 'payloads') {
       return {
         bucket,

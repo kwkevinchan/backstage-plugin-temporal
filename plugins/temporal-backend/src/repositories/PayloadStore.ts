@@ -33,7 +33,7 @@ import { S3PayloadReader } from './S3PayloadReader';
  * Payloads in Temporal External Storage. Workers with `ExternalStorage` and
  * the S3 driver store payloads above a threshold in S3, and the history
  * holds a reference payload instead (see `storageReference.ts`). Before the
- * history is converted for display, `ExternalPayloads.resolve` looks at
+ * history is converted for display, `PayloadStore.resolve` looks at
  * every reference and attaches what to show (see `ExternalPayload`):
  *
  * - `inline`: JSON data up to `maxInlineBytes` is downloaded, verified and
@@ -62,7 +62,7 @@ const CONCURRENCY = 8;
 
 /**
  * What the converter shows for a reference payload, attached to the
- * payload's JSON object by `ExternalPayloads.resolve`.
+ * payload's JSON object by `PayloadStore.resolve`.
  */
 export const EXTERNAL_PAYLOAD = Symbol('externalPayload');
 
@@ -224,8 +224,8 @@ export interface StoredPayload {
   data: Uint8Array;
 }
 
-/** Options of {@link ExternalPayloads}. */
-export interface ExternalPayloadsOptions {
+/** Options of {@link PayloadStore}. */
+export interface PayloadStoreOptions {
   /** The S3 bucket of the payloads; undefined when S3 is not configured. */
   store?: Pick<S3PayloadReader, 'bucket' | 'get'>;
   /** Driver name of the workers' S3 driver (default `aws.s3driver`). */
@@ -238,15 +238,15 @@ export interface ExternalPayloadsOptions {
 /**
  * Reads payloads in Temporal External Storage for display and download.
  */
-export class ExternalPayloads {
-  readonly store: ExternalPayloadsOptions['store'];
+export class PayloadStore {
+  readonly store: PayloadStoreOptions['store'];
   readonly driverName: string;
   readonly maxInlineBytes: number;
   readonly previewBytes: number;
   private readonly logger?: LoggerService;
   private readonly cache = new ByteCache(CACHE_BYTES);
 
-  constructor(options: ExternalPayloadsOptions = {}) {
+  constructor(options: PayloadStoreOptions = {}) {
     this.store = options.store;
     this.driverName = options.driverName ?? DEFAULT_S3_DRIVER_NAME;
     this.maxInlineBytes = options.maxInlineBytes ?? DEFAULT_MAX_INLINE_BYTES;
@@ -258,9 +258,9 @@ export class ExternalPayloads {
    * Reads `temporal.externalStorage.s3`. Without it, stored payloads are
    * shown as "stored externally (not configured)".
    */
-  static fromConfig(config: Config, logger?: LoggerService): ExternalPayloads {
+  static fromConfig(config: Config, logger?: LoggerService): PayloadStore {
     const s3 = config.getOptionalConfig('temporal.externalStorage.s3');
-    if (!s3) return new ExternalPayloads({ logger });
+    if (!s3) return new PayloadStore({ logger });
     const credentials = s3.getOptionalConfig('credentials');
     const store = new S3PayloadReader({
       bucket: s3.getString('bucket'),
@@ -287,7 +287,7 @@ export class ExternalPayloads {
         );
       }
     }
-    return new ExternalPayloads({
+    return new PayloadStore({
       store,
       driverName: s3.getOptionalString('driverName'),
       maxInlineBytes,

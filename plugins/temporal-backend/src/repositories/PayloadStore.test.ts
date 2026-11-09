@@ -16,8 +16,8 @@
 
 import { ConfigReader } from '@backstage/config';
 import { memoryS3, storeExternally } from '../__testUtils__/externalStorage';
-import { toWorkflowSteps } from './convert';
-import { ExternalPayloads, findReferencePayloads } from './payloads';
+import { toWorkflowSteps } from '../services/convert';
+import { findReferencePayloads, PayloadStore } from './PayloadStore';
 
 const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64');
 
@@ -31,7 +31,7 @@ function startedEvent(payload: unknown) {
   };
 }
 
-describe('ExternalPayloads', () => {
+describe('PayloadStore', () => {
   const small = { rows: [1, 2, 3] };
   const large = { text: 'x'.repeat(5000) };
   const largeJson = JSON.stringify(large);
@@ -40,7 +40,7 @@ describe('ExternalPayloads', () => {
     const s3 = memoryS3();
     const store = s3.store();
     const stored = await storeExternally(s3, small);
-    const payloads = new ExternalPayloads({ store, maxInlineBytes: 1000 });
+    const payloads = new PayloadStore({ store, maxInlineBytes: 1000 });
     const events = [startedEvent(stored.payload)];
     await payloads.resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
@@ -64,7 +64,7 @@ describe('ExternalPayloads', () => {
   it('shows the size and a preview of larger payloads', async () => {
     const s3 = memoryS3();
     const stored = await storeExternally(s3, large);
-    const payloads = new ExternalPayloads({
+    const payloads = new PayloadStore({
       store: s3.store(),
       maxInlineBytes: 1000,
       previewBytes: 20,
@@ -96,7 +96,7 @@ describe('ExternalPayloads', () => {
     ]);
     const stored = await storeExternally(s3, png);
     const events = [startedEvent(stored.payload)];
-    await new ExternalPayloads({ store: s3.store() }).resolve(events);
+    await new PayloadStore({ store: s3.store() }).resolve(events);
     const input = toWorkflowSteps(events, false).input as any;
     expect(input.encoding).toBe('binary/plain');
     expect(input.external).toMatchObject({
@@ -111,7 +111,7 @@ describe('ExternalPayloads', () => {
     const s3 = memoryS3();
     const stored = await storeExternally(s3, large);
     const events = [startedEvent(stored.payload)];
-    await new ExternalPayloads().resolve(events);
+    await new PayloadStore().resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
       encoding: 'json/protobuf',
       external: {
@@ -140,7 +140,7 @@ describe('ExternalPayloads', () => {
       s3.objects.get(`payloads/${other.key}`)!,
     );
     const events = [startedEvent(stored.payload)];
-    await new ExternalPayloads({ store: s3.store() }).resolve(events);
+    await new PayloadStore({ store: s3.store() }).resolve(events);
     expect(toWorkflowSteps(events, false).input).toEqual({
       encoding: 'json/protobuf',
       external: expect.objectContaining({
@@ -160,7 +160,7 @@ describe('ExternalPayloads', () => {
     const events = [elsewhere, driver, missing].map(s =>
       startedEvent(s.payload),
     );
-    await new ExternalPayloads({ store: s3.store() }).resolve(events);
+    await new PayloadStore({ store: s3.store() }).resolve(events);
     const [a, b, c] = events.map(
       e => (toWorkflowSteps([e], false).input as any).external,
     );
@@ -204,10 +204,10 @@ describe('ExternalPayloads', () => {
   });
 
   it('reads its configuration', () => {
-    expect(ExternalPayloads.fromConfig(new ConfigReader({})).configured).toBe(
+    expect(PayloadStore.fromConfig(new ConfigReader({})).configured).toBe(
       false,
     );
-    const payloads = ExternalPayloads.fromConfig(
+    const payloads = PayloadStore.fromConfig(
       new ConfigReader({
         temporal: {
           externalStorage: {
@@ -228,7 +228,7 @@ describe('ExternalPayloads', () => {
     expect(payloads.maxInlineBytes).toBe(10);
     expect(payloads.previewBytes).toBe(2048);
     expect(
-      ExternalPayloads.fromConfig(
+      PayloadStore.fromConfig(
         new ConfigReader({
           temporal: {
             externalStorage: {
@@ -242,7 +242,7 @@ describe('ExternalPayloads', () => {
       ).driverName,
     ).toBe('aws.s3driver');
     expect(() =>
-      ExternalPayloads.fromConfig(
+      PayloadStore.fromConfig(
         new ConfigReader({
           temporal: {
             externalStorage: {

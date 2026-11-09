@@ -19,11 +19,7 @@ import {
   LoggerService,
 } from '@backstage/backend-plugin-api';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  InputError,
-  NotFoundError,
-  ServiceUnavailableError,
-} from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import {
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
@@ -66,7 +62,11 @@ import {
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
 import { readLoopState } from './loops';
-import { ExternalPayloads, findReferencePayloads } from './payloads';
+import {
+  findReferencePayloads,
+  PayloadStore,
+} from '../repositories/PayloadStore';
+import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -117,27 +117,6 @@ const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
   'TimedOut',
   'Terminated',
 ];
-
-/** gRPC status codes used to map Temporal errors to HTTP errors. */
-const GRPC_INVALID_ARGUMENT = 3;
-const GRPC_NOT_FOUND = 5;
-const GRPC_UNAVAILABLE = 14;
-
-export function mapTemporalError(error: unknown): never {
-  const code = (error as { code?: unknown })?.code;
-  const message = (error as Error)?.message ?? String(error);
-  if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);
-  if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
-  if (code === GRPC_UNAVAILABLE) {
-    throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
-  }
-  throw error;
-}
-
-function toJson(message: unknown): any {
-  const m = message as { toJSON?: () => unknown } | undefined;
-  return m && typeof m.toJSON === 'function' ? m.toJSON() : message;
-}
 
 export interface EntityContext {
   entity: Entity;
@@ -219,14 +198,24 @@ function findLlmRecord(root: any): {
   return { reason: 'The result has no LLM record (`temporal.llm`).' };
 }
 
-/** Reads workflows from Temporal for one entity. */
-export class WorkflowReader {
+/**
+ * The read use cases of the plugin: lists, details, history, steps, graph,
+ * loops, model calls and progress of workflows. Callers check permissions
+ * first (see `access/`); this class checks that namespaces are allowed and
+ * reads Temporal through {@link TemporalReadRepository}.
+ */
+export class WorkflowQueries {
+  private readonly temporalReads: TemporalReadRepository;
+
   constructor(
     private readonly temporal: TemporalService,
     private readonly enrichers: TemporalWorkflowEnricher[],
     private readonly logger: LoggerService,
-    readonly payloads: ExternalPayloads = new ExternalPayloads(),
-  ) {}
+    readonly payloads: PayloadStore = new PayloadStore(),
+    temporalReads?: TemporalReadRepository,
+  ) {
+    this.temporalReads = temporalReads ?? new TemporalReadRepository(temporal);
+  }
 
   /**
    * Validates the entity's annotations (or `TemporalWorkflow` spec) and
@@ -345,18 +334,14 @@ export class WorkflowReader {
     } catch {
       throw new InputError('Invalid page token');
     }
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .listWorkflowExecutions({
-        namespace: context.namespace,
-        query,
-        pageSize: options.pageSize,
-        nextPageToken,
-      })
-      .catch(mapTemporalError);
+    const response = await this.temporalReads.listExecutions(
+      context.namespace,
+      query,
+      { pageSize: options.pageSize, nextPageToken },
+    );
     const convert = this.convertOptions(context.namespace);
-    const items = (response.executions ?? []).map(e => {
-      const item = toWorkflowSummary(toJson(e), convert);
+    const items = response.items.map(e => {
+      const item = toWorkflowSummary(e, convert);
       const workflowEntityRef = matchingWorkflowEntity(item, context.filter);
       return workflowEntityRef ? { ...item, workflowEntityRef } : item;
     });
@@ -384,20 +369,13 @@ export class WorkflowReader {
     } catch {
       throw new InputError('Invalid page token');
     }
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .listWorkflowExecutions({
-        namespace,
-        query,
-        pageSize: options.pageSize,
-        nextPageToken,
-      })
-      .catch(mapTemporalError);
+    const response = await this.temporalReads.listExecutions(namespace, query, {
+      pageSize: options.pageSize,
+      nextPageToken,
+    });
     const convert = this.convertOptions(namespace);
     return {
-      items: (response.executions ?? []).map(e =>
-        toWorkflowSummary(toJson(e), convert),
-      ),
+      items: response.items.map(e => toWorkflowSummary(e, convert)),
       nextPageToken: encodePageToken(response.nextPageToken),
       namespace,
     };
@@ -409,18 +387,15 @@ export class WorkflowReader {
     options: { limit: number },
   ): Promise<WorkflowStatsResponse> {
     const query = buildEntityWorkflowQuery(context.filter);
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .listWorkflowExecutions({
-        namespace: context.namespace,
-        query,
-        pageSize: options.limit,
-      })
-      .catch(mapTemporalError);
+    const response = await this.temporalReads.listExecutions(
+      context.namespace,
+      query,
+      { pageSize: options.limit },
+    );
     const convert = this.convertOptions(context.namespace);
-    const items = (response.executions ?? [])
+    const items = response.items
       .slice(0, options.limit)
-      .map(e => toWorkflowSummary(toJson(e), convert));
+      .map(e => toWorkflowSummary(e, convert));
     const byStatus: Partial<Record<WorkflowStatus, number>> = {};
     let durationSum = 0;
     let durationCount = 0;
@@ -452,23 +427,14 @@ export class WorkflowReader {
   /** Describes a workflow without any entity check. */
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.checkNamespace(ref.namespace);
-    const connection = await this.temporal.getConnection();
-    const execution = { workflowId: ref.workflowId, runId: ref.runId };
-    const describe = await connection.workflowService
-      .describeWorkflowExecution({ namespace: ref.namespace, execution })
-      .catch(mapTemporalError);
-    const json = toJson(describe);
+    const json = await this.temporalReads.describeExecution(ref);
     await this.payloads.resolve(json.workflowExecutionInfo?.memo);
     const detail = toWorkflowDetail(json, this.convertOptions(ref.namespace));
     if (CLOSED_WITH_FAILURE.includes(detail.status)) {
-      const reverse = await connection.workflowService
-        .getWorkflowExecutionHistoryReverse({
-          namespace: ref.namespace,
-          execution: { workflowId: ref.workflowId, runId: detail.runId },
-          maximumPageSize: 1,
-        })
-        .catch(mapTemporalError);
-      const closeEvent = toJson(reverse.history?.events?.[0]);
+      const closeEvent = await this.temporalReads.lastEvent({
+        ...ref,
+        runId: detail.runId,
+      });
       return toWorkflowDetail(json, {
         ...this.convertOptions(ref.namespace),
         closeEvent,
@@ -509,16 +475,11 @@ export class WorkflowReader {
     } catch {
       throw new InputError('Invalid page token');
     }
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .getWorkflowExecutionHistory({
-        namespace: ref.namespace,
-        execution: { workflowId: ref.workflowId, runId: ref.runId },
-        maximumPageSize: options.pageSize,
-        nextPageToken,
-      })
-      .catch(mapTemporalError);
-    const events = (response.history?.events ?? []).map(toJson);
+    const response = await this.temporalReads.historyPage(ref, {
+      pageSize: options.pageSize,
+      nextPageToken,
+    });
+    const events = response.items;
     await this.payloads.resolve(events);
     return {
       events: events.map(toHistoryEvent),
@@ -536,23 +497,15 @@ export class WorkflowReader {
     options: { payloads?: boolean; llmPayloads?: boolean } = {},
   ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.checkNamespace(ref.namespace);
-    const connection = await this.temporal.getConnection();
     const events: unknown[] = [];
     let nextPageToken: Uint8Array | undefined;
     do {
-      const response = await connection.workflowService
-        .getWorkflowExecutionHistory({
-          namespace: ref.namespace,
-          execution: { workflowId: ref.workflowId, runId: ref.runId },
-          maximumPageSize: Math.min(HISTORY_PAGE_SIZE.max, max),
-          nextPageToken,
-        })
-        .catch(mapTemporalError);
-      for (const e of response.history?.events ?? []) events.push(toJson(e));
-      nextPageToken =
-        response.nextPageToken && response.nextPageToken.length > 0
-          ? response.nextPageToken
-          : undefined;
+      const response = await this.temporalReads.historyPage(ref, {
+        pageSize: Math.min(HISTORY_PAGE_SIZE.max, max),
+        nextPageToken,
+      });
+      events.push(...response.items);
+      nextPageToken = response.nextPageToken;
     } while (nextPageToken && events.length < max);
     if (options.payloads) await this.payloads.resolve(events);
     else if (options.llmPayloads) {
@@ -755,20 +708,13 @@ export class WorkflowReader {
    */
   private async queryLoopState(workflow: WorkflowDetail): Promise<unknown> {
     try {
-      const connection = await this.temporal.getConnection();
-      const deadline = Date.now() + LOOP_QUERY_TIMEOUT_MS;
-      const response: any = await connection.withDeadline(deadline, () =>
-        connection.workflowService.queryWorkflow({
-          namespace: workflow.namespace,
-          execution: {
-            workflowId: workflow.workflowId,
-            runId: workflow.runId,
-          },
-          query: { queryType: LOOP_STATE_QUERY },
-        }),
+      const response = await this.temporalReads.query(
+        workflow,
+        LOOP_STATE_QUERY,
+        LOOP_QUERY_TIMEOUT_MS,
       );
-      if (response.queryRejected) return undefined;
-      const decoded = decodePayloads(toJson(response.queryResult));
+      if (response.rejected) return undefined;
+      const decoded = decodePayloads(response.result);
       const value =
         decoded && typeof decoded === 'object' && 'value' in decoded
           ? (decoded as { value: unknown }).value
@@ -886,13 +832,8 @@ export class WorkflowReader {
     // The start time of describe is cut to milliseconds.
     const until = new Date(start + 1).toISOString();
     try {
-      const connection = await this.temporal.getConnection();
-      const count = async (query: string) => {
-        const response = await connection.workflowService
-          .countWorkflowExecutions({ namespace: workflow.namespace, query })
-          .catch(mapTemporalError);
-        return Number(response.count ?? 0);
-      };
+      const count = (query: string) =>
+        this.temporalReads.countExecutions(workflow.namespace, query);
       const [index, total] = await Promise.all([
         count(`${byId} AND StartTime < '${until}'`),
         count(byId),
