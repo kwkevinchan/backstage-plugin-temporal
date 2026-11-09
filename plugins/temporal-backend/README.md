@@ -32,7 +32,9 @@ worker package).
 
 ## Exports
 
-The package exports only the plugin (default export). Modules import:
+The default export installs the plugin and the default factory of its
+access service (`temporalAccessServiceRef` in `-node/alpha`). Modules
+import:
 
 - `@kwkevinchan/backstage-plugin-temporal-node`: `temporalServiceRef`, a
   root-scoped service with one shared Temporal connection, configured under

@@ -32,6 +32,27 @@ export default createBackendModule({
 });
 ```
 
+## Access service (alpha)
+
+`@kwkevinchan/backstage-plugin-temporal-node/alpha` exports
+`temporalAccessServiceRef`: the checks the plugin runs before it reads or
+changes a workflow (permission on the entity, namespace allowed, the
+workflow belongs to the entity). The plugin and its modules share one
+instance, so a module that serves its own routes under `/api/temporal` can
+use the same checks:
+
+```ts
+const { context, workflow } = await access.loadWorkflow(ref, {
+  entityRef,
+  level: 'read',
+  credentials: await httpAuth.credentials(req),
+});
+```
+
+The default factory comes with the backend plugin. To decide access in
+another way, add your own `createServiceFactory` for `temporalAccessServiceRef`
+to the backend.
+
 The permissions and types are in
 [`@kwkevinchan/backstage-plugin-temporal-common`](../temporal-common).
 

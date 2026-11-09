@@ -49,12 +49,12 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import express, { Request } from 'express';
 import {
-  DefaultTemporalAccessService,
-  WorkflowAccessLevel,
-} from '../access/DefaultTemporalAccessService';
+  TemporalAccessService,
+  TemporalWorkflowAccessLevel,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { WorkflowController } from '../services/WorkflowController';
 import { matchesSource } from '../services/query';
-import { EntityContext } from '../services/WorkflowQueries';
+import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
 import { entityRefFromParams } from './params';
 
 /** A workflow loaded with the read checks of the router. */
@@ -67,15 +67,16 @@ export interface LoadedWorkflow {
 
 export interface ControlRouteOptions {
   httpAuth: HttpAuthService;
-  access: DefaultTemporalAccessService;
+  access: TemporalAccessService;
   auditor: AuditorService;
   temporal: TemporalService;
   controller: WorkflowController;
+  queries: WorkflowQueries;
   actions: TemporalControlAction[];
   workflowPaths: string[];
   loadWorkflow(
     req: Request,
-    level: WorkflowAccessLevel,
+    level: TemporalWorkflowAccessLevel,
   ): Promise<LoadedWorkflow>;
 }
 
@@ -487,7 +488,7 @@ export function addControlRoutes(
         credentials,
       );
       const start = parseStart(req);
-      const { annotations } = context.filter;
+      const { annotations } = options.queries.filterOf(context);
       const workflowType =
         start.workflowType ??
         (annotations.workflowTypes.length === 1

@@ -20,6 +20,7 @@ import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -110,6 +111,7 @@ async function start(options: {
   const { server } = await startTestBackend({
     features: [
       temporalPlugin,
+      temporalAccessServiceFactory,
       catalogServiceMock.factory({ entities: [ordersEntity] }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
