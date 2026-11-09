@@ -63,6 +63,8 @@
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
+    "@codemirror/lang-javascript": "^6.0.0",
+    "@codemirror/lang-python": "^6.0.0",
     "@codemirror/lang-yaml": "^6.0.0",
     "@codemirror/language": "^6.0.0",
     "@codemirror/state": "^6.0.0",

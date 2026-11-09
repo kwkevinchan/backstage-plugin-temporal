@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { buildEntityDefinitionPath, walkDefinitionTasks } from './definition';
+import {
+  buildEntityDefinitionPath,
+  findSymbolLines,
+  sourceLanguageOf,
+  walkDefinitionTasks,
+} from './definition';
 
 describe('workflow definitions', () => {
   it('builds the path of a definition', () => {
@@ -58,5 +63,79 @@ describe('workflow definitions', () => {
       ['/do/3/l', 'l', false, undefined],
       ['/do/3/l/do/0/s', 'l.s', false, '/do/3/l'],
     ]);
+  });
+});
+
+describe('sourceLanguageOf', () => {
+  it('knows the language from the extension', () => {
+    expect(sourceLanguageOf('./src/workflows.ts')).toBe('typescript');
+    expect(sourceLanguageOf('https://x/y/w.mjs?ref=main')).toBe('javascript');
+    expect(sourceLanguageOf('./w.py')).toBe('python');
+    expect(sourceLanguageOf('./w.go')).toBe('go');
+    expect(sourceLanguageOf('./W.java')).toBe('java');
+    expect(sourceLanguageOf('./README')).toBe('text');
+  });
+});
+
+describe('findSymbolLines', () => {
+  const ts = [
+    "import { sleep } from '@temporalio/workflow';", // 1
+    '', // 2
+    'export async function orderWorkflow(id: string) {', // 3
+    '  if (id) {', // 4
+    '    await sleep(1);', // 5
+    '  }', // 6
+    '  return id;', // 7
+    '}', // 8
+    '', // 9
+    'export const agentWorkflow = async (q: string) => {', // 10
+    '  return q;', // 11
+    '};', // 12
+  ].join('\n');
+
+  it('finds a TypeScript function to its closing brace', () => {
+    expect(findSymbolLines(ts, 'orderWorkflow', 'typescript')).toEqual({
+      startLine: 3,
+      endLine: 8,
+    });
+    expect(findSymbolLines(ts, 'agentWorkflow', 'typescript')).toEqual({
+      startLine: 10,
+      endLine: 12,
+    });
+  });
+
+  it('finds a Python function by its indented block', () => {
+    const py = [
+      '@workflow.defn', // 1
+      'class Order:', // 2
+      '    @workflow.run', // 3
+      '    async def run(self, id: str) -> str:', // 4
+      '        await sleep(1)', // 5
+      '', // 6
+      '        return id', // 7
+      '', // 8
+      'def other():', // 9
+      '    pass', // 10
+    ].join('\n');
+    expect(findSymbolLines(py, 'Order.run', 'python')).toEqual({
+      startLine: 4,
+      endLine: 7,
+    });
+  });
+
+  it('finds a Go function and leaves out names that are not declared', () => {
+    const go =
+      'package w\n\nfunc OrderWorkflow(ctx workflow.Context) error {\n\treturn nil\n}\n';
+    expect(findSymbolLines(go, 'OrderWorkflow', 'go')).toEqual({
+      startLine: 3,
+      endLine: 5,
+    });
+    expect(
+      findSymbolLines(ts, 'missingWorkflow', 'typescript'),
+    ).toBeUndefined();
+    // A call is not a declaration.
+    expect(
+      findSymbolLines('await sleep(1);', 'sleep', 'typescript'),
+    ).toBeUndefined();
   });
 });

@@ -8,3 +8,5 @@ definition file of a `TemporalWorkflow` entity
 the URL reader of the configured integrations, at most
 `temporal.definitions.maxBytes` (1 MiB), parsed as plain YAML with a limit
 on aliases, with the lines of each task.
+- Reads `format: source` definitions: the file with its language and the
+  lines of the workflow's function.

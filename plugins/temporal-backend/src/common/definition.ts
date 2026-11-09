@@ -27,7 +27,10 @@ import {
  *
  * @public
  */
-export const TEMPORAL_DEFINITION_FORMATS = ['serverless-workflow'] as const;
+export const TEMPORAL_DEFINITION_FORMATS = [
+  'serverless-workflow',
+  'source',
+] as const;
 
 /**
  * Format of a workflow definition.
@@ -52,7 +55,15 @@ export interface TemporalWorkflowDefinitionSpec {
    * configured integration (or `backend.reading.allow`) work.
    */
   target: string;
+  /**
+   * For the `source` format: the function of the workflow in the file, to
+   * mark it. Defaults to the workflow type.
+   */
+  symbol?: string;
 }
+
+/** A function name: letters, digits, `_`, `$` and `.` (for `Class.method`). */
+const SYMBOL_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$.]{0,199}$/;
 
 /** Longest `spec.definition.target`. */
 const MAX_TARGET_LENGTH = 2048;
@@ -79,7 +90,11 @@ export function getTemporalWorkflowDefinitionSpec(
       'spec.definition must be an object with format and target',
     );
   }
-  const { format, target } = value as { format?: unknown; target?: unknown };
+  const { format, target, symbol } = value as {
+    format?: unknown;
+    target?: unknown;
+    symbol?: unknown;
+  };
   if (
     typeof format !== 'string' ||
     !(TEMPORAL_DEFINITION_FORMATS as readonly string[]).includes(format)
@@ -101,5 +116,19 @@ export function getTemporalWorkflowDefinitionSpec(
       'spec.definition.target must be a path or a URL',
     );
   }
-  return { format: format as TemporalDefinitionFormat, target: target.trim() };
+  if (
+    symbol !== undefined &&
+    (typeof symbol !== 'string' || !SYMBOL_PATTERN.test(symbol))
+  ) {
+    throw new InvalidTemporalWorkflowSpecError(
+      'definition',
+      'spec.definition.symbol must be the name of a function',
+    );
+  }
+  const spec: TemporalWorkflowDefinitionSpec = {
+    format: format as TemporalDefinitionFormat,
+    target: target.trim(),
+  };
+  if (symbol !== undefined) spec.symbol = symbol;
+  return spec;
 }

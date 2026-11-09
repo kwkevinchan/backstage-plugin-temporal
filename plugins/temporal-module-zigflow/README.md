@@ -92,12 +92,13 @@ spec:
     target: ./workflows/order-fulfillment.yaml
 ```
 
-`spec.definition` has two fields, both required:
+`spec.definition` has two required fields and one optional:
 
 | Field    | Meaning                                                                                                                                           |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` | `serverless-workflow`. The only format for now; the field leaves room for others without guessing from the file.                                  |
+| `format` | `serverless-workflow` (a YAML workflow, drawn as a graph), or `source` (the source code of a workflow written in code).                           |
 | `target` | A path relative to the file the entity was read from (`backstage.io/managed-by-location`), or an absolute `http(s)` URL. At most 2048 characters. |
+| `symbol` | `source` only: the function of the workflow, marked in the file (`orderWorkflow`, `OrderWorkflow.run`). Defaults to the workflow type.            |
 
 Why this shape: `target` means the same as `spec.target` of Backstage
 `Location` entities (relative or absolute), and an object with a `format`
@@ -107,9 +108,27 @@ of every file in every entity, without the size limit and the checks below,
 and would show changes only after the next refresh. The backend reads the
 file when the tab opens instead.
 
-Workflows written in code leave `spec.definition` out. Their Definition tab
+Workflows written in code can show their source: `format: source` reads
+the file the same way (same locations and size limit) and shows it read-only
+with syntax colors (TypeScript, JavaScript, Python; Go, Java and others as
+plain text), with the workflow's function marked and scrolled into view.
+The function is found by text, not by parsing: a declaration of its name
+(`function name`, `const name = …`, a method, `def name`, `func name`), to
+its closing brace, or for Python its indented block.
+
+```yaml
+spec:
+  workflowType: orderWorkflow
+  definition:
+    format: source
+    target: ./src/workflows.ts
+    # symbol: orderWorkflow   # defaults to the workflow type
+```
+
+Without `spec.definition`, the Definition tab of a workflow written in code
 links to the source from the `backstage.io/source-location` and
-`backstage.io/view-url` annotations, without reading any file.
+`backstage.io/view-url` annotations, without reading any file. The links
+also show above the source.
 
 ## Reading the file
 

@@ -176,6 +176,38 @@ describe('DefinitionReader', () => {
     expect(result.error).toBeUndefined();
   });
 
+  it('reads source code and marks the function of the workflow', async () => {
+    const source =
+      "import { sleep } from '@temporalio/workflow';\n\nexport async function orderFlow() {\n  await sleep(1);\n}\n";
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from(source),
+      stream: () => Readable.from([Buffer.from(source)]),
+    }));
+    const workflowEntity = entity(
+      'url:https://git.example.com/org/repo/blob/main/catalog-info.yaml',
+    );
+    const read = (symbol?: string) =>
+      readerOf(readUrl).read(workflowEntity, {
+        format: 'source',
+        target: './src/workflows.ts',
+        ...(symbol ? { symbol } : {}),
+      });
+    const result = await read('orderFlow');
+    expect(result).toMatchObject({
+      format: 'source',
+      language: 'typescript',
+      symbol: 'orderFlow',
+      symbolLines: { startLine: 3, endLine: 5 },
+      content: source,
+      tasks: [],
+    });
+    expect(result.error).toBeUndefined();
+    // Without a symbol: the workflow type, which is not in this file.
+    const byType = await read();
+    expect(byType.symbol).toBe('order-flow');
+    expect(byType.symbolLines).toBeUndefined();
+  });
+
   it('reads an absolute URL as it is', async () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),

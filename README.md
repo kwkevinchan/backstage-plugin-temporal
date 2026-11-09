@@ -681,8 +681,10 @@ spec:
 | `system`    | `partOf` / `hasPart`         |
 | `dependsOn` | `dependsOn` / `dependencyOf` |
 
-A workflow written in YAML adds `spec.definition` (`format` and `target`)
-for its **Definition** tab; see [Workflow definitions](#workflow-definitions).
+`spec.definition` (`format`, `target`) points to the file of the workflow
+for its **Definition** tab: a YAML workflow (`serverless-workflow`), drawn as
+a graph, or the source code (`source`), with the workflow's function marked;
+see [Workflow definitions](#workflow-definitions).
 
 The workflow executions of the entity are those with that workflow type (and task
 queue, when set), or with the entity reference
