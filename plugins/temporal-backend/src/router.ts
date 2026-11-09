@@ -44,7 +44,7 @@ import {
   TEMPORAL_WORKFLOW_KIND,
   WorkflowSummary,
   WorkflowRef,
-} from './common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalControlAction } from './extensions';
 import { TemporalService } from './service/TemporalService';
 import express, { Request } from 'express';

@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import type { WorkflowGraphNode, WorkflowGraphResponse } from '../../common';
+import type {
+  WorkflowGraphNode,
+  WorkflowGraphResponse,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   loopGraphResponse,
   timelineNodes as nodes,

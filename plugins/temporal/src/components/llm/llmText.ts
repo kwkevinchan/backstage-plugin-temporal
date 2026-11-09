@@ -18,7 +18,7 @@ import type {
   WorkflowGraphNode,
   WorkflowLlmSummary,
   WorkflowLlmUsage,
-} from '../../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { formatMilliseconds } from '../format';
 
 /** Token count in short form: `812`, `1.2k`, `15k`, `1.3M`. */

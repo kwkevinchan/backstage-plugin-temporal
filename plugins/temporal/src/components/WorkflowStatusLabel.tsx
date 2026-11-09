@@ -15,7 +15,10 @@
  */
 
 import type { ReactNode } from 'react';
-import type { WorkflowNodeStatus, WorkflowStatus } from '../common';
+import type {
+  WorkflowNodeStatus,
+  WorkflowStatus,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   RiCheckboxCircleFill,
   RiCloseCircleFill,

@@ -44,7 +44,7 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
-} from './common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef, temporalWorkflowExtensionsApiRef } from './extensions';
 import {
   temporalWorkflowActionDataRef,

@@ -15,7 +15,10 @@
  */
 
 import dagre from '@dagrejs/dagre';
-import type { WorkflowGraphEdge, WorkflowGraphNode } from '../../common';
+import type {
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { isMarkerStep } from '../steps';
 
 export const NODE_WIDTH = 220;

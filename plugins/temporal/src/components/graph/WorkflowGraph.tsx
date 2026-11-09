@@ -16,7 +16,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Edge, ReactFlowProvider } from '@xyflow/react';
-import type { WorkflowGraphEdge, WorkflowGraphResponse } from '../../common';
+import type {
+  WorkflowGraphEdge,
+  WorkflowGraphResponse,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { Button, Flex, Switch, Text } from '@backstage/ui';
 import { isMarkerStep, isOpenStep } from '../steps';
 import {

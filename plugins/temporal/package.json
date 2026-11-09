@@ -47,7 +47,8 @@
     "pluginId": "temporal",
     "pluginPackages": [
       "@kwkevinchan/backstage-plugin-temporal",
-      "@kwkevinchan/backstage-plugin-temporal-backend"
+      "@kwkevinchan/backstage-plugin-temporal-backend",
+      "@kwkevinchan/backstage-plugin-temporal-common"
     ]
   },
   "sideEffects": false,
@@ -73,6 +74,7 @@
     "@backstage/ui": "backstage:^",
     "@backstage/version-bridge": "backstage:^",
     "@dagrejs/dagre": "^1.1.4",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@xyflow/react": "^12.12.0",
     "react-use": "^17.2.4"

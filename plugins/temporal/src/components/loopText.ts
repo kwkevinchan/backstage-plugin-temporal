@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import type { WorkflowLoopGroup, WorkflowLoopStatus } from '../common';
+import type {
+  WorkflowLoopGroup,
+  WorkflowLoopStatus,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { Tone } from './WorkflowStatusLabel';
 
 const LOOP_STATUS_LABELS: Record<WorkflowLoopStatus, string> = {

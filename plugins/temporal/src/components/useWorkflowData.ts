@@ -20,7 +20,7 @@ import type {
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowRef,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '../extensions';
 
 /** Seconds between automatic reloads of a running workflow. */

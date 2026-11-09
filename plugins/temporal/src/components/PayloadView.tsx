@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import type { JsonValue } from '@backstage/types';
-import type { ExternalPayload } from '../common';
+import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { ButtonIcon, Text } from '@backstage/ui';
 import { RiCheckLine, RiFileCopyLine } from '@remixicon/react';
 import { ExternalPayloadView } from './ExternalPayloadView';

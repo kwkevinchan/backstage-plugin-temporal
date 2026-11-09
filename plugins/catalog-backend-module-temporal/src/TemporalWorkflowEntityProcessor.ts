@@ -37,7 +37,7 @@ import {
   TEMPORAL_WORKFLOW_API_VERSION,
   TemporalWorkflowEntityV1alpha1,
   temporalWorkflowEntityV1alpha1Schema,
-} from '@kwkevinchan/backstage-plugin-temporal-backend';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * Catalog processor for the `TemporalWorkflow` kind

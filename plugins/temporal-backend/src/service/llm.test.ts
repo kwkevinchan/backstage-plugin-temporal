@@ -16,7 +16,10 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { parseLlmMarker, parseLoopMarker } from '../common';
+import {
+  parseLlmMarker,
+  parseLoopMarker,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { toWorkflowSteps } from './convert';
 import { buildWorkflowGraph } from './graph';
 import { normalizeLlmRecord, summarizeLlmCall } from './llm';

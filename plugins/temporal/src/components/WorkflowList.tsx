@@ -17,7 +17,7 @@
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { isTemporalWorkflowEntity } from '../common';
+import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '../extensions';
 import { Alert, Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';

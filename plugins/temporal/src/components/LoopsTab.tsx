@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import { addLlmUsage } from '../common';
+import { addLlmUsage } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   WorkflowDetail,
   WorkflowGraphResponse,
@@ -25,7 +25,7 @@ import type {
   WorkflowLoopRound,
   WorkflowLoopsResponse,
   WorkflowRef,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '../extensions';
 import {
   Alert,

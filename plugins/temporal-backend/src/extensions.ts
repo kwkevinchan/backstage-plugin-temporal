@@ -21,7 +21,11 @@ import {
 import type { Entity } from '@backstage/catalog-model';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import type { WorkflowDetail, WorkflowRef, WorkflowSummary } from './common';
+import type {
+  WorkflowDetail,
+  WorkflowRef,
+  WorkflowSummary,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { Client } from '@temporalio/client';
 
 /**

@@ -18,7 +18,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApiHolder } from '@backstage/core-plugin-api';
 import { Button, Flex, Text } from '@backstage/ui';
-import type { ExternalPayload } from '../common';
+import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   temporalApiRef,
   TemporalWorkflowContextValue,

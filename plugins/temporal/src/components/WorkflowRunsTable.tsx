@@ -21,7 +21,7 @@ import {
   WORKFLOW_STATUSES,
   WorkflowStatus,
   WorkflowSummary,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   Button,
   Cell,

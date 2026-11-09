@@ -19,7 +19,10 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
-import { isValidControlActionId, temporalPermissions } from './common';
+import {
+  isValidControlActionId,
+  temporalPermissions,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   TemporalControlAction,
   temporalExtensionPoint,

@@ -29,4 +29,4 @@
 export { temporalPlugin as default } from './plugin';
 export * from './service/TemporalService';
 export * from './extensions';
-export * from './common';
+export * from '@kwkevinchan/backstage-plugin-temporal-common';

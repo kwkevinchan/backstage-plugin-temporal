@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import type { WorkflowGraphNode, WorkflowNodeKind } from '../common';
+import type {
+  WorkflowGraphNode,
+  WorkflowNodeKind,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import { deadlineText, formatDuration } from './format';
 
 const KIND_LABELS: Record<WorkflowNodeKind, string> = {

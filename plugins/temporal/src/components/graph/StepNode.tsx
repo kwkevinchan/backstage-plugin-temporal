@@ -16,7 +16,10 @@
 
 import { memo } from 'react';
 import { Handle, NodeProps, Position, Node } from '@xyflow/react';
-import type { WorkflowGraphNode, WorkflowNodeKind } from '../../common';
+import type {
+  WorkflowGraphNode,
+  WorkflowNodeKind,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   RiArrowRightCircleLine,
   RiBookmarkLine,

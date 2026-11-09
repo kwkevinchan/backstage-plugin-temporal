@@ -19,7 +19,7 @@ import {
   LOOP_MARKER_MEMO_KEY,
   LOOP_STATE_MEMO_KEY,
   parseLoopMarker,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   PendingActivity,
   WorkflowFailure,
@@ -30,7 +30,7 @@ import type {
   WorkflowNodeStatus,
   WorkflowStatus,
   WorkflowLoopMarker,
-} from '../common';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
   decodePayload,
   decodePayloads,
