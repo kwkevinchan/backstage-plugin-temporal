@@ -72,6 +72,20 @@ async function shot(page: Page, name: string) {
 
 /** Font sizes of the text drawn in the graph, at its zoom. */
 async function drawnFontSizes(page: Page): Promise<number[]> {
+  // The canvas animates its zoom (200 ms) when its width settles; measure
+  // once the zoom has stopped changing.
+  const zoomOf = () =>
+    page.evaluate(() => {
+      const viewport = document.querySelector('.react-flow__viewport');
+      return viewport ? getComputedStyle(viewport).transform : '';
+    });
+  let previous = await zoomOf();
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    const current = await zoomOf();
+    if (current === previous) break;
+    previous = current;
+  }
   return page.evaluate(() => {
     const viewport = document.querySelector('.react-flow__viewport');
     const zoom = viewport
