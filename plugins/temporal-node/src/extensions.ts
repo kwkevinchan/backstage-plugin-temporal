@@ -34,8 +34,12 @@ import type { Client } from '@temporalio/client';
  * @public
  */
 export interface TemporalWorkflowEnricherContext {
-  /** The entity whose workflows are shown. */
-  entity: Entity;
+  /**
+   * The entity whose workflows are shown. Enrichers should handle it being
+   * undefined: lists that span entities (the Workflows page) may run
+   * enrichers without one in a later version.
+   */
+  entity?: Entity;
   namespace: string;
   credentials: BackstageCredentials;
 }

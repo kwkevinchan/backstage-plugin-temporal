@@ -45,8 +45,8 @@ import {
   WorkflowSummary,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalControlAction } from './extensions';
-import { TemporalService } from './service/TemporalService';
+import { TemporalControlAction } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { sendStoredPayload } from './service/download';

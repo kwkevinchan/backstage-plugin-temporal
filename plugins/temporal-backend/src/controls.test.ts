@@ -22,8 +22,14 @@ import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalControlAction, temporalExtensionPoint } from './extensions';
-import { TemporalService, temporalServiceRef } from './service/TemporalService';
+import {
+  TemporalControlAction,
+  temporalExtensionPoint,
+} from '@kwkevinchan/backstage-plugin-temporal-node';
+import {
+  TemporalService,
+  temporalServiceRef,
+} from '@kwkevinchan/backstage-plugin-temporal-node';
 import request from 'supertest';
 import { temporalPlugin } from './plugin';
 import {

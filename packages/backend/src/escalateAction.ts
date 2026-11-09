@@ -15,7 +15,7 @@
  */
 
 import { createBackendModule } from '@backstage/backend-plugin-api';
-import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-backend';
+import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**

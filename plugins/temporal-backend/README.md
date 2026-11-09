@@ -32,22 +32,20 @@ worker package).
 
 ## Exports
 
-- The default export is the plugin.
-- `temporalServiceRef`: root-scoped service with one shared Temporal
-  connection, configured under `temporal.connection` (address, namespaces,
-  `auth` with `none` or `bearer`). Only `@temporalio/client` is used.
-- `temporalExtensionPoint`: `addWorkflowEnricher()` adds data to workflow
-  summaries; `addControlAction()` adds a custom workflow action, served as
-  `POST .../actions/:actionId` and checked with its own permission.
-- The permissions (`temporalPermissions`, `temporalWorkflowReadPermission`
-  and the others) for permission policies, the annotation constants, the
-  `TemporalWorkflow` kind (schema and type guards) and the response types of
-  the API.
+The package exports only the plugin (default export). Modules import:
 
-Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
-backend module imports a backend plugin. For a module that uses
-`temporalExtensionPoint`, list this package in the rule's
-`excludedTargetPackages`, as `plugins/catalog-backend-module-temporal` does.
+- `@kwkevinchan/backstage-plugin-temporal-node`: `temporalServiceRef`, a
+  root-scoped service with one shared Temporal connection, configured under
+  `temporal.connection` (address, namespaces, `auth` with `none` or
+  `bearer`; only `@temporalio/client` is used), and `temporalExtensionPoint`:
+  `addWorkflowEnricher()` adds data to workflow summaries;
+  `addControlAction()` adds a custom workflow action, served as
+  `POST .../actions/:actionId` and checked with its own permission.
+- `@kwkevinchan/backstage-plugin-temporal-common`: the permissions
+  (`temporalPermissions`, `temporalWorkflowReadPermission` and the others)
+  for permission policies, the annotation constants, the `TemporalWorkflow`
+  kind (schema and type guards) and the response types of the API.
+
 See [Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending)
 in the repository README for an example.
 

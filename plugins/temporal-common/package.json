@@ -32,7 +32,8 @@
     "pluginPackages": [
       "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-common"
+      "@kwkevinchan/backstage-plugin-temporal-common",
+      "@kwkevinchan/backstage-plugin-temporal-node"
     ]
   },
   "sideEffects": false,

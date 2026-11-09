@@ -9,6 +9,6 @@
 
 First release of the common package: the permissions, API types, annotation
 constants, API paths and the `TemporalWorkflow` entity schema shared by the
-frontend and backend. The frontend and backend plugins still re-export them,
+frontend and backend. The frontend plugin still re-exports them,
 so existing imports keep working; modules can import the common package
 instead.
