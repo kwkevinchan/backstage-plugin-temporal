@@ -319,20 +319,39 @@ export function findSymbolLines(
     }
     return { startLine: start + 1, endLine: end + 1 };
   }
-  // Braces from the declaration on; strings and comments are not skipped,
-  // which is good enough to mark the function.
-  let depth = 0;
-  let opened = false;
-  for (let i = start; i < lines.length; i++) {
-    for (const char of lines[i]) {
-      if (char === '{') {
-        depth++;
-        opened = true;
-      } else if (char === '}') {
-        depth--;
-        if (opened && depth === 0) {
-          return { startLine: start + 1, endLine: i + 1 };
+  // The body starts at the first `{` outside parentheses that ends its line
+  // (so `= {}` defaults and `{ ... }` return types are skipped), else at the
+  // first `{` outside parentheses (a one-line function). Braces are counted
+  // from there; strings and comments are not skipped, which is good enough
+  // to mark the function.
+  let body: { line: number; column: number } | undefined;
+  let fallback: { line: number; column: number } | undefined;
+  let parens = 0;
+  for (let i = start; i < lines.length && !body; i++) {
+    const line = lines[i];
+    for (let c = 0; c < line.length; c++) {
+      const char = line[c];
+      if (char === '(') parens++;
+      else if (char === ')') parens = Math.max(0, parens - 1);
+      else if (char === '{' && parens === 0) {
+        fallback ??= { line: i, column: c };
+        if (!line.slice(c + 1).trim()) {
+          body = { line: i, column: c };
+          break;
         }
+      }
+    }
+  }
+  const open = body ?? fallback;
+  if (!open) return { startLine: start + 1, endLine: start + 1 };
+  let depth = 0;
+  for (let i = open.line; i < lines.length; i++) {
+    const line = lines[i];
+    for (let c = i === open.line ? open.column : 0; c < line.length; c++) {
+      if (line[c] === '{') depth++;
+      else if (line[c] === '}') {
+        depth--;
+        if (depth === 0) return { startLine: start + 1, endLine: i + 1 };
       }
     }
   }
