@@ -16,7 +16,7 @@
 
 import { temporal } from '@temporalio/proto';
 import { memoryS3, storeExternally } from '../__testUtils__/externalStorage';
-import { referenceOf } from './payloads';
+import { referenceOf } from './PayloadStore';
 import {
   contentTypeOf,
   decodePayloadMessage,

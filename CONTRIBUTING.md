@@ -45,6 +45,23 @@ it is hoisted: `@temporalio/common` and `@temporalio/proto` must share it,
 or External Storage fails with "type must be a Type" (other dependencies
 want protobufjs 7).
 
+## Backend layout
+
+`plugins/temporal-backend/src` has four folders; a request goes down them in
+order:
+
+| Folder          | Holds                                                                      | In clean-architecture terms |
+| --------------- | -------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Express handlers: parse and validate the request, call access and services | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups      | Authorization               |
+| `services/`     | `WorkflowQueries` and the conversions from Temporal data to API types      | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)          | Gateways                    |
+
+The API types (the model) are in `plugins/temporal-common`, and the shared
+Temporal client and extension point in `plugins/temporal-node`. The classes
+are plain; there are no interfaces or DI container inside the plugin.
+`plugin.ts` creates them and wires them together.
+
 ## Git hooks and boundary checks
 
 The `pre-commit` hook runs `scripts/check-boundaries.mjs` on the staged changes,

@@ -30,7 +30,7 @@ import type {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { decodePayloads } from './convert';
-import { mapTemporalError } from './WorkflowReader';
+import { mapTemporalError } from '../repositories/TemporalReadRepository';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
