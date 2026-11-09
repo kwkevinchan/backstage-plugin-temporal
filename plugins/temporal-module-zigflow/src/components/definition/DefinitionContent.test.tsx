@@ -178,6 +178,54 @@ describe('Definition tab', () => {
     expect(api.getEntityDefinition).not.toHaveBeenCalled();
   });
 
+  it('shows the source of a workflow written in code, with its function marked', async () => {
+    const api = mockTemporalApi();
+    const source = [
+      "import { sleep } from '@temporalio/workflow';",
+      '',
+      'export async function orderWorkflow(id: string) {',
+      '  await sleep(1);',
+      '  return id;',
+      '}',
+    ].join('\n');
+    api.getEntityDefinition.mockResolvedValue({
+      entityRef: 'temporalworkflow:default/order-workflow',
+      format: 'source',
+      target: './src/workflows.ts',
+      content: source,
+      size: source.length,
+      maxBytes: 1048576,
+      tasks: [],
+      language: 'typescript',
+      symbol: 'orderWorkflow',
+      symbolLines: { startLine: 3, endLine: 6 },
+    });
+    await render(
+      {
+        ...codeEntity,
+        spec: {
+          ...codeEntity.spec,
+          definition: { format: 'source', target: './src/workflows.ts' },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source');
+    expect(card).toHaveTextContent(
+      './src/workflows.ts · typescript · orderWorkflow, lines 3–6',
+    );
+    // The source links stay.
+    expect(
+      within(card).getByRole('link', { name: /View the file/ }),
+    ).toBeInTheDocument();
+    const code = screen.getByTestId('definition-yaml');
+    expect(code).toHaveTextContent('export async function orderWorkflow');
+    expect(
+      screen.getByRole('textbox', { name: 'Workflow source' }),
+    ).toBeInTheDocument();
+    expect(markedLines(code, 'tp-yaml-band')).toEqual([3, 4, 5, 6]);
+  });
+
   it('selects the task of a line, and the lines of a box', async () => {
     const api = mockTemporalApi();
     api.getEntityDefinition.mockResolvedValue(definition);

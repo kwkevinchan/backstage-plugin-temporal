@@ -33,6 +33,8 @@ import type { JsonObject } from '@backstage/types';
 import { isMap, isSeq, LineCounter, parseDocument } from 'yaml';
 import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-backend';
 import {
+  findSymbolLines,
+  sourceLanguageOf,
   walkDefinitionTasks,
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
@@ -204,6 +206,13 @@ export function parseDefinition(text: string): {
  * backend's URL reader, so only configured integrations (and
  * `backend.reading.allow`) are read.
  */
+/** The workflow type of a `TemporalWorkflow` entity (`spec.workflowType`). */
+function workflowTypeOf(entity: Entity): string | undefined {
+  const type = (entity.spec as { workflowType?: unknown } | undefined)
+    ?.workflowType;
+  return typeof type === 'string' ? type : undefined;
+}
+
 export class DefinitionReader {
   readonly maxBytes: number;
   private readonly reader: UrlReaderService;
@@ -390,6 +399,24 @@ export class DefinitionReader {
       };
     }
     const content = buffer.toString('utf8');
+    if (spec.format === 'source') {
+      // Source code: shown as text with the workflow's function marked.
+      const language = sourceLanguageOf(spec.target);
+      const symbol = spec.symbol ?? workflowTypeOf(entity);
+      const result: WorkflowDefinitionResponse = {
+        ...base,
+        url,
+        content,
+        size: buffer.length,
+        language,
+      };
+      if (symbol) {
+        result.symbol = symbol;
+        const lines = findSymbolLines(content, symbol, language);
+        if (lines) result.symbolLines = lines;
+      }
+      return result;
+    }
     return {
       ...base,
       url,

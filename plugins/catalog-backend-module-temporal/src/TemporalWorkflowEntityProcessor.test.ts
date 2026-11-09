@@ -86,7 +86,13 @@ describe('TemporalWorkflowEntityProcessor', () => {
         definition({ format: 'serverless-workflow', target: './order.yaml' }),
       ),
     ).resolves.toBe(true);
+    await expect(
+      processor.validateEntityKind(
+        definition({ format: 'source', target: './w.ts', symbol: 'run' }),
+      ),
+    ).resolves.toBe(true);
     for (const bad of [
+      { format: 'source', target: './w.ts', symbol: 'two words' },
       { format: 'bpmn', target: './order.bpmn' },
       { format: 'serverless-workflow' },
       { format: 'serverless-workflow', target: './a.yaml', extra: true },

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import useAsync from 'react-use/esm/useAsync';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
@@ -78,6 +78,31 @@ function locationUrl(value: string | undefined): string | undefined {
 
 /** Links to the source of a workflow written in code. */
 function SourceLinks(props: { entity: Entity }) {
+  return (
+    <div>
+      <PanelCard
+        title="Definition"
+        subtitle="This workflow is written in code. Its source:"
+        testId="definition-source-links"
+      >
+        <SourceLinkButtons
+          entity={props.entity}
+          empty={
+            <Text as="p" variant="body-medium" color="secondary">
+              The entity has no {ANNOTATION_SOURCE_LOCATION} or{' '}
+              {ANNOTATION_VIEW_URL} annotation. Add one to link the code here,
+              or add spec.definition: format source to show the code, or
+              serverless-workflow for a workflow written in YAML.
+            </Text>
+          }
+        />
+      </PanelCard>
+    </div>
+  );
+}
+
+/** The source-location and view-url links of an entity, as buttons. */
+function SourceLinkButtons(props: { entity: Entity; empty?: ReactNode }) {
   const annotations = props.entity.metadata.annotations ?? {};
   const source = locationUrl(annotations[ANNOTATION_SOURCE_LOCATION]);
   const view = annotations[ANNOTATION_VIEW_URL];
@@ -87,39 +112,81 @@ function SourceLinks(props: { entity: Entity }) {
       ? [{ label: 'View the file', href: view }]
       : []),
   ];
-  // In a block of its own, so the card is as tall as its content.
+  return links.length > 0 ? (
+    <Flex gap="2" style={{ flexWrap: 'wrap' }}>
+      {links.map(link => (
+        <ButtonLink
+          key={link.href}
+          variant="secondary"
+          size="small"
+          href={link.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          iconEnd={<RiExternalLinkLine />}
+        >
+          {link.label}
+        </ButtonLink>
+      ))}
+    </Flex>
+  ) : (
+    <>{props.empty ?? null}</>
+  );
+}
+
+/**
+ * The source code of a workflow written in code (`format: source`), with
+ * the workflow's function marked and scrolled into view.
+ */
+function SourceView(props: {
+  entity: Entity;
+  definition: WorkflowDefinitionResponse;
+}) {
+  const { definition } = props;
+  const [cursor, setCursor] = useState<number>();
+  const where = definition.url ?? definition.target;
+  let symbolText: string | undefined;
+  if (definition.symbol && definition.symbolLines) {
+    const { startLine, endLine } = definition.symbolLines;
+    symbolText = `${definition.symbol}, lines ${startLine}–${endLine}`;
+  } else if (definition.symbol) {
+    symbolText = `${definition.symbol} was not found in the file`;
+  }
   return (
-    <div>
+    <Flex direction="column" gap="3">
       <PanelCard
         title="Definition"
-        subtitle="This workflow is written in code. Its source:"
-        testId="definition-source-links"
+        subtitle="This workflow is written in code."
+        testId="definition-source"
       >
-        {links.length > 0 ? (
-          <Flex gap="2" style={{ flexWrap: 'wrap' }}>
-            {links.map(link => (
-              <ButtonLink
-                key={link.href}
-                variant="secondary"
-                size="small"
-                href={link.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                iconEnd={<RiExternalLinkLine />}
-              >
-                {link.label}
-              </ButtonLink>
-            ))}
-          </Flex>
-        ) : (
-          <Text as="p" variant="body-medium" color="secondary">
-            The entity has no {ANNOTATION_SOURCE_LOCATION} or{' '}
-            {ANNOTATION_VIEW_URL} annotation. Add one to link the code here, or
-            add spec.definition for a workflow written in YAML.
+        <Flex direction="column" gap="2">
+          <Text as="p" variant="body-small" color="secondary">
+            {[where, definition.language, symbolText]
+              .filter(Boolean)
+              .join(' · ')}
           </Text>
-        )}
+          <SourceLinkButtons entity={props.entity} />
+        </Flex>
       </PanelCard>
-    </div>
+      {definition.error ? (
+        <Alert
+          status="danger"
+          icon
+          title={errorTitle(definition.error)}
+          description={definition.error.message}
+        />
+      ) : null}
+      {definition.content !== undefined ? (
+        <YamlView
+          content={definition.content}
+          language={definition.language}
+          label="Workflow source"
+          highlight={definition.symbolLines}
+          scrollKey={definition.symbolLines ? 'symbol' : undefined}
+          cursorLine={cursor}
+          onLineSelect={setCursor}
+        />
+      ) : null}
+    </Flex>
   );
 }
 
@@ -444,6 +511,9 @@ function LoadedDefinition(props: { entity: Entity }) {
         error={state.error}
       />
     );
+  }
+  if (state.value!.format === 'source') {
+    return <SourceView entity={props.entity} definition={state.value!} />;
   }
   return <DefinitionView entityRef={entityRef} definition={state.value!} />;
 }

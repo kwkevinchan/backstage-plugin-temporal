@@ -83,7 +83,13 @@ export interface WorkflowDefinitionError {
 export interface WorkflowDefinitionResponse {
   entityRef: string;
   /** Format of the file (`spec.definition.format`). */
-  format: 'serverless-workflow';
+  format: 'serverless-workflow' | 'source';
+  /** `source`: language of the file, from its extension. */
+  language?: SourceLanguage;
+  /** `source`: the function of the workflow (`symbol`, else the type). */
+  symbol?: string;
+  /** `source`: lines of that function, when it was found in the file. */
+  symbolLines?: { startLine: number; endLine: number };
   /** `spec.definition.target` as written. */
   target: string;
   /** The URL the file was read from. */
@@ -240,4 +246,95 @@ export function walkDefinitionTasks(
   if (isObject(document) && Array.isArray(document.do)) {
     walk(document.do, ['do'], undefined, [], false, 0);
   }
+}
+
+/**
+ * Language of a source file, from the extension of its path or URL.
+ *
+ * @public
+ */
+export type SourceLanguage =
+  | 'typescript'
+  | 'javascript'
+  | 'python'
+  | 'go'
+  | 'java'
+  | 'text';
+
+/** @public */
+export function sourceLanguageOf(target: string): SourceLanguage {
+  const path = target.split(/[?#]/)[0].toLowerCase();
+  if (/\.(ts|tsx|mts|cts)$/.test(path)) return 'typescript';
+  if (/\.(js|jsx|mjs|cjs)$/.test(path)) return 'javascript';
+  if (path.endsWith('.py')) return 'python';
+  if (path.endsWith('.go')) return 'go';
+  if (path.endsWith('.java')) return 'java';
+  return 'text';
+}
+
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** A line that declares the function `name` (escaped) in `language`. */
+function declarationPattern(name: string, language: SourceLanguage): RegExp {
+  if (language === 'python') {
+    return new RegExp(`^\\s*(async\\s+)?def\\s+${name}\\s*\\(`);
+  }
+  if (language === 'go') {
+    return new RegExp(`^\\s*func\\s+(\\([^)]*\\)\\s*)?${name}\\s*[(\\[]`);
+  }
+  return new RegExp(
+    `(function\\*?\\s+${name}\\s*[<(])|((const|let|var)\\s+${name}\\s*=)|(^\\s*(public\\s+|private\\s+|protected\\s+|static\\s+|async\\s+)*${name}\\s*[<(][^;]*$)`,
+  );
+}
+
+/**
+ * The lines (from 1) of a function in a source file: where it is declared,
+ * to the line that closes it. Found by text, not by parsing: a declaration
+ * of the name (`function name`, `name = (async) (...) =>`, `def name`,
+ * `func name`, a method `name(`), then matching braces, or for Python the
+ * indented block. Undefined when the name is not found.
+ *
+ * @public
+ */
+export function findSymbolLines(
+  content: string,
+  symbol: string,
+  language: SourceLanguage,
+): { startLine: number; endLine: number } | undefined {
+  const lines = content.split('\n');
+  const name = escapeRegExp(symbol.split('.').pop()!);
+  const declaration = declarationPattern(name, language);
+  const start = lines.findIndex(line => declaration.test(line));
+  if (start < 0) return undefined;
+  if (language === 'python') {
+    const indent = lines[start].search(/\S/);
+    let end = start;
+    for (let i = start + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) continue;
+      if (line.search(/\S/) <= indent) break;
+      end = i;
+    }
+    return { startLine: start + 1, endLine: end + 1 };
+  }
+  // Braces from the declaration on; strings and comments are not skipped,
+  // which is good enough to mark the function.
+  let depth = 0;
+  let opened = false;
+  for (let i = start; i < lines.length; i++) {
+    for (const char of lines[i]) {
+      if (char === '{') {
+        depth++;
+        opened = true;
+      } else if (char === '}') {
+        depth--;
+        if (opened && depth === 0) {
+          return { startLine: start + 1, endLine: i + 1 };
+        }
+      }
+    }
+  }
+  return { startLine: start + 1, endLine: start + 1 };
 }
