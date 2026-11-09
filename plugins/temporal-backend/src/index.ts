@@ -17,16 +17,12 @@
 /**
  * Unofficial Backstage backend plugin for Temporal workflows.
  *
- * The default export is the plugin. The package also exports the shared
- * Temporal client service (`temporalServiceRef`), the extension point for
- * enrichers and custom actions (`temporalExtensionPoint`), and the
- * permissions, types and annotation constants of the plugin, for permission
- * policies and modules.
+ * The package exports only the plugin. Modules use
+ * `@kwkevinchan/backstage-plugin-temporal-node` (the Temporal client service
+ * and the extension point) and `@kwkevinchan/backstage-plugin-temporal-common`
+ * (permissions, types and annotation constants).
  *
  * @packageDocumentation
  */
 
 export { temporalPlugin as default } from './plugin';
-export * from './service/TemporalService';
-export * from './extensions';
-export * from '@kwkevinchan/backstage-plugin-temporal-common';

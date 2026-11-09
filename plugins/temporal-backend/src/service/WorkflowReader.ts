@@ -51,8 +51,8 @@ import {
   WorkflowLlmCallResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { JsonObject } from '@backstage/types';
-import { TemporalService } from './TemporalService';
-import { TemporalWorkflowEnricher } from '../extensions';
+import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { TemporalWorkflowEnricher } from '@kwkevinchan/backstage-plugin-temporal-node';
 import {
   ConvertOptions,
   decodePayloads,

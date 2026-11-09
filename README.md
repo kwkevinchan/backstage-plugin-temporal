@@ -84,6 +84,8 @@ workflow definition.
 | ---------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                               | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions and sections; `./ui` for companion packages. |
 | [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                               | backend-plugin         | Backstage backend | REST API under `/api/temporal`: read and control workflows, permission checks. Also the Temporal client service, the extension point, and the permissions and types for your policy.          |
+| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                 | common-library         | (dependency)      | Permissions, API types, annotation constants and the `TemporalWorkflow` kind. Import it in permission policies and modules.                                                                   |
+| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                     | node-library           | (dependency)      | `temporalServiceRef` (shared Temporal client) and `temporalExtensionPoint`, for backend modules.                                                                                              |
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module  | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                                   |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                 | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional).                                                                                                                   |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow) | backend-plugin-module  | Backstage backend | Reads the definition files for that tab (optional, with the module above).                                                                                                                    |
@@ -867,7 +869,7 @@ import { isPermission } from '@backstage/plugin-permission-common';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowTerminatePermission,
-} from '@kwkevinchan/backstage-plugin-temporal-backend';
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 if (
   isPermission(request.permission, temporalWorkflowTerminatePermission) ||
@@ -916,7 +918,7 @@ the entity tab and of the Workflows page. In the legacy system, pass
 
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-backend`, and custom workflow actions
+`@kwkevinchan/backstage-plugin-temporal-node`, and custom workflow actions
 with `addControlAction()`. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the

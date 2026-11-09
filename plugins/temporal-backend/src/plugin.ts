@@ -27,8 +27,8 @@ import {
   TemporalControlAction,
   temporalExtensionPoint,
   TemporalWorkflowEnricher,
-} from './extensions';
-import { temporalServiceRef } from './service/TemporalService';
+} from '@kwkevinchan/backstage-plugin-temporal-node';
+import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { createRouter } from './router';
 import { ExternalPayloads } from './service/payloads';
 import {

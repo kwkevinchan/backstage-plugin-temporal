@@ -22,7 +22,10 @@ import {
 import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { temporalExtensionPoint, TemporalWorkflowEnricher } from './extensions';
+import {
+  temporalExtensionPoint,
+  TemporalWorkflowEnricher,
+} from '@kwkevinchan/backstage-plugin-temporal-node';
 import request from 'supertest';
 import { temporalPlugin } from './plugin';
 import {

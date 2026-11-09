@@ -47,8 +47,8 @@ import {
   WorkflowDetail,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalControlAction } from './extensions';
-import { TemporalService } from './service/TemporalService';
+import { TemporalControlAction } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import express, { Request } from 'express';
 import { WorkflowController } from './service/WorkflowController';
 import { matchesSource } from './service/query';

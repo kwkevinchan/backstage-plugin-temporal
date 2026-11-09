@@ -5046,8 +5046,8 @@ __metadata:
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-node": "backstage:^"
     "@backstage/types": "backstage:^"
-    "@grpc/grpc-js": "npm:^1.12.4"
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
     "@temporalio/client": "npm:~1.24.0"
     "@temporalio/common": "npm:~1.24.0"
     "@temporalio/external-storage-s3": "npm:~1.24.0"
@@ -5109,6 +5109,22 @@ __metadata:
     react: ^18.0.0
     react-dom: ^18.0.0
     react-router-dom: ^6.0.0
+  languageName: unknown
+  linkType: soft
+
+"@kwkevinchan/backstage-plugin-temporal-node@workspace:^, @kwkevinchan/backstage-plugin-temporal-node@workspace:plugins/temporal-node":
+  version: 0.0.0-use.local
+  resolution: "@kwkevinchan/backstage-plugin-temporal-node@workspace:plugins/temporal-node"
+  dependencies:
+    "@backstage/backend-plugin-api": "backstage:^"
+    "@backstage/catalog-model": "backstage:^"
+    "@backstage/cli": "backstage:^"
+    "@backstage/config": "backstage:^"
+    "@backstage/plugin-permission-common": "backstage:^"
+    "@backstage/types": "backstage:^"
+    "@grpc/grpc-js": "npm:^1.12.4"
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@temporalio/client": "npm:~1.24.0"
   languageName: unknown
   linkType: soft
 
@@ -9914,6 +9930,7 @@ __metadata:
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
     app: "workspace:^"
     better-sqlite3: "npm:^12.0.0"
     node-gyp: "npm:^10.0.0"
