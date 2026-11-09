@@ -22,14 +22,16 @@
       "attributes": {
         "action": "read"
       },
-      "type": "basic"
+      "type": "resource",
+      "resourceType": "temporal-workflow"
     },
     {
       "name": "temporal.workflow.history.list",
       "attributes": {
         "action": "read"
       },
-      "type": "basic"
+      "type": "resource",
+      "resourceType": "temporal-workflow"
     },
     {
       "name": "temporal.workflow.start",

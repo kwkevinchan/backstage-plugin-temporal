@@ -20,6 +20,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import {
   isValidControlActionId,
+  parseTemporalWorkflowResourceRef,
   temporalPermissions,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import {
@@ -28,7 +29,10 @@ import {
   TemporalWorkflowEnricher,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { temporalAccessServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import {
+  temporalAccessServiceRef,
+  temporalWorkflowPermissionResourceRef,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
@@ -105,6 +109,21 @@ export const temporalPlugin = createBackendPlugin({
           PayloadStore.fromConfig(config, logger),
           new TemporalReadRepository(temporal),
         );
+        // Workflows as a permission resource, for the list permissions.
+        // Rules are added by modules (addPermissionRules).
+        permissionsRegistry.addResourceType({
+          resourceRef: temporalWorkflowPermissionResourceRef,
+          rules: [],
+          async getResources(resourceRefs) {
+            return Promise.all(
+              resourceRefs.map(async resourceRef => {
+                const ref = parseTemporalWorkflowResourceRef(resourceRef);
+                if (!ref) return undefined;
+                return queries.describe(ref).catch(() => undefined);
+              }),
+            );
+          },
+        });
         const controller = new WorkflowController(temporal, controlOptions);
         httpRouter.use(
           await createRouter({

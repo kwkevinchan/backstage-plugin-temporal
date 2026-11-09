@@ -20,6 +20,51 @@ import { createPermission } from '@backstage/plugin-permission-common';
 const RESOURCE_TYPE_CATALOG_ENTITY = 'catalog-entity';
 
 /**
+ * Resource type of Temporal workflows, for the permissions that do not go
+ * through a catalog entity (the Workflows page).
+ *
+ * @public
+ */
+export const RESOURCE_TYPE_TEMPORAL_WORKFLOW = 'temporal-workflow';
+
+/**
+ * The resource reference of a workflow for the `temporal-workflow` resource
+ * type: `namespace:workflowId`, or `namespace:workflowId:runId`, each part
+ * URI-encoded.
+ *
+ * @public
+ */
+export function stringifyTemporalWorkflowResourceRef(ref: {
+  namespace: string;
+  workflowId: string;
+  runId?: string;
+}): string {
+  const parts = [ref.namespace, ref.workflowId];
+  if (ref.runId) parts.push(ref.runId);
+  return parts.map(encodeURIComponent).join(':');
+}
+
+/**
+ * Parses a reference made by {@link stringifyTemporalWorkflowResourceRef}.
+ * Returns undefined when it is not one.
+ *
+ * @public
+ */
+export function parseTemporalWorkflowResourceRef(
+  resourceRef: string,
+): { namespace: string; workflowId: string; runId?: string } | undefined {
+  const parts = resourceRef.split(':');
+  if (parts.length < 2 || parts.length > 3) return undefined;
+  try {
+    const [namespace, workflowId, runId] = parts.map(decodeURIComponent);
+    if (!namespace || !workflowId) return undefined;
+    return runId ? { namespace, workflowId, runId } : { namespace, workflowId };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Read the workflow list and workflow details of an entity.
  *
  * @public
@@ -43,29 +88,33 @@ export const temporalWorkflowHistoryReadPermission = createPermission({
 });
 
 /**
- * List every workflow of a namespace on the Workflows page, and open the
+ * List the workflows of a namespace on the Workflows page, and open the
  * details and the step graph of any of them without an entity. Inputs,
  * results and the event history also need
- * {@link temporalWorkflowHistoryListPermission}. A basic permission: it does
- * not depend on a catalog entity.
+ * {@link temporalWorkflowHistoryListPermission}. A resource permission on
+ * `temporal-workflow`: a policy can allow it, deny it, or return a
+ * conditional decision with the rules of that resource type.
  *
  * @public
  */
 export const temporalWorkflowListPermission = createPermission({
   name: 'temporal.workflow.list',
   attributes: { action: 'read' },
+  resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
 });
 
 /**
  * Read the event history, inputs and results of any workflow opened without
  * an entity (from the Workflows page). Used together with
- * {@link temporalWorkflowListPermission}. A basic permission.
+ * {@link temporalWorkflowListPermission}. A resource permission on
+ * `temporal-workflow`.
  *
  * @public
  */
 export const temporalWorkflowHistoryListPermission = createPermission({
   name: 'temporal.workflow.history.list',
   attributes: { action: 'read' },
+  resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
 });
 
 function controlPermission(

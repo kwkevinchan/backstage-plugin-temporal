@@ -20,6 +20,8 @@ import {
   buildWorkflowPath,
   isTemporalAvailable,
   parseTemporalAnnotations,
+  parseTemporalWorkflowResourceRef,
+  stringifyTemporalWorkflowResourceRef,
   temporalPermissions,
 } from './index';
 
@@ -66,7 +68,7 @@ describe('temporal common', () => {
     ).toBe('/entities/component/default/x/workflows');
   });
 
-  it('defines catalog-entity permissions', () => {
+  it('defines catalog-entity and temporal-workflow permissions', () => {
     expect(
       temporalPermissions.map(p => [
         p.name,
@@ -75,8 +77,8 @@ describe('temporal common', () => {
     ).toEqual([
       ['temporal.workflow.read', 'catalog-entity'],
       ['temporal.workflow.history.read', 'catalog-entity'],
-      ['temporal.workflow.list', undefined],
-      ['temporal.workflow.history.list', undefined],
+      ['temporal.workflow.list', 'temporal-workflow'],
+      ['temporal.workflow.history.list', 'temporal-workflow'],
       ['temporal.workflow.start', 'catalog-entity'],
       ['temporal.workflow.signal', 'catalog-entity'],
       ['temporal.workflow.update', 'catalog-entity'],
@@ -84,5 +86,23 @@ describe('temporal common', () => {
       ['temporal.workflow.terminate', 'catalog-entity'],
       ['temporal.workflow.rerun', 'catalog-entity'],
     ]);
+  });
+
+  it('encodes workflow resource references reversibly', () => {
+    const ref = { namespace: 'default', workflowId: 'order:1/a', runId: 'r1' };
+    const text = stringifyTemporalWorkflowResourceRef(ref);
+    expect(text).toBe('default:order%3A1%2Fa:r1');
+    expect(parseTemporalWorkflowResourceRef(text)).toEqual(ref);
+    expect(
+      parseTemporalWorkflowResourceRef(
+        stringifyTemporalWorkflowResourceRef({
+          namespace: 'default',
+          workflowId: 'w',
+        }),
+      ),
+    ).toEqual({ namespace: 'default', workflowId: 'w' });
+    expect(parseTemporalWorkflowResourceRef('only-one')).toBeUndefined();
+    expect(parseTemporalWorkflowResourceRef('a:b:c:d')).toBeUndefined();
+    expect(parseTemporalWorkflowResourceRef(':w')).toBeUndefined();
   });
 });

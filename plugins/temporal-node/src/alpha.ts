@@ -27,11 +27,37 @@ import {
 } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
-import type {
+import { createPermissionResourceRef } from '@backstage/plugin-permission-node';
+import {
+  RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   WorkflowDetail,
   WorkflowRef,
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
+
+/**
+ * What a permission rule of the `temporal-workflow` resource type turns
+ * into for lists: a Temporal visibility query, the part after `WHERE`, for
+ * example `WorkflowType = 'orderWorkflow'`.
+ *
+ * @alpha
+ */
+export type TemporalWorkflowQuery = string;
+
+/**
+ * The `temporal-workflow` permission resource: a workflow, checked with
+ * `temporal.workflow.list` and `temporal.workflow.history.list` when it is
+ * opened without a catalog entity. Rules apply to the workflow summary and
+ * turn into a visibility query for lists. Add rules with a module of the
+ * temporal plugin and `coreServices.permissionsRegistry.addPermissionRules`.
+ *
+ * @alpha
+ */
+export const temporalWorkflowPermissionResourceRef =
+  createPermissionResourceRef<WorkflowSummary, TemporalWorkflowQuery>().with({
+    pluginId: 'temporal',
+    resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
+  });
 
 /**
  * `read` for the details and step graph of a workflow, `history` for its
@@ -80,8 +106,21 @@ export interface TemporalAccessibleWorkflow {
  * @alpha
  */
 export interface TemporalAccessService {
-  /** True when the caller may list and open every workflow. */
+  /**
+   * True when the policy allows `temporal.workflow.list` without
+   * conditions: the caller may list and open every workflow.
+   */
   canListAll(credentials: BackstageCredentials): Promise<boolean>;
+
+  /**
+   * Checks `temporal.workflow.list` for the Workflows page. Returns
+   * undefined when every workflow may be listed, or the visibility query
+   * the list must also match (a conditional decision). Throws
+   * `NotAllowedError` when the caller may not list workflows.
+   */
+  authorizeWorkflowList(
+    credentials: BackstageCredentials,
+  ): Promise<TemporalWorkflowQuery | undefined>;
 
   /** True when the caller may see the inputs and results of a workflow. */
   canReadPayloads(

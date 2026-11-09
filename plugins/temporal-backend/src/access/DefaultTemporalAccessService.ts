@@ -27,9 +27,18 @@ import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import { CatalogService } from '@backstage/plugin-catalog-node';
 import {
   AuthorizeResult,
-  BasicPermission,
+  PermissionCriteria,
+  PolicyDecision,
   ResourcePermission,
 } from '@backstage/plugin-permission-common';
+import {
+  createConditionAuthorizer,
+  createConditionTransformer,
+  isAndCriteria,
+  isNotCriteria,
+  isOrCriteria,
+  PermissionRuleset,
+} from '@backstage/plugin-permission-node';
 import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
@@ -47,6 +56,7 @@ import {
   TemporalAccessibleWorkflow,
   TemporalAccessService,
   TemporalWorkflowAccessLevel,
+  TemporalWorkflowQuery,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
 
@@ -54,6 +64,39 @@ import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
 export const MAX_RELATED_WORKFLOW_ENTITIES = 20;
 
 export type WorkflowAccessLevel = TemporalWorkflowAccessLevel;
+
+/** The rules of the `temporal-workflow` resource type. */
+export type TemporalWorkflowRuleset = PermissionRuleset<
+  WorkflowSummary,
+  TemporalWorkflowQuery,
+  'temporal-workflow'
+>;
+
+/**
+ * Turns the conditions of a decision into a visibility query: `allOf` with
+ * AND, `anyOf` with OR. Temporal's query language has no general NOT, so a
+ * `not` condition is refused.
+ */
+export function criteriaToVisibilityQuery(
+  criteria: PermissionCriteria<TemporalWorkflowQuery>,
+): TemporalWorkflowQuery {
+  if (isAndCriteria(criteria)) {
+    return criteria.allOf
+      .map(c => `(${criteriaToVisibilityQuery(c)})`)
+      .join(' AND ');
+  }
+  if (isOrCriteria(criteria)) {
+    return criteria.anyOf
+      .map(c => `(${criteriaToVisibilityQuery(c)})`)
+      .join(' OR ');
+  }
+  if (isNotCriteria(criteria)) {
+    throw new NotAllowedError(
+      'A "not" condition cannot be applied to the workflow list',
+    );
+  }
+  return criteria;
+}
 
 /**
  * Who may see and change which workflows. Every route goes through here
@@ -65,16 +108,44 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     private readonly permissions: PermissionsService,
     private readonly catalog: CatalogService,
     private readonly queries: WorkflowQueries,
+    /** The rules of `temporal-workflow`, read when a decision needs them. */
+    private readonly workflowRules: () => TemporalWorkflowRuleset,
   ) {}
 
-  private async isAllowed(
-    permission: BasicPermission,
+  private async listDecision(
+    permission:
+      | typeof temporalWorkflowListPermission
+      | typeof temporalWorkflowHistoryListPermission,
+    credentials: BackstageCredentials,
+  ): Promise<PolicyDecision> {
+    const [decision] = await this.permissions.authorizeConditional(
+      [{ permission }],
+      { credentials },
+    );
+    return decision;
+  }
+
+  /** True when a `temporal-workflow` permission allows this workflow. */
+  private async allowsWorkflow(
+    permission:
+      | typeof temporalWorkflowListPermission
+      | typeof temporalWorkflowHistoryListPermission,
+    workflow: WorkflowSummary,
     credentials: BackstageCredentials,
   ): Promise<boolean> {
-    const [decision] = await this.permissions.authorize([{ permission }], {
-      credentials,
-    });
-    return decision.result === AuthorizeResult.ALLOW;
+    const decision = await this.listDecision(permission, credentials);
+    if (decision.result !== AuthorizeResult.CONDITIONAL) {
+      return decision.result === AuthorizeResult.ALLOW;
+    }
+    try {
+      return createConditionAuthorizer(this.workflowRules())(
+        decision,
+        workflow,
+      );
+    } catch {
+      // A condition with an unknown rule allows nothing.
+      return false;
+    }
   }
 
   /** True when the caller has the permission on the entity. */
@@ -90,9 +161,36 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     return decision.result === AuthorizeResult.ALLOW;
   }
 
-  /** True when the caller may list and open every workflow. */
   async canListAll(credentials: BackstageCredentials): Promise<boolean> {
-    return this.isAllowed(temporalWorkflowListPermission, credentials);
+    const decision = await this.listDecision(
+      temporalWorkflowListPermission,
+      credentials,
+    );
+    return decision.result === AuthorizeResult.ALLOW;
+  }
+
+  async authorizeWorkflowList(
+    credentials: BackstageCredentials,
+  ): Promise<TemporalWorkflowQuery | undefined> {
+    const decision = await this.listDecision(
+      temporalWorkflowListPermission,
+      credentials,
+    );
+    if (decision.result !== AuthorizeResult.CONDITIONAL) {
+      if (decision.result === AuthorizeResult.ALLOW) return undefined;
+      throw new NotAllowedError();
+    }
+    let criteria: PermissionCriteria<TemporalWorkflowQuery>;
+    try {
+      criteria = createConditionTransformer(this.workflowRules())(
+        decision.conditions,
+      );
+    } catch (error) {
+      throw new NotAllowedError(
+        `The workflow list conditions cannot be applied: ${error}`,
+      );
+    }
+    return criteriaToVisibilityQuery(criteria);
   }
 
   /**
@@ -110,7 +208,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
           access.context.entityRef,
           credentials,
         )
-      : this.isAllowed(temporalWorkflowHistoryListPermission, credentials);
+      : this.allowsWorkflow(
+          temporalWorkflowHistoryListPermission,
+          access.workflow,
+          credentials,
+        );
   }
 
   /**
@@ -177,24 +279,27 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         : temporalWorkflowReadPermission;
     let entityRef = options.entityRef;
     let workflow: WorkflowDetail | undefined;
-    if (
-      !entityRef &&
-      (await this.canListAll(credentials)) &&
-      (level === 'read' ||
-        (await this.isAllowed(
-          temporalWorkflowHistoryListPermission,
-          credentials,
-        )))
-    ) {
-      // Opened from the Workflows page: the list permission covers every
-      // workflow of the allowed namespaces, the history list permission
-      // their history.
-      return { workflow: await this.queries.describe(ref) };
-    }
     if (!entityRef) {
-      // Without an entity in the request, the workflow's entity reference
-      // search attribute decides which entity the permission is checked on.
       workflow = await this.queries.describe(ref);
+      if (
+        (await this.allowsWorkflow(
+          temporalWorkflowListPermission,
+          workflow,
+          credentials,
+        )) &&
+        (level === 'read' ||
+          (await this.allowsWorkflow(
+            temporalWorkflowHistoryListPermission,
+            workflow,
+            credentials,
+          )))
+      ) {
+        // Opened from the Workflows page: the list permission covers the
+        // workflows it allows, the history list permission their history.
+        return { workflow };
+      }
+      // Otherwise the workflow's entity reference search attribute decides
+      // which entity the permission is checked on.
       if (!workflow.entityRef) {
         throw new NotAllowedError(
           'The workflow is not linked to a catalog entity; pass entityRef',

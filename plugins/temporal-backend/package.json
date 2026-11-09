@@ -51,6 +51,7 @@
     "@backstage/errors": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/plugin-permission-node": "backstage:^",
     "@backstage/types": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",

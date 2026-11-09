@@ -61,6 +61,7 @@
     "@backstage/catalog-model": "backstage:^",
     "@backstage/config": "backstage:^",
     "@backstage/plugin-permission-common": "backstage:^",
+    "@backstage/plugin-permission-node": "backstage:^",
     "@backstage/types": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
     "@temporalio/client": "~1.24.0"
