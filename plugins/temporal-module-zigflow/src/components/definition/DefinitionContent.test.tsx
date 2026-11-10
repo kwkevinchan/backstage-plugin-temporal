@@ -285,6 +285,21 @@ describe('Definition tab', () => {
     );
   });
 
+  it('shows the YAML and the graph full screen', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    await render(yamlEntity, api);
+    await screen.findByTestId('definition-yaml');
+    const layout = screen.getByTestId('definition-layout');
+    expect(layout).toHaveAttribute('data-fullscreen', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+    expect(layout).toHaveAttribute('data-fullscreen', 'true');
+    expect(within(layout).getByTestId('definition-yaml')).toBeInTheDocument();
+    expect(within(layout).getByTestId('definition-graph')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
+    expect(layout).toHaveAttribute('data-fullscreen', 'false');
+  });
+
   it('shows a run on top of the graph', async () => {
     const api = mockTemporalApi();
     api.getEntityDefinition.mockResolvedValue(definition);

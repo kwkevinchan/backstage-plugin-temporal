@@ -38,6 +38,45 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+/* Full screen: the YAML and the graph cover the window, each as tall as
+   it. */
+.tp-def-layout[data-fullscreen='true'] {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  box-sizing: border-box;
+  padding: var(--bui-space-4, 16px);
+  background: var(--bui-bg-neutral-1);
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+.tp-def-layout[data-fullscreen='true'] > .tp-def-source,
+.tp-def-layout[data-fullscreen='true'] > .tp-def-diagram {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tp-def-layout[data-fullscreen='true'] .tp-yaml {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tp-def-layout[data-fullscreen='true'] .tp-yaml :global(.cm-editor) {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+}
+.tp-def-layout[data-fullscreen='true'] .tp-graph-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tp-def-layout[data-fullscreen='true'] .tp-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+}
 .tp-yaml {
   position: relative;
   border: 1px solid var(--bui-border-1);

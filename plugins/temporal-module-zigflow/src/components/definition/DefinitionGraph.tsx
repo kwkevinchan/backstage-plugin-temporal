@@ -23,6 +23,7 @@ import {
   graphHeight,
   layoutSteps,
   RELAYOUT_DELAY_MS,
+  useGraphFullscreen,
   useSettledWidth,
   ViewButtons,
 } from '@kwkevinchan/backstage-plugin-temporal/ui';
@@ -99,6 +100,7 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
     [graph],
   );
 
+  const fullscreen = useGraphFullscreen();
   const minHeight = graphHeight(layout, layoutWidth ?? layout.width);
   return (
     <ReactFlowProvider>
@@ -115,7 +117,8 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
         <div
           ref={areaRef}
           className={tp('tp-graph')}
-          style={{ minHeight }}
+          // Full screen: the graph takes the height of the window instead.
+          style={fullscreen?.fullscreen ? undefined : { minHeight }}
           role="region"
           aria-label="Definition graph"
           data-testid="definition-graph"
