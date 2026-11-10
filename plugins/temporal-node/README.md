@@ -52,7 +52,8 @@ const { context, workflow } = await access.loadWorkflow(ref, {
 
 The default factory comes with the backend plugin. To decide access in
 another way, add your own `createServiceFactory` for `temporalAccessServiceRef`
-to the backend.
+to the backend: the default factory that the backend package brings is
+skipped when the backend already has one, so the two do not conflict.
 
 The permissions and types are in
 [`@kwkevinchan/backstage-plugin-temporal-common`](../temporal-common).

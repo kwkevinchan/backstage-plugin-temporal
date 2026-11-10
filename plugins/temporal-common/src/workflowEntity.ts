@@ -21,6 +21,7 @@ import {
   isValidTaskQueueName,
   isValidWorkflowTypeName,
   NAME_PATTERN_SOURCES,
+  parseTemporalAnnotations,
   TemporalAnnotations,
 } from './annotations';
 
@@ -308,4 +309,19 @@ export function getTemporalWorkflowExampleArgs(
     ?.exampleInput;
   if (value === undefined) return undefined;
   return Array.isArray(value) ? value : [value];
+}
+
+/**
+ * The workflows of an entity: the spec of a `TemporalWorkflow` entity, the
+ * annotations of any other entity. The one rule for which workflows belong
+ * to an entity, used by the backend, its modules and the frontend.
+ *
+ * @throws {@link InvalidTemporalWorkflowSpecError} or
+ * {@link InvalidTemporalAnnotationError} for a value that is not allowed.
+ * @public
+ */
+export function getTemporalWorkflowSource(entity: Entity): TemporalAnnotations {
+  return isTemporalWorkflowEntity(entity)
+    ? parseTemporalWorkflowSpec(entity)
+    : parseTemporalAnnotations(entity);
 }

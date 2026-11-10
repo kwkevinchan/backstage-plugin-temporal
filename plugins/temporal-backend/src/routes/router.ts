@@ -108,11 +108,14 @@ export async function createRouter(
 
   router.get('/workflows', async (req, res) => {
     const credentials = await httpAuth.credentials(req);
-    // Undefined, or the visibility query of a conditional decision.
-    const permissionQuery = await access.authorizeWorkflowList(credentials);
     const namespace =
       optionalString(req.query.namespace, 'namespace') ||
       queries.defaultNamespace();
+    // Undefined, or the visibility query of a conditional decision.
+    const permissionQuery = await access.authorizeWorkflowList(
+      namespace,
+      credentials,
+    );
     const result = await queries.listNamespaceWorkflows(
       namespace,
       {
@@ -160,11 +163,17 @@ export async function createRouter(
   ];
 
   router.get(workflowPaths, async (req, res) => {
-    const { credentials, context, workflow } = await loadWorkflow(req, 'read');
+    const { credentials, context, ref, workflow } = await loadWorkflow(
+      req,
+      'read',
+    );
+    // Described again by the plugin's queries, which resolve a memo stored
+    // in External Storage; the access service's copy does not.
+    const detail = await queries.describe({ ...ref, runId: workflow.runId });
     res.json(
       context
-        ? await queries.enrichDetail(workflow, context, credentials)
-        : workflow,
+        ? await queries.enrichDetail(detail, context, credentials)
+        : detail,
     );
   });
 

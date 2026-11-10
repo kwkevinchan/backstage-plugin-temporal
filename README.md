@@ -981,6 +981,12 @@ entity tab and of the Workflows page. In the legacy system, pass
 `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`.
 
+Backend modules that serve their own routes under `/api/temporal` use the
+plugin's access checks through `temporalAccessServiceRef`
+(`@kwkevinchan/backstage-plugin-temporal-node/alpha`). To decide access in
+another way, add your own factory for that ref to the backend; the default
+factory that the backend package brings is then skipped.
+
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
 `@kwkevinchan/backstage-plugin-temporal-node`, and, with the control module

@@ -31,6 +31,10 @@ temporal:
     allowedUpdates: [setPriority]
 ```
 
+The operations use the shared connection of `temporal.connection`. A
+separate connection for them will be configured under
+`temporal.control.connection` when it is added.
+
 ## Custom actions
 
 A backend module can add an action, served as `POST .../actions/:actionId`

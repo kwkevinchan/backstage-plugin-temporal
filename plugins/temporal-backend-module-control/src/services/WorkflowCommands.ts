@@ -29,6 +29,11 @@ import type {
   WorkflowStartResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+import {
+  decodeJsonPayloads,
+  encodeJsonPayloads,
+  TemporalJsonPayload,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -71,50 +76,6 @@ function mapControlError(error: unknown): never {
   throw error;
 }
 
-const JSON_ENCODING = Buffer.from('json/plain');
-
-/** Encodes JSON values as `json/plain` payloads, like the default converter. */
-export function encodeArgs(args: JsonValue[] | undefined): {
-  payloads: Payload[];
-} {
-  return {
-    payloads: (args ?? []).map(value => ({
-      metadata: { encoding: JSON_ENCODING },
-      data: Buffer.from(JSON.stringify(value)),
-    })),
-  };
-}
-
-/** The value of one payload, like the default data converter. */
-function decodePayload(payload: any): JsonValue {
-  const text = (v: unknown) =>
-    v instanceof Uint8Array ? Buffer.from(v).toString('utf8') : String(v ?? '');
-  const encoding = text(payload?.metadata?.encoding);
-  const data: Uint8Array | undefined = payload?.data;
-  if (encoding === 'binary/null') return null;
-  if (encoding === 'json/plain' || encoding === 'json/protobuf') {
-    try {
-      return JSON.parse(text(data ?? new Uint8Array())) as JsonValue;
-    } catch {
-      // described below
-    }
-  }
-  // Binary data or a payload codec (for example encryption): describe it.
-  return { encoding, size: data?.length ?? 0, undecodable: true };
-}
-
-/**
- * The value of an update result: one payload becomes its value, several an
- * array. A payload the module cannot decode is described by its encoding
- * and size.
- */
-export function decodeResult(payloads: unknown): JsonValue | undefined {
-  const list: unknown[] = (payloads as any)?.payloads ?? [];
-  if (list.length === 0) return undefined;
-  const values = list.map(decodePayload);
-  return values.length === 1 ? values[0] : values;
-}
-
 /** The message of a Temporal failure, with its causes. */
 function failureMessage(failure: any): string {
   const parts: string[] = [];
@@ -147,10 +108,8 @@ export interface StartOptions {
   identity: string;
 }
 
-interface Payload {
-  metadata: Record<string, Uint8Array>;
-  data: Uint8Array;
-}
+const JSON_ENCODING = Buffer.from('json/plain');
+type Payload = TemporalJsonPayload;
 
 function keywordAttributes(
   values: Record<string, string>,
@@ -210,7 +169,7 @@ export class WorkflowCommands {
         namespace: ref.namespace,
         workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
         signalName: name,
-        input: encodeArgs(args),
+        input: encodeJsonPayloads(args),
         identity,
         requestId: randomUUID(),
       })
@@ -238,7 +197,7 @@ export class WorkflowCommands {
         waitPolicy,
         request: {
           meta: { updateId, identity },
-          input: { name, args: encodeArgs(args) },
+          input: { name, args: encodeJsonPayloads(args) },
         },
       })
       .catch(mapControlError);
@@ -261,7 +220,7 @@ export class WorkflowCommands {
     if (outcome.failure) {
       throw new InputError(failureMessage(outcome.failure));
     }
-    return decodeResult(outcome.success);
+    return decodeJsonPayloads(outcome.success);
   }
 
   async cancel(ref: Required<WorkflowRef>, identity: string): Promise<void> {
@@ -302,7 +261,7 @@ export class WorkflowCommands {
         workflowId,
         workflowType: { name: options.workflowType },
         taskQueue: { name: options.taskQueue },
-        input: encodeArgs(options.args),
+        input: encodeJsonPayloads(options.args),
         identity: options.identity,
         requestId: randomUUID(),
         searchAttributes: {

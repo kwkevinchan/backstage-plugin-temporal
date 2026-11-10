@@ -55,15 +55,14 @@ import {
 import {
   TemporalAccessibleWorkflow,
   TemporalAccessService,
+  TemporalEntityContext,
   TemporalWorkflowAccessLevel,
   TemporalWorkflowQuery,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
-import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
+import { WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
 export const MAX_RELATED_WORKFLOW_ENTITIES = 20;
-
-export type WorkflowAccessLevel = TemporalWorkflowAccessLevel;
 
 /** The rules of the `temporal-workflow` resource type. */
 export type TemporalWorkflowRuleset = PermissionRuleset<
@@ -170,8 +169,10 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   }
 
   async authorizeWorkflowList(
+    namespace: string,
     credentials: BackstageCredentials,
   ): Promise<TemporalWorkflowQuery | undefined> {
+    this.queries.checkNamespace(namespace);
     const decision = await this.listDecision(
       temporalWorkflowListPermission,
       credentials,
@@ -243,7 +244,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     entityRef: string,
     permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
-  ): Promise<EntityContext> {
+  ): Promise<TemporalEntityContext> {
     await this.authorizeOn(permission, entityRef, credentials);
     const entity = await this.catalog.getEntityByRef(entityRef, {
       credentials,
@@ -267,7 +268,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     ref: WorkflowRef,
     options: {
       entityRef?: string;
-      level: WorkflowAccessLevel;
+      level: TemporalWorkflowAccessLevel;
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow> {
