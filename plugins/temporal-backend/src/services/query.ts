@@ -190,7 +190,7 @@ export function buildEntityWorkflowQuery(
     query = `(${query}) AND ${LATEST_RUNS}`;
   }
   if (options?.searchAttribute) {
-    query = `${query} AND ${trueAttributeCondition(options.searchAttribute)}`;
+    query = `(${query}) AND ${trueAttributeCondition(options.searchAttribute)}`;
   }
   return query;
 }

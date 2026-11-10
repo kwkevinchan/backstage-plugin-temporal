@@ -65,6 +65,11 @@ export class TemporalPluginClient {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    if (response.status === 401) {
+      throw new Error(
+        'The Temporal plugin refused the credentials of the user who runs the template; their token may have expired (it lasts about an hour from when the task was created)',
+      );
+    }
     if (!response.ok) throw await ResponseError.fromResponse(response);
     const text = await response.text();
     return (text ? JSON.parse(text) : undefined) as T;

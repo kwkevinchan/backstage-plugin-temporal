@@ -97,6 +97,18 @@ export function TemporalWorkflowPicker(
     };
   }, [api, entityRef, workflowType, namespace, status, searchAttribute]);
 
+  // A value that is no longer offered (it closed, or the options changed)
+  // is cleared, so the form does not send a workflow the user cannot see.
+  useEffect(() => {
+    if (
+      workflows &&
+      formData &&
+      !workflows.some(w => w.workflowId === formData)
+    ) {
+      onChange(undefined);
+    }
+  }, [workflows, formData, onChange]);
+
   const label = schema.title ?? 'Workflow';
   let help = schema.description;
   if (error) help = `The workflows could not be listed: ${error.message}`;

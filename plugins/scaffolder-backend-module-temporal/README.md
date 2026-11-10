@@ -21,7 +21,11 @@ The actions call the routes of the Temporal backend plugin **as the user who
 runs the template**, so its permission checks, audit records and search
 attributes (`entityRef`, `initiator`) apply as when the user uses the pages.
 Starting, signals and updates need the control module
-(`@kwkevinchan/backstage-plugin-temporal-backend-module-control`).
+(`@kwkevinchan/backstage-plugin-temporal-backend-module-control`). A task
+started with service credentials (not by a user) runs as that service, and
+permission policies usually allow services everything. The user's token
+lasts about an hour from when the task is created, so `wait` is limited to
+3600 seconds.
 
 ## Actions
 

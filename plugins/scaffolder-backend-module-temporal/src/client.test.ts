@@ -79,6 +79,55 @@ describe('TemporalPluginClient', () => {
     );
   });
 
+  it('starts any workflow type without an entity', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ namespace: 'n', workflowId: 'w', runId: 'r' }),
+      ),
+    );
+    const { c } = client();
+    await c.start(
+      { workflowType: 'orderWorkflow', taskQueue: 'orders', namespace: 'n' },
+      mockCredentials.user(),
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://backend/api/temporal/workflows');
+    expect(JSON.parse(init.body)).toEqual({
+      workflowType: 'orderWorkflow',
+      taskQueue: 'orders',
+      namespace: 'n',
+    });
+  });
+
+  it('reads the steps of a run for its result', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ result: 'ok', activities: [] })),
+    );
+    const { c } = client();
+    const steps = await c.steps(
+      { namespace: 'default', workflowId: 'w', runId: 'r' },
+      undefined,
+      mockCredentials.user(),
+    );
+    expect(steps.result).toBe('ok');
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://backend/api/temporal/namespaces/default/workflows/w/runs/r/steps',
+    );
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+  });
+
+  it('says when the token of the user has expired', async () => {
+    fetchMock.mockResolvedValue(new Response('', { status: 401 }));
+    const { c } = client();
+    await expect(
+      c.describe(
+        { namespace: 'default', workflowId: 'w' },
+        undefined,
+        mockCredentials.user(),
+      ),
+    ).rejects.toThrow(/token may have expired/);
+  });
+
   it('throws the error of the backend', async () => {
     fetchMock.mockResolvedValue(
       new Response(

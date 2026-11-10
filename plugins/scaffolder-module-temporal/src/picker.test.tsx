@@ -29,10 +29,10 @@ const workflow = (workflowId: string) => ({
   startTime: '2026-11-10T12:00:00.000Z',
 });
 
-async function render(uiOptions: object, api: object) {
+async function render(uiOptions: object, api: object, value?: string) {
   const onChange = jest.fn();
   const props: any = {
-    formData: undefined,
+    formData: value,
     onChange,
     schema: { title: 'Release to approve', type: 'string' },
     uiSchema: { 'ui:options': uiOptions },
@@ -91,6 +91,21 @@ describe('TemporalWorkflowPicker', () => {
       pageSize: 50,
     });
     expect(await screen.findByText('No workflow matches.')).toBeInTheDocument();
+  });
+
+  it('clears a value that is no longer offered', async () => {
+    const api = {
+      listEntityWorkflows: jest
+        .fn()
+        .mockResolvedValue({ items: [workflow('release-1')] }),
+      listWorkflows: jest.fn(),
+    };
+    const { onChange } = await render(
+      { entityRef: 'temporalworkflow:default/demo-release' },
+      api,
+      'release-gone',
+    );
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(undefined));
   });
 
   it('says when the workflows cannot be listed', async () => {

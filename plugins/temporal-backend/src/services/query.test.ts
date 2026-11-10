@@ -166,7 +166,20 @@ describe('the search attribute filter', () => {
         },
         { searchAttribute: 'ApprovalPending' },
       ),
-    ).toBe("WorkflowType = 'demoRelease' AND ApprovalPending = true");
+    ).toBe("(WorkflowType = 'demoRelease') AND ApprovalPending = true");
+    // With several alternatives and every run, the filter applies to all.
+    expect(
+      buildEntityWorkflowQuery(
+        {
+          annotations: { workflowTypes: ['demoRelease'] },
+          entityRef: 'component:default/release',
+          entityRefAttribute: 'BackstageEntityRef',
+        },
+        { searchAttribute: 'ApprovalPending', allRuns: true },
+      ),
+    ).toBe(
+      "((WorkflowType = 'demoRelease') OR (BackstageEntityRef = 'component:default/release')) AND ApprovalPending = true",
+    );
   });
 
   it('rejects names that are not search attribute names', () => {

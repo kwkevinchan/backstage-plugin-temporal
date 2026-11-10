@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { parseEntityRef } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import type { JsonValue } from '@backstage/types';
@@ -178,6 +179,14 @@ export function createTemporalWorkflowStartAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
+      // Without a workflow ID, one from the task and the step: a retry that
+      // runs again after the start (before the checkpoint was kept) is
+      // refused by Temporal instead of starting a second workflow.
+      const id =
+        workflowId ??
+        `${workflowType ?? parseEntityRef(entityRef!).name}-${ctx.task.id}${
+          ctx.step?.id ? `-${ctx.step.id}` : ''
+        }`;
       // A retried task does not start the workflow again.
       const started = await ctx.checkpoint({
         key: `temporal.start.${ctx.step?.id ?? 'start'}`,
@@ -188,7 +197,7 @@ export function createTemporalWorkflowStartAction(
               workflowType,
               taskQueue,
               namespace: entityRef ? undefined : namespace,
-              workflowId,
+              workflowId: id,
               args,
             },
             credentials,
@@ -233,9 +242,11 @@ export function createTemporalWorkflowWaitAction(
             .number()
             .int()
             .positive()
-            .max(86400)
+            .max(3600)
             .optional()
-            .describe('How long to wait; 600 seconds by default'),
+            .describe(
+              'How long to wait, at most 3600 seconds (the token of the user who runs the template expires); 600 seconds by default',
+            ),
         intervalSeconds: z =>
           z
             .number()
@@ -268,7 +279,7 @@ export function createTemporalWorkflowWaitAction(
     },
     async handler(ctx) {
       const { input } = ctx;
-      const ref: WorkflowRef = {
+      let ref: WorkflowRef = {
         namespace: input.namespace ?? DEFAULT_NAMESPACE,
         workflowId: input.workflowId,
         ...(input.runId ? { runId: input.runId } : {}),
@@ -291,6 +302,11 @@ export function createTemporalWorkflowWaitAction(
         const attribute = input.untilSearchAttribute
           ? workflow.searchAttributes?.[input.untilSearchAttribute]
           : undefined;
+        if (workflow.status === 'ContinuedAsNew' && ref.runId) {
+          // The run continued as new: follow the latest run.
+          ref = { namespace: ref.namespace, workflowId: ref.workflowId };
+          continue;
+        }
         const closed = workflow.status !== 'Running';
         if (attribute === true || closed) {
           ctx.output('status', workflow.status);
@@ -323,14 +339,16 @@ export function createTemporalWorkflowWaitAction(
           ctx.logger.info(`${input.workflowId} closed as ${workflow.status}`);
           return;
         }
-        if (Date.now() + intervalMs > deadline) {
+        const left = deadline - Date.now();
+        if (left <= 0) {
           throw new Error(
             `Workflow ${input.workflowId} is still running after ${
               timeoutMs / 1000
             } seconds`,
           );
         }
-        await sleep(intervalMs, ctx.signal);
+        // The last look is at the deadline.
+        await sleep(Math.min(intervalMs, left), ctx.signal);
       }
     },
   });

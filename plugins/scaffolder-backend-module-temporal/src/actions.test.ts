@@ -68,6 +68,8 @@ describe('temporal:workflow:start', () => {
         entityRef: 'temporalworkflow:default/release',
         args: [{ service: 'orders' }],
         namespace: undefined,
+        // From the task and the step, so a retry cannot start a second one.
+        workflowId: `release-${ctx.task.id}-${ctx.step!.id}`,
       }),
       user,
     );
@@ -171,10 +173,40 @@ describe('temporal:workflow:wait', () => {
         context({
           workflowId: 'release-1',
           timeoutSeconds: 1,
-          intervalSeconds: 5,
+          intervalSeconds: 1,
         }),
       ),
     ).rejects.toThrow('still running after 1 seconds');
+  });
+});
+
+describe('temporal:workflow:wait across runs', () => {
+  it('follows the latest run when the given run continued as new', async () => {
+    const { client, options } = setup();
+    client.describe
+      .mockResolvedValueOnce({ status: 'ContinuedAsNew', runId: 'run-1' })
+      .mockResolvedValueOnce({ status: 'Completed', runId: 'run-2' });
+    const ctx = context({ workflowId: 'long-1', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(client.describe.mock.calls[1][0]).toEqual({
+      namespace: 'default',
+      workflowId: 'long-1',
+    });
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-2');
+  });
+
+  it('looks a last time at the deadline', async () => {
+    const { client, options } = setup();
+    client.describe
+      .mockResolvedValueOnce({ status: 'Running', runId: 'r' })
+      .mockResolvedValueOnce({ status: 'Completed', runId: 'r' });
+    const ctx = context({
+      workflowId: 'w',
+      timeoutSeconds: 1,
+      intervalSeconds: 5,
+    });
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(client.describe).toHaveBeenCalledTimes(2);
   });
 });
 
