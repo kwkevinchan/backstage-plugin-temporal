@@ -19,6 +19,28 @@ discuss larger changes before sending a pull request.
    `yarn changeset` and describe the change for users.
 6. Open a pull request against `main`.
 
+## Releasing
+
+Releases are cut by the maintainer from `main`, with
+[changesets](https://github.com/changesets/changesets). The first release
+takes every published package from `0.0.0` to `0.1.0`.
+
+1. `yarn changeset version`: bumps the versions, updates the internal
+   dependency ranges and writes the changelogs. Review and commit the result
+   in a pull request.
+2. On the merged `main`: `yarn install --immutable`, then
+   `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
+3. Check what each package will contain:
+   `yarn workspace <package> pack --dry-run`. Every package must contain
+   `dist/`, its `README.md`, `LICENSE` and, where it has one, `config.d.ts`.
+   Its `package.json` must point `main`/`types` (and `exports`) at `dist/`.
+4. `npm login` (with two-factor authentication), then
+   `yarn changeset publish` and `git push --follow-tags`.
+
+Private packages (`"private": true`) are not published. At the moment that
+is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI
+views (`temporal.experimental.aiWorkflows`) and will be released with them.
+
 ## Shared definitions
 
 The permissions, types, annotation constants, API paths and the
