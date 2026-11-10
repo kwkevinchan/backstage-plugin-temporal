@@ -68,5 +68,5 @@ export interface TemporalExtensionPoint {
  */
 export const temporalExtensionPoint =
   createExtensionPoint<TemporalExtensionPoint>({
-    id: 'temporal.extensions',
+    id: 'temporal.workflow-enrichers',
   });

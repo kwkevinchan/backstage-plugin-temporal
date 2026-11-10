@@ -40,14 +40,14 @@ import {
 import { TemporalControlClient, temporalControlApiRef } from './api';
 import {
   ControlActionButton,
-  TemporalControlActionButton,
+  TemporalControlActionButtonOptions,
 } from './components/ControlActionButton';
 import { StartWorkflowButton } from './components/StartWorkflow';
 import { WorkflowControls } from './components/WorkflowControls';
 
 export { TemporalControlClient, temporalControlApiRef } from './api';
 export type { TemporalControlApi } from './api';
-export type { TemporalControlActionButton } from './components/ControlActionButton';
+export type { TemporalControlActionButtonOptions } from './components/ControlActionButton';
 
 /**
  * Factory of {@link TemporalControlApi} for the `apis` of a legacy app.
@@ -95,7 +95,7 @@ export const temporalControlListActions: TemporalWorkflowListActionDef[] = [
  * @public
  */
 export function createTemporalControlActionDef(
-  options: TemporalControlActionButton & {
+  options: TemporalControlActionButtonOptions & {
     /** Defaults to the action ID. */
     id?: string;
     filter?: (workflow: WorkflowDetail) => boolean;

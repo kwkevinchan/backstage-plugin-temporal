@@ -1,13 +1,11 @@
 ---
 '@kwkevinchan/backstage-plugin-temporal-node': minor
-'@kwkevinchan/backstage-plugin-temporal-backend': minor
-'@kwkevinchan/backstage-plugin-catalog-backend-module-temporal': patch
-'@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow': patch
 ---
 
-First release of the node package: `temporalServiceRef` (the shared Temporal
-client) and `temporalExtensionPoint` for backend modules. The backend plugin
-now exports only the plugin; import the service and the extension point from
-`@kwkevinchan/backstage-plugin-temporal-node`, and the permissions and types
-from `@kwkevinchan/backstage-plugin-temporal-common`.
-`TemporalWorkflowEnricherContext.entity` is optional.
+First release of the node package, for backend modules:
+`temporalServiceRef` (the shared Temporal client, with bearer token
+authentication) and `temporalExtensionPoint` (workflow enrichers). The
+`./alpha` entry point has `temporalAccessServiceRef` (the access checks of the
+plugin, plugin-scoped and replaceable), `temporalWorkflowPermissionResourceRef`
+and `temporalControlExtensionPoint` (custom control actions). A new major of
+`@temporalio/client` is a new major of this package.

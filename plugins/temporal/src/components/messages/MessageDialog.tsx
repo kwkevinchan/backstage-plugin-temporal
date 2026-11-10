@@ -67,10 +67,6 @@ export function useWorkflowHandlers(
   const { namespace, workflowId, runId } = ref;
   useEffect(() => {
     if (!enabled) return undefined;
-    if (!api.getWorkflowHandlers) {
-      setValue(NO_HANDLERS);
-      return undefined;
-    }
     let current = true;
     api
       .getWorkflowHandlers({ namespace, workflowId, runId }, { entityRef })

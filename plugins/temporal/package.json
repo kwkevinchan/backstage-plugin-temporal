@@ -1,7 +1,7 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal",
   "version": "0.0.0",
-  "description": "Unofficial Backstage frontend plugin for Temporal workflows, with the extension points and blueprints for workflow actions and sections",
+  "description": "Unofficial Backstage frontend plugin for Temporal workflows, with the extension points and blueprints for workflow actions, list actions and sections",
   "license": "Apache-2.0",
   "keywords": [
     "backstage",

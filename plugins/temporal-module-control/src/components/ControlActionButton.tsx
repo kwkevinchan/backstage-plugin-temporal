@@ -48,7 +48,7 @@ import { useTemporalControlApi } from '../api';
  *
  * @public
  */
-export interface TemporalControlActionButton {
+export interface TemporalControlActionButtonOptions {
   /** ID of the backend action. */
   actionId: string;
   /** Button label. */
@@ -94,7 +94,7 @@ function PermissionGate(props: {
  */
 export function ControlActionButton(
   props: TemporalWorkflowExtensionProps & {
-    action: TemporalControlActionButton;
+    action: TemporalControlActionButtonOptions;
   },
 ) {
   const { action, workflow, entity } = props;

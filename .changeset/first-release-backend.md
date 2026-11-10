@@ -2,7 +2,8 @@
 '@kwkevinchan/backstage-plugin-temporal-backend': minor
 ---
 
-First release of the backend plugin.
+First release of the backend plugin. It reads; the operations that change
+workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
 
 - Permission-checked routes for the workflows of an entity and of the
   Workflows page: lists, details, the step graph, progress, loops, the event
@@ -15,11 +16,13 @@ First release of the backend plugin.
   tools, reasoning), and `GET .../llm-calls/:eventId` returns the full
   record (OpenTelemetry GenAI attributes), also from S3, with the history
   permission.
-- Controls (start, signal, update, query, cancel, terminate, rerun),
-  recorded with the auditor and limited with `temporal.control`.
-- The shared Temporal client service (`temporalServiceRef`, with bearer
-  token authentication) and `temporalExtensionPoint` for enrichers and
-  custom control actions of backend modules.
-- The permissions (`temporalPermissions`), the types and the annotation
-  constants of the plugin, for permission policies and modules.
+- Queries (`POST .../query`, with `temporal.workflow.query`, recorded with
+  the auditor) and `GET .../handlers`, the signals, updates and queries a
+  workflow defines.
+- The `temporal-workflow` permission resource type: `temporal.workflow.list`
+  and `temporal.workflow.history.list` are checked with `authorizeConditional`,
+  and conditions from rules that modules add become a Temporal visibility
+  query for the Workflows page.
+- The default export installs the plugin with the default factory of
+  `temporalAccessServiceRef`; a backend can add its own factory instead.
 - Graph steps carry the summary of their event (Temporal user metadata).
