@@ -481,7 +481,7 @@ function GraphToolbar(props: {
  * running steps pulse, waiting steps are dashed and retried activities show
  * their attempt. The graph opens at a readable size, starting at its first
  * step; long runs wrap into rows, the rest can be panned to, and
- * "Whole graph" zooms out to show every step.
+ * the fit view control zooms out to show every step.
  */
 export function WorkflowGraph(props: WorkflowGraphProps) {
   const showMarkers = props.showMarkers ?? false;

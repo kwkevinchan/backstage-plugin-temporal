@@ -167,7 +167,7 @@ const graphButtons = () =>
   within(screen.getByTestId('workflow-graph'))
     .getAllByRole('button')
     .map(b => b.getAttribute('aria-label'))
-    .filter(label => label && !/zoom/i.test(label));
+    .filter(label => label && !/zoom|fit view/i.test(label));
 
 describe('loops on the workflow page', () => {
   it('collapses the loop and expands it into a frame per round', async () => {

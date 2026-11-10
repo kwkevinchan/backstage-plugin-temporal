@@ -275,7 +275,12 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
       <Background gap={20} size={1} />
       <Controls
         showInteractive={false}
-        showFitView={false}
+        fitViewOptions={{
+          padding: 0.05,
+          minZoom: MIN_ZOOM,
+          maxZoom: 1,
+          duration: 200,
+        }}
         orientation="horizontal"
         position="bottom-right"
       />
@@ -348,74 +353,25 @@ export function useGraphFullscreen(): GraphFullscreen | undefined {
 }
 
 /**
- * "Readable size" (the view the graph opens with, the selected box in
- * view), "Whole graph" (zoomed out to every box) and, in an area that can
- * go full screen, "Full screen".
+ * "Full screen", in an area that can go full screen. Zooming is with the
+ * graph's own controls (zoom in, zoom out, fit the whole graph); the graph
+ * opens at a readable size.
  */
-export function ViewButtons(props: {
-  layout: StepLayout;
+export function ViewButtons(_props: {
+  layout?: StepLayout;
   selectedId?: string;
 }) {
-  const { layout, selectedId } = props;
-  const flow = useReactFlow();
   const fullscreen = useGraphFullscreen();
-  const width = useStore(s => s.width);
-  const height = useStore(s => s.height);
+  if (!fullscreen) return null;
   return (
-    <>
-      <Button
-        size="small"
-        variant="secondary"
-        onPress={() => {
-          const canvas = { width, height };
-          const view = initialViewport(layout, canvas);
-          const position = selectedId
-            ? layout.positions.get(selectedId)
-            : undefined;
-          flow.setViewport(
-            keepInGraph(
-              position && selectedId
-                ? panIntoView(
-                    view,
-                    position,
-                    canvas,
-                    boxSize(layout, selectedId),
-                  )
-                : view,
-              layout,
-              canvas,
-            ),
-            { duration: 200 },
-          );
-        }}
-      >
-        Readable size
-      </Button>
-      <Button
-        size="small"
-        variant="secondary"
-        onPress={() =>
-          flow.fitView({
-            padding: 0.05,
-            minZoom: MIN_ZOOM,
-            maxZoom: 1,
-            duration: 200,
-          })
-        }
-      >
-        Whole graph
-      </Button>
-      {fullscreen && (
-        <Button
-          size="small"
-          variant="secondary"
-          aria-pressed={fullscreen.fullscreen}
-          onPress={fullscreen.toggle}
-        >
-          {fullscreen.fullscreen ? 'Exit full screen' : 'Full screen'}
-        </Button>
-      )}
-    </>
+    <Button
+      size="small"
+      variant="secondary"
+      aria-pressed={fullscreen.fullscreen}
+      onPress={fullscreen.toggle}
+    >
+      {fullscreen.fullscreen ? 'Exit full screen' : 'Full screen'}
+    </Button>
   );
 }
 
