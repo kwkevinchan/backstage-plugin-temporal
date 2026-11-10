@@ -16,7 +16,6 @@
 
 import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
 import {
@@ -39,7 +38,7 @@ import {
   WithReason,
 } from '@kwkevinchan/backstage-plugin-temporal/ui';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalControlApiRef } from '../api';
+import { useTemporalControlApi } from '../api';
 
 /**
  * A button on the workflow details page that runs a custom action of the
@@ -100,7 +99,7 @@ export function ControlActionButton(
 ) {
   const { action, workflow, entity } = props;
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
-  const api = useApi(temporalControlApiRef);
+  const api = useTemporalControlApi();
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();

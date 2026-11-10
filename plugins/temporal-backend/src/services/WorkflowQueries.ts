@@ -900,8 +900,9 @@ export class WorkflowQueries {
 
   /**
    * The signals, updates and queries a workflow defines, from the metadata
-   * query of the Temporal SDKs. Empty lists when no worker answers in time
-   * or the workflow does not answer it.
+   * query of the Temporal SDKs. Closed runs answer too while a worker of
+   * their task queue runs (the Query dialog needs the query names). Empty
+   * lists when no worker answers in time or the workflow does not answer it.
    */
   async handlers(workflow: WorkflowDetail): Promise<WorkflowHandlersResponse> {
     const empty: WorkflowHandlersResponse = {
@@ -909,7 +910,6 @@ export class WorkflowQueries {
       updates: [],
       queries: [],
     };
-    if (workflow.status !== 'Running') return empty;
     try {
       const response = await this.temporalReads.query(
         workflow,

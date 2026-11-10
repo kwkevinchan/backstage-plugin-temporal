@@ -62,7 +62,7 @@ import {
   temporalControlWorkflowActions,
 } from '@kwkevinchan/backstage-plugin-temporal-module-control';
 
-// apis.ts
+// apis.ts, optional: without it the buttons use the default client
 export const apis = [/* ... */ temporalControlApiFactory];
 
 const workflowActions = [

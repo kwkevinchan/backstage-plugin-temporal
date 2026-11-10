@@ -18,7 +18,11 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
 import type { Entity } from '@backstage/catalog-model';
-import { configApiRef } from '@backstage/core-plugin-api';
+import {
+  configApiRef,
+  discoveryApiRef,
+  fetchApiRef,
+} from '@backstage/core-plugin-api';
 import {
   mockApis,
   renderInTestApp,
@@ -300,6 +304,39 @@ describe('WorkflowControls', () => {
       await screen.findByText('Opened order-1-rerun-abc'),
     ).toBeInTheDocument();
     expect(api.rerunWorkflow).toHaveBeenCalledWith(ref, {}, { entityRef });
+  });
+});
+
+describe('without a registered control API', () => {
+  it('calls the backend with its own client (legacy apps)', async () => {
+    const fetch = jest.fn(async () => new Response('{}', { status: 200 }));
+    denied = [];
+    renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [discoveryApiRef, mockApis.discovery()],
+          [fetchApiRef, { fetch }],
+          [configApiRef, mockApis.config()],
+          [temporalApiRef, {} as any],
+        ]}
+      >
+        <WorkflowControls
+          workflow={running}
+          entity={entity}
+          reload={jest.fn()}
+        />
+      </TestApiProvider>,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cancel' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel workflow' }),
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(String((fetch.mock.calls[0] as any[])[0])).toMatch(
+      /\/workflows\/payment-1\/runs\/run-2\/cancel\?entityRef=component%3Adefault%2Forders$/,
+    );
   });
 });
 

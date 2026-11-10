@@ -51,6 +51,7 @@ export type { TemporalControlActionButton } from './components/ControlActionButt
 
 /**
  * Factory of {@link TemporalControlApi} for the `apis` of a legacy app.
+ * Optional: without a registered API the buttons use the default client.
  *
  * @public
  */

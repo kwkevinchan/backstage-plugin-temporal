@@ -17,7 +17,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
 import {
   Button,
   Dialog,
@@ -44,7 +43,7 @@ import {
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalControlApiRef } from '../api';
+import { useTemporalControlApi } from '../api';
 import { useControlConfig } from './config';
 
 type MessageKind = 'signal' | 'update';
@@ -139,7 +138,7 @@ function ConfirmDialog(props: {
  */
 export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
   const { workflow, entity, reload } = props;
-  const api = useApi(temporalControlApiRef);
+  const api = useTemporalControlApi();
   const navigate = useNavigate();
   const config = useControlConfig();
   const [open, setOpen] = useState<Open>();

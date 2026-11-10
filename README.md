@@ -293,9 +293,10 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 ```
 
 With the backend control module, add the frontend control module
-(`yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-control`):
-its API factory goes to `apis.ts`, its buttons to the props of the entity
-tab and the Workflows page.
+(`yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-control`)
+and pass its buttons to the props of the entity tab and the Workflows page.
+Its API factory in `apis.ts` is optional: without it the buttons use the
+default client.
 
 ```tsx
 import {
@@ -304,7 +305,7 @@ import {
   temporalControlWorkflowActions,
 } from '@kwkevinchan/backstage-plugin-temporal-module-control';
 
-// apis.ts
+// apis.ts, optional: without it the buttons use the default client
 export const apis = [/* ... */ temporalControlApiFactory];
 
 <EntityTemporalContent

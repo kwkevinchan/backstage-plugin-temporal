@@ -72,7 +72,6 @@
   "devDependencies": {
     "@backstage/cli": "backstage:^",
     "@backstage/frontend-test-utils": "backstage:^",
-    "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/plugin-permission-react": "backstage:^",
     "@backstage/test-utils": "backstage:^",
     "@testing-library/jest-dom": "^6.0.0",

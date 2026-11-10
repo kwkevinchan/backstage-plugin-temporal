@@ -145,7 +145,7 @@ export interface WorkflowHandler {
 }
 
 /**
- * The handlers of a running workflow, from the metadata query of the
+ * The handlers of a workflow, from the metadata query of the
  * Temporal SDKs (`GET .../handlers`). Empty when no worker answers it.
  * Names starting with `__` (the SDKs' own) are left out.
  *

@@ -17,7 +17,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
 import {
   Button,
   Dialog,
@@ -46,7 +45,7 @@ import {
   temporalWorkflowStartPermission,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalControlApiRef } from '../api';
+import { useTemporalControlApi } from '../api';
 
 function specOf(entity: Entity | undefined) {
   if (!entity) return undefined;
@@ -63,7 +62,7 @@ function StartWorkflowDialog(props: {
   onStarted(ref: Required<WorkflowRef>): void;
 }) {
   const { entity } = props;
-  const api = useApi(temporalControlApiRef);
+  const api = useTemporalControlApi();
   const spec = specOf(entity);
   const example = entity ? getTemporalWorkflowExampleArgs(entity) : undefined;
   const [workflowId, setWorkflowId] = useState('');

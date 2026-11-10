@@ -168,9 +168,9 @@ export interface TemporalApi {
   ): Promise<WorkflowMessageResponse>;
 
   /**
-   * Lists the signals, updates and queries a running workflow defines, from
-   * the metadata query of the Temporal SDKs. Empty when the workflow is not
-   * running or no worker answers. Optional, so other implementations of
+   * Lists the signals, updates and queries a workflow defines, from the
+   * metadata query of the Temporal SDKs. Closed runs answer too while a
+   * worker of their task queue runs; empty when no worker answers. Optional, so other implementations of
    * this API keep working; without it the dialogs ask for a name.
    */
   getWorkflowHandlers?(

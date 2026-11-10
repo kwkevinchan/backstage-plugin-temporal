@@ -144,6 +144,22 @@ describe('query routes of the core plugin', () => {
     });
   });
 
+  it('lists the handlers of a closed run, for the Query dialog', async () => {
+    const { server, workflowService } = await start();
+    workflowService.describeWorkflowExecution.mockImplementation(
+      async (req: any) => ({
+        workflowExecutionInfo: executionInfo({
+          workflowId: req.execution.workflowId,
+          status: 'WORKFLOW_EXECUTION_STATUS_COMPLETED',
+        }),
+        pendingActivities: [],
+      }),
+    );
+    const res = await request(server).get(`${wf}/handlers${withEntity}`);
+    expect(res.status).toBe(200);
+    expect(res.body.queries).toEqual([{ name: 'state' }]);
+  });
+
   it('lists no handlers when no worker answers', async () => {
     const { server, workflowService } = await start();
     workflowService.queryWorkflow.mockRejectedValue(
