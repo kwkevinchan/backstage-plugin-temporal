@@ -40,7 +40,7 @@ import:
 
 - `@kwkevinchan/backstage-plugin-temporal-node`: `temporalServiceRef`, a
   root-scoped service with one shared Temporal connection, configured under
-  `temporal.connection` (address, namespaces, `auth` with `none` or
+  `temporal.connection` (address, namespaces, `tls`, `auth` with `none` or
   `bearer`; only `@temporalio/client` is used), and `temporalExtensionPoint`:
   `addWorkflowEnricher()` adds data to workflow summaries. Custom workflow
   actions come with the control module.

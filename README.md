@@ -1188,8 +1188,8 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
   role on the namespaces in `connection.namespaces` (plus the write role if
   you use the operations); the S3 key only needs `s3:GetObject` on the
   payload bucket. List only the namespaces Backstage should see.
-- **TLS is off by default.** Without `connection.tls: true`, `auth.type:
-bearer` sends the token without TLS, for a Temporal server inside a
+- **TLS is off by default.** Without `connection.tls: true`, a bearer token
+  (`auth.type: bearer`) is sent without TLS, for a Temporal server inside a
   private network. Turn TLS on for any server across an untrusted network.
 - **Operations are recorded.** Every operation is checked with the
   permission framework and recorded with the auditor, and the Temporal

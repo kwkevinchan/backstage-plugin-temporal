@@ -5,7 +5,7 @@ for backend modules:
 
 - `temporalServiceRef`: a root-scoped service with one shared Temporal
   connection, configured under `temporal.connection` (address, namespaces,
-  `auth` with `none` or `bearer`). It gives a `Client` per namespace.
+  `tls`, `auth` with `none` or `bearer`). It gives a `Client` per namespace.
 - `temporalExtensionPoint`: `addWorkflowEnricher()` adds data to workflow
   summaries. Custom workflow actions use `temporalControlExtensionPoint`
   from `/alpha`, available with the control module.
