@@ -114,6 +114,9 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
   });
 }
 
+/** How many parents up a child workflow is looked for in an entity. */
+export const MAX_PARENT_DEPTH = 3;
+
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
 
@@ -489,14 +492,36 @@ export class WorkflowQueries {
   }
 
   /** Throws NotFoundError unless the workflow belongs to the entity. */
-  assertBelongs(workflow: WorkflowSummary, context: TemporalEntityContext) {
-    if (
-      workflow.namespace !== context.namespace ||
-      !workflowBelongsToEntity(workflow, this.filterOf(context))
-    ) {
-      throw new NotFoundError(
-        `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,
-      );
+  /**
+   * Checks that a workflow is one of the entity's, or a child workflow (up
+   * to MAX_PARENT_DEPTH levels) of one of them: a child is part of its
+   * parent's work, so it is opened and checked with the parent's entity.
+   */
+  async assertBelongs(
+    workflow: WorkflowDetail,
+    context: TemporalEntityContext,
+  ): Promise<void> {
+    const filter = this.filterOf(context);
+    let current: WorkflowDetail = workflow;
+    for (let depth = 0; ; depth += 1) {
+      if (
+        current.namespace === context.namespace &&
+        workflowBelongsToEntity(current, filter)
+      ) {
+        return;
+      }
+      if (!current.parent?.workflowId || depth >= MAX_PARENT_DEPTH) {
+        throw new NotFoundError(
+          `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,
+        );
+      }
+      // Child workflows run in the namespace of their parent here; the
+      // parent's namespace in describe is an ID, not a name.
+      current = await this.describe({
+        namespace: workflow.namespace,
+        workflowId: current.parent.workflowId,
+        runId: current.parent.runId,
+      });
     }
   }
 

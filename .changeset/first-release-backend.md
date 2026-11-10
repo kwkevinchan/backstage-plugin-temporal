@@ -30,4 +30,6 @@ workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`
   Modules can add more rules.
 - The default export installs the plugin with the default factory of
   `temporalAccessServiceRef`; a backend can add its own factory instead.
+- A child workflow opens on the page of the entity of its parent (up to
+  three levels): it is checked with that entity's permissions.
 - Graph steps carry the summary of their event (Temporal user metadata).

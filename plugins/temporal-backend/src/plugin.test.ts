@@ -254,6 +254,58 @@ describe('temporal backend plugin', () => {
       .expect(404);
   });
 
+  it('opens a child workflow with the entity of its parent', async () => {
+    const workflowService = createFakeWorkflowService();
+    const child = (parentId: string) => ({
+      workflowExecutionInfo: {
+        ...executionInfo({
+          workflowId: 'ship-1',
+          taskQueue: 'billing',
+          type: 'ship',
+        }),
+        parentExecution: { workflowId: parentId, runId: `${parentId}-run` },
+      } as any,
+      pendingActivities: [],
+    });
+    workflowService.describeWorkflowExecution.mockImplementation(
+      async (req: any) => {
+        const id = req.execution.workflowId;
+        if (id === 'ship-1') return child('order-1');
+        if (id === 'ship-2') return child('billing-1');
+        return {
+          workflowExecutionInfo: executionInfo({
+            workflowId: id,
+            taskQueue: id.startsWith('billing') ? 'billing' : 'orders',
+          }),
+          pendingActivities: [],
+        };
+      },
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/ship-1?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.workflowType).toBe('ship');
+    // The parent of this one is not the entity's either.
+    workflowService.describeWorkflowExecution.mockImplementation(
+      async (req: any) => {
+        const id = req.execution.workflowId;
+        if (id === 'ship-1') return child('billing-1');
+        return {
+          workflowExecutionInfo: executionInfo({
+            workflowId: id,
+            taskQueue: 'billing',
+          }),
+          pendingActivities: [],
+        };
+      },
+    );
+    await request(server)
+      .get(`/api/temporal/namespaces/default/workflows/ship-1?entityRef=${ref}`)
+      .expect(404);
+  });
+
   it('uses the entity reference search attribute without entityRef', async () => {
     const workflowService = createFakeWorkflowService();
     const b64 = (s: string) => Buffer.from(s).toString('base64');
