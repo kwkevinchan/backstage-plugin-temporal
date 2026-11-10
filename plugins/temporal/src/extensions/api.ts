@@ -26,6 +26,7 @@ import type {
   WorkflowHistoryResponse,
   WorkflowProgressResponse,
   WorkflowListResponse,
+  TemporalScheduleListResponse,
   WorkflowRef,
   WorkflowStatsResponse,
   WorkflowStatus,
@@ -73,6 +74,17 @@ export interface TemporalApi {
     pageSize?: number;
     pageToken?: string;
   }): Promise<WorkflowListResponse>;
+
+  /**
+   * Schedules of a namespace (default namespace when omitted). Needs
+   * `temporal.workflow.list` without conditions.
+   */
+  listSchedules(options?: {
+    namespace?: string;
+  }): Promise<TemporalScheduleListResponse>;
+
+  /** Schedules that start the workflow types of an entity. */
+  listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;
 
   /**
    * Counts by status and mean duration of the entity's most recent runs

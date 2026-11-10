@@ -31,6 +31,11 @@ system (`./alpha`).
 - `TemporalApi.listEntityWorkflows` and `listWorkflows` take a
   `searchAttribute` option: only workflows whose Bool search attribute of
   that name is true.
+- Schedules: a card on the Workflows page and on the Temporal tab of an
+  entity (the schedules that start its workflow types) with when they run,
+  their next and last runs and whether they are paused; controls on each
+  one come from `TemporalScheduleActionBlueprint` (`./alpha`) or the
+  `scheduleActions` prop.
 - Query: runs a query on a workflow (`temporal.workflow.query`), offering
   the names the workflow defines, with the description and example from
   `spec.messages`. The buttons that change workflows are in

@@ -26,10 +26,12 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   TemporalWorkflowActionDef,
+  TemporalScheduleActionDef,
   TemporalWorkflowListActionDef,
   TemporalWorkflowSectionDef,
 } from '../extensions';
 import { Flex, Grid } from '@backstage/ui';
+import { SchedulesCard } from './SchedulesCard';
 import { TemporalRelatedWorkflowsCard } from './TemporalRelatedWorkflowsCard';
 import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';
 import { TemporalWorkflowSummaryCard } from './TemporalWorkflowSummaryCard';
@@ -48,6 +50,8 @@ export interface EntityTemporalContentProps {
   workflowSections?: TemporalWorkflowSectionDef[];
   /** Controls above the workflow list, such as "Start workflow". */
   workflowListActions?: TemporalWorkflowListActionDef[];
+  /** Controls on each schedule, such as "Pause". */
+  scheduleActions?: TemporalScheduleActionDef[];
 }
 
 /**
@@ -57,8 +61,13 @@ export interface EntityTemporalContentProps {
  */
 function TemporalOverview(props: {
   listActions?: TemporalWorkflowListActionDef[];
+  scheduleActions?: TemporalScheduleActionDef[];
 }) {
   const { entity } = useEntity();
+  // Left out when the entity's workflow types have no schedules.
+  const schedules = (
+    <SchedulesCard entity={entity} actions={props.scheduleActions} />
+  );
   if (isTemporalWorkflowEntity(entity)) {
     return (
       <Grid.Root columns={{ initial: '1', md: '2' }} gap="4">
@@ -74,6 +83,7 @@ function TemporalOverview(props: {
             listActions={props.listActions}
           />
         </Grid.Item>
+        <Grid.Item colSpan={{ initial: '1', md: '2' }}>{schedules}</Grid.Item>
       </Grid.Root>
     );
   }
@@ -82,10 +92,16 @@ function TemporalOverview(props: {
       <Flex direction="column" gap="4">
         <TemporalRelatedWorkflowsCard />
         <WorkflowList listActions={props.listActions} />
+        {schedules}
       </Flex>
     );
   }
-  return <WorkflowList listActions={props.listActions} />;
+  return (
+    <Flex direction="column" gap="4">
+      <WorkflowList listActions={props.listActions} />
+      {schedules}
+    </Flex>
+  );
 }
 
 /** Entity tab: workflow list, and workflow details on a nested route. */
@@ -111,7 +127,12 @@ export function EntityTemporalContentPage(props: EntityTemporalContentProps) {
     <Routes>
       <Route
         path="/"
-        element={<TemporalOverview listActions={props.workflowListActions} />}
+        element={
+          <TemporalOverview
+            listActions={props.workflowListActions}
+            scheduleActions={props.scheduleActions}
+          />
+        }
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"

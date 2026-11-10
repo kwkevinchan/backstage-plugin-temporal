@@ -25,7 +25,9 @@ import {
   createFakeWorkflowService,
   executionInfo,
   fakeTemporalServiceFactory,
+  fakeScheduleClient,
   ordersEntity,
+  scheduleSummary,
 } from './testUtils';
 
 const json = (value: unknown) => ({
@@ -95,7 +97,11 @@ const ticketWorkflowEntity: Entity = {
   },
 };
 
-async function start(options?: { deny?: string[]; entities?: Entity[] }) {
+async function start(options?: {
+  deny?: string[];
+  entities?: Entity[];
+  client?: unknown;
+}) {
   const workflowService = runningWorkflowService();
   const decide = (r: any) => ({
     result: options?.deny?.includes(r.permission.name)
@@ -118,7 +124,7 @@ async function start(options?: { deny?: string[]; entities?: Entity[] }) {
       catalogServiceMock.factory({
         entities: [ordersEntity, ...(options?.entities ?? [])],
       }),
-      fakeTemporalServiceFactory(workflowService),
+      fakeTemporalServiceFactory(workflowService, { client: options?.client }),
       permissions.factory,
       auditor.factory,
     ],
@@ -215,6 +221,46 @@ describe('query routes of the core plugin', () => {
     const res = await request(server).get(`${wf}/handlers`);
     expect(res.status).toBe(200);
     expect(res.body.updates).toEqual([{ name: 'setPriority' }]);
+  });
+
+  it('lists the schedules of the namespace with the list permission', async () => {
+    const client = fakeScheduleClient([
+      scheduleSummary('weekly', 'reportWorkflow', true),
+      scheduleSummary('nightly', 'orderWorkflow'),
+    ]);
+    const { server } = await start({ client });
+    const res = await request(server).get('/api/temporal/schedules');
+    expect(res.status).toBe(200);
+    expect(res.body.truncated).toBe(false);
+    expect(res.body.items.map((s: any) => [s.scheduleId, s.paused])).toEqual([
+      ['nightly', false],
+      ['weekly', true],
+    ]);
+    const denied = await start({ client, deny: ['temporal.workflow.list'] });
+    expect(
+      (await request(denied.server).get('/api/temporal/schedules')).status,
+    ).toBe(403);
+  });
+
+  it('lists the schedules that start the workflow types of an entity', async () => {
+    const client = fakeScheduleClient([
+      scheduleSummary('weekly', 'reportWorkflow'),
+      scheduleSummary('nightly', 'orderWorkflow'),
+    ]);
+    const { server } = await start({ client });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.items.map((s: any) => s.scheduleId)).toEqual(['nightly']);
+    const denied = await start({ client, deny: ['temporal.workflow.read'] });
+    expect(
+      (
+        await request(denied.server).get(
+          '/api/temporal/entities/component/default/orders/schedules',
+        )
+      ).status,
+    ).toBe(403);
   });
 
   it('refuses a search attribute filter that is not a name', async () => {

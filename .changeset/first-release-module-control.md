@@ -10,3 +10,5 @@ backend actions (`TemporalControlActionBlueprint` in `./alpha`,
 `temporalControlApiRef`. Without this module the pages only read. Signals
 and updates described in `spec.messages` with an `inputSchema` get a form
 (`@rjsf/core`); the others a JSON field filled with their example.
+Schedules get Pause or Resume and Run now (`temporal.workflow.start`,
+recorded with the auditor).

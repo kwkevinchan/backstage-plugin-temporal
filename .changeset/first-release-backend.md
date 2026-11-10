@@ -28,6 +28,10 @@ workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`
   `temporal.searchAttributes.initiator`); `temporalWorkflowConditions` and
   `createTemporalWorkflowConditionalDecision` from `/alpha` for policies.
   Modules can add more rules.
+- `GET /schedules` (with `temporal.workflow.list` without conditions) and
+  `GET /entities/:kind/:namespace/:name/schedules` (with
+  `temporal.workflow.read` on the entity): the Temporal schedules of a
+  namespace and those that start an entity's workflow types.
 - The default export installs the plugin with the default factory of
   `temporalAccessServiceRef`; a backend can add its own factory instead.
 - The workflow lists take a `searchAttribute` filter: only workflows whose

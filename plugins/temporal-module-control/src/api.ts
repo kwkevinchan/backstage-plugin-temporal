@@ -35,6 +35,9 @@ import {
   WorkflowRef,
   WorkflowStartRequest,
   WorkflowStartResponse,
+  buildScheduleOperationPath,
+  TemporalScheduleNoteRequest,
+  TemporalScheduleOperation,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
@@ -113,6 +116,17 @@ export interface TemporalControlApi {
     body?: JsonValue,
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse>;
+
+  /**
+   * Pauses, unpauses or triggers a schedule now. Needs
+   * `temporal.workflow.start`, on the entity whose workflows it starts.
+   */
+  runScheduleOperation(
+    ref: { namespace: string; scheduleId: string },
+    operation: TemporalScheduleOperation,
+    request?: TemporalScheduleNoteRequest,
+    options?: { entityRef?: string },
+  ): Promise<void>;
 }
 
 /**
@@ -233,6 +247,18 @@ export class TemporalControlClient implements TemporalControlApi {
     return this.post(
       buildWorkflowActionPath(ref, actionId) + entityQuery(options),
       body,
+    );
+  }
+
+  async runScheduleOperation(
+    ref: { namespace: string; scheduleId: string },
+    operation: TemporalScheduleOperation,
+    request?: TemporalScheduleNoteRequest,
+    options?: { entityRef?: string },
+  ): Promise<void> {
+    await this.post(
+      buildScheduleOperationPath(ref, operation) + entityQuery(options),
+      request,
     );
   }
 }

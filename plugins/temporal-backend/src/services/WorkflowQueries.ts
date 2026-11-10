@@ -47,6 +47,8 @@ import {
   WorkflowLlmCallResponse,
   WorkflowHandler,
   WorkflowHandlersResponse,
+  TemporalSchedule,
+  TemporalScheduleListResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
@@ -69,6 +71,7 @@ import {
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
 import { readLoopState } from './loops';
+import { toTemporalSchedule } from './schedules';
 import {
   findReferencePayloads,
   PayloadStore,
@@ -113,6 +116,9 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
       : [{ name }];
   });
 }
+
+/** Most schedules a list reads. */
+export const MAX_SCHEDULES = 500;
 
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
@@ -308,6 +314,49 @@ export class WorkflowQueries {
     };
     this.filters.set(context, filter);
     return filter;
+  }
+
+  /**
+   * The schedules of a namespace, the first MAX_SCHEDULES of them; with
+   * `workflowTypes`, only those that start one of these workflow types.
+   */
+  async listSchedules(
+    namespace: string,
+    filter?: { workflowTypes?: string[] },
+  ): Promise<TemporalScheduleListResponse> {
+    this.checkNamespace(namespace);
+    const client = await this.temporal.getClient({ namespace });
+    const items: TemporalSchedule[] = [];
+    let truncated = false;
+    let read = 0;
+    for await (const summary of client.schedule.list({ pageSize: 100 })) {
+      read += 1;
+      if (read > MAX_SCHEDULES) {
+        truncated = true;
+        break;
+      }
+      const schedule = toTemporalSchedule(namespace, summary);
+      if (
+        filter?.workflowTypes &&
+        !filter.workflowTypes.includes(schedule.workflowType ?? '')
+      ) {
+        continue;
+      }
+      items.push(schedule);
+    }
+    items.sort((a, b) => a.scheduleId.localeCompare(b.scheduleId));
+    return { items, truncated };
+  }
+
+  /** The workflow types of an entity: its own and the related entities'. */
+  workflowTypesOf(context: TemporalEntityContext): string[] {
+    const filter = this.filterOf(context);
+    return [
+      ...new Set([
+        ...filter.annotations.workflowTypes,
+        ...(filter.related ?? []).flatMap(r => r.workflowTypes),
+      ]),
+    ];
   }
 
   defaultNamespace(): string {

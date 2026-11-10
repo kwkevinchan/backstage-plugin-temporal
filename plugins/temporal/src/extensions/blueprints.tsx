@@ -21,10 +21,15 @@ import {
   createExtensionDataRef,
   ExtensionBoundary,
 } from '@backstage/frontend-plugin-api';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type {
+  TemporalSchedule,
+  WorkflowDetail,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowExtensionProps,
+  TemporalScheduleActionDef,
+  TemporalScheduleActionProps,
   TemporalWorkflowListActionDef,
   TemporalWorkflowListActionProps,
   TemporalWorkflowSectionDef,
@@ -48,6 +53,16 @@ export const temporalWorkflowActionDataRef =
 export const temporalWorkflowListActionDataRef =
   createExtensionDataRef<TemporalWorkflowListActionDef>().with({
     id: 'temporal.workflow-list-action',
+  });
+
+/**
+ * Extension data with a schedule action.
+ *
+ * @alpha
+ */
+export const temporalScheduleActionDataRef =
+  createExtensionDataRef<TemporalScheduleActionDef>().with({
+    id: 'temporal.schedule-action',
   });
 
 /**
@@ -161,6 +176,33 @@ export const TemporalWorkflowListActionBlueprint = createExtensionBlueprint({
     { node },
   ) {
     yield temporalWorkflowListActionDataRef({
+      id: node.spec.id,
+      component: lazyComponent(node, params.loader),
+      filter: params.filter,
+    });
+  },
+});
+
+/**
+ * Adds a control to each schedule of the schedule lists: the schedules of
+ * an entity and of the Workflows page.
+ *
+ * @alpha
+ */
+export const TemporalScheduleActionBlueprint = createExtensionBlueprint({
+  kind: 'temporal-schedule-action',
+  attachTo: { id: ATTACH_ID, input: 'scheduleActions' },
+  output: [temporalScheduleActionDataRef],
+  dataRefs: { scheduleAction: temporalScheduleActionDataRef },
+  *factory(
+    params: {
+      /** Loads the control to show. */
+      loader: Loader<TemporalScheduleActionProps>;
+      filter?: (schedule: TemporalSchedule) => boolean;
+    },
+    { node },
+  ) {
+    yield temporalScheduleActionDataRef({
       id: node.spec.id,
       component: lazyComponent(node, params.loader),
       filter: params.filter,

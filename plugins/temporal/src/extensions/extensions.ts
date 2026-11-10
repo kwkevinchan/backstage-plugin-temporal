@@ -17,6 +17,7 @@
 import type { ComponentType } from 'react';
 import type { Entity } from '@backstage/catalog-model';
 import type {
+  TemporalSchedule,
   WorkflowDetail,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -90,6 +91,34 @@ export interface TemporalWorkflowListActionDef {
 }
 
 /**
+ * Props of components shown on a row of a schedule list.
+ *
+ * @public
+ */
+export interface TemporalScheduleActionProps {
+  schedule: TemporalSchedule;
+  /** The entity whose schedules are listed; absent on the Workflows page. */
+  entity?: Entity;
+  /** Reads the schedules again, after a change. */
+  reload(): void;
+}
+
+/**
+ * A button or other control on each schedule, such as "Pause". Used
+ * directly by the legacy frontend system (`scheduleActions` prop of
+ * `EntityTemporalContent` and `TemporalPage`); the new frontend system uses
+ * `TemporalScheduleActionBlueprint`.
+ *
+ * @public
+ */
+export interface TemporalScheduleActionDef {
+  id: string;
+  component: ComponentType<TemporalScheduleActionProps>;
+  /** Show the action only when this returns true. */
+  filter?: (schedule: TemporalSchedule) => boolean;
+}
+
+/**
  * A tab on the workflow details page, next to Steps, Events and Details.
  * Used directly by the legacy frontend system (`workflowSections` prop of
  * `EntityTemporalContent`); the new frontend system uses
@@ -117,4 +146,5 @@ export interface TemporalWorkflowExtensionsApi {
   getActions(): TemporalWorkflowActionDef[];
   getSections(): TemporalWorkflowSectionDef[];
   getListActions(): TemporalWorkflowListActionDef[];
+  getScheduleActions(): TemporalScheduleActionDef[];
 }

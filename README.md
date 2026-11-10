@@ -1039,6 +1039,26 @@ decoded (binary, or encrypted by a codec) are shown with their encoding and
 size only. Inputs and results are part of the history and need
 `temporal.workflow.history.read`.
 
+## Schedules
+
+Temporal schedules start workflows on a calendar or an interval. The
+Workflows page lists the schedules of the namespace, and the Temporal tab of
+an entity lists those that start its workflow types. Each one shows when it
+runs (`every 1h`, `02:00 on MONDAY-FRIDAY`, with its time zone), whether it
+is paused and why, its next run and a link to the workflow of its last run.
+
+With the control modules, each schedule has **Pause** or **Resume** and
+**Run now**. They need `temporal.workflow.start`, since a schedule starts
+workflows: on the entity whose workflow types it starts, or without
+conditions on the Workflows page. Each one is recorded with the auditor
+(`schedule-pause`, `schedule-unpause`, `schedule-trigger`). Creating and
+changing schedules is left to code or the Temporal UI.
+
+The Workflows page lists schedules for users that may list every workflow
+(`temporal.workflow.list` without conditions); an entity's list needs
+`temporal.workflow.read` on the entity. At most the first 500 schedules of a
+namespace are read.
+
 ## Templates (Scaffolder)
 
 Software templates can start workflows, wait for them and send them signals

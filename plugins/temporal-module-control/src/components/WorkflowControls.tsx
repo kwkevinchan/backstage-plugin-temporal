@@ -71,7 +71,7 @@ const MESSAGE_TEXT: Record<MessageKind, MessageDialogText> = {
 };
 
 /** Asks before cancel, terminate (with a reason) or rerun. */
-function ConfirmDialog(props: {
+export function ConfirmDialog(props: {
   title: string;
   description: string;
   confirm: string;

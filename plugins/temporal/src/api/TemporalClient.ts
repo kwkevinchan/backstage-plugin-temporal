@@ -28,6 +28,9 @@ import {
   buildLlmCallPath,
   buildWorkflowPath,
   WORKFLOWS_PATH,
+  SCHEDULES_PATH,
+  buildEntitySchedulesPath,
+  TemporalScheduleListResponse,
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowLlmCallResponse,
@@ -107,6 +110,20 @@ export class TemporalClient implements TemporalApi {
           pageToken: options?.pageToken,
         }),
     );
+  }
+
+  listSchedules(options?: {
+    namespace?: string;
+  }): Promise<TemporalScheduleListResponse> {
+    return this.get(
+      SCHEDULES_PATH + queryString({ namespace: options?.namespace }),
+    );
+  }
+
+  listEntitySchedules(
+    entityRef: string,
+  ): Promise<TemporalScheduleListResponse> {
+    return this.get(buildEntitySchedulesPath(parseEntityRef(entityRef)));
   }
 
   listWorkflows(options?: {

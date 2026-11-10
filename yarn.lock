@@ -5369,6 +5369,7 @@ __metadata:
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
+    "@temporalio/client": "npm:~1.24.0"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
     express: "npm:^4.22.0"

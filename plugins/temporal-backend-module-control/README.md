@@ -21,6 +21,14 @@ auditor. The permissions are `temporal.workflow.start`, `.signal`,
 `.update`, `.cancel`, `.terminate` and `.rerun`, on the catalog entity of the
 workflow.
 
+## Schedules
+
+`POST /namespaces/:namespace/schedules/:scheduleId/pause`, `/unpause` and
+`/trigger` (optional body `{ "note": "..." }` for pause and unpause). They
+need `temporal.workflow.start`: with `?entityRef=`, on that entity, and the
+schedule must start one of its workflow types; without, the policy must
+allow it without conditions.
+
 ## Configuration
 
 ```yaml

@@ -31,6 +31,7 @@ import {
 } from '@backstage/core-plugin-api';
 import type {
   TemporalWorkflowActionDef,
+  TemporalScheduleActionDef,
   TemporalWorkflowListActionDef,
 } from '@kwkevinchan/backstage-plugin-temporal';
 import {
@@ -42,6 +43,7 @@ import {
   ControlActionButton,
   TemporalControlActionButtonOptions,
 } from './components/ControlActionButton';
+import { ScheduleControls } from './components/ScheduleControls';
 import { StartWorkflowButton } from './components/StartWorkflow';
 import { WorkflowControls } from './components/WorkflowControls';
 
@@ -85,6 +87,17 @@ export const temporalControlListActions: TemporalWorkflowListActionDef[] = [
     component: StartWorkflowButton,
     filter: ({ entity }) => !entity || isTemporalWorkflowEntity(entity),
   },
+];
+
+/**
+ * Pause or resume, and run now, on each schedule (legacy frontend system:
+ * the `scheduleActions` prop of `EntityTemporalContent` and
+ * `TemporalPage`).
+ *
+ * @public
+ */
+export const temporalControlScheduleActions: TemporalScheduleActionDef[] = [
+  { id: 'temporal-schedule-controls', component: ScheduleControls },
 ];
 
 /**

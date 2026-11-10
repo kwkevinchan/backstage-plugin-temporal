@@ -30,6 +30,7 @@ import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   isValidControlActionId,
+  TemporalScheduleOperation,
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
@@ -50,6 +51,7 @@ import {
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { ScheduleNotFoundError } from '@temporalio/client';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { WorkflowCommands } from '../services/WorkflowCommands';
@@ -142,6 +144,15 @@ function principalRef(credentials: BackstageCredentials): string | undefined {
   if (principal.type === 'user') return principal.userEntityRef;
   if (principal.type === 'service') return principal.subject;
   return undefined;
+}
+
+/** The note of a pause or an unpause: a short string, or undefined. */
+function optionalNote(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || value.length > 1000) {
+    throw new InputError('note must be a string of at most 1000 characters');
+  }
+  return value;
 }
 
 function identityOf(credentials: BackstageCredentials): string {
@@ -517,6 +528,80 @@ export function createControlRouter(
           }),
       );
       res.status(201).json(started);
+    },
+  );
+
+  // Pause, unpause or trigger a schedule. Schedules start workflows, so
+  // these need temporal.workflow.start: on the entity (whose workflow types
+  // the schedule must start), or without conditions without one.
+  router.post(
+    '/namespaces/:namespace/schedules/:scheduleId/:operation(pause|unpause|trigger)',
+    async (req, res) => {
+      const credentials = await httpAuth.credentials(req);
+      const { namespace, scheduleId } = req.params;
+      const operation = req.params.operation as TemporalScheduleOperation;
+      if (
+        !isValidNamespaceName(namespace) ||
+        !options.temporal.isNamespaceAllowed(namespace)
+      ) {
+        throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
+      }
+      if (!scheduleId || scheduleId.length > 1000) {
+        throw new InputError('Invalid schedule ID');
+      }
+      const note = optionalNote(req.body?.note);
+      const entityRef = parseEntityRefParam(req.query.entityRef);
+      const client = await options.temporal.getClient({ namespace });
+      const handle = client.schedule.getHandle(scheduleId);
+      const description = await handle.describe().catch(error => {
+        if (error instanceof ScheduleNotFoundError) {
+          throw new NotFoundError(`No schedule ${scheduleId}`);
+        }
+        throw error;
+      });
+      const action = {
+        workflowType: description.action.workflowType,
+        taskQueue: description.action.taskQueue,
+      };
+      if (entityRef) {
+        const context = await access.loadEntity(
+          entityRef,
+          temporalWorkflowStartPermission,
+          credentials,
+        );
+        const sources = [
+          context.entity,
+          ...context.relatedWorkflowEntities,
+        ].map(entityWorkflowSource);
+        if (!sources.some(source => matchesSource(action, source))) {
+          throw new NotFoundError(
+            `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
+          );
+        }
+      } else {
+        await authorizeOn(
+          temporalWorkflowStartPermission,
+          undefined,
+          credentials,
+        );
+      }
+      const who = principalRef(credentials) ?? 'Backstage';
+      await audited(
+        req,
+        `schedule-${operation}`,
+        { namespace, scheduleId, workflowType: action.workflowType, entityRef },
+        'medium',
+        async () => {
+          if (operation === 'pause') {
+            await handle.pause(note ?? `Paused from Backstage by ${who}`);
+          } else if (operation === 'unpause') {
+            await handle.unpause(note ?? `Resumed from Backstage by ${who}`);
+          } else {
+            await handle.trigger();
+          }
+        },
+      );
+      res.status(202).json({});
     },
   );
 

@@ -216,10 +216,16 @@ export type FakeWorkflowService = ReturnType<typeof createFakeWorkflowService>;
 /** Service factory replacing the Temporal connection with a fake. */
 export function fakeTemporalServiceFactory(
   workflowService: FakeWorkflowService,
-  options?: { entityRefAttribute?: string; initiatorAttribute?: string },
+  options?: {
+    entityRefAttribute?: string;
+    initiatorAttribute?: string;
+    /** A fake client, for schedules. */
+    client?: unknown;
+  },
 ) {
   const service: TemporalService = {
     getClient: async () => {
+      if (options?.client) return options.client as any;
       throw new Error('not used');
     },
     getConnection: async () =>
@@ -242,4 +248,84 @@ export function fakeTemporalServiceFactory(
     deps: {},
     factory: () => service,
   });
+}
+
+/** A schedule as the SDK lists it. */
+export function scheduleSummary(
+  scheduleId: string,
+  workflowType: string,
+  paused = false,
+) {
+  return {
+    scheduleId,
+    action: { type: 'startWorkflow', workflowType },
+    spec: {
+      intervals: [{ every: 3600_000, offset: 0 }],
+      calendars: [
+        {
+          second: [{ start: 0, end: 0, step: 1 }],
+          minute: [{ start: 0, end: 0, step: 1 }],
+          hour: [{ start: 2, end: 2, step: 1 }],
+          dayOfMonth: [{ start: 1, end: 31, step: 1 }],
+          month: [{ start: 'JANUARY', end: 'DECEMBER', step: 1 }],
+          year: [],
+          dayOfWeek: [{ start: 'MONDAY', end: 'FRIDAY', step: 1 }],
+        },
+      ],
+      timezone: 'Asia/Taipei',
+    },
+    state: { paused, note: paused ? 'maintenance' : undefined },
+    info: {
+      recentActions: [1, 2].map(n => ({
+        scheduledAt: new Date(`2026-01-0${n}T02:00:00Z`),
+        takenAt: new Date(`2026-01-0${n}T02:00:01Z`),
+        action: {
+          type: 'startWorkflow',
+          workflow: {
+            workflowId: `${scheduleId}-${n}`,
+            firstExecutionRunId: `run-${n}`,
+          },
+        },
+      })),
+      nextActionTimes: [new Date('2026-01-03T02:00:00Z')],
+    },
+  };
+}
+
+/** A fake client with schedules, and handles that record their calls. */
+export function fakeScheduleClient(
+  schedules: ReturnType<typeof scheduleSummary>[],
+  taskQueue = 'orders',
+) {
+  const handles = new Map<string, Record<string, jest.Mock>>();
+  return {
+    handles,
+    schedule: {
+      list: async function* list() {
+        for (const s of schedules) yield s;
+      },
+      getHandle: (id: string) => {
+        const found = schedules.find(s => s.scheduleId === id);
+        const handle = {
+          describe: jest.fn(async () => {
+            if (!found) {
+              const { ScheduleNotFoundError } = await import(
+                '@temporalio/client'
+              );
+              throw new ScheduleNotFoundError('not found', id);
+            }
+            return {
+              ...found,
+              action: { ...found.action, taskQueue },
+            };
+          }),
+          pause: jest.fn(async () => undefined),
+          unpause: jest.fn(async () => undefined),
+          trigger: jest.fn(async () => undefined),
+        };
+        handles.set(id, handle);
+        return handle;
+      },
+    },
+  };
 }
