@@ -344,7 +344,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     }
     const context = await this.loadEntity(entityRef, permission, credentials);
     workflow ??= await this.queries.describe(ref);
-    this.queries.assertBelongs(workflow, context);
+    await this.queries.assertBelongs(workflow, context);
     return { context, workflow };
   }
 
