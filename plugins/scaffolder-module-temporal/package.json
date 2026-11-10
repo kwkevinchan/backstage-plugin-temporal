@@ -1,0 +1,83 @@
+{
+  "name": "@kwkevinchan/backstage-plugin-scaffolder-module-temporal",
+  "version": "0.0.0",
+  "description": "Scaffolder form field of the unofficial Backstage Temporal plugin: pick a workflow by entity, type, status or a search attribute",
+  "license": "Apache-2.0",
+  "keywords": [
+    "backstage",
+    "backstage-plugin",
+    "scaffolder",
+    "temporal",
+    "workflow"
+  ],
+  "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/scaffolder-module-temporal",
+  "bugs": {
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
+    "directory": "plugins/scaffolder-module-temporal"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./alpha": "./src/alpha.ts",
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "alpha": [
+        "src/alpha.ts"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "backstage": {
+    "role": "frontend-plugin-module",
+    "pluginId": "scaffolder",
+    "pluginPackage": "@backstage/plugin-scaffolder"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "backstage-cli package build",
+    "lint": "backstage-cli package lint",
+    "test": "backstage-cli package test",
+    "clean": "backstage-cli package clean",
+    "prepack": "backstage-cli package prepack",
+    "postpack": "backstage-cli package postpack"
+  },
+  "dependencies": {
+    "@backstage/core-plugin-api": "backstage:^",
+    "@backstage/frontend-plugin-api": "backstage:^",
+    "@backstage/plugin-scaffolder": "backstage:^",
+    "@backstage/plugin-scaffolder-react": "backstage:^",
+    "@backstage/ui": "backstage:^",
+    "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.0.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "backstage:^",
+    "@backstage/test-utils": "backstage:^",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-router-dom": "^6.0.0"
+  },
+  "files": [
+    "dist"
+  ]
+}

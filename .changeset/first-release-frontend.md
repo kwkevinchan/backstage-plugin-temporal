@@ -28,6 +28,9 @@ system (`./alpha`).
   browser's back button and the "All workflows" link return to the same
   page. Paging and filtering replace the history entry instead of adding
   one.
+- `TemporalApi.listEntityWorkflows` and `listWorkflows` take a
+  `searchAttribute` option: only workflows whose Bool search attribute of
+  that name is true.
 - Query: runs a query on a workflow (`temporal.workflow.query`), offering
   the names the workflow defines, with the description and example from
   `spec.messages`. The buttons that change workflows are in
