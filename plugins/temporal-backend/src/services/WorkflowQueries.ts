@@ -24,7 +24,7 @@ import {
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
   isTemporalWorkflowEntity,
-  parseTemporalAnnotations,
+  getTemporalWorkflowSource,
   parseTemporalWorkflowSpec,
   TemporalAnnotations,
   WorkflowDetail,
@@ -51,7 +51,11 @@ import {
 import type { JsonObject, JsonValue } from '@backstage/types';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { TemporalWorkflowEnricher } from '@kwkevinchan/backstage-plugin-temporal-node';
-import type { TemporalEntityContext } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import {
+  decodeJsonPayloads,
+  encodeJsonPayloads,
+  type TemporalEntityContext,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import {
   ConvertOptions,
   decodePayloads,
@@ -64,7 +68,6 @@ import {
 } from './convert';
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
-import { decodeResult, encodeArgs } from './messages';
 import { readLoopState } from './loops';
 import {
   findReferencePayloads,
@@ -120,9 +123,7 @@ export const PROGRESS_CACHE_SIZE = 1000;
  */
 export function readEntityWorkflowFilter(entity: Entity): TemporalAnnotations {
   try {
-    return isTemporalWorkflowEntity(entity)
-      ? parseTemporalWorkflowSpec(entity)
-      : parseTemporalAnnotations(entity);
+    return getTemporalWorkflowSource(entity);
   } catch (error) {
     if (
       error instanceof InvalidTemporalAnnotationError ||
@@ -139,9 +140,6 @@ const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
   'TimedOut',
   'Terminated',
 ];
-
-/** An entity whose workflows are shown (see `TemporalEntityContext`). */
-export type EntityContext = TemporalEntityContext;
 
 /** Largest record of a model call read from S3 (8 MiB). */
 export const MAX_LLM_RECORD_BYTES = 8 * 1024 * 1024;
@@ -240,7 +238,10 @@ export class WorkflowQueries {
    * resolves its namespace. `relatedEntities` are the `TemporalWorkflow`
    * entities it depends on that the caller may see.
    */
-  entityContext(entity: Entity, relatedEntities: Entity[] = []): EntityContext {
+  entityContext(
+    entity: Entity,
+    relatedEntities: Entity[] = [],
+  ): TemporalEntityContext {
     const annotations = readEntityWorkflowFilter(entity);
     const namespace =
       annotations.namespace ?? this.temporal.getDefaultNamespace();
@@ -255,14 +256,17 @@ export class WorkflowQueries {
     };
   }
 
-  private readonly filters = new WeakMap<EntityContext, EntityWorkflowFilter>();
+  private readonly filters = new WeakMap<
+    TemporalEntityContext,
+    EntityWorkflowFilter
+  >();
 
   /**
    * The search filter of an entity's workflows: its annotations (or spec),
    * and the related `TemporalWorkflow` entities in the same namespace. The
    * ones in another namespace or with an invalid spec are left out.
    */
-  filterOf(context: EntityContext): EntityWorkflowFilter {
+  filterOf(context: TemporalEntityContext): EntityWorkflowFilter {
     const cached = this.filters.get(context);
     if (cached) return cached;
     const { entity, entityRef, namespace } = context;
@@ -326,7 +330,7 @@ export class WorkflowQueries {
 
   private async enrich<T extends WorkflowSummary>(
     items: T[],
-    context: EntityContext,
+    context: TemporalEntityContext,
     credentials: BackstageCredentials,
   ): Promise<T[]> {
     let current = items;
@@ -346,7 +350,7 @@ export class WorkflowQueries {
   }
 
   async listEntityWorkflows(
-    context: EntityContext,
+    context: TemporalEntityContext,
     options: {
       status?: WorkflowStatus;
       /** False lists only the latest run of a workflow that continues as new. */
@@ -418,7 +422,7 @@ export class WorkflowQueries {
 
   /** Counts and mean duration of the entity's most recent runs. */
   async stats(
-    context: EntityContext,
+    context: TemporalEntityContext,
     options: { limit: number },
   ): Promise<WorkflowStatsResponse> {
     const query = buildEntityWorkflowQuery(this.filterOf(context));
@@ -459,7 +463,11 @@ export class WorkflowQueries {
     };
   }
 
-  /** Describes a workflow without any entity check. */
+  /**
+   * Describes a run without any entity check. The memo is resolved from External Storage only when
+   * this instance has a configured `PayloadStore` (the plugin's does; the
+   * access service's does not).
+   */
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.checkNamespace(ref.namespace);
     const json = await this.temporalReads.describeExecution(ref);
@@ -479,7 +487,7 @@ export class WorkflowQueries {
   }
 
   /** Throws NotFoundError unless the workflow belongs to the entity. */
-  assertBelongs(workflow: WorkflowSummary, context: EntityContext) {
+  assertBelongs(workflow: WorkflowSummary, context: TemporalEntityContext) {
     if (
       workflow.namespace !== context.namespace ||
       !workflowBelongsToEntity(workflow, this.filterOf(context))
@@ -492,7 +500,7 @@ export class WorkflowQueries {
 
   async enrichDetail(
     detail: WorkflowDetail,
-    context: EntityContext,
+    context: TemporalEntityContext,
     credentials: BackstageCredentials,
   ): Promise<WorkflowDetail> {
     const [enriched] = await this.enrich([detail], context, credentials);
@@ -890,12 +898,12 @@ export class WorkflowQueries {
     args: JsonValue[] | undefined,
   ): Promise<JsonValue | undefined> {
     const response = await this.temporalReads.query(workflow, name, {
-      args: encodeArgs(args),
+      args: encodeJsonPayloads(args),
     });
     if (response.rejected) {
       throw new ConflictError('The workflow rejected the query');
     }
-    return decodeResult(response.result);
+    return decodeJsonPayloads(response.result);
   }
 
   /**
@@ -917,7 +925,8 @@ export class WorkflowQueries {
         { timeoutMs: METADATA_QUERY_TIMEOUT_MS },
       );
       if (response.rejected) return empty;
-      const definition = (decodeResult(response.result) as any)?.definition;
+      const definition = (decodeJsonPayloads(response.result) as any)
+        ?.definition;
       return {
         signals: handlerList(definition?.signalDefinitions),
         updates: handlerList(definition?.updateDefinitions),

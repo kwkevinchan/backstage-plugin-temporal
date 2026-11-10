@@ -24,8 +24,6 @@ import {
   temporalAccessServiceRef,
   temporalWorkflowPermissionResourceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
-import { PayloadStore } from '../repositories/PayloadStore';
-import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 import { DefaultTemporalAccessService } from './DefaultTemporalAccessService';
 
@@ -43,28 +41,17 @@ export const temporalAccessServiceFactory = createServiceFactory({
   service: temporalAccessServiceRef,
   deps: {
     logger: coreServices.logger,
-    config: coreServices.rootConfig,
     permissions: coreServices.permissions,
     permissionsRegistry: coreServices.permissionsRegistry,
     catalog: catalogServiceRef,
     temporal: temporalServiceRef,
   },
-  factory({
-    logger,
-    config,
-    permissions,
-    permissionsRegistry,
-    catalog,
-    temporal,
-  }) {
-    // The access checks read workflows without enrichers.
-    const queries = new WorkflowQueries(
-      temporal,
-      [],
-      logger,
-      PayloadStore.fromConfig(config, logger),
-      new TemporalReadRepository(temporal),
-    );
+  factory({ logger, permissions, permissionsRegistry, catalog, temporal }) {
+    // The access checks only need the workflow's status and search
+    // attributes: no enrichers, and no S3 client (a memo stored in External
+    // Storage is not resolved here). The routes answer with the plugin's own
+    // WorkflowQueries.
+    const queries = new WorkflowQueries(temporal, [], logger);
     return new DefaultTemporalAccessService(permissions, catalog, queries, () =>
       permissionsRegistry.getPermissionRuleset(
         temporalWorkflowPermissionResourceRef,

@@ -769,6 +769,10 @@ describe('temporal backend plugin', () => {
         deny: ['temporal.workflow.list'],
       });
       await request(server).get('/api/temporal/workflows').expect(403);
+      // Denied before the namespace is checked: no hint which ones exist.
+      await request(server)
+        .get('/api/temporal/workflows?namespace=secret')
+        .expect(403);
       expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
     });
 

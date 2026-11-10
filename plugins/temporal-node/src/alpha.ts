@@ -116,12 +116,16 @@ export interface TemporalAccessService {
   canListAll(credentials: BackstageCredentials): Promise<boolean>;
 
   /**
-   * Checks `temporal.workflow.list` for the Workflows page. Returns
-   * undefined when every workflow may be listed, or the visibility query
-   * the list must also match (a conditional decision). Throws
-   * `NotAllowedError` when the caller may not list workflows.
+   * Checks `temporal.workflow.list` for the Workflows page, listing
+   * `namespace`. Returns undefined when every workflow of it may be listed,
+   * or the visibility query the list must also match (a conditional
+   * decision). Throws `InputError` when the namespace is not allowed and
+   * `NotAllowedError` when the caller may not list workflows. The namespace
+   * is a parameter because Temporal's visibility queries cannot filter on
+   * it: conditions on the namespace are decided here.
    */
   authorizeWorkflowList(
+    namespace: string,
     credentials: BackstageCredentials,
   ): Promise<TemporalWorkflowQuery | undefined>;
 
@@ -255,3 +259,9 @@ export const temporalControlExtensionPoint =
   createExtensionPoint<TemporalControlExtensionPoint>({
     id: 'temporal.control',
   });
+
+export {
+  decodeJsonPayloads,
+  encodeJsonPayloads,
+  type TemporalJsonPayload,
+} from './payloads';

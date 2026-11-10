@@ -41,7 +41,7 @@ import {
   getTemporalWorkflowExampleArgs,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
-  parseTemporalWorkflowSpec,
+  getTemporalWorkflowSource,
   temporalWorkflowStartPermission,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -50,7 +50,7 @@ import { useTemporalControlApi } from '../api';
 function specOf(entity: Entity | undefined) {
   if (!entity) return undefined;
   try {
-    return parseTemporalWorkflowSpec(entity);
+    return getTemporalWorkflowSource(entity);
   } catch {
     return undefined;
   }

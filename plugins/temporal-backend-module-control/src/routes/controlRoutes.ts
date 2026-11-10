@@ -426,7 +426,12 @@ export function createControlRouter(
         ? (
             await access
               .loadEntity(entityRef, action.permission, loaded.credentials)
-              .catch(() => undefined)
+              // The entity may be gone from the catalog; the permission on
+              // it was checked above.
+              .catch(error => {
+                if (error instanceof NotFoundError) return undefined;
+                throw error;
+              })
           )?.entity
         : undefined);
     const result = await audited(

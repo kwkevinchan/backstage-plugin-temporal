@@ -18,7 +18,9 @@ import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import {
   coreServices,
   createBackendModule,
+  createServiceFactory,
 } from '@backstage/backend-plugin-api';
+import { NotAllowedError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
@@ -27,6 +29,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import Router from 'express-promise-router';
 import request from 'supertest';
+import temporalBackend from '../index';
 import { temporalPlugin } from '../plugin';
 import {
   createFakeWorkflowService,
@@ -110,5 +113,35 @@ describe('temporalAccessServiceRef', () => {
     const { server } = await start(AuthorizeResult.DENY);
     const res = await request(server).get('/api/temporal/module/wf-1');
     expect(res.status).toBe(403);
+  });
+
+  it('uses an access factory the backend adds instead of the default', async () => {
+    const authorizeWorkflowList = jest.fn(async () => {
+      throw new NotAllowedError('custom rules');
+    });
+    const custom = {
+      authorizeWorkflowList,
+    } as unknown as TemporalAccessService;
+    const { server } = await startTestBackend({
+      features: [
+        // The package's default export: the plugin and the default factory,
+        // which is skipped because the backend has one already.
+        temporalBackend,
+        createServiceFactory({
+          service: temporalAccessServiceRef,
+          deps: {},
+          factory: () => custom,
+        }),
+        catalogServiceMock.factory({ entities: [ordersEntity] }),
+        fakeTemporalServiceFactory(createFakeWorkflowService()),
+        mockServices.permissions.factory({ result: AuthorizeResult.ALLOW }),
+      ],
+    });
+    const res = await request(server).get('/api/temporal/workflows');
+    expect(res.status).toBe(403);
+    expect(authorizeWorkflowList).toHaveBeenCalledWith(
+      'default',
+      expect.anything(),
+    );
   });
 });

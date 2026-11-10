@@ -24,9 +24,7 @@ import { InputError } from '@backstage/errors';
 import {
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
-  isTemporalWorkflowEntity,
-  parseTemporalAnnotations,
-  parseTemporalWorkflowSpec,
+  getTemporalWorkflowSource,
   WorkflowRef,
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -80,9 +78,7 @@ export function entityWorkflowSource(entity: Entity): {
   workflowTypes: string[];
 } {
   try {
-    return isTemporalWorkflowEntity(entity)
-      ? parseTemporalWorkflowSpec(entity)
-      : parseTemporalAnnotations(entity);
+    return getTemporalWorkflowSource(entity);
   } catch (error) {
     if (
       error instanceof InvalidTemporalAnnotationError ||

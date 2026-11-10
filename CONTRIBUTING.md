@@ -59,8 +59,14 @@ order:
 
 The API types (the model) are in `plugins/temporal-common`, and the shared
 Temporal client and extension point in `plugins/temporal-node`. The classes
-are plain; there are no interfaces or DI container inside the plugin.
-`plugin.ts` creates them and wires them together.
+are plain; there are no repository interfaces or DI container inside the
+plugin. `plugin.ts` creates them and wires them together.
+
+The one interface is `TemporalAccessService` in `plugins/temporal-node/src/alpha.ts`:
+the contract between the plugin and its modules (`temporalAccessServiceRef`).
+The control module (`plugins/temporal-backend-module-control/src`) has
+`routes/` and `services/` only; `WorkflowCommands` calls Temporal directly
+until a separate write connection needs a gateway of its own.
 
 ## Git hooks and boundary checks
 

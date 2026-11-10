@@ -7,5 +7,6 @@ First release of the node package, for backend modules:
 authentication) and `temporalExtensionPoint` (workflow enrichers). The
 `./alpha` entry point has `temporalAccessServiceRef` (the access checks of the
 plugin, plugin-scoped and replaceable), `temporalWorkflowPermissionResourceRef`
-and `temporalControlExtensionPoint` (custom control actions). A new major of
+`temporalControlExtensionPoint` (custom control actions) and the JSON
+payload helpers `encodeJsonPayloads` and `decodeJsonPayloads`. A new major of
 `@temporalio/client` is a new major of this package.
