@@ -52,10 +52,15 @@ export const temporalAccessServiceFactory = createServiceFactory({
     // Storage is not resolved here). The routes answer with the plugin's own
     // WorkflowQueries.
     const queries = new WorkflowQueries(temporal, [], logger);
-    return new DefaultTemporalAccessService(permissions, catalog, queries, () =>
-      permissionsRegistry.getPermissionRuleset(
-        temporalWorkflowPermissionResourceRef,
-      ),
+    return new DefaultTemporalAccessService(
+      permissions,
+      catalog,
+      queries,
+      () =>
+        permissionsRegistry.getPermissionRuleset(
+          temporalWorkflowPermissionResourceRef,
+        ),
+      { initiatorAttribute: temporal.getSearchAttributeNames().initiator },
     );
   },
 });

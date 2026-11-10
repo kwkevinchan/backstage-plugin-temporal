@@ -40,12 +40,23 @@ import {
 
 /**
  * What a permission rule of the `temporal-workflow` resource type turns
- * into for lists: a Temporal visibility query, the part after `WHERE`, for
- * example `WorkflowType = 'orderWorkflow'`.
+ * into for lists:
+ *
+ * - a Temporal visibility query, the part after `WHERE`, for example
+ *   `WorkflowType = 'orderWorkflow'`;
+ * - `{ namespaces }`: the list is of one of these namespaces. A visibility
+ *   query cannot filter on the namespace (it is the scope of the list), so
+ *   the access service decides it for the namespace being listed;
+ * - `{ initiators }`: the workflow was started by one of these users, read
+ *   from the search attribute `temporal.searchAttributes.initiator`. Matches
+ *   nothing when that attribute is not configured.
  *
  * @alpha
  */
-export type TemporalWorkflowQuery = string;
+export type TemporalWorkflowQuery =
+  | string
+  | { namespaces: string[] }
+  | { initiators: string[] };
 
 /**
  * The `temporal-workflow` permission resource: a workflow, checked with
@@ -120,14 +131,15 @@ export interface TemporalAccessService {
    * `namespace`. Returns undefined when every workflow of it may be listed,
    * or the visibility query the list must also match (a conditional
    * decision). Throws `InputError` when the namespace is not allowed and
-   * `NotAllowedError` when the caller may not list workflows. The namespace
-   * is a parameter because Temporal's visibility queries cannot filter on
-   * it: conditions on the namespace are decided here.
+   * `NotAllowedError` when the caller may not list workflows, or the
+   * conditions match no workflow of the namespace. The namespace is a
+   * parameter because Temporal's visibility queries cannot filter on it:
+   * conditions on the namespace are decided here.
    */
   authorizeWorkflowList(
     namespace: string,
     credentials: BackstageCredentials,
-  ): Promise<TemporalWorkflowQuery | undefined>;
+  ): Promise<string | undefined>;
 
   /** True when the caller may see the inputs and results of a workflow. */
   canReadPayloads(

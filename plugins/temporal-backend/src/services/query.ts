@@ -42,12 +42,34 @@ export function parseStatus(value: unknown): WorkflowStatus | undefined {
   return value as WorkflowStatus;
 }
 
-function quote(value: string): string {
+/** True for a value that may be an entity reference in a query. */
+export function isValidEntityRefValue(value: string): boolean {
+  return ENTITY_REF_PATTERN.test(value);
+}
+
+/** Quotes a validated value for a visibility query. */
+export function quote(value: string): string {
   // Values are validated before they get here; this is a second guard.
   if (/['"\\\s()]/.test(value)) {
     throw new InputError('Value is not allowed in a workflow query');
   }
   return `'${value}'`;
+}
+
+/** `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. */
+export function inQuery(
+  field: string,
+  values: string[],
+  isValid: (value: string) => boolean,
+): string {
+  for (const value of values) {
+    if (!isValid(value)) {
+      throw new InputError(`Invalid value for ${field} in a condition`);
+    }
+  }
+  return values.length === 1
+    ? `${field} = ${quote(values[0])}`
+    : `${field} IN (${values.map(quote).join(', ')})`;
 }
 
 /** Workflows of a `TemporalWorkflow` entity that the entity depends on. */
