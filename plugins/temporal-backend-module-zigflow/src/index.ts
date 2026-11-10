@@ -23,4 +23,3 @@
  */
 
 export { temporalModuleZigflow as default } from './module';
-export * from './common/definition';

@@ -4,9 +4,11 @@ Unofficial Backstage backend plugin for [Temporal](https://temporal.io).
 
 ## Purpose
 
-Serves an API under `/api/temporal` that reads workflows and, checked with
-the permission framework and recorded with the auditor, changes them. The
-frontend plugin `@kwkevinchan/backstage-plugin-temporal` uses it.
+Serves an API under `/api/temporal` that reads workflows, their history,
+graph, schedules and large payloads, checked with the permission framework.
+The frontend plugin `@kwkevinchan/backstage-plugin-temporal` uses it. The
+operations that change workflows and schedules are in
+`@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
 
 ## Installation
 
@@ -52,21 +54,23 @@ in the repository README for an example.
 
 ## API
 
-| Method | Path                                                                                   | Permission                       |
-| ------ | -------------------------------------------------------------------------------------- | -------------------------------- |
-| GET    | `/workflows`                                                                           | `temporal.workflow.list`         |
-| GET    | `/entities/:kind/:namespace/:name/workflows`                                           | `temporal.workflow.read`         |
-| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                      | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                           | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                   | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                     | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops` (experimental)      | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read` |
-| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`         |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read |
+| Method | Path                                                                                   | Permission                                    |
+| ------ | -------------------------------------------------------------------------------------- | --------------------------------------------- |
+| GET    | `/workflows`                                                                           | `temporal.workflow.list`                      |
+| GET    | `/entities/:kind/:namespace/:name/workflows`                                           | `temporal.workflow.read`                      |
+| GET    | `/schedules`                                                                           | `temporal.workflow.list` (without conditions) |
+| GET    | `/entities/:kind/:namespace/:name/schedules`                                           | `temporal.workflow.read`                      |
+| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                      | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                           | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                   | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                     | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops` (experimental)      | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read`              |
+| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read              |
 
 With the control module
 ([`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control)):

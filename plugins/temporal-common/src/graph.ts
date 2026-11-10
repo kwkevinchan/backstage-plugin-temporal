@@ -166,9 +166,15 @@ export interface WorkflowGraphNode {
   workflow?: { namespace: string; workflowId: string; runId?: string };
   /** Other details, for example the timer duration or a signal's sender. */
   details?: JsonObject;
-  /** Loop, round and step of an activity or child workflow with a loop marker. */
+  /**
+   * Loop, round and step of an activity or child workflow with a loop
+   * marker. Experimental (`temporal.experimental.aiWorkflows`).
+   */
   loop?: WorkflowLoopMarker;
-  /** A model call (activity ID `llm/...`): model, tokens and tool calls. */
+  /**
+   * A model call (activity ID `llm/...`): model, tokens and tool calls.
+   * Experimental (`temporal.experimental.aiWorkflows`).
+   */
   llm?: WorkflowLlmSummary;
   /** A tool call of a model call (activity ID `tool/...`). */
   tool?: WorkflowToolLink;
@@ -211,7 +217,10 @@ export interface WorkflowGraphResponse {
   payloadsHidden: boolean;
   /** The run's place among the runs of a workflow that continues as new. */
   runChain?: WorkflowRunChain;
-  /** Loops of the run, from loop markers; left out when there are none. */
+  /**
+   * Loops of the run, from loop markers; left out when there are none.
+   * Experimental (`temporal.experimental.aiWorkflows`).
+   */
   loops?: WorkflowLoopGroup[];
 }
 

@@ -120,6 +120,9 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
 /** Most schedules a list reads. */
 export const MAX_SCHEDULES = 500;
 
+/** Schedules described at the same time, for their task queue. */
+const SCHEDULE_DESCRIBE_CONCURRENCY = 8;
+
 /** How many parents up a child workflow is looked for in an entity. */
 export const MAX_PARENT_DEPTH = 3;
 
@@ -361,6 +364,8 @@ export class WorkflowQueries {
     this.checkNamespace(namespace);
     const client = await this.temporal.getClient({ namespace });
     const items: TemporalSchedule[] = [];
+    /** Schedules whose task queue is checked, with the queues allowed. */
+    const toCheck: { schedule: TemporalSchedule; queues: string[] }[] = [];
     let truncated = false;
     let read = 0;
     for await (const summary of client.schedule.list({ pageSize: 100 })) {
@@ -370,22 +375,35 @@ export class WorkflowQueries {
         break;
       }
       const schedule = toTemporalSchedule(namespace, summary);
-      if (filter?.sources) {
-        const type = schedule.workflowType ?? '';
-        const matching = filter.sources.filter(s =>
-          s.workflowTypes.includes(type),
-        );
-        if (matching.length === 0) continue;
-        if (matching.every(s => s.taskQueue)) {
-          // The list has no task queue: read it.
-          const description = await client.schedule
-            .getHandle(schedule.scheduleId)
-            .describe();
-          const queue = description.action.taskQueue;
-          if (!matching.some(s => s.taskQueue === queue)) continue;
-        }
+      if (!filter?.sources) {
+        items.push(schedule);
+        continue;
       }
-      items.push(schedule);
+      const type = schedule.workflowType ?? '';
+      const matching = filter.sources.filter(s =>
+        s.workflowTypes.includes(type),
+      );
+      if (matching.length === 0) continue;
+      if (matching.every(s => s.taskQueue)) {
+        toCheck.push({ schedule, queues: matching.map(s => s.taskQueue!) });
+      } else {
+        items.push(schedule);
+      }
+    }
+    // The list has no task queue: describe those schedules, a few at a time.
+    for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
+      const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
+      const queues = await Promise.all(
+        batch.map(({ schedule }) =>
+          client.schedule
+            .getHandle(schedule.scheduleId)
+            .describe()
+            .then(d => d.action.taskQueue as string | undefined),
+        ),
+      );
+      batch.forEach(({ schedule, queues: allowed }, j) => {
+        if (queues[j] && allowed.includes(queues[j]!)) items.push(schedule);
+      });
     }
     items.sort((a, b) => a.scheduleId.localeCompare(b.scheduleId));
     return { items, truncated };

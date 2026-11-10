@@ -21,9 +21,9 @@ project supports one Backstage release line at a time (see the
 
 ## Scope
 
-In scope: the packages in `plugins/` (the Backstage plugins, the payload
-codec, and the loop helpers of the workflow kit, which are experimental and
-not published yet). The development packages in `packages/` are
+In scope: the published packages in `plugins/` (the Backstage plugins and
+their modules), and `@kwkevinchan/temporal-workflow-kit`, which is
+experimental and not published yet. The development packages in `packages/` are
 examples and are not published.
 
 Problems in Temporal, Backstage or other dependencies should be reported to

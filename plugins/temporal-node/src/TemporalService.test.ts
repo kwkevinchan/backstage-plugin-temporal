@@ -31,6 +31,7 @@ describe('readTemporalServiceOptions', () => {
     expect(options).toEqual({
       address: 'localhost:7233',
       auth: { type: 'none' },
+      tls: false,
       defaultNamespace: 'default',
       namespaces: ['default'],
       webUiBaseUrl: undefined,
@@ -47,6 +48,7 @@ describe('readTemporalServiceOptions', () => {
             namespaces: ['team-a'],
             defaultNamespace: 'team-b',
             auth: { type: 'none' },
+            tls: true,
           },
           webUi: { baseUrl: 'https://ui.example.com/' },
           searchAttributes: { entityRef: 'BackstageEntityRef' },
@@ -54,6 +56,7 @@ describe('readTemporalServiceOptions', () => {
       }),
     );
     expect(options.namespaces).toEqual(['team-a', 'team-b']);
+    expect(options.tls).toBe(true);
     expect(options.webUiBaseUrl).toBe('https://ui.example.com');
     expect(options.searchAttributes.entityRef).toBe('BackstageEntityRef');
   });

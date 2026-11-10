@@ -53,6 +53,8 @@ export function readControlOptions(config: Config): ControlOptions {
 
 /** gRPC status codes of Temporal errors handled here. */
 const GRPC_DEADLINE_EXCEEDED = 4;
+const GRPC_PERMISSION_DENIED = 7;
+const GRPC_UNAUTHENTICATED = 16;
 const GRPC_ALREADY_EXISTS = 6;
 const GRPC_FAILED_PRECONDITION = 9;
 const GRPC_INVALID_ARGUMENT = 3;
@@ -72,6 +74,12 @@ function mapControlError(error: unknown): never {
   if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
   if (code === GRPC_UNAVAILABLE) {
     throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
+  }
+  if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
+    // The backend's own credentials, not the user's: a server-side problem.
+    throw new ServiceUnavailableError(
+      `Temporal refused the credentials of the backend: ${message}`,
+    );
   }
   throw error;
 }

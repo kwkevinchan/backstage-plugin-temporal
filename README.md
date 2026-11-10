@@ -612,10 +612,12 @@ temporal:
 ```
 
 The token is a secret (it is never sent to the browser); read it from an
-environment variable or a mounted secret. The connection does not use TLS,
-for a Temporal server inside a private network. The plugin passes the token
-as the `apiKey` connection option of `@temporalio/client` and turns TLS off,
-which the client otherwise turns on for an API key.
+environment variable or a mounted secret. The plugin passes the token as the
+`apiKey` connection option of `@temporalio/client`. The connection uses TLS
+only with `tls: true` (server certificate checked with the system's CAs),
+for example for an API key of Temporal Cloud; without it, the token is sent
+in clear text, for a Temporal server inside a private network. Client
+certificates (mTLS) are not supported yet.
 
 A self-hosted Temporal server checks such tokens when its `global.authorization`
 config sets `jwtKeyProvider.keySourceURIs` (the public keys of the token
@@ -809,19 +811,19 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type       | Used for                                                         |
-| -------------------------------- | ------------------- | ---------------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph, progress, Zigflow definition |
-| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                |
-| `temporal.workflow.list`         | `temporal-workflow` | Workflows page; details and step graph without an entity         |
-| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity              |
-| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                |
-| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity, or from the Workflows page       |
-| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                    |
-| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)          |
-| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                 |
-| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                      |
-| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                            |
+| Permission                       | Resource type       | Used for                                                                                       |
+| -------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph, progress, Zigflow definition                               |
+| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                              |
+| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                     |
+| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                            |
+| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                              |
+| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules |
+| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                  |
+| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                        |
+| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                               |
+| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                    |
+| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                          |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
@@ -1186,9 +1188,9 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
   role on the namespaces in `connection.namespaces` (plus the write role if
   you use the operations); the S3 key only needs `s3:GetObject` on the
   payload bucket. List only the namespaces Backstage should see.
-- **No TLS on the Temporal connection.** `auth.type: bearer` sends the token
-  without TLS, for a Temporal server inside a private network. Do not point
-  it at a server across an untrusted network.
+- **TLS is off by default.** Without `connection.tls: true`, `auth.type:
+bearer` sends the token without TLS, for a Temporal server inside a
+  private network. Turn TLS on for any server across an untrusted network.
 - **Operations are recorded.** Every operation is checked with the
   permission framework and recorded with the auditor, and the Temporal
   history shows the user as the identity. Limit signal and update names

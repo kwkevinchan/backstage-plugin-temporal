@@ -50,14 +50,20 @@ export const LLM_RECORD_VERSION = 1;
 /**
  * Version of the OpenTelemetry GenAI semantic conventions the record
  * follows (schema URL suffix of the conventions, status Development).
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export const LLM_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev';
 
 /**
  * A step of an LLM agent: a model call, or a tool call of one.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export type WorkflowLlmMarker =
   | { kind: 'llm'; call: string }
@@ -70,7 +76,10 @@ const TOOL_PATTERN = /^tool\/([^/]+)\/([^/]+)(?:\/|$)/;
  * Reads `llm/<call>[/...]` or `tool/<call>/<toolCallId>[/...]` from an
  * activity ID. Names are percent-encoded.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export function parseLlmMarker(
   text: string | undefined,
@@ -98,7 +107,10 @@ export function parseLlmMarker(
  * include cached tokens, output tokens include reasoning tokens (as in the
  * OpenTelemetry conventions).
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmUsage {
   inputTokens?: number;
@@ -111,7 +123,10 @@ export interface WorkflowLlmUsage {
 /**
  * A tool call the model asked for.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmToolCallRef {
   /** Tool call ID from the model. */
@@ -134,7 +149,10 @@ export interface WorkflowLlmToolCallRef {
  *   larger than the backend reads inline (the full record route reads it);
  * - `missing`: the result has no record.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export type WorkflowLlmRecordState =
   | 'available'
@@ -147,7 +165,10 @@ export type WorkflowLlmRecordState =
  * reasoning, arguments and results need the permission to read the
  * history, through the full record route.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmSummary {
   /** The call name of the marker. */
@@ -173,7 +194,10 @@ export interface WorkflowLlmSummary {
 /**
  * The model call a tool call belongs to.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowToolLink {
   call: string;
@@ -190,14 +214,20 @@ export interface WorkflowToolLink {
  * `uri`, `server_tool_call`, `server_tool_call_response`, `compaction`,
  * or a type of a provider.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export type WorkflowLlmPart = JsonObject & { type: string };
 
 /**
  * One message sent to or received from the model.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmMessage {
   /** `system`, `user`, `assistant`, `tool` or another role. */
@@ -211,7 +241,10 @@ export interface WorkflowLlmMessage {
 /**
  * A tool that ran inside the model call's activity.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmToolExecution {
   /** `gen_ai.tool.call.id`. */
@@ -230,7 +263,10 @@ export interface WorkflowLlmToolExecution {
 /**
  * The record of one model call, read from the OpenTelemetry attributes.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmRecord {
   operation?: string;
@@ -260,7 +296,10 @@ export interface WorkflowLlmRecord {
 /**
  * The full record of one model call.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLlmCallResponse {
   /** Graph node of the call, `activity-<scheduled event ID>`. */
@@ -285,7 +324,10 @@ export interface WorkflowLlmCallResponse {
  * Builds the path of the full record of a model call, relative to the
  * path of the workflow: `/llm-calls/<scheduled event ID>`.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export function buildLlmCallPath(nodeId: string): string {
   const eventId = /^activity-(\d+)$/.exec(nodeId)?.[1] ?? nodeId;

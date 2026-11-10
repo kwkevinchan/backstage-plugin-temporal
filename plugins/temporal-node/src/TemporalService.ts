@@ -79,6 +79,8 @@ export interface TemporalServiceOptions {
   address: string;
   /** Defaults to no authentication. */
   auth?: TemporalConnectionAuth;
+  /** Connect with TLS. Defaults to false. */
+  tls?: boolean;
   defaultNamespace: string;
   namespaces: string[];
   webUiBaseUrl?: string;
@@ -150,6 +152,7 @@ export function readTemporalServiceOptions(
   return {
     address: connection.getString('address'),
     auth,
+    tls: connection.getOptionalBoolean('tls') ?? false,
     defaultNamespace,
     namespaces,
     webUiBaseUrl: temporal
@@ -189,18 +192,19 @@ export class DefaultTemporalService implements TemporalService {
   getConnection(): Promise<Connection> {
     if (!this.#connection) {
       const { address, auth } = this.#options;
+      const tls = this.#options.tls === true;
       const bearer = auth?.type === 'bearer';
       this.#logger?.info(
-        `Connecting to Temporal at ${address}${
+        `Connecting to Temporal at ${address}${tls ? ' with TLS' : ''}${
           bearer ? ' with a bearer token' : ''
         }`,
       );
       this.#connection = Connection.connect({
         address,
-        // `apiKey` sends `Authorization: Bearer <token>`. The client turns on
-        // TLS for an API key unless `tls` is false; this plugin connects
-        // without TLS.
-        ...(auth?.type === 'bearer' ? { apiKey: auth.token, tls: false } : {}),
+        // TLS only when configured (the client would turn it on for an API
+        // key by itself). `apiKey` sends `Authorization: Bearer <token>`.
+        tls,
+        ...(bearer ? { apiKey: auth.token } : {}),
       }).catch(error => {
         this.#connection = undefined;
         throw error;
