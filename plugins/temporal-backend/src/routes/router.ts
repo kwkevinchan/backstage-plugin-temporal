@@ -103,6 +103,9 @@ export async function createRouter(
     const result = await queries.listEntityWorkflows(context, {
       status: parseStatus(req.query.status),
       allRuns: parseFlag(req.query.allRuns, 'allRuns'),
+      searchAttribute:
+        optionalString(req.query.searchAttribute, 'searchAttribute') ||
+        undefined,
       pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
       pageToken: optionalString(req.query.pageToken, 'pageToken'),
       credentials,
@@ -129,6 +132,9 @@ export async function createRouter(
           optionalString(req.query.workflowType, 'workflowType') || undefined,
         workflowIdPrefix:
           optionalString(req.query.workflowId, 'workflowId')?.trim() ||
+          undefined,
+        searchAttribute:
+          optionalString(req.query.searchAttribute, 'searchAttribute') ||
           undefined,
         permissionQuery,
       },

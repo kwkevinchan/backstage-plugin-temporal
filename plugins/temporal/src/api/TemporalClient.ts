@@ -92,6 +92,7 @@ export class TemporalClient implements TemporalApi {
     options?: {
       status?: WorkflowStatus;
       allRuns?: boolean;
+      searchAttribute?: string;
       pageSize?: number;
       pageToken?: string;
     },
@@ -101,6 +102,7 @@ export class TemporalClient implements TemporalApi {
         queryString({
           status: options?.status,
           allRuns: options?.allRuns ? 'true' : undefined,
+          searchAttribute: options?.searchAttribute,
           pageSize: options?.pageSize,
           pageToken: options?.pageToken,
         }),
@@ -113,6 +115,7 @@ export class TemporalClient implements TemporalApi {
     allRuns?: boolean;
     workflowType?: string;
     workflowIdPrefix?: string;
+    searchAttribute?: string;
     pageSize?: number;
     pageToken?: string;
   }): Promise<WorkflowListResponse> {
@@ -124,6 +127,7 @@ export class TemporalClient implements TemporalApi {
           allRuns: options?.allRuns ? 'true' : undefined,
           workflowType: options?.workflowType,
           workflowId: options?.workflowIdPrefix,
+          searchAttribute: options?.searchAttribute,
           pageSize: options?.pageSize,
           pageToken: options?.pageToken,
         }),

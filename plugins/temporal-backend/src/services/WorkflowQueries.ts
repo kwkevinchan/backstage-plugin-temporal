@@ -360,6 +360,8 @@ export class WorkflowQueries {
       status?: WorkflowStatus;
       /** False lists only the latest run of a workflow that continues as new. */
       allRuns?: boolean;
+      /** A Bool search attribute that must be true. */
+      searchAttribute?: string;
       pageSize: number;
       pageToken?: string;
       credentials: BackstageCredentials;
@@ -368,6 +370,7 @@ export class WorkflowQueries {
     const query = buildEntityWorkflowQuery(this.filterOf(context), {
       status: options.status,
       allRuns: options.allRuns,
+      searchAttribute: options.searchAttribute,
     });
     let nextPageToken: Uint8Array | undefined;
     try {
