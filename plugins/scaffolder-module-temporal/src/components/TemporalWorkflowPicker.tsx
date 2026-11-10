@@ -98,11 +98,9 @@ export function TemporalWorkflowPicker(
   }, [api, entityRef, workflowType, namespace, status, searchAttribute]);
 
   const label = schema.title ?? 'Workflow';
-  const help = error
-    ? `The workflows could not be listed: ${error.message}`
-    : workflows?.length === 0
-    ? 'No workflow matches.'
-    : schema.description;
+  let help = schema.description;
+  if (error) help = `The workflows could not be listed: ${error.message}`;
+  else if (workflows?.length === 0) help = 'No workflow matches.';
   return (
     <div data-testid="temporal-workflow-picker">
       <Select
