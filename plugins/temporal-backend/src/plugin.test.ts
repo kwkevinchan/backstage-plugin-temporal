@@ -66,15 +66,17 @@ async function start(options?: {
 }) {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
+  const decide = (r: any) => ({
+    result:
+      options?.deny?.includes(r.resourceRef) ||
+      options?.deny?.includes(r.permission.name)
+        ? AuthorizeResult.DENY
+        : options?.permission ?? AuthorizeResult.ALLOW,
+  });
   const permissions = mockServices.permissions.mock({
-    authorize: jest.fn(async requests =>
-      requests.map((r: any) => ({
-        result:
-          options?.deny?.includes(r.resourceRef) ||
-          options?.deny?.includes(r.permission.name)
-            ? AuthorizeResult.DENY
-            : options?.permission ?? AuthorizeResult.ALLOW,
-      })),
+    authorize: jest.fn(async requests => requests.map(decide)) as any,
+    authorizeConditional: jest.fn(async requests =>
+      requests.map(decide),
     ) as any,
   });
   const features: any[] = [
@@ -716,7 +718,7 @@ describe('temporal backend plugin', () => {
         ['order-2', undefined],
         ['pay-1', 'temporalworkflow:default/payment-workflow'],
       ]);
-      expect(permissions.authorize).toHaveBeenCalledWith(
+      expect(permissions.authorizeConditional).toHaveBeenCalledWith(
         [
           {
             permission: expect.objectContaining({

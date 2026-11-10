@@ -742,26 +742,34 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type    | Used for                                                         |
-| -------------------------------- | ---------------- | ---------------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity` | Workflow list, details, step graph, progress, Zigflow definition |
-| `temporal.workflow.history.read` | `catalog-entity` | Event history, inputs and results                                |
-| `temporal.workflow.list`         | none (basic)     | Workflows page; details and step graph without an entity         |
-| `temporal.workflow.history.list` | none (basic)     | Event history, inputs and results without an entity              |
-| `temporal.workflow.start`        | `catalog-entity` | Start a workflow of the entity, or from the Workflows page       |
-| `temporal.workflow.signal`       | `catalog-entity` | Send a signal                                                    |
-| `temporal.workflow.update`       | `catalog-entity` | Send an update (also used by the example custom action)          |
-| `temporal.workflow.cancel`       | `catalog-entity` | Ask a running workflow to cancel                                 |
-| `temporal.workflow.terminate`    | `catalog-entity` | Terminate a running workflow, with a reason                      |
-| `temporal.workflow.rerun`        | `catalog-entity` | Start a run again with the same input                            |
+| Permission                       | Resource type       | Used for                                                         |
+| -------------------------------- | ------------------- | ---------------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph, progress, Zigflow definition |
+| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                |
+| `temporal.workflow.list`         | `temporal-workflow` | Workflows page; details and step graph without an entity         |
+| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity              |
+| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity, or from the Workflows page       |
+| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                    |
+| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)          |
+| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                 |
+| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                      |
+| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                            |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
-is a basic permission: it allows the Workflows page, which lists every
-workflow of the allowed namespaces, and opening the details and the step
-graph of any of them without an entity. Their event history, inputs and
-results also need `temporal.workflow.history.list`, another basic
-permission. Give them only to users who may read every workflow. When a
+allows the Workflows page, which lists the workflows of the allowed
+namespaces, and opening the details and the step graph of any of them
+without an entity. Their event history, inputs and results also need
+`temporal.workflow.history.list`. Both are resource permissions on the
+`temporal-workflow` resource type (a workflow): a policy can allow them,
+deny them, or return a conditional decision. The plugin ships no rules for
+this type yet; a backend module can add some with
+`coreServices.permissionsRegistry.addPermissionRules` and
+`temporalWorkflowPermissionResourceRef` from
+`@kwkevinchan/backstage-plugin-temporal-node/alpha`. Each rule's `toQuery`
+returns a Temporal visibility query, which is added to the list query
+(`allOf` with AND, `anyOf` with OR; `not` is refused). An unconditional
+ALLOW lets a user read every workflow. When a
 request names an entity (`entityRef`), the entity permissions are checked as
 before. Without the history permission the step graph is still shown, without
 inputs and results. Access is open by default: with the permission

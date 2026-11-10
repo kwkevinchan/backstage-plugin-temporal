@@ -15,7 +15,7 @@
  */
 
 import { HttpAuthService } from '@backstage/backend-plugin-api';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import { temporalWorkflowReadPermission } from '@kwkevinchan/backstage-plugin-temporal-common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
@@ -97,9 +97,8 @@ export async function createRouter(
 
   router.get('/workflows', async (req, res) => {
     const credentials = await httpAuth.credentials(req);
-    if (!(await access.canListAll(credentials))) {
-      throw new NotAllowedError();
-    }
+    // Undefined, or the visibility query of a conditional decision.
+    const permissionQuery = await access.authorizeWorkflowList(credentials);
     const namespace =
       optionalString(req.query.namespace, 'namespace') ||
       queries.defaultNamespace();
@@ -113,6 +112,7 @@ export async function createRouter(
         workflowIdPrefix:
           optionalString(req.query.workflowId, 'workflowId')?.trim() ||
           undefined,
+        permissionQuery,
       },
       {
         pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),

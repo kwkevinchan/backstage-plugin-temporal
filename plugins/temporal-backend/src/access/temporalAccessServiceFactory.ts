@@ -20,7 +20,10 @@ import {
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { temporalAccessServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import {
+  temporalAccessServiceRef,
+  temporalWorkflowPermissionResourceRef,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { PayloadStore } from '../repositories/PayloadStore';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { WorkflowQueries } from '../services/WorkflowQueries';
@@ -40,10 +43,18 @@ export const temporalAccessServiceFactory = createServiceFactory({
     logger: coreServices.logger,
     config: coreServices.rootConfig,
     permissions: coreServices.permissions,
+    permissionsRegistry: coreServices.permissionsRegistry,
     catalog: catalogServiceRef,
     temporal: temporalServiceRef,
   },
-  factory({ logger, config, permissions, catalog, temporal }) {
+  factory({
+    logger,
+    config,
+    permissions,
+    permissionsRegistry,
+    catalog,
+    temporal,
+  }) {
     // The access checks read workflows without enrichers.
     const queries = new WorkflowQueries(
       temporal,
@@ -52,6 +63,10 @@ export const temporalAccessServiceFactory = createServiceFactory({
       PayloadStore.fromConfig(config, logger),
       new TemporalReadRepository(temporal),
     );
-    return new DefaultTemporalAccessService(permissions, catalog, queries);
+    return new DefaultTemporalAccessService(permissions, catalog, queries, () =>
+      permissionsRegistry.getPermissionRuleset(
+        temporalWorkflowPermissionResourceRef,
+      ),
+    );
   },
 });

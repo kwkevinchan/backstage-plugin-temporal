@@ -200,6 +200,8 @@ export interface NamespaceWorkflowFilter {
   workflowIdPrefix?: string;
   /** False leaves out runs that continued as new. */
   allRuns?: boolean;
+  /** A visibility query from a conditional permission decision. */
+  permissionQuery?: string;
 }
 
 /**
@@ -230,6 +232,7 @@ export function buildNamespaceWorkflowQuery(
   } else if (filter.allRuns === false) {
     parts.push(LATEST_RUNS);
   }
+  if (filter.permissionQuery) parts.push(`(${filter.permissionQuery})`);
   return parts.join(' AND ');
 }
 
