@@ -17,25 +17,23 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
-import { configApiRef } from '@backstage/core-plugin-api';
+import type { Entity } from '@backstage/catalog-model';
+import {
+  configApiRef,
+  discoveryApiRef,
+  fetchApiRef,
+} from '@backstage/core-plugin-api';
 import {
   mockApis,
   renderInTestApp,
   TestApiProvider,
 } from '@backstage/test-utils';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
-import {
-  createTemporalControlActionDef,
-  temporalApiRef,
-} from '../../extensions';
-import {
-  failedWorkflow,
-  mockTemporalApi,
-  workflowEntity,
-} from '../../testData';
-import { ControlActionButton } from './ControlActionButton';
-import { StartWorkflowButton } from './StartWorkflow';
-import { WorkflowControls } from './WorkflowControls';
+import { TemporalControlApi, temporalControlApiRef } from './api';
+import { StartWorkflowButton } from './components/StartWorkflow';
+import { WorkflowControls } from './components/WorkflowControls';
+import { createTemporalControlActionDef } from './index';
 
 // usePermission caches results across tests; this one answers from `denied`.
 let denied: string[] = [];
@@ -46,13 +44,60 @@ jest.mock('@backstage/plugin-permission-react', () => ({
   }),
 }));
 
+const failedWorkflow: WorkflowDetail = {
+  namespace: 'default',
+  workflowId: 'payment-1',
+  runId: 'run-2',
+  workflowType: 'paymentWorkflow',
+  taskQueue: 'orders',
+  status: 'Failed',
+  startTime: '2026-01-01T11:00:00.000Z',
+  closeTime: '2026-01-01T11:00:01.000Z',
+  pendingActivities: [],
+};
 const running: WorkflowDetail = { ...failedWorkflow, status: 'Running' };
 const ref = {
   namespace: running.namespace,
   workflowId: running.workflowId,
   runId: running.runId,
 };
+const entity: Entity = {
+  apiVersion: 'backstage.io/v1alpha1',
+  kind: 'Component',
+  metadata: { name: 'orders', namespace: 'default' },
+  spec: {},
+};
 const entityRef = 'component:default/orders';
+const workflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'order-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'orderWorkflow',
+    taskQueue: 'orders',
+  },
+};
+
+function mockControlApi(): jest.Mocked<TemporalControlApi> {
+  return {
+    signalWorkflow: jest.fn().mockResolvedValue(undefined),
+    updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
+    cancelWorkflow: jest.fn().mockResolvedValue(undefined),
+    terminateWorkflow: jest.fn().mockResolvedValue(undefined),
+    rerunWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'order-1-rerun-abc',
+      runId: 'run-new',
+    }),
+    startWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'started-1',
+      runId: 'run-started',
+    }),
+    runWorkflowAction: jest.fn().mockResolvedValue({ result: { ok: true } }),
+  };
+}
 
 function Opened() {
   const { workflowId } = useParams();
@@ -61,20 +106,25 @@ function Opened() {
 
 function render(
   element: JSX.Element,
-  options?: {
-    api?: ReturnType<typeof mockTemporalApi>;
-    deny?: string[];
-    control?: object;
-  },
+  options?: { deny?: string[]; control?: object },
 ) {
-  const api = options?.api ?? mockTemporalApi();
+  const api = mockControlApi();
+  const temporal = {
+    getWorkflowHandlers: jest.fn().mockResolvedValue({
+      signals: [{ name: 'addNote' }],
+      updates: [],
+      queries: [{ name: 'state' }],
+    }),
+  };
   denied = options?.deny ?? [];
   return {
     api,
+    temporal,
     ...renderInTestApp(
       <TestApiProvider
         apis={[
-          [temporalApiRef, api],
+          [temporalControlApiRef, api],
+          [temporalApiRef, temporal as any],
           [
             configApiRef,
             mockApis.config({
@@ -99,29 +149,28 @@ describe('WorkflowControls', () => {
     render(
       <WorkflowControls
         workflow={running}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
     );
-    for (const name of ['Signal…', 'Update…', 'Query…', 'Cancel']) {
+    for (const name of ['Signal…', 'Update…', 'Cancel']) {
       expect(await screen.findByRole('button', { name })).toBeEnabled();
     }
     expect(screen.getByRole('button', { name: 'Terminate' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
   });
 
-  it('shows rerun and query for a closed workflow', async () => {
+  it('shows rerun for a closed workflow', async () => {
     render(
       <WorkflowControls
         workflow={failedWorkflow}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
     );
     expect(await screen.findByRole('button', { name: 'Rerun' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Query…' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Signal…' })).toBeNull();
   });
@@ -130,7 +179,7 @@ describe('WorkflowControls', () => {
     render(
       <WorkflowControls
         workflow={running}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
@@ -145,39 +194,16 @@ describe('WorkflowControls', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
   });
 
-  it('hides the operations when the controls are disabled', async () => {
-    render(
-      <WorkflowControls
-        workflow={running}
-        entityRef={entityRef}
-        reload={jest.fn()}
-        workflowHref={href}
-      />,
-      { control: { enabled: false } },
-    );
-    expect(await screen.findByRole('button', { name: 'Query…' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Signal…' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Terminate' })).toBeNull();
-  });
-
   it('sends a signal with JSON arguments', async () => {
     const reload = jest.fn();
     const { api } = render(
       <WorkflowControls
         workflow={running}
-        entityRef={entityRef}
+        entity={entity}
         reload={reload}
         workflowHref={href}
       />,
     );
-    api.queryWorkflow.mockResolvedValueOnce({
-      result: {
-        definition: {
-          signalDefinitions: [{ name: 'addNote' }],
-          queryDefinitions: [{ name: '__stack_trace' }, { name: 'state' }],
-        },
-      },
-    });
     await userEvent.click(
       await screen.findByRole('button', { name: 'Signal…' }),
     );
@@ -203,7 +229,7 @@ describe('WorkflowControls', () => {
     const { api } = render(
       <WorkflowControls
         workflow={running}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
@@ -233,7 +259,7 @@ describe('WorkflowControls', () => {
     const { api } = render(
       <WorkflowControls
         workflow={running}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
@@ -265,7 +291,7 @@ describe('WorkflowControls', () => {
     const { api } = render(
       <WorkflowControls
         workflow={failedWorkflow}
-        entityRef={entityRef}
+        entity={entity}
         reload={jest.fn()}
         workflowHref={href}
       />,
@@ -281,14 +307,47 @@ describe('WorkflowControls', () => {
   });
 });
 
+describe('without a registered control API', () => {
+  it('calls the backend with its own client (legacy apps)', async () => {
+    const fetch = jest.fn(async () => new Response('{}', { status: 200 }));
+    denied = [];
+    renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [discoveryApiRef, mockApis.discovery()],
+          [fetchApiRef, { fetch }],
+          [configApiRef, mockApis.config()],
+          [temporalApiRef, {} as any],
+        ]}
+      >
+        <WorkflowControls
+          workflow={running}
+          entity={entity}
+          reload={jest.fn()}
+        />
+      </TestApiProvider>,
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cancel' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel workflow' }),
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(String((fetch.mock.calls[0] as any[])[0])).toMatch(
+      /\/workflows\/payment-1\/runs\/run-2\/cancel\?entityRef=component%3Adefault%2Forders$/,
+    );
+  });
+});
+
 describe('StartWorkflowButton', () => {
   it('starts a workflow of a TemporalWorkflow entity with its example input', async () => {
-    const entity = {
+    const withInput = {
       ...workflowEntity,
       spec: { ...workflowEntity.spec, exampleInput: { orderId: 'o-1' } },
     };
     const { api } = render(
-      <StartWorkflowButton entity={entity} workflowHref={href} />,
+      <StartWorkflowButton entity={withInput} workflowHref={href} />,
     );
     await userEvent.click(
       await screen.findByRole('button', { name: 'Start workflow' }),
@@ -364,13 +423,9 @@ describe('ControlActionButton', () => {
       body: w => ({ workflowId: w.workflowId }),
     });
     const reload = jest.fn();
+    const Action = def.component;
     const { api } = render(
-      <ControlActionButton
-        action={def.controlAction!}
-        workflow={running}
-        entityRef={entityRef}
-        reload={reload}
-      />,
+      <Action workflow={running} entity={entity} reload={reload} />,
     );
     await userEvent.click(
       await screen.findByRole('button', { name: 'Escalate' }),

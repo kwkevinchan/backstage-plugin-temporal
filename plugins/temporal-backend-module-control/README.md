@@ -34,7 +34,8 @@ temporal:
 ## Custom actions
 
 A backend module can add an action, served as `POST .../actions/:actionId`
-and shown as a button by the frontend:
+and shown as a button by the frontend control module
+([`-module-control`](../temporal-module-control/README.md)):
 
 ```ts
 import { temporalControlExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';

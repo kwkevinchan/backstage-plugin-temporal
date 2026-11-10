@@ -18,6 +18,8 @@ import { createExtensionTester } from '@backstage/frontend-test-utils';
 import {
   TemporalWorkflowActionBlueprint,
   temporalWorkflowActionDataRef,
+  TemporalWorkflowListActionBlueprint,
+  temporalWorkflowListActionDataRef,
   TemporalWorkflowSectionBlueprint,
   temporalWorkflowSectionDataRef,
 } from './blueprints';
@@ -54,5 +56,22 @@ describe('blueprints', () => {
       temporalWorkflowSectionDataRef,
     );
     expect(section.title).toBe('Notes');
+  });
+
+  it('outputs a workflow list action', () => {
+    const filter = () => true;
+    const extension = TemporalWorkflowListActionBlueprint.make({
+      name: 'export',
+      params: { loader: async () => () => null, filter },
+    });
+    expect((extension as unknown as { attachTo: unknown }).attachTo).toEqual({
+      id: 'api:temporal/workflow-extensions',
+      input: 'listActions',
+    });
+    const action = createExtensionTester(extension).get(
+      temporalWorkflowListActionDataRef,
+    );
+    expect(action.id).toBe('temporal-workflow-list-action:export');
+    expect(action.filter).toBe(filter);
   });
 });

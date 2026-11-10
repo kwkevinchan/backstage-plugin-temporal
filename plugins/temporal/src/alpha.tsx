@@ -48,6 +48,7 @@ import {
 import { temporalApiRef, temporalWorkflowExtensionsApiRef } from './extensions';
 import {
   temporalWorkflowActionDataRef,
+  temporalWorkflowListActionDataRef,
   temporalWorkflowSectionDataRef,
 } from './extensions/blueprints';
 import { TemporalClient } from './api';
@@ -55,8 +56,10 @@ import { entityContentRouteRef, rootRouteRef } from './routes';
 
 export {
   TemporalWorkflowActionBlueprint,
+  TemporalWorkflowListActionBlueprint,
   TemporalWorkflowSectionBlueprint,
   temporalWorkflowActionDataRef,
+  temporalWorkflowListActionDataRef,
   temporalWorkflowSectionDataRef,
   TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
 } from './extensions/blueprints';
@@ -73,11 +76,12 @@ export const temporalApi = ApiBlueprint.make({
 });
 
 /**
- * Shared mount point of workflow actions and sections
+ * Shared mount point of workflow actions, list actions and sections
  * (`api:temporal/workflow-extensions`). Extensions of
- * `TemporalWorkflowActionBlueprint` and `TemporalWorkflowSectionBlueprint`
- * attach to its `actions` and `sections` inputs; the entity tab and the
- * Workflows page both show them.
+ * `TemporalWorkflowActionBlueprint`, `TemporalWorkflowListActionBlueprint`
+ * and `TemporalWorkflowSectionBlueprint` attach to its `actions`,
+ * `listActions` and `sections` inputs; the entity tab and the Workflows
+ * page both show them.
  *
  * @alpha
  */
@@ -86,6 +90,7 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
   inputs: {
     actions: createExtensionInput([temporalWorkflowActionDataRef]),
     sections: createExtensionInput([temporalWorkflowSectionDataRef]),
+    listActions: createExtensionInput([temporalWorkflowListActionDataRef]),
   },
   factory(originalFactory, { inputs }) {
     const actions = inputs.actions.map(i =>
@@ -94,6 +99,9 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
     const sections = inputs.sections.map(i =>
       i.get(temporalWorkflowSectionDataRef),
     );
+    const listActions = inputs.listActions.map(i =>
+      i.get(temporalWorkflowListActionDataRef),
+    );
     return originalFactory(defineParams =>
       defineParams({
         api: temporalWorkflowExtensionsApiRef,
@@ -101,6 +109,7 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
         factory: () => ({
           getActions: () => actions,
           getSections: () => sections,
+          getListActions: () => listActions,
         }),
       }),
     );

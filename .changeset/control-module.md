@@ -13,4 +13,4 @@ module. Custom actions are added with `temporalControlExtensionPoint` from
 `-node/alpha`; `temporalExtensionPoint` keeps `addWorkflowEnricher` only.
 Query stays in the core plugin and needs the new `temporal.workflow.query`
 permission; the new `GET .../handlers` lists the signals, updates and
-queries of a running workflow with the read permission.
+queries of a workflow with the read permission.

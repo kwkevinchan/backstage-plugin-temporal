@@ -21,10 +21,9 @@ import {
   isValidWorkflowTypeName,
   WorkflowStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '../extensions';
+import { TemporalWorkflowListActionDef, temporalApiRef } from '../extensions';
 import { Button, Flex, Text, TextField } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
-import { StartWorkflowButton } from './controls/StartWorkflow';
 import { ErrorAlert } from './feedback';
 import { PanelCard } from './PanelCard';
 import {
@@ -35,6 +34,7 @@ import {
 } from './WorkflowRunsTable';
 import { useListScroll, useWorkflowListState } from './listState';
 import { AllRunsSwitch, LostPageNotice } from './WorkflowList';
+import { WorkflowListActions } from './WorkflowListActions';
 
 interface Filters {
   status: WorkflowStatus | '';
@@ -43,7 +43,9 @@ interface Filters {
 }
 
 /** Every workflow of the default namespace, with filters. */
-export function AllWorkflowsList() {
+export function AllWorkflowsList(props: {
+  listActions?: TemporalWorkflowListActionDef[];
+}) {
   const temporalApi = useApi(temporalApiRef);
   // Filters, page and page size live in the URL, so they are kept when a
   // workflow is opened and the user comes back.
@@ -145,7 +147,10 @@ export function AllWorkflowsList() {
         onChange={next => list.setFilters({ ...list.filters, allRuns: next })}
       />
       <div style={{ marginLeft: 'auto' }}>
-        <StartWorkflowButton workflowHref={workflowLink} />
+        <WorkflowListActions
+          actions={props.listActions}
+          workflowHref={workflowLink}
+        />
       </div>
       {(idError || typeError) && (
         <Text as="p" variant="body-small" color="danger" role="alert">

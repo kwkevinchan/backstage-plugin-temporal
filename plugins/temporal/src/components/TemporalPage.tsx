@@ -22,6 +22,7 @@ import {
   WorkflowDetailPage,
   WorkflowDetailPageProps,
 } from './WorkflowDetailPage';
+import type { TemporalWorkflowListActionDef } from '../extensions';
 import { tp } from './styles';
 
 /**
@@ -29,7 +30,10 @@ import { tp } from './styles';
  *
  * @public
  */
-export type TemporalPageProps = WorkflowDetailPageProps;
+export type TemporalPageProps = WorkflowDetailPageProps & {
+  /** Controls above the workflow list, such as "Start workflow". */
+  workflowListActions?: TemporalWorkflowListActionDef[];
+};
 
 /** Workflows page content: the list, and details on a nested route. */
 export function TemporalPageContent(props: TemporalPageProps) {
@@ -41,7 +45,10 @@ export function TemporalPageContent(props: TemporalPageProps) {
   );
   return (
     <Routes>
-      <Route path="/" element={<AllWorkflowsList />} />
+      <Route
+        path="/"
+        element={<AllWorkflowsList listActions={props.workflowListActions} />}
+      />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
         element={detail}

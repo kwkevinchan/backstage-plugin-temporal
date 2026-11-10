@@ -17,11 +17,9 @@
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '../extensions';
+import { TemporalWorkflowListActionDef, temporalApiRef } from '../extensions';
 import { Alert, Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
-import { StartWorkflowButton } from './controls/StartWorkflow';
 import { ErrorAlert } from './feedback';
 import { useListScroll, useWorkflowListState } from './listState';
 import { PanelCard } from './PanelCard';
@@ -31,6 +29,7 @@ import {
   workflowLink,
   WorkflowRunsTable,
 } from './WorkflowRunsTable';
+import { WorkflowListActions } from './WorkflowListActions';
 import { statusLabel } from './WorkflowStatusLabel';
 
 export { workflowLink } from './WorkflowRunsTable';
@@ -67,7 +66,10 @@ export function LostPageNotice(props: { page?: number }) {
 }
 
 /** Workflow list of the current entity. */
-export function WorkflowList(props: { title?: string }) {
+export function WorkflowList(props: {
+  title?: string;
+  listActions?: TemporalWorkflowListActionDef[];
+}) {
   const { entity } = useEntity();
   const temporalApi = useApi(temporalApiRef);
   const entityRef = stringifyEntityRef(entity);
@@ -115,12 +117,11 @@ export function WorkflowList(props: { title?: string }) {
             <Button variant="secondary" size="small" onPress={retry}>
               Refresh
             </Button>
-            {isTemporalWorkflowEntity(entity) && (
-              <StartWorkflowButton
-                entity={entity}
-                workflowHref={workflowLink}
-              />
-            )}
+            <WorkflowListActions
+              actions={props.listActions}
+              entity={entity}
+              workflowHref={workflowLink}
+            />
           </>
         }
       >

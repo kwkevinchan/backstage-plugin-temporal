@@ -16,6 +16,7 @@
 
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { TemporalWorkflowActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import { TemporalControlActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-module-control/alpha';
 
 /** Example workflow action, added through the blueprint of the Temporal plugin. */
 const copyWorkflowIdAction = TemporalWorkflowActionBlueprint.make({
@@ -28,16 +29,15 @@ const copyWorkflowIdAction = TemporalWorkflowActionBlueprint.make({
 
 /**
  * Example button that runs the example backend action
- * (packages/backend/src/escalateAction.ts) on running ticket workflows.
+ * (packages/backend/src/escalateAction.ts) on running ticket workflows,
+ * added through the blueprint of the control module.
  */
-const escalateAction = TemporalWorkflowActionBlueprint.make({
+const escalateAction = TemporalControlActionBlueprint.make({
   name: 'escalate',
   params: {
-    controlAction: {
-      actionId: 'escalate',
-      label: 'Escalate',
-      confirm: 'Raise the priority of this ticket to high?',
-    },
+    actionId: 'escalate',
+    label: 'Escalate',
+    confirm: 'Raise the priority of this ticket to high?',
     filter: workflow =>
       workflow.workflowType === 'ticketWorkflow' &&
       workflow.status === 'Running',

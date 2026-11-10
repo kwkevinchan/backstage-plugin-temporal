@@ -379,6 +379,10 @@
   align-items: center;
   gap: var(--bui-space-2, 8px);
 }
+/* An action may render several buttons; they join the row of the bar. */
+.tp-summary-action {
+  display: contents;
+}
 .tp-help {
   display: inline-flex;
   /* The button is larger than the label text; keep the row height. */

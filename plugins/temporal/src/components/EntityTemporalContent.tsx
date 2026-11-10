@@ -26,6 +26,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
   TemporalWorkflowActionDef,
+  TemporalWorkflowListActionDef,
   TemporalWorkflowSectionDef,
 } from '../extensions';
 import { Flex, Grid } from '@backstage/ui';
@@ -45,6 +46,8 @@ export interface EntityTemporalContentProps {
   workflowActions?: TemporalWorkflowActionDef[];
   /** Tabs on the workflow details page. */
   workflowSections?: TemporalWorkflowSectionDef[];
+  /** Controls above the workflow list, such as "Start workflow". */
+  workflowListActions?: TemporalWorkflowListActionDef[];
 }
 
 /**
@@ -52,7 +55,9 @@ export interface EntityTemporalContentProps {
  * run statistics above the runs; an entity that depends on
  * `TemporalWorkflow` entities gets the list of those entities.
  */
-function TemporalOverview() {
+function TemporalOverview(props: {
+  listActions?: TemporalWorkflowListActionDef[];
+}) {
   const { entity } = useEntity();
   if (isTemporalWorkflowEntity(entity)) {
     return (
@@ -64,7 +69,10 @@ function TemporalOverview() {
           <TemporalWorkflowStatsCard />
         </Grid.Item>
         <Grid.Item colSpan={{ initial: '1', md: '2' }}>
-          <WorkflowList title="Workflow executions" />
+          <WorkflowList
+            title="Workflow executions"
+            listActions={props.listActions}
+          />
         </Grid.Item>
       </Grid.Root>
     );
@@ -73,11 +81,11 @@ function TemporalOverview() {
     return (
       <Flex direction="column" gap="4">
         <TemporalRelatedWorkflowsCard />
-        <WorkflowList />
+        <WorkflowList listActions={props.listActions} />
       </Flex>
     );
   }
-  return <WorkflowList />;
+  return <WorkflowList listActions={props.listActions} />;
 }
 
 /** Entity tab: workflow list, and workflow details on a nested route. */
@@ -101,7 +109,10 @@ export function EntityTemporalContentPage(props: EntityTemporalContentProps) {
   );
   return (
     <Routes>
-      <Route path="/" element={<TemporalOverview />} />
+      <Route
+        path="/"
+        element={<TemporalOverview listActions={props.workflowListActions} />}
+      />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
         element={detail}

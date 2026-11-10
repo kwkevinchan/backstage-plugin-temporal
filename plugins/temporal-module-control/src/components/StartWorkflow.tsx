@@ -17,16 +17,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
-import {
-  getTemporalWorkflowExampleArgs,
-  isValidTaskQueueName,
-  isValidWorkflowTypeName,
-  parseTemporalWorkflowSpec,
-  temporalWorkflowStartPermission,
-  WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalApiRef } from '../../extensions';
 import {
   Button,
   Dialog,
@@ -38,15 +28,24 @@ import {
   TextField,
 } from '@backstage/ui';
 import { RiPlayLine } from '@remixicon/react';
-import { ErrorAlert } from '../feedback';
+import type { TemporalWorkflowListActionProps } from '@kwkevinchan/backstage-plugin-temporal';
 import {
   controlError,
+  ErrorAlert,
   JsonArgsField,
   parseArgs,
-  useControlConfig,
   useControlPermission,
   WithReason,
-} from './shared';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
+import {
+  getTemporalWorkflowExampleArgs,
+  isValidTaskQueueName,
+  isValidWorkflowTypeName,
+  parseTemporalWorkflowSpec,
+  temporalWorkflowStartPermission,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
+import { useTemporalControlApi } from '../api';
 
 function specOf(entity: Entity | undefined) {
   if (!entity) return undefined;
@@ -63,7 +62,7 @@ function StartWorkflowDialog(props: {
   onStarted(ref: Required<WorkflowRef>): void;
 }) {
   const { entity } = props;
-  const api = useApi(temporalApiRef);
+  const api = useTemporalControlApi();
   const spec = specOf(entity);
   const example = entity ? getTemporalWorkflowExampleArgs(entity) : undefined;
   const [workflowId, setWorkflowId] = useState('');
@@ -165,23 +164,17 @@ function StartWorkflowDialog(props: {
  * "Start workflow" with its dialog. With a `TemporalWorkflow` entity it
  * starts that workflow, with the example input of the entity filled in;
  * without one (the Workflows page) the workflow type and task queue are
- * asked for. Opens the new workflow once it has started.
+ * asked for. Opens the new workflow once it has started. A list action:
+ * the list of a `TemporalWorkflow` entity and the Workflows page show it.
  */
-export function StartWorkflowButton(props: {
-  entity?: Entity;
-  /** Link of the details page of a workflow, relative to the list. */
-  workflowHref(ref: Required<WorkflowRef>): string;
-  size?: 'small' | 'medium';
-}) {
+export function StartWorkflowButton(props: TemporalWorkflowListActionProps) {
   const { entity } = props;
-  const config = useControlConfig();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { allowed, loading } = useControlPermission(
     temporalWorkflowStartPermission,
     entity ? stringifyEntityRef(entity) : undefined,
   );
-  if (!config.enabled) return null;
   return (
     <>
       <WithReason
@@ -193,7 +186,7 @@ export function StartWorkflowButton(props: {
       >
         <Button
           variant="primary"
-          size={props.size ?? 'small'}
+          size="small"
           iconStart={<RiPlayLine />}
           isDisabled={!allowed}
           onPress={() => setOpen(true)}

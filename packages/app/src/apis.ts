@@ -1,3 +1,4 @@
+import { temporalControlApiFactory } from '@kwkevinchan/backstage-plugin-temporal-module-control';
 import {
   ScmIntegrationsApi,
   scmIntegrationsApiRef,
@@ -16,4 +17,6 @@ export const apis: AnyApiFactory[] = [
     factory: ({ configApi }) => ScmIntegrationsApi.fromConfig(configApi),
   }),
   ScmAuth.createDefaultApiFactory(),
+  // Client of the routes of the Temporal backend control module.
+  temporalControlApiFactory,
 ];
