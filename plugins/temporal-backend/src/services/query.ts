@@ -47,6 +47,17 @@ export function isValidEntityRefValue(value: string): boolean {
   return ENTITY_REF_PATTERN.test(value);
 }
 
+/**
+ * `Name = true`, for a Bool search attribute that must be true (for example
+ * `ApprovalPending`). The name is checked.
+ */
+export function trueAttributeCondition(name: string): string {
+  if (!SEARCH_ATTRIBUTE_PATTERN.test(name)) {
+    throw new InputError('Invalid search attribute name');
+  }
+  return `${name} = true`;
+}
+
 /** Quotes a validated value for a visibility query. */
 export function quote(value: string): string {
   // Values are validated before they get here; this is a second guard.
@@ -131,7 +142,12 @@ const LATEST_RUNS = `ExecutionStatus != 'ContinuedAsNew'`;
 
 export function buildEntityWorkflowQuery(
   filter: EntityWorkflowFilter,
-  options?: { status?: WorkflowStatus; allRuns?: boolean },
+  options?: {
+    status?: WorkflowStatus;
+    allRuns?: boolean;
+    /** A Bool search attribute that must be true. */
+    searchAttribute?: string;
+  },
 ): string {
   const { annotations, entityRef, entityRefAttribute } = filter;
   const related = filter.related ?? [];
@@ -172,6 +188,9 @@ export function buildEntityWorkflowQuery(
     query = `(${query}) AND ExecutionStatus = ${quote(options.status)}`;
   } else if (options?.allRuns === false) {
     query = `(${query}) AND ${LATEST_RUNS}`;
+  }
+  if (options?.searchAttribute) {
+    query = `${query} AND ${trueAttributeCondition(options.searchAttribute)}`;
   }
   return query;
 }
@@ -220,6 +239,8 @@ export interface NamespaceWorkflowFilter {
   workflowType?: string;
   /** Start of the workflow ID. */
   workflowIdPrefix?: string;
+  /** A Bool search attribute that must be true. */
+  searchAttribute?: string;
   /** False leaves out runs that continued as new. */
   allRuns?: boolean;
   /** A visibility query from a conditional permission decision. */
@@ -248,6 +269,9 @@ export function buildNamespaceWorkflowQuery(
       );
     }
     parts.push(`WorkflowId STARTS_WITH ${quote(filter.workflowIdPrefix)}`);
+  }
+  if (filter.searchAttribute) {
+    parts.push(trueAttributeCondition(filter.searchAttribute));
   }
   if (filter.status) {
     parts.push(`ExecutionStatus = ${quote(filter.status)}`);

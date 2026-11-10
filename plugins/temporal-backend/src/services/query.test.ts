@@ -147,6 +147,35 @@ describe('buildEntityWorkflowQuery', () => {
   });
 });
 
+describe('the search attribute filter', () => {
+  it('keeps the workflows whose Bool search attribute is true', () => {
+    expect(
+      buildNamespaceWorkflowQuery({
+        workflowType: 'demoRelease',
+        searchAttribute: 'ApprovalPending',
+        status: 'Running',
+      }),
+    ).toBe(
+      "WorkflowType = 'demoRelease' AND ApprovalPending = true AND ExecutionStatus = 'Running'",
+    );
+    expect(
+      buildEntityWorkflowQuery(
+        {
+          annotations: { workflowTypes: ['demoRelease'] },
+          entityRef: 'component:default/release',
+        },
+        { searchAttribute: 'ApprovalPending' },
+      ),
+    ).toBe("WorkflowType = 'demoRelease' AND ApprovalPending = true");
+  });
+
+  it('rejects names that are not search attribute names', () => {
+    expect(() =>
+      buildNamespaceWorkflowQuery({ searchAttribute: 'x = true OR y' }),
+    ).toThrow('Invalid search attribute name');
+  });
+});
+
 describe('parseStatus', () => {
   it('accepts known statuses only', () => {
     expect(parseStatus(undefined)).toBeUndefined();
