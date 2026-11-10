@@ -29,7 +29,8 @@ system (`./alpha`).
   page. Paging and filtering replace the history entry instead of adding
   one.
 - Query: runs a query on a workflow (`temporal.workflow.query`), offering
-  the names the workflow defines. The buttons that change workflows are in
+  the names the workflow defines, with the description and example from
+  `spec.messages`. The buttons that change workflows are in
   `@kwkevinchan/backstage-plugin-temporal-module-control`.
 - Extension points for other plugins and app modules: `temporalApiRef`,
   `useTemporalWorkflow`, `TemporalWorkflowActionBlueprint`,

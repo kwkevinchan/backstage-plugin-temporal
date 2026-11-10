@@ -922,6 +922,42 @@ typed; the backend lists them at `GET .../handlers`), take the arguments as
 JSON and show the result or the error, for example the message of an update
 validator.
 
+A `TemporalWorkflow` entity can describe the signals, updates and queries of
+its workflow in `spec.messages`. The dialogs then show the description,
+fill the arguments with the example and, for a signal or update with an
+`inputSchema` (JSON Schema of its one argument), show a form instead of the
+JSON field (with `@rjsf/core`, as in the Scaffolder). `userField` names a
+property of the argument that is filled with the signed-in user's entity
+reference and cannot be changed in the form; the workflow should still check
+it, since a request can be sent without the form. Handlers the entity
+describes are listed even when no worker answers the metadata query.
+
+```yaml
+spec:
+  workflowType: releaseWorkflow
+  messages:
+    updates:
+      - name: approve
+        description: Approve or reject the release
+        inputSchema:
+          type: object
+          required: [approved]
+          properties:
+            approved: { type: boolean, title: Approve }
+            comment: { type: string, title: Comment }
+            by: { type: string, title: Approver }
+        example: { approved: true }
+        userField: by
+    queries:
+      - name: approvalState
+        description: Phase, pending approvals and the decision
+```
+
+The backend reads the entity of the run (the entity the page is shown for,
+one it depends on, or the one that matches the workflow type and task queue)
+with the caller's permissions; an entity the caller cannot read describes
+nothing.
+
 **Start workflow** is on the Temporal tab of `TemporalWorkflow` entities and
 on the Workflows page. For an entity, the workflow type and task queue come
 from its spec, and the input is filled with `spec.exampleInput` (an array of

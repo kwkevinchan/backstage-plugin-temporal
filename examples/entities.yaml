@@ -76,6 +76,26 @@ spec:
   exampleInput:
     title: Printer is out of paper
     priority: normal
+  # The Signal, Update and Query dialogs show these descriptions and
+  # examples; addNote gets a form from its input schema.
+  messages:
+    signals:
+      - name: addNote
+        description: Adds a note to the ticket
+        inputSchema:
+          type: string
+          title: Note
+          minLength: 1
+        example: Called the customer
+      - name: close
+        description: Closes the ticket
+    updates:
+      - name: setPriority
+        description: Changes the priority; the workflow rejects unknown ones
+        example: high
+    queries:
+      - name: state
+        description: The title, priority, notes and status of the ticket
 ---
 # Workflows written in YAML (CNCF Serverless Workflow DSL, as Zigflow runs
 # them). The Definition tab shows the file next to its graph; the backend

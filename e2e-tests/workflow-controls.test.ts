@@ -96,7 +96,8 @@ async function fillMessage(
   button: string,
   field: string,
   name: string,
-  args: string,
+  /** JSON arguments, or a value for the form field of a described handler. */
+  args: string | { field: string; value: string },
 ) {
   await page.getByRole('button', { name: button, exact: true }).click();
   const nameField = dialog(page).getByRole('combobox', { name: field });
@@ -106,9 +107,17 @@ async function fillMessage(
   await nameField.fill(name);
   // Tab closes the list of names, which hides the rest of the dialog.
   await nameField.press('Tab');
-  await dialog(page)
-    .getByRole('textbox', { name: 'Arguments (JSON)' })
-    .fill(args);
+  if (typeof args === 'string') {
+    await dialog(page)
+      .getByRole('textbox', { name: 'Arguments (JSON)' })
+      .fill(args);
+  } else {
+    // spec.messages gives this handler an input schema: a form.
+    await dialog(page)
+      .getByTestId('message-form')
+      .getByRole('textbox', { name: args.field })
+      .fill(args.value);
+  }
 }
 
 async function closeDialog(page: Page) {
@@ -161,13 +170,10 @@ test('starts, signals, queries, updates, cancels and reruns a workflow', async (
   await shot('31-started');
 
   // 2. A signal adds a note.
-  await fillMessage(
-    page,
-    'Signal…',
-    'Signal name',
-    'addNote',
-    '["Checked the paper tray"]',
-  );
+  await fillMessage(page, 'Signal…', 'Signal name', 'addNote', {
+    field: 'Note',
+    value: 'Checked the paper tray',
+  });
   await shot('32-signal-dialog');
   await dialog(page).getByRole('button', { name: 'Send signal' }).click();
   await expect(
@@ -302,13 +308,10 @@ test('shows the workflow controls in the dark theme', async ({ page }) => {
     .click();
   await expect(summary(page)).toContainText('Running');
   await shot('dark-31-started');
-  await fillMessage(
-    page,
-    'Signal…',
-    'Signal name',
-    'addNote',
-    '["A dark note"]',
-  );
+  await fillMessage(page, 'Signal…', 'Signal name', 'addNote', {
+    field: 'Note',
+    value: 'A dark note',
+  });
   await dialog(page).getByRole('button', { name: 'Send signal' }).click();
   await expect(
     dialog(page).getByTestId('workflow-signal-result'),

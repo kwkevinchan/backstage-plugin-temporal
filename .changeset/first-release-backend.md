@@ -18,7 +18,8 @@ workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`
   permission.
 - Queries (`POST .../query`, with `temporal.workflow.query`, recorded with
   the auditor) and `GET .../handlers`, the signals, updates and queries a
-  workflow defines.
+  workflow defines, with what its `TemporalWorkflow` entity describes in
+  `spec.messages`.
 - The `temporal-workflow` permission resource type: `temporal.workflow.list`
   and `temporal.workflow.history.list` are checked with `authorizeConditional`,
   and conditions become a Temporal visibility query for the Workflows page.

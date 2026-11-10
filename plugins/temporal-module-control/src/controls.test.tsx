@@ -22,6 +22,7 @@ import {
   configApiRef,
   discoveryApiRef,
   fetchApiRef,
+  identityApiRef,
 } from '@backstage/core-plugin-api';
 import {
   mockApis,
@@ -106,15 +107,17 @@ function Opened() {
 
 function render(
   element: JSX.Element,
-  options?: { deny?: string[]; control?: object },
+  options?: { deny?: string[]; control?: object; handlers?: object },
 ) {
   const api = mockControlApi();
   const temporal = {
-    getWorkflowHandlers: jest.fn().mockResolvedValue({
-      signals: [{ name: 'addNote' }],
-      updates: [],
-      queries: [{ name: 'state' }],
-    }),
+    getWorkflowHandlers: jest.fn().mockResolvedValue(
+      options?.handlers ?? {
+        signals: [{ name: 'addNote' }],
+        updates: [],
+        queries: [{ name: 'state' }],
+      },
+    ),
   };
   denied = options?.deny ?? [];
   return {
@@ -125,6 +128,10 @@ function render(
         apis={[
           [temporalControlApiRef, api],
           [temporalApiRef, temporal as any],
+          [
+            identityApiRef,
+            mockApis.identity({ userEntityRef: 'user:default/alice' }),
+          ],
           [
             configApiRef,
             mockApis.config({
@@ -223,6 +230,155 @@ describe('WorkflowControls', () => {
       { entityRef },
     );
     expect(reload).toHaveBeenCalled();
+  });
+
+  it('fills the JSON field with the example of a described handler', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        handlers: {
+          signals: [
+            {
+              name: 'addNote',
+              description: 'Adds a note to the ticket',
+              example: { text: 'hello', by: '' },
+              userField: 'by',
+            },
+          ],
+          updates: [],
+          queries: [],
+        },
+      },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Signal…' }),
+    );
+    expect(
+      await screen.findByText('Adds a note to the ticket'),
+    ).toBeInTheDocument();
+    const args = screen.getByRole('textbox', { name: 'Arguments (JSON)' });
+    await waitFor(() =>
+      expect(JSON.parse((args as HTMLTextAreaElement).value)).toEqual({
+        text: 'hello',
+        by: 'user:default/alice',
+      }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Send signal' }));
+    expect(await screen.findByText('Signal addNote sent')).toBeInTheDocument();
+    expect(api.signalWorkflow).toHaveBeenCalledWith(
+      ref,
+      { name: 'addNote', args: [{ text: 'hello', by: 'user:default/alice' }] },
+      { entityRef },
+    );
+  });
+
+  it('shows a form for a handler with an input schema', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        handlers: {
+          signals: [],
+          updates: [
+            {
+              name: 'approve',
+              inputSchema: {
+                type: 'object',
+                required: ['comment'],
+                properties: {
+                  approved: { type: 'boolean', title: 'Approved' },
+                  comment: { type: 'string', title: 'Comment' },
+                  by: { type: 'string', title: 'By' },
+                },
+              },
+              example: { approved: false },
+              userField: 'by',
+            },
+          ],
+          queries: [],
+        },
+      },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Update…' }),
+    );
+    expect(await screen.findByTestId('message-form')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Arguments (JSON)' }),
+    ).toBeNull();
+    const by = screen.getByRole('textbox', { name: 'By' });
+    await waitFor(() => expect(by).toHaveValue('user:default/alice'));
+    expect(by).toHaveAttribute('readonly');
+    const send = screen.getByRole('button', { name: 'Send update' });
+    // The comment is required.
+    await waitFor(() => expect(send).toBeDisabled());
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Approved' }));
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Comment/ }),
+      'Looks good',
+    );
+    await waitFor(() => expect(send).toBeEnabled());
+    await userEvent.click(send);
+    expect(api.updateWorkflow).toHaveBeenCalledWith(
+      ref,
+      {
+        name: 'approve',
+        args: [
+          { approved: true, comment: 'Looks good', by: 'user:default/alice' },
+        ],
+      },
+      { entityRef },
+    );
+  });
+
+  it('shows a form for a handler whose argument is a string', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        handlers: {
+          signals: [
+            {
+              name: 'addNote',
+              inputSchema: { type: 'string', title: 'Note', minLength: 1 },
+              example: 'Called the customer',
+            },
+          ],
+          updates: [],
+          queries: [],
+        },
+      },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Signal…' }),
+    );
+    const note = await screen.findByRole('textbox', { name: /Note/ });
+    // Not `root`: that is the ID of the element the app is mounted in.
+    expect(note.id).not.toBe('root');
+    expect(document.querySelectorAll(`[id="${note.id}"]`)).toHaveLength(1);
+    await waitFor(() => expect(note).toHaveValue('Called the customer'));
+    await userEvent.clear(note);
+    await userEvent.type(note, 'Checked the tray');
+    await userEvent.click(screen.getByRole('button', { name: 'Send signal' }));
+    expect(await screen.findByText('Signal addNote sent')).toBeInTheDocument();
+    expect(api.signalWorkflow).toHaveBeenCalledWith(
+      ref,
+      { name: 'addNote', args: ['Checked the tray'] },
+      { entityRef },
+    );
   });
 
   it('shows the result and the error of an update', async () => {

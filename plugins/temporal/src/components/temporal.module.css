@@ -502,6 +502,124 @@
   border-color: var(--bui-border-danger);
 }
 
+/* JSON Schema form of the signal and update dialogs (rjsf's own markup). */
+.tp-schema-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--bui-font-regular);
+  color: var(--bui-fg-primary);
+}
+.tp-schema-form :global(fieldset) {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.tp-schema-form :global(fieldset fieldset) {
+  padding-left: 12px;
+  border-left: 2px solid var(--bui-border-1);
+}
+.tp-schema-form :global(legend) {
+  padding: 0;
+  font-size: var(--bui-font-size-3, 14px);
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-schema-form :global(.form-group) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+.tp-schema-form :global(.control-label) {
+  font-size: var(--bui-font-size-2, 12px);
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-schema-form :global(.required) {
+  color: var(--bui-fg-danger);
+  margin-left: 2px;
+}
+.tp-schema-form :global(.field-description),
+.tp-schema-form :global(.help-block) {
+  margin: 0;
+  font-size: var(--bui-font-size-1, 11px);
+  color: var(--bui-fg-secondary);
+}
+.tp-schema-form :global(.form-control) {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: var(--bui-font-size-3, 14px);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-1, transparent);
+  border: 1px solid var(--bui-border-2);
+  border-radius: var(--bui-radius-2, 4px);
+}
+.tp-schema-form :global(.form-control:focus) {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+.tp-schema-form :global(.form-control[readonly]) {
+  color: var(--bui-fg-secondary);
+  background: var(--bui-bg-neutral-2);
+}
+.tp-schema-form :global(.has-error .form-control) {
+  border-color: var(--bui-border-danger);
+}
+.tp-schema-form :global(.error-detail) {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--bui-font-size-1, 11px);
+  color: var(--bui-fg-danger);
+}
+.tp-schema-form :global(.checkbox label) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tp-schema-form :global(.btn) {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: var(--bui-font-size-2, 12px);
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2);
+  border: 1px solid var(--bui-border-2);
+  border-radius: var(--bui-radius-2, 4px);
+  cursor: pointer;
+}
+
+/* rjsf's array buttons carry Bootstrap icon classes only; label them. */
+.tp-schema-form :global(.btn-add)::after {
+  content: 'Add item';
+}
+.tp-schema-form :global(.array-item-remove)::after {
+  content: 'Remove';
+}
+.tp-schema-form :global(.array-item-move-up)::after {
+  content: 'Up';
+}
+.tp-schema-form :global(.array-item-move-down)::after {
+  content: 'Down';
+}
+.tp-schema-form :global(.array-item-copy)::after {
+  content: 'Copy';
+}
+.tp-schema-form :global(.array-item) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.tp-schema-form :global(.array-item > .col-xs-9) {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
 .tp-disabled-control {
   display: inline-flex;
   cursor: not-allowed;
