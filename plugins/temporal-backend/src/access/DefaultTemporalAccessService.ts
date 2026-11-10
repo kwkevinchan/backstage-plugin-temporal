@@ -172,15 +172,15 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     namespace: string,
     credentials: BackstageCredentials,
   ): Promise<TemporalWorkflowQuery | undefined> {
-    this.queries.checkNamespace(namespace);
     const decision = await this.listDecision(
       temporalWorkflowListPermission,
       credentials,
     );
-    if (decision.result !== AuthorizeResult.CONDITIONAL) {
-      if (decision.result === AuthorizeResult.ALLOW) return undefined;
-      throw new NotAllowedError();
-    }
+    if (decision.result === AuthorizeResult.DENY) throw new NotAllowedError();
+    // After the permission, so a denied caller cannot probe which
+    // namespaces are allowed.
+    this.queries.checkNamespace(namespace);
+    if (decision.result !== AuthorizeResult.CONDITIONAL) return undefined;
     let criteria: PermissionCriteria<TemporalWorkflowQuery>;
     try {
       criteria = createConditionTransformer(this.workflowRules())(
