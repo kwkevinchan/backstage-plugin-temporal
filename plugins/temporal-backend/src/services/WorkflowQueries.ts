@@ -318,11 +318,12 @@ export class WorkflowQueries {
 
   /**
    * The schedules of a namespace, the first MAX_SCHEDULES of them; with
-   * `workflowTypes`, only those that start one of these workflow types.
+   * `sources`, only those that start a workflow type of one of them (and on
+   * its task queue, when it has one: those schedules are described).
    */
   async listSchedules(
     namespace: string,
-    filter?: { workflowTypes?: string[] },
+    filter?: { sources?: { taskQueue?: string; workflowTypes: string[] }[] },
   ): Promise<TemporalScheduleListResponse> {
     this.checkNamespace(namespace);
     const client = await this.temporal.getClient({ namespace });
@@ -336,11 +337,20 @@ export class WorkflowQueries {
         break;
       }
       const schedule = toTemporalSchedule(namespace, summary);
-      if (
-        filter?.workflowTypes &&
-        !filter.workflowTypes.includes(schedule.workflowType ?? '')
-      ) {
-        continue;
+      if (filter?.sources) {
+        const type = schedule.workflowType ?? '';
+        const matching = filter.sources.filter(s =>
+          s.workflowTypes.includes(type),
+        );
+        if (matching.length === 0) continue;
+        if (matching.every(s => s.taskQueue)) {
+          // The list has no task queue: read it.
+          const description = await client.schedule
+            .getHandle(schedule.scheduleId)
+            .describe();
+          const queue = description.action.taskQueue;
+          if (!matching.some(s => s.taskQueue === queue)) continue;
+        }
       }
       items.push(schedule);
     }
@@ -348,15 +358,17 @@ export class WorkflowQueries {
     return { items, truncated };
   }
 
-  /** The workflow types of an entity: its own and the related entities'. */
-  workflowTypesOf(context: TemporalEntityContext): string[] {
+  /**
+   * The workflow types and task queues of an entity: its own and those of
+   * the related entities in its namespace.
+   */
+  workflowSourcesOf(
+    context: TemporalEntityContext,
+  ): { taskQueue?: string; workflowTypes: string[] }[] {
     const filter = this.filterOf(context);
-    return [
-      ...new Set([
-        ...filter.annotations.workflowTypes,
-        ...(filter.related ?? []).flatMap(r => r.workflowTypes),
-      ]),
-    ];
+    return [filter.annotations, ...(filter.related ?? [])]
+      .map(s => ({ taskQueue: s.taskQueue, workflowTypes: s.workflowTypes }))
+      .filter(s => s.workflowTypes.length > 0);
   }
 
   defaultNamespace(): string {

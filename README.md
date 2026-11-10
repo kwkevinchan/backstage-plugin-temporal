@@ -1042,8 +1042,9 @@ size only. Inputs and results are part of the history and need
 ## Schedules
 
 Temporal schedules start workflows on a calendar or an interval. The
-Workflows page lists the schedules of the namespace, and the Temporal tab of
-an entity lists those that start its workflow types. Each one shows when it
+Workflows page lists the schedules of the default namespace, and the
+Temporal tab of an entity lists those that start its workflow types (on its
+task queue, when it has one). Each one shows when it
 runs (`every 1h`, `02:00 on MONDAY-FRIDAY`, with its time zone), whether it
 is paused and why, its next run and a link to the workflow of its last run.
 

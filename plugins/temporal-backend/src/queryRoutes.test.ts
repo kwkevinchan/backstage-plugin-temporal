@@ -253,6 +253,17 @@ describe('query routes of the core plugin', () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.items.map((s: any) => s.scheduleId)).toEqual(['nightly']);
+    // The same workflow type on another task queue is another team's.
+    const elsewhere = await start({
+      client: fakeScheduleClient(
+        [scheduleSummary('nightly', 'orderWorkflow')],
+        'billing',
+      ),
+    });
+    const other = await request(elsewhere.server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(other.body.items).toEqual([]);
     const denied = await start({ client, deny: ['temporal.workflow.read'] });
     expect(
       (

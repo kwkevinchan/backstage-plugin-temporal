@@ -93,6 +93,8 @@ export function ScheduleControls(props: TemporalScheduleActionProps) {
               { entityRef },
             );
             reload();
+            // The schedule list catches up a moment later.
+            setTimeout(reload, 1500);
           }}
         />
       )}

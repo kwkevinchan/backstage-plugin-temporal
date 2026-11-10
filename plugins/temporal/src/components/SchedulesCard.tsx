@@ -113,8 +113,8 @@ export function SchedulesCard(props: {
       title: 'Runs',
       cell: s => (
         <Flex direction="column" gap="1">
-          {s.spec.map(line => (
-            <Text key={line} variant="body-small">
+          {s.spec.map((line, i) => (
+            <Text key={`${i}:${line}`} variant="body-small">
               {line}
             </Text>
           ))}
@@ -208,7 +208,7 @@ export function SchedulesCard(props: {
       subtitle={
         entity
           ? 'Temporal schedules that start these workflows'
-          : 'Temporal schedules of the namespace'
+          : 'Temporal schedules of the default namespace'
       }
       testId="temporal-schedules"
     >
@@ -241,7 +241,7 @@ export function SchedulesCard(props: {
       )}
       {value?.truncated && (
         <Text as="p" variant="body-x-small" color="secondary">
-          Only the first schedules are shown.
+          Only the first 500 schedules of the namespace are read.
         </Text>
       )}
     </PanelCard>

@@ -137,10 +137,10 @@ export async function createRouter(
       temporalWorkflowReadPermission,
       credentials,
     );
-    const workflowTypes = queries.workflowTypesOf(context);
+    const sources = queries.workflowSourcesOf(context);
     res.json(
-      workflowTypes.length > 0
-        ? await queries.listSchedules(context.namespace, { workflowTypes })
+      sources.length > 0
+        ? await queries.listSchedules(context.namespace, { sources })
         : { items: [], truncated: false },
     );
   });

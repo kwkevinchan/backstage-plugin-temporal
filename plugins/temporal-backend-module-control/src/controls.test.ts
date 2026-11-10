@@ -165,6 +165,7 @@ async function start(options?: {
                 workflowType: found.workflowType,
                 taskQueue: found.taskQueue,
               },
+              policies: { overlap: 'SKIP' },
             };
           }),
           pause: jest.fn(async () => undefined),
@@ -181,7 +182,7 @@ async function start(options?: {
     getConnection: async () => ({ workflowService } as any),
     getDefaultNamespace: () => 'default',
     getAllowedNamespaces: () => ['default'],
-    isNamespaceAllowed: ns => ns === 'default',
+    isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
     getSearchAttributeNames: () => ({
       entityRef: 'BackstageEntityRef',
       initiator: 'BackstageInitiator',
@@ -652,7 +653,10 @@ describe('schedule controls', () => {
       /^Resumed from Backstage by user:default\/mock/,
     );
     await request(server).post(path('nightly', 'trigger')).expect(202);
-    expect(scheduleHandles.get('nightly')!.trigger).toHaveBeenCalled();
+    // With the schedule's overlap policy.
+    expect(scheduleHandles.get('nightly')!.trigger).toHaveBeenCalledWith(
+      'SKIP',
+    );
   });
 
   it("refuses a schedule that starts another entity's workflows", async () => {
@@ -667,7 +671,8 @@ describe('schedule controls', () => {
       deny: ['temporal.workflow.start'],
     });
     await request(server).post(path('nightly', 'trigger')).expect(403);
-    expect(scheduleHandles.get('nightly')!.trigger).not.toHaveBeenCalled();
+    // Refused before the schedule is read.
+    expect(scheduleHandles.has('nightly')).toBe(false);
     // Without an entity, the permission must be allowed without conditions.
     const conditional = await start({
       schedules,
@@ -678,7 +683,7 @@ describe('schedule controls', () => {
       .expect(403);
   });
 
-  it('answers 404 for an unknown schedule and 400 for other operations', async () => {
+  it('answers 404 for an unknown schedule or operation, 400 for a bad note', async () => {
     const { server } = await start({ schedules });
     await request(server).post(path('missing', 'pause')).expect(404);
     await request(server)
@@ -687,6 +692,23 @@ describe('schedule controls', () => {
     await request(server)
       .post(path('nightly', 'pause'))
       .send({ note: 42 })
+      .expect(400);
+    await request(server)
+      .post(path('nightly', 'trigger'))
+      .send({ note: 'kept nowhere' })
+      .expect(400);
+  });
+
+  it('refuses a schedule of another namespace than the entity', async () => {
+    const { server, scheduleHandles } = await start({ schedules });
+    await request(server)
+      .post(
+        '/api/temporal/namespaces/other/schedules/nightly/pause?entityRef=component:default/orders',
+      )
+      .expect(404);
+    expect(scheduleHandles.has('nightly')).toBe(false);
+    await request(server)
+      .post('/api/temporal/namespaces/secret/schedules/nightly/pause')
       .expect(400);
   });
 });
