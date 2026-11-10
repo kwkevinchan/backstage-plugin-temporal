@@ -38,11 +38,12 @@ takes every published package from `0.0.0` to `0.1.0`.
    `yarn workspace <package> pack` and look at the `package.json` inside the
    tarball: `main`/`types` (and `exports`) point at `dist/`, and the
    `workspace:^` ranges are replaced by version ranges.
-4. Publish with Yarn, which replaces the `workspace:` ranges (plain `npm
-publish` does not): `npm login`, then
+4. Publish with Yarn, which replaces the `workspace:` ranges (plain
+   `npm publish` does not). Yarn does not read `~/.npmrc`: log in with
+   `yarn npm login` (or set `npmAuthToken` in `~/.yarnrc.yml`), then run
    `yarn workspaces foreach --all --no-private --topological npm publish --access public --tolerate-republish`
-   (add `--otp <code>` with two-factor authentication), then
-   `yarn changeset tag` and `git push --follow-tags`.
+   (with two-factor authentication, add `--otp <code>` after
+   `npm publish`), then `yarn changeset tag` and `git push --follow-tags`.
 
 Private packages (`"private": true`) are not published. At the moment that
 is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI

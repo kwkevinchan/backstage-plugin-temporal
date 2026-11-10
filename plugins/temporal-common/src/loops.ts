@@ -35,7 +35,10 @@ export const LOOP_MARKER_MEMO_KEY = 'temporal.loop';
 /**
  * Which loop, round and step a step belongs to.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopMarker {
   loop: string;
@@ -53,7 +56,10 @@ const MARKER_PATTERN =
  * Reads `loop/<loop>/<iteration>/<step>[/<occurrence>]` from an activity ID,
  * or from the end of a child workflow ID. Names are percent-encoded.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export function parseLoopMarker(
   text: string | undefined,
@@ -80,7 +86,10 @@ export function parseLoopMarker(
  * round failed or the run stopped (`failed`), or the run continued as new
  * while the loop ran, so the loop goes on in the next run (`continued`).
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export type WorkflowLoopStatus =
   | 'running'
@@ -92,7 +101,10 @@ export type WorkflowLoopStatus =
 /**
  * One step of a round.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopStep {
   /** ID of the step in the graph of its run. */
@@ -111,7 +123,10 @@ export interface WorkflowLoopStep {
 /**
  * One round of a loop.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopRound {
   iteration: number;
@@ -140,7 +155,10 @@ export interface WorkflowLoopRound {
 /**
  * One loop of a workflow and its rounds.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopGroup {
   name: string;
@@ -157,7 +175,10 @@ export interface WorkflowLoopGroup {
 /**
  * One run of a workflow that continues as new, in the loop summary.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopRun {
   runId: string;
@@ -170,7 +191,10 @@ export interface WorkflowLoopRun {
 /**
  * Loops of a workflow across the runs it continued as new.
  *
- * @public
+ * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
+ * package later.
+ *
+ * @alpha
  */
 export interface WorkflowLoopsResponse {
   loops: WorkflowLoopGroup[];

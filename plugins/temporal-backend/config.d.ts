@@ -34,10 +34,15 @@ export interface Config {
        */
       defaultNamespace?: string;
       /**
+       * Connect with TLS (server certificate checked with the system's CAs),
+       * for example to Temporal Cloud. Defaults to false.
+       */
+      tls?: boolean;
+      /**
        * Authentication of the connection. `none` (the default) sends no
        * credentials. `bearer` sends `Authorization: Bearer <token>` with
        * every call, for example for the JWT authorizer of a self-hosted
-       * Temporal server. The connection does not use TLS.
+       * Temporal server or an API key of Temporal Cloud (with `tls: true`).
        */
       auth?: {
         type?: 'none' | 'bearer';

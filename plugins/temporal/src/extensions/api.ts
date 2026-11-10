@@ -135,6 +135,11 @@ export interface TemporalApi {
    * continued as new, with each round's steps, decision and score. For a
    * running workflow the state comes from its `__loop_state` query when
    * the worker answers.
+   *
+   * Experimental (`temporal.experimental.aiWorkflows`; answers 404 when
+   * off); moves to a separate package later.
+   *
+   * @alpha
    */
   getWorkflowLoops(
     ref: WorkflowRef,
@@ -145,6 +150,11 @@ export interface TemporalApi {
    * Gets the full record of one model call (a step with `llm`): messages,
    * reasoning, output, tool calls and tokens. `nodeId` is the ID of the
    * step in the graph. Needs the permission to read the history.
+   *
+   * Experimental (`temporal.experimental.aiWorkflows`; answers 404 when
+   * off); moves to a separate package later.
+   *
+   * @alpha
    */
   getLlmCall(
     ref: WorkflowRef,

@@ -30,6 +30,8 @@ export * from './graph';
 export * from './controls';
 export * from './messages';
 export * from './schedules';
+// Experimental (temporal.experimental.aiWorkflows): the types of the AI views,
+// @alpha, to move to a separate package with them.
 export * from './loops';
 export * from './llm';
 export * from './definition';

@@ -24,7 +24,7 @@ export default createApp({
 });
 ```
 
-The module has three extensions, which can be disabled or configured in
+The module has four extensions, which can be disabled or configured in
 `app.extensions` like any other:
 
 | Extension                                      | What it adds                                                          |
@@ -32,6 +32,7 @@ The module has three extensions, which can be disabled or configured in
 | `api:temporal/control`                         | The client of the control routes (`temporalControlApiRef`).           |
 | `temporal-workflow-action:temporal/controls`   | Signal, Update, Cancel, Terminate and Rerun on the details page.      |
 | `temporal-workflow-list-action:temporal/start` | Start workflow on `TemporalWorkflow` entities and the Workflows page. |
+| `temporal-schedule-action:temporal/controls`   | Pause or Resume, and Run now, on each schedule.                       |
 
 A button for a custom action of the backend (added with
 `temporalControlExtensionPoint.addControlAction()`):

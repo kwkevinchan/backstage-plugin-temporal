@@ -206,20 +206,22 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     // namespaces are allowed.
     this.queries.checkNamespace(namespace);
     if (decision.result !== AuthorizeResult.CONDITIONAL) return undefined;
-    let criteria: PermissionCriteria<TemporalWorkflowQuery>;
+    // A condition the plugin cannot apply is a policy problem, not a bad
+    // request: it allows nothing.
+    let query: string | boolean;
     try {
-      criteria = createConditionTransformer(this.workflowRules())(
-        decision.conditions,
-      );
+      const criteria: PermissionCriteria<TemporalWorkflowQuery> =
+        createConditionTransformer(this.workflowRules())(decision.conditions);
+      query = criteriaToVisibilityQuery(criteria, {
+        namespace,
+        initiatorAttribute: this.options.initiatorAttribute,
+      });
     } catch (error) {
+      if (error instanceof NotAllowedError) throw error;
       throw new NotAllowedError(
         `The workflow list conditions cannot be applied: ${error}`,
       );
     }
-    const query = criteriaToVisibilityQuery(criteria, {
-      namespace,
-      initiatorAttribute: this.options.initiatorAttribute,
-    });
     if (query === false) {
       throw new NotAllowedError(
         `The policy allows no workflows of namespace ${namespace}`,
