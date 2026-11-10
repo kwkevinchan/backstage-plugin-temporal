@@ -491,11 +491,11 @@ export class WorkflowQueries {
     return detail;
   }
 
-  /** Throws NotFoundError unless the workflow belongs to the entity. */
   /**
    * Checks that a workflow is one of the entity's, or a child workflow (up
    * to MAX_PARENT_DEPTH levels) of one of them: a child is part of its
-   * parent's work, so it is opened and checked with the parent's entity.
+   * parent's work, so it is opened, and operated, with the parent's entity
+   * and its permissions. Throws NotFoundError otherwise.
    */
   async assertBelongs(
     workflow: WorkflowDetail,
@@ -510,18 +510,30 @@ export class WorkflowQueries {
       ) {
         return;
       }
-      if (!current.parent?.workflowId || depth >= MAX_PARENT_DEPTH) {
+      // A parent without a run ID could be another workflow with the same
+      // ID (another namespace, a later run): the walk stops there.
+      if (
+        !current.parent?.workflowId ||
+        !current.parent.runId ||
+        depth >= MAX_PARENT_DEPTH
+      ) {
         throw new NotFoundError(
           `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,
         );
       }
       // Child workflows run in the namespace of their parent here; the
-      // parent's namespace in describe is an ID, not a name.
-      current = await this.describe({
+      // parent's namespace in describe is an ID, not a name. Only what
+      // membership needs is read: no memo from S3, no close event.
+      const ref = {
         namespace: workflow.namespace,
         workflowId: current.parent.workflowId,
         runId: current.parent.runId,
-      });
+      };
+      this.checkNamespace(ref.namespace);
+      current = toWorkflowDetail(
+        await this.temporalReads.describeExecution(ref),
+        this.convertOptions(ref.namespace),
+      );
     }
   }
 
