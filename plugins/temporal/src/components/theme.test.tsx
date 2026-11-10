@@ -68,9 +68,13 @@ describe('light and dark themes', () => {
       });
       // The status color is a token class, the same in both themes.
       expect(failed).toHaveClass('tp-node', 'tp-tone-danger');
-      expect(
-        within(graph).getByRole('button', { name: 'reserveStock, Completed' }),
-      ).toHaveClass('tp-tone-success');
+      const completed = within(graph).getByRole('button', {
+        name: 'reserveStock, Completed',
+      });
+      expect(completed).toHaveClass('tp-tone-success');
+      // The kind is a pale background, apart from the status.
+      expect(completed).toHaveAttribute('data-kind-tint', 'activity');
+      expect(failed).toHaveAttribute('data-kind-tint', 'activity');
       // No inline colors anywhere in the plugin markup.
       for (const element of Array.from(
         container.querySelectorAll<HTMLElement>('[style]'),

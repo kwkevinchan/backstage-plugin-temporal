@@ -37,6 +37,9 @@ system (`./alpha`).
   `TemporalWorkflowListActionBlueprint` and `TemporalWorkflowSectionBlueprint`
   (`./alpha`), and the `workflowActions`, `workflowListActions` and
   `workflowSections` props for the legacy system.
+- Step boxes have a pale background by kind (activity, timer, signal and
+  update, child workflow, local activity), mixed from the theme tokens; the
+  status keeps the left bar and the border.
 - A step titled by the summary the workflow gave it (Temporal user
   metadata, e.g. the `summary` activity option), with the activity type
   below it. Workflow lists in the order of the Temporal UI: status, the
