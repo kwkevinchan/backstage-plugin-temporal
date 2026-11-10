@@ -1,6 +1,7 @@
 {
   "name": "@kwkevinchan/temporal-workflow-kit",
   "version": "0.0.0",
+  "private": true,
   "description": "Helpers for Temporal workers shown by the unofficial Backstage Temporal plugin: loop markers for generate, check and revise loops, and LLM step records (OpenTelemetry GenAI) for AI agent workflows",
   "license": "Apache-2.0",
   "keywords": [

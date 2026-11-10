@@ -114,6 +114,24 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
   });
 }
 
+/** How many parents up a child workflow is looked for in an entity. */
+export const MAX_PARENT_DEPTH = 3;
+
+/**
+ * A graph without the data of the experimental AI views: loop markers and
+ * groups, model call summaries and tool links. The steps stay, as plain
+ * activities.
+ */
+function withoutAiData(graph: WorkflowGraphResponse): WorkflowGraphResponse {
+  const { loops: _loops, ...rest } = graph;
+  return {
+    ...rest,
+    nodes: graph.nodes.map(
+      ({ loop: _loop, llm: _llm, tool: _tool, ...node }) => node,
+    ),
+  };
+}
+
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
 
@@ -229,8 +247,23 @@ export class WorkflowQueries {
     private readonly logger: LoggerService,
     readonly payloads: PayloadStore = new PayloadStore(),
     temporalReads?: TemporalReadRepository,
+    private readonly options: {
+      /**
+       * `temporal.experimental.aiWorkflows`: AI loops and LLM steps. Without
+       * it, graphs and steps carry no loop or model call data.
+       */
+      aiWorkflows?: boolean;
+    } = {},
   ) {
     this.temporalReads = temporalReads ?? new TemporalReadRepository(temporal);
+  }
+
+  private assertAiWorkflows() {
+    if (!this.options.aiWorkflows) {
+      throw new NotFoundError(
+        'AI loops and LLM steps are not enabled (temporal.experimental.aiWorkflows)',
+      );
+    }
   }
 
   /**
@@ -491,14 +524,48 @@ export class WorkflowQueries {
     return detail;
   }
 
-  /** Throws NotFoundError unless the workflow belongs to the entity. */
-  assertBelongs(workflow: WorkflowSummary, context: TemporalEntityContext) {
-    if (
-      workflow.namespace !== context.namespace ||
-      !workflowBelongsToEntity(workflow, this.filterOf(context))
-    ) {
-      throw new NotFoundError(
-        `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,
+  /**
+   * Checks that a workflow is one of the entity's, or a child workflow (up
+   * to MAX_PARENT_DEPTH levels) of one of them: a child is part of its
+   * parent's work, so it is opened, and operated, with the parent's entity
+   * and its permissions. Throws NotFoundError otherwise.
+   */
+  async assertBelongs(
+    workflow: WorkflowDetail,
+    context: TemporalEntityContext,
+  ): Promise<void> {
+    const filter = this.filterOf(context);
+    let current: WorkflowDetail = workflow;
+    for (let depth = 0; ; depth += 1) {
+      if (
+        current.namespace === context.namespace &&
+        workflowBelongsToEntity(current, filter)
+      ) {
+        return;
+      }
+      // A parent without a run ID could be another workflow with the same
+      // ID (another namespace, a later run): the walk stops there.
+      if (
+        !current.parent?.workflowId ||
+        !current.parent.runId ||
+        depth >= MAX_PARENT_DEPTH
+      ) {
+        throw new NotFoundError(
+          `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,
+        );
+      }
+      // Child workflows run in the namespace of their parent here; the
+      // parent's namespace in describe is an ID, not a name. Only what
+      // membership needs is read: no memo from S3, no close event.
+      const ref = {
+        namespace: workflow.namespace,
+        workflowId: current.parent.workflowId,
+        runId: current.parent.runId,
+      };
+      this.checkNamespace(ref.namespace);
+      current = toWorkflowDetail(
+        await this.temporalReads.describeExecution(ref),
+        this.convertOptions(ref.namespace),
       );
     }
   }
@@ -569,7 +636,14 @@ export class WorkflowQueries {
     const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS, {
       payloads: true,
     });
-    return toWorkflowSteps(events, truncated);
+    const steps = toWorkflowSteps(events, truncated);
+    if (this.options.aiWorkflows) return steps;
+    return {
+      ...steps,
+      activities: steps.activities.map(
+        ({ llm: _llm, tool: _tool, ...activity }) => activity,
+      ),
+    };
   }
 
   /**
@@ -614,10 +688,10 @@ export class WorkflowQueries {
       options.maxEvents ?? MAX_STEP_EVENTS,
       {
         payloads: options.includePayloads,
-        llmPayloads: options.llm !== false,
+        llmPayloads: options.llm !== false && this.options.aiWorkflows === true,
       },
     );
-    return buildWorkflowGraph(events, {
+    const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
       status: workflow.status,
@@ -627,7 +701,9 @@ export class WorkflowQueries {
       includePayloads: options.includePayloads,
       failure: workflow.failure,
       memo: workflow.memo,
+      aiWorkflows: this.options.aiWorkflows === true,
     });
+    return this.options.aiWorkflows ? graph : withoutAiData(graph);
   }
 
   /**
@@ -636,6 +712,7 @@ export class WorkflowQueries {
    * the `__loop_state` query when its worker answers.
    */
   async loops(workflow: WorkflowDetail): Promise<WorkflowLoopsResponse> {
+    this.assertAiWorkflows();
     type Read = { detail: WorkflowDetail; graph: WorkflowGraphResponse };
     const read = async (detail: WorkflowDetail): Promise<Read> => ({
       detail,
@@ -783,6 +860,7 @@ export class WorkflowQueries {
     workflow: WorkflowDetail,
     scheduledEventId: string,
   ): Promise<WorkflowLlmCallResponse> {
+    this.assertAiWorkflows();
     const ref = {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,

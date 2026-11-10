@@ -182,7 +182,11 @@ function events() {
   ];
 }
 
-async function start(options: { history: boolean; s3?: boolean }) {
+async function start(options: {
+  history: boolean;
+  s3?: boolean;
+  ai?: boolean;
+}) {
   const workflowService = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
     async (req: any) =>
@@ -211,11 +215,13 @@ async function start(options: { history: boolean; s3?: boolean }) {
       })),
     ) as any,
   });
+  const experimental = { aiWorkflows: options.ai !== false };
   const config =
     options.s3 === false
-      ? {}
+      ? { temporal: { experimental } }
       : {
           temporal: {
+            experimental,
             externalStorage: {
               s3: {
                 bucket: 'payloads',
@@ -249,6 +255,31 @@ describe('LLM routes', () => {
     for (const { key, object } of Object.values(stored)) {
       mockObjects.set(key, object);
     }
+  });
+
+  it('serves no model call records unless the AI views are enabled', async () => {
+    const { server } = await start({ history: true, ai: false });
+    const graph = await request(server).get(path('/graph'));
+    expect(graph.status).toBe(200);
+    // The model and tool calls are still there, as plain activities.
+    expect(
+      graph.body.nodes.some((n: { stepId?: string }) =>
+        n.stepId?.startsWith('llm/'),
+      ),
+    ).toBe(true);
+    for (const node of graph.body.nodes) {
+      expect(node.llm).toBeUndefined();
+      expect(node.tool).toBeUndefined();
+    }
+    const steps = await request(server).get(path('/steps'));
+    expect(steps.status).toBe(200);
+    for (const activity of steps.body.activities) {
+      expect(activity.llm).toBeUndefined();
+      expect(activity.tool).toBeUndefined();
+    }
+    const res = await request(server).get(path('/llm-calls/5'));
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).toMatch(/temporal.experimental.aiWorkflows/);
   });
 
   it('restores a record stored in S3 that is larger than the inline limit', async () => {

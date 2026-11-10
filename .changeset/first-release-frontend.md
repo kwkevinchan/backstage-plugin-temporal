@@ -10,16 +10,13 @@ system (`./alpha`).
   (`/temporal`), and cards for `TemporalWorkflow` entities: summary, recent
   run statistics and related workflows.
 - Workflow details around a step graph (React Flow with the dagre layout), a
-  panel for the selected step, and tabs for the steps, loops, a timeline,
-  the events and the details. Loops of AI workflows (generate, check,
-  revise) show as one box per loop with a control to step through the
-  rounds. Large payloads stored in S3 show their size, a preview, a download
+  panel for the selected step, and tabs for the steps, a timeline, the
+  events and the details. Large payloads stored in S3 show their size, a preview, a download
   button and a thumbnail of images.
-- LLM steps of agent workflows: model calls as boxes with the model, tokens,
-  duration and tools, their tool calls as smaller boxes next to them, and an
-  LLM panel with the input, thinking, output, tool calls (with a link to
-  their steps) and usage, copy buttons and the raw record. The Loops tab adds
-  up the tokens of each round.
+- Experimental, off unless the backend sets
+  `temporal.experimental.aiWorkflows`, and to move to a separate package:
+  loops of AI workflows (one box per loop, the Loops tab) and LLM steps
+  (model and tool calls, the LLM panel).
 - A `./ui` entry point (alpha) with the building blocks of the pages (the
   graph canvas and its layout, status helpers, panels, the dialogs of
   workflow operations, the style class names) for companion packages such as

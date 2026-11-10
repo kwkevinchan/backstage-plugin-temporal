@@ -89,6 +89,11 @@ export const temporalPlugin = createBackendPlugin({
           logger,
           PayloadStore.fromConfig(config, logger),
           new TemporalReadRepository(temporal),
+          {
+            aiWorkflows:
+              config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
+              false,
+          },
         );
         // Workflows as a permission resource, for the list permissions.
         // Modules can add more rules (addPermissionRules).
