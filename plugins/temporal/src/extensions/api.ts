@@ -48,6 +48,8 @@ export interface TemporalApi {
     options?: {
       status?: WorkflowStatus;
       allRuns?: boolean;
+      /** Only workflows whose Bool search attribute of this name is true. */
+      searchAttribute?: string;
       pageSize?: number;
       pageToken?: string;
     },
@@ -66,6 +68,8 @@ export interface TemporalApi {
     allRuns?: boolean;
     workflowType?: string;
     workflowIdPrefix?: string;
+    /** Only workflows whose Bool search attribute of this name is true. */
+    searchAttribute?: string;
     pageSize?: number;
     pageToken?: string;
   }): Promise<WorkflowListResponse>;

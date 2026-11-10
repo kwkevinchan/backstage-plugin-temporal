@@ -217,6 +217,17 @@ describe('query routes of the core plugin', () => {
     expect(res.body.updates).toEqual([{ name: 'setPriority' }]);
   });
 
+  it('refuses a search attribute filter that is not a name', async () => {
+    const { server, workflowService } = await start();
+    const res = await request(server).get(
+      `/api/temporal/workflows?searchAttribute=${encodeURIComponent(
+        'x = true OR y',
+      )}`,
+    );
+    expect(res.status).toBe(400);
+    expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
+  });
+
   it('lists the handlers of a closed run, for the Query dialog', async () => {
     const { server, workflowService } = await start();
     workflowService.describeWorkflowExecution.mockImplementation(
