@@ -39,18 +39,6 @@ workflow definition.
 - **Timeline.** The same steps on a time axis: how long each step waited for
   a worker and how long it ran, retries, timers and waits, signals and
   updates. Bars of a running workflow grow until now; the chart zooms.
-- **Loops of AI workflows.** Rounds of generate, check and revise loops are
-  grouped into one box in the graph (expanded: one frame per round), one
-  group per round in the timeline,
-  and one row per round in the **Loops** tab, across continue-as-new runs
-  (with `@kwkevinchan/temporal-workflow-kit/loop`, see
-  [the workflow kit](plugins/temporal-workflow-kit)).
-- **LLM steps of agent workflows.** Each model call is a box with the
-  model, tokens, duration and number of tools; the tools it asked for hang
-  off it. Its panel shows the input, the thinking, the output, the tool
-  calls and the usage. The records follow the OpenTelemetry GenAI
-  conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
-  [LLM steps](#llm-steps)).
 - **Workflow definitions (separate packages).** For workflows written in
   YAML (CNCF Serverless Workflow DSL 1.0, as
   [Zigflow](https://github.com/zigflow/zigflow) runs it),
@@ -67,15 +55,38 @@ workflow definition.
 - **Workflow types in the catalog.** A `TemporalWorkflow` catalog kind for
   one workflow type and its definition, and a **Workflows** page with every
   workflow execution of a namespace.
+- **Templates.** Scaffolder actions to start a workflow, wait for it and
+  send it a signal or an update, and a form field to pick a workflow (see
+  [Templates](#templates-scaffolder)).
+- **Permissions.** Every read and every operation goes through the
+  Backstage permission framework and is recorded with the auditor (see
+  [Permissions](#permissions)).
+
+**Experimental, off by default.** Views of AI workflows are not part of the
+first release and will move to a separate package. Turn them on with
+`temporal.experimental.aiWorkflows: true` (no compatibility promise):
+
+- **Loops of AI workflows.** Rounds of generate, check and revise loops are
+  grouped into one box in the graph (expanded: one frame per round), one
+  group per round in the timeline,
+  and one row per round in the **Loops** tab, across continue-as-new runs
+  (with `@kwkevinchan/temporal-workflow-kit/loop`, see
+  [the workflow kit](plugins/temporal-workflow-kit)).
+- **LLM steps of agent workflows.** Each model call is a box with the
+  model, tokens, duration and number of tools; the tools it asked for hang
+  off it. Its panel shows the input, the thinking, the output, the tool
+  calls and the usage. The records follow the OpenTelemetry GenAI
+  conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
+  [LLM steps](#llm-steps)).
 
 | Workflows of an entity                                           | Step graph and step panel                                        |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
 | ![Workflow list of an entity](docs/images/entity-tab.png)        | ![Step graph with the step panel](docs/images/details-graph.png) |
-| **Timeline**                                                     | **Loop rounds**                                                  |
+| **Timeline**                                                     | **Loop rounds** (experimental)                                   |
 | ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded, one frame per round](docs/images/loop.png)    |
 | **Large payload in S3**                                          | **Workflow controls**                                            |
 | ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
-| **A model call and its tool calls**                              | **LLM panel**                                                    |
+| **A model call and its tool calls** (experimental)               | **LLM panel** (experimental)                                     |
 | ![A model call with three tool calls](docs/images/llm-graph.png) | ![LLM panel of a model call](docs/images/llm-panel.png)          |
 
 ## Packages
@@ -91,7 +102,7 @@ workflow definition.
 | [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal) | backend-plugin-module  | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                                                 |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                 | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional).                                                                                                                                 |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow) | backend-plugin-module  | Backstage backend | Reads the definition files for that tab (optional, with the module above).                                                                                                                                  |
-| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library           | Your workers      | Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                                       |
+| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                      | node-library           | Your workers      | Experimental, not published yet (with the AI views). Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).  |
 
 Which ones to install:
 
@@ -409,6 +420,8 @@ keeps the progress of closed runs in memory.
 
 ## Loops
 
+> **Experimental, off by default.** Set `temporal.experimental.aiWorkflows: true`. This view will move to a separate package; there is no compatibility promise.
+
 AI workflows often loop: generate, check, and revise when the check fails,
 for dozens of rounds and across continue-as-new runs. Drawn step by step,
 such a graph becomes unreadable. When the activities and child workflows of
@@ -447,6 +460,8 @@ Workflows without markers look as before. The loop data needs the read
 permission, like the graph; inputs and results are not part of it.
 
 ## LLM steps
+
+> **Experimental, off by default.** Set `temporal.experimental.aiWorkflows: true`. This view will move to a separate package; there is no compatibility promise.
 
 LLM agents call a model, run the tools it asks for, and call it again. When
 the activity of each model call returns a record of the call and the
