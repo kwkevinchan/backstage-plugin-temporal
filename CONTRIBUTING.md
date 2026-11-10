@@ -19,6 +19,35 @@ discuss larger changes before sending a pull request.
    `yarn changeset` and describe the change for users.
 6. Open a pull request against `main`.
 
+## Releasing
+
+Releases are cut by the maintainer from `main`, with
+[changesets](https://github.com/changesets/changesets). The first release
+takes every published package from `0.0.0` to `0.1.0`.
+
+1. `yarn changeset version`: bumps the versions (the first-release
+   changesets are `minor`), updates the internal dependency ranges and
+   writes the changelogs. Then `yarn install` (not `--immutable`: the
+   workspace versions are in `yarn.lock`). Review and commit both in a pull
+   request.
+2. On the merged `main`: `yarn install --immutable`, then
+   `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
+3. Check what each package will contain:
+   `yarn workspace <package> pack --dry-run` lists the files: `dist/`, its
+   `README.md`, `LICENSE` and, where it has one, `config.d.ts`. Then
+   `yarn workspace <package> pack` and look at the `package.json` inside the
+   tarball: `main`/`types` (and `exports`) point at `dist/`, and the
+   `workspace:^` ranges are replaced by version ranges.
+4. Publish with Yarn, which replaces the `workspace:` ranges (plain `npm
+publish` does not): `npm login`, then
+   `yarn workspaces foreach --all --no-private --topological npm publish --access public --tolerate-republish`
+   (add `--otp <code>` with two-factor authentication), then
+   `yarn changeset tag` and `git push --follow-tags`.
+
+Private packages (`"private": true`) are not published. At the moment that
+is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI
+views (`temporal.experimental.aiWorkflows`) and will be released with them.
+
 ## Shared definitions
 
 The permissions, types, annotation constants, API paths and the
