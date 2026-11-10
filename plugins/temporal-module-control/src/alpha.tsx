@@ -43,7 +43,7 @@ import {
   WorkflowDetail,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
-import type { TemporalControlActionButton } from './components/ControlActionButton';
+import type { TemporalControlActionButtonOptions } from './components/ControlActionButton';
 
 const LazyControlActionButton = lazy(() =>
   import('./components/ControlActionButton').then(m => ({
@@ -123,7 +123,7 @@ export const TemporalControlActionBlueprint = createExtensionBlueprint({
   attachTo: { id: TEMPORAL_WORKFLOW_EXTENSIONS_API_ID, input: 'actions' },
   output: [temporalWorkflowActionDataRef],
   *factory(
-    params: TemporalControlActionButton & {
+    params: TemporalControlActionButtonOptions & {
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },

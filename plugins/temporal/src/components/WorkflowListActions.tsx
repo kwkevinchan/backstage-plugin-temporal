@@ -38,10 +38,7 @@ export function WorkflowListActions(props: {
   const { entity, workflowHref } = props;
   const shared = useApiHolder().get(temporalWorkflowExtensionsApiRef);
   const actions = useMemo(() => {
-    const all = [
-      ...(props.actions ?? []),
-      ...(shared?.getListActions?.() ?? []),
-    ];
+    const all = [...(props.actions ?? []), ...(shared?.getListActions() ?? [])];
     return all.filter(
       (action, i) => all.findIndex(o => o.id === action.id) === i,
     );

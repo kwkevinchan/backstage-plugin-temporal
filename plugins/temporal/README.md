@@ -69,10 +69,13 @@ that call the Temporal backend from their own components, use these exports.
 - `./alpha`: `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint` and
   `TemporalWorkflowSectionBlueprint` for the new frontend system.
-- The permissions (`temporalWorkflowSignalPermission` and the others, the
-  same names and attributes as in the backend package), the annotation
-  constants and the response types of the backend API (`WorkflowDetail`,
-  `WorkflowSummary` and the others).
+- `TemporalWorkflowListActionProps`, `TemporalWorkflowExtensionProps`: props
+  of the components of actions, list actions and sections.
+
+The permissions, the annotation constants and the response types of the
+backend API (`WorkflowDetail`, `WorkflowSummary` and the others) are in
+[`@kwkevinchan/backstage-plugin-temporal-common`](../temporal-common/README.md);
+import them from there.
 
 Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
 frontend plugin with another `pluginId` imports this package. Add the

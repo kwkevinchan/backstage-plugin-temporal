@@ -48,7 +48,7 @@ import {
   Text,
 } from '@backstage/ui';
 import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
-import { QueryButton } from './controls/QueryButton';
+import { QueryButton } from './messages/QueryButton';
 import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';

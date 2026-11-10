@@ -463,7 +463,7 @@ function useLlmCall(
   }>({ loading: enabled });
   const key = `${ref?.namespace}/${ref?.workflowId}/${ref?.runId}/${step.id}/${step.status}`;
   useEffect(() => {
-    if (!enabled || !ref || !api.getLlmCall) {
+    if (!enabled || !ref) {
       setState({ loading: false });
       return undefined;
     }

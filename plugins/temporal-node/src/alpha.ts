@@ -206,7 +206,10 @@ export interface TemporalControlActionContext {
   /** The workflow the action runs on, as read just before. */
   workflow: WorkflowDetail;
   credentials: BackstageCredentials;
-  /** Temporal client of the workflow's namespace. */
+  /**
+   * The client the control module changes workflows with (today the shared
+   * connection of `temporalServiceRef`).
+   */
   client: Client;
 }
 

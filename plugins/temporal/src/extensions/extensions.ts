@@ -116,6 +116,5 @@ export interface TemporalWorkflowSectionDef {
 export interface TemporalWorkflowExtensionsApi {
   getActions(): TemporalWorkflowActionDef[];
   getSections(): TemporalWorkflowSectionDef[];
-  /** Optional, so other implementations of this API keep working. */
-  getListActions?(): TemporalWorkflowListActionDef[];
+  getListActions(): TemporalWorkflowListActionDef[];
 }

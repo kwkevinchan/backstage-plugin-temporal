@@ -20,9 +20,10 @@
  * which also has the blueprints for workflow actions and sections.
  *
  * The package also exports the frontend extension points (the API ref, the
- * workflow context and the props of actions and sections), the permissions
- * (the same objects as in `@kwkevinchan/backstage-plugin-temporal-backend`)
- * and the response types of the backend API.
+ * workflow context and the props of actions, list actions and sections) and
+ * the conditions for entity pages. The permissions, annotations and response
+ * types of the backend API are in
+ * `@kwkevinchan/backstage-plugin-temporal-common`.
  *
  * @packageDocumentation
  */
@@ -42,60 +43,10 @@ export type {
 } from './components';
 export { TemporalClient } from './api';
 export * from './extensions';
-export * from '@kwkevinchan/backstage-plugin-temporal-common';
+// Conditions for the EntitySwitch of a legacy entity page; the rest of
+// -common is imported from that package.
 export {
   getDependsOnTemporalWorkflowRefs,
-  getTemporalWorkflowDefinitionSpec,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
-  TEMPORAL_WORKFLOW_API_VERSION,
-  TEMPORAL_WORKFLOW_KIND,
-  TEMPORAL_NAMESPACE_ANNOTATION,
-  TEMPORAL_TASK_QUEUE_ANNOTATION,
-  TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
-  TEMPORAL_DEFINITION_FORMATS,
-  WORKFLOW_STATUSES,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-export type {
-  ActivityStep,
-  DecodedPayload,
-  ExternalPayload,
-  PendingActivity,
-  TemporalDefinitionFormat,
-  TemporalWorkflowDefinitionSpec,
-  TemporalWorkflowEntityV1alpha1,
-  WorkflowControlOperation,
-  WorkflowDeadline,
-  WorkflowDetail,
-  WorkflowFailure,
-  WorkflowGraphEdge,
-  WorkflowGraphNode,
-  WorkflowGraphResponse,
-  WorkflowHistoryEvent,
-  WorkflowHistoryResponse,
-  WorkflowListResponse,
-  WorkflowLoopGroup,
-  WorkflowLoopMarker,
-  WorkflowLoopRound,
-  WorkflowLoopRun,
-  WorkflowLoopStatus,
-  WorkflowLoopStep,
-  WorkflowLoopsResponse,
-  WorkflowMessageRequest,
-  WorkflowMessageResponse,
-  WorkflowNodeAttempt,
-  WorkflowNodeEvent,
-  WorkflowNodeKind,
-  WorkflowNodeStatus,
-  WorkflowProgressResponse,
-  WorkflowRef,
-  WorkflowRerunRequest,
-  WorkflowRunChain,
-  WorkflowStartRequest,
-  WorkflowStartResponse,
-  WorkflowStatsResponse,
-  WorkflowStatus,
-  WorkflowStepsResponse,
-  WorkflowSummary,
-  WorkflowTerminateRequest,
 } from '@kwkevinchan/backstage-plugin-temporal-common';

@@ -118,10 +118,9 @@ export interface TemporalApi {
    * Gets the loops of a workflow (from loop markers) across the runs it
    * continued as new, with each round's steps, decision and score. For a
    * running workflow the state comes from its `__loop_state` query when
-   * the worker answers. Optional, so other implementations of this API keep
-   * working; without it the Loops tab shows the loops of the open run only.
+   * the worker answers.
    */
-  getWorkflowLoops?(
+  getWorkflowLoops(
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowLoopsResponse>;
@@ -129,11 +128,9 @@ export interface TemporalApi {
   /**
    * Gets the full record of one model call (a step with `llm`): messages,
    * reasoning, output, tool calls and tokens. `nodeId` is the ID of the
-   * step in the graph. Needs the permission to read the history. Optional,
-   * so other implementations of this API keep working; without it the LLM
-   * panel shows the summary only.
+   * step in the graph. Needs the permission to read the history.
    */
-  getLlmCall?(
+  getLlmCall(
     ref: WorkflowRef,
     nodeId: string,
     options?: { entityRef?: string },
@@ -148,10 +145,9 @@ export interface TemporalApi {
   /**
    * Downloads a payload of a run that is stored in S3 (an `ExternalPayload`
    * with `downloadable`), through the backend. Needs the permission to read
-   * the history. Optional, so other implementations of this API keep
-   * working; without it the download button is not shown.
+   * the history.
    */
-  downloadPayload?(
+  downloadPayload(
     ref: WorkflowRef,
     options: { key: string; entityRef?: string },
   ): Promise<Blob>;
@@ -170,10 +166,9 @@ export interface TemporalApi {
   /**
    * Lists the signals, updates and queries a workflow defines, from the
    * metadata query of the Temporal SDKs. Closed runs answer too while a
-   * worker of their task queue runs; empty when no worker answers. Optional, so other implementations of
-   * this API keep working; without it the dialogs ask for a name.
+   * worker of their task queue runs; empty when no worker answers.
    */
-  getWorkflowHandlers?(
+  getWorkflowHandlers(
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowHandlersResponse>;

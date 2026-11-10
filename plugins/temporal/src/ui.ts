@@ -19,8 +19,11 @@
  * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`
  * and `-module-control`: the workflow graph canvas and its layout, node
  * status helpers, panels, the dialogs and fields of workflow operations and
- * the class names of the plugin styles. They follow the plugin version; an
- * app does not need them.
+ * the class names of the plugin styles. An app does not need them.
+ *
+ * Alpha: there is no compatibility promise between versions. The companion
+ * packages are released with the same version as this plugin and use the
+ * matching `./ui`; other packages should not depend on it.
  *
  * @packageDocumentation
  */
@@ -50,10 +53,10 @@ export {
   parseArgs,
   useControlPermission,
   WithReason,
-} from './components/controls/shared';
+} from './components/messages/shared';
 export {
   MessageDialog,
   PermissionButton,
   useWorkflowHandlers,
-} from './components/controls/MessageDialog';
-export type { MessageDialogText } from './components/controls/MessageDialog';
+} from './components/messages/MessageDialog';
+export type { MessageDialogText } from './components/messages/MessageDialog';

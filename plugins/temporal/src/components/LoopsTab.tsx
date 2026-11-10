@@ -53,22 +53,6 @@ import { tokensText } from './llm/llmText';
 import { RunHelp } from './RunHelp';
 import { tp } from './styles';
 
-/** The loops of the open run, when the API cannot read the other runs. */
-function fromGraph(
-  graph: WorkflowGraphResponse,
-  workflow: WorkflowDetail,
-): WorkflowLoopsResponse {
-  return {
-    loops: (graph.loops ?? []).map(loop => ({
-      ...loop,
-      rounds: loop.rounds.map(r => ({ ...r, runId: workflow.runId })),
-    })),
-    runs: [{ runId: workflow.runId, segment: 1, status: workflow.status }],
-    source: 'history',
-    truncated: graph.truncated,
-  };
-}
-
 /**
  * Loads the loops of a workflow across its continue-as-new runs, again
  * when the graph of the open run is reloaded.
@@ -85,10 +69,6 @@ function useLoops(
   }>({});
   useEffect(() => {
     let current = true;
-    if (!api.getWorkflowLoops) {
-      setState({ data: fromGraph(graph, workflow) });
-      return undefined;
-    }
     api
       .getWorkflowLoops(
         {

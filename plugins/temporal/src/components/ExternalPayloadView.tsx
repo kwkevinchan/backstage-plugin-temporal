@@ -81,7 +81,7 @@ function useOptionalWorkflow(): TemporalWorkflowContextValue | undefined {
 function useDownload(external: ExternalPayload) {
   const api = useApiHolder().get(temporalApiRef);
   const context = useOptionalWorkflow();
-  if (!external.downloadable || !context || !api?.downloadPayload) {
+  if (!external.downloadable || !context || !api) {
     return undefined;
   }
   const { workflow, entity } = context;
@@ -92,7 +92,7 @@ function useDownload(external: ExternalPayload) {
   };
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   return () =>
-    api.downloadPayload!(ref, { key: external.key, entityRef: entityRef });
+    api.downloadPayload(ref, { key: external.key, entityRef: entityRef });
 }
 
 function Thumbnail(props: { load: () => Promise<Blob>; alt: string }) {
