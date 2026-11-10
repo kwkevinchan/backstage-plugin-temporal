@@ -254,6 +254,83 @@ describe('temporal backend plugin', () => {
       .expect(404);
   });
 
+  describe('child workflows', () => {
+    /** A chain of workflows: each one the child of the next; the last is the entity's or not. */
+    function chain(length: number, lastOfEntity: boolean, cyclic = false) {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          const id: string = req.execution.workflowId;
+          const n = Number(id.replace('c', ''));
+          if (n < length) {
+            const parent = cyclic && n === length - 1 ? 'c0' : `c${n + 1}`;
+            return {
+              workflowExecutionInfo: {
+                ...executionInfo({
+                  workflowId: id,
+                  taskQueue: 'billing',
+                  type: 'x',
+                }),
+                parentExecution: { workflowId: parent, runId: `${parent}-run` },
+              } as any,
+              pendingActivities: [],
+            };
+          }
+          return {
+            workflowExecutionInfo: executionInfo({
+              workflowId: id,
+              taskQueue: lastOfEntity ? 'orders' : 'billing',
+            }),
+            pendingActivities: [],
+          };
+        },
+      );
+      return workflowService;
+    }
+    const open = async (workflowService: any) => {
+      const { server } = await start({ workflowService });
+      return request(server).get(
+        `/api/temporal/namespaces/default/workflows/c0?entityRef=${ref}`,
+      );
+    };
+
+    it('opens a child workflow with the entity of its parent', async () => {
+      const res = await open(chain(1, true));
+      expect(res.status).toBe(200);
+      expect(res.body.workflowType).toBe('x');
+    });
+
+    it('looks up to three parents', async () => {
+      const service = chain(3, true);
+      expect((await open(service)).status).toBe(200);
+      expect((await open(chain(4, true))).status).toBe(404);
+    });
+
+    it('hides the child of a workflow of another entity', async () => {
+      expect((await open(chain(1, false))).status).toBe(404);
+    });
+
+    it('stops on a cycle of parents', async () => {
+      const service = chain(2, false, true);
+      expect((await open(service)).status).toBe(404);
+    });
+
+    it('answers 404 when a parent is gone', async () => {
+      const workflowService = chain(1, true);
+      const describe =
+        workflowService.describeWorkflowExecution.getMockImplementation()!;
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          if (req.execution.workflowId === 'c1') {
+            throw Object.assign(new Error('not found'), { code: 5 });
+          }
+          return describe(req);
+        },
+      );
+      expect((await open(workflowService)).status).toBe(404);
+    });
+  });
+
   it('uses the entity reference search attribute without entityRef', async () => {
     const workflowService = createFakeWorkflowService();
     const b64 = (s: string) => Buffer.from(s).toString('base64');
