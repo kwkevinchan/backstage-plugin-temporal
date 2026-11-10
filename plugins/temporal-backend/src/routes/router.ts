@@ -20,9 +20,9 @@ import { temporalWorkflowReadPermission } from '@kwkevinchan/backstage-plugin-te
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {
-  DefaultTemporalAccessService,
-  WorkflowAccessLevel,
-} from '../access/DefaultTemporalAccessService';
+  TemporalAccessService,
+  TemporalWorkflowAccessLevel,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import {
   HISTORY_PAGE_SIZE,
   LIST_PAGE_SIZE,
@@ -47,7 +47,7 @@ import {
 
 export interface RouterOptions {
   httpAuth: HttpAuthService;
-  access: DefaultTemporalAccessService;
+  access: TemporalAccessService;
   queries: WorkflowQueries;
   /** When set, the routes that change workflows are served too. */
   controls?: Omit<
@@ -66,7 +66,7 @@ export async function createRouter(
   /** The workflow of the request's path, with the access checks of `level`. */
   async function loadWorkflow(
     req: Request,
-    level: WorkflowAccessLevel,
+    level: TemporalWorkflowAccessLevel,
   ): Promise<LoadedWorkflow> {
     const credentials = await httpAuth.credentials(req);
     const ref = workflowRefFromParams(req);

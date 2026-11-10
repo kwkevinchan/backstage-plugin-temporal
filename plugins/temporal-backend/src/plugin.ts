@@ -18,7 +18,6 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import {
   isValidControlActionId,
   temporalPermissions,
@@ -29,7 +28,7 @@ import {
   TemporalWorkflowEnricher,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { DefaultTemporalAccessService } from './access/DefaultTemporalAccessService';
+import { temporalAccessServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
@@ -72,10 +71,9 @@ export const temporalPlugin = createBackendPlugin({
         auditor: coreServices.auditor,
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
-        permissions: coreServices.permissions,
         permissionsRegistry: coreServices.permissionsRegistry,
-        catalog: catalogServiceRef,
         temporal: temporalServiceRef,
+        access: temporalAccessServiceRef,
       },
       async init({
         logger,
@@ -83,10 +81,9 @@ export const temporalPlugin = createBackendPlugin({
         auditor,
         httpAuth,
         httpRouter,
-        permissions,
         permissionsRegistry,
-        catalog,
         temporal,
+        access,
       }) {
         permissionsRegistry.addPermissions(temporalPermissions);
         for (const action of controlActions) {
@@ -98,19 +95,15 @@ export const temporalPlugin = createBackendPlugin({
         if (!controlOptions.enabled) {
           logger.info('Temporal workflow controls are disabled');
         }
-        // Layers: routes → access (permissions, catalog) → services (use
-        // cases) → repositories (Temporal, S3).
+        // Layers: routes → access (permissions, catalog; shared with the
+        // modules through temporalAccessServiceRef) → services (use cases)
+        // → repositories (Temporal, S3).
         const queries = new WorkflowQueries(
           temporal,
           enrichers,
           logger,
           PayloadStore.fromConfig(config, logger),
           new TemporalReadRepository(temporal),
-        );
-        const access = new DefaultTemporalAccessService(
-          permissions,
-          catalog,
-          queries,
         );
         const controller = new WorkflowController(temporal, controlOptions);
         httpRouter.use(
@@ -122,6 +115,7 @@ export const temporalPlugin = createBackendPlugin({
               auditor,
               temporal,
               controller,
+              queries,
               actions: controlActions,
             },
           }),

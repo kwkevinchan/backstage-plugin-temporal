@@ -31,6 +31,7 @@ import {
   temporalServiceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import request from 'supertest';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -160,6 +161,7 @@ async function start(options?: {
   };
   const features: any[] = [
     temporalPlugin,
+    temporalAccessServiceFactory,
     catalogServiceMock.factory({
       entities: [ordersEntity, otherEntity, orderWorkflowEntity],
     }),

@@ -17,6 +17,7 @@
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import request from 'supertest';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -140,6 +141,7 @@ async function start(query: 'answers' | 'fails') {
   const { server } = await startTestBackend({
     features: [
       temporalPlugin,
+      temporalAccessServiceFactory,
       catalogServiceMock.factory({ entities: [ordersEntity] }),
       fakeTemporalServiceFactory(workflowService),
       mockServices.permissions.factory(),

@@ -25,4 +25,18 @@
  * @packageDocumentation
  */
 
-export { temporalPlugin as default } from './plugin';
+import { createBackendFeatureLoader } from '@backstage/backend-plugin-api';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
+import { temporalPlugin } from './plugin';
+
+/**
+ * The Temporal backend plugin, with the default factory of its access
+ * service (`temporalAccessServiceRef`).
+ *
+ * @public
+ */
+export default createBackendFeatureLoader({
+  loader() {
+    return [temporalPlugin, temporalAccessServiceFactory];
+  },
+});

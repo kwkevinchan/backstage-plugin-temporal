@@ -47,6 +47,7 @@ import { temporalPermissions } from '@kwkevinchan/backstage-plugin-temporal-comm
 import catalogBackend from '@backstage/plugin-catalog-backend';
 import permissionBackend from '@backstage/plugin-permission-backend';
 import request from 'supertest';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -175,6 +176,7 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
     const { server } = await startTestBackend({
       features: [
         temporalPlugin,
+        temporalAccessServiceFactory,
         catalogBackend,
         entityProviderModule,
         permissionBackend,

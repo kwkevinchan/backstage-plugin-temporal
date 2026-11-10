@@ -27,6 +27,7 @@ import {
   TemporalWorkflowEnricher,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
 import request from 'supertest';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   badEntity,
@@ -78,6 +79,7 @@ async function start(options?: {
   });
   const features: any[] = [
     temporalPlugin,
+    temporalAccessServiceFactory,
     catalogServiceMock.factory({ entities }),
     fakeTemporalServiceFactory(workflowService, {
       entityRefAttribute: options?.entityRefAttribute,

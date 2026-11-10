@@ -49,6 +49,7 @@ import {
 import type { JsonObject } from '@backstage/types';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { TemporalWorkflowEnricher } from '@kwkevinchan/backstage-plugin-temporal-node';
+import type { TemporalEntityContext } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import {
   ConvertOptions,
   decodePayloads,
@@ -118,12 +119,8 @@ const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
   'Terminated',
 ];
 
-export interface EntityContext {
-  entity: Entity;
-  entityRef: string;
-  namespace: string;
-  filter: EntityWorkflowFilter;
-}
+/** An entity whose workflows are shown (see `TemporalEntityContext`). */
+export type EntityContext = TemporalEntityContext;
 
 /** Largest record of a model call read from S3 (8 MiB). */
 export const MAX_LLM_RECORD_BYTES = 8 * 1024 * 1024;
@@ -220,8 +217,7 @@ export class WorkflowQueries {
   /**
    * Validates the entity's annotations (or `TemporalWorkflow` spec) and
    * resolves its namespace. `relatedEntities` are the `TemporalWorkflow`
-   * entities it depends on; the ones in another namespace or with an invalid
-   * spec are left out.
+   * entities it depends on that the caller may see.
    */
   entityContext(entity: Entity, relatedEntities: Entity[] = []): EntityContext {
     const annotations = readEntityWorkflowFilter(entity);
@@ -230,9 +226,27 @@ export class WorkflowQueries {
     if (!this.temporal.isNamespaceAllowed(namespace)) {
       throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
     }
-    const entityRef = stringifyEntityRef(entity);
+    return {
+      entity,
+      entityRef: stringifyEntityRef(entity),
+      namespace,
+      relatedWorkflowEntities: relatedEntities,
+    };
+  }
+
+  private readonly filters = new WeakMap<EntityContext, EntityWorkflowFilter>();
+
+  /**
+   * The search filter of an entity's workflows: its annotations (or spec),
+   * and the related `TemporalWorkflow` entities in the same namespace. The
+   * ones in another namespace or with an invalid spec are left out.
+   */
+  filterOf(context: EntityContext): EntityWorkflowFilter {
+    const cached = this.filters.get(context);
+    if (cached) return cached;
+    const { entity, entityRef, namespace } = context;
     const related: RelatedWorkflowSource[] = [];
-    for (const relatedEntity of relatedEntities) {
+    for (const relatedEntity of context.relatedWorkflowEntities) {
       const relatedRef = stringifyEntityRef(relatedEntity);
       if (
         !isTemporalWorkflowEntity(relatedEntity) ||
@@ -261,17 +275,14 @@ export class WorkflowQueries {
         workflowTypes: spec.workflowTypes,
       });
     }
-    return {
-      entity,
+    const filter: EntityWorkflowFilter = {
+      annotations: readEntityWorkflowFilter(entity),
       entityRef,
-      namespace,
-      filter: {
-        annotations,
-        entityRef,
-        entityRefAttribute: this.temporal.getSearchAttributeNames().entityRef,
-        related,
-      },
+      entityRefAttribute: this.temporal.getSearchAttributeNames().entityRef,
+      related,
     };
+    this.filters.set(context, filter);
+    return filter;
   }
 
   defaultNamespace(): string {
@@ -324,7 +335,7 @@ export class WorkflowQueries {
       credentials: BackstageCredentials;
     },
   ): Promise<WorkflowListResponse> {
-    const query = buildEntityWorkflowQuery(context.filter, {
+    const query = buildEntityWorkflowQuery(this.filterOf(context), {
       status: options.status,
       allRuns: options.allRuns,
     });
@@ -342,7 +353,10 @@ export class WorkflowQueries {
     const convert = this.convertOptions(context.namespace);
     const items = response.items.map(e => {
       const item = toWorkflowSummary(e, convert);
-      const workflowEntityRef = matchingWorkflowEntity(item, context.filter);
+      const workflowEntityRef = matchingWorkflowEntity(
+        item,
+        this.filterOf(context),
+      );
       return workflowEntityRef ? { ...item, workflowEntityRef } : item;
     });
     return {
@@ -386,7 +400,7 @@ export class WorkflowQueries {
     context: EntityContext,
     options: { limit: number },
   ): Promise<WorkflowStatsResponse> {
-    const query = buildEntityWorkflowQuery(context.filter);
+    const query = buildEntityWorkflowQuery(this.filterOf(context));
     const response = await this.temporalReads.listExecutions(
       context.namespace,
       query,
@@ -447,7 +461,7 @@ export class WorkflowQueries {
   assertBelongs(workflow: WorkflowSummary, context: EntityContext) {
     if (
       workflow.namespace !== context.namespace ||
-      !workflowBelongsToEntity(workflow, context.filter)
+      !workflowBelongsToEntity(workflow, this.filterOf(context))
     ) {
       throw new NotFoundError(
         `Workflow ${workflow.workflowId} does not belong to ${context.entityRef}`,

@@ -43,27 +43,24 @@ import {
   WorkflowRef,
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  TemporalAccessibleWorkflow,
+  TemporalAccessService,
+  TemporalWorkflowAccessLevel,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
 export const MAX_RELATED_WORKFLOW_ENTITIES = 20;
 
-/** `read` for details and the step graph, `history` for history, inputs and results. */
-export type WorkflowAccessLevel = 'read' | 'history';
-
-/** A workflow that passed the access checks, with the entity it is shown for. */
-export interface AccessibleWorkflow {
-  /** Undefined when opened from the Workflows page with the list permissions. */
-  context?: EntityContext;
-  workflow: WorkflowDetail;
-}
+export type WorkflowAccessLevel = TemporalWorkflowAccessLevel;
 
 /**
  * Who may see and change which workflows. Every route goes through here
  * before it reads or changes a workflow: the permission framework decides,
  * and entities are read from the catalog with the caller's credentials.
  */
-export class DefaultTemporalAccessService {
+export class DefaultTemporalAccessService implements TemporalAccessService {
   constructor(
     private readonly permissions: PermissionsService,
     private readonly catalog: CatalogService,
@@ -104,7 +101,7 @@ export class DefaultTemporalAccessService {
    * workflow opened without one.
    */
   async canReadPayloads(
-    access: AccessibleWorkflow,
+    access: TemporalAccessibleWorkflow,
     credentials: BackstageCredentials,
   ): Promise<boolean> {
     return access.context
@@ -171,7 +168,7 @@ export class DefaultTemporalAccessService {
       level: WorkflowAccessLevel;
       credentials: BackstageCredentials;
     },
-  ): Promise<AccessibleWorkflow> {
+  ): Promise<TemporalAccessibleWorkflow> {
     const { level, credentials } = options;
     this.queries.checkNamespace(ref.namespace);
     const permission =
