@@ -28,6 +28,7 @@
  * @packageDocumentation
  */
 
+export type { GraphFullscreen } from './components/graph/GraphCanvas';
 export { tp } from './components/styles';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
@@ -42,6 +43,9 @@ export { graphHeight, layoutSteps } from './components/graph/layout';
 export {
   flowNodeBase,
   GraphCanvas,
+  GraphFullscreenContext,
+  useGraphFullscreen,
+  useGraphFullscreenState,
   RELAYOUT_DELAY_MS,
   useSettledWidth,
   ViewButtons,

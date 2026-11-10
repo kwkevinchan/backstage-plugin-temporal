@@ -11,3 +11,4 @@ written in code get links to their source. It needs the Temporal plugin
 `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`.
 - `spec.definition.format: source` shows the source code of a workflow written
   in code, with its function (`symbol`, else the workflow type) marked.
+The YAML and the graph can go full screen together.

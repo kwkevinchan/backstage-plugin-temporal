@@ -42,9 +42,11 @@ import {
 import {
   DefinitionList,
   ErrorAlert,
+  GraphFullscreenContext,
   Loading,
   PanelCard,
   statusLabel,
+  useGraphFullscreenState,
   workflowLink,
 } from '@kwkevinchan/backstage-plugin-temporal/ui';
 import {
@@ -294,6 +296,8 @@ function DefinitionView(props: {
     [definition.document],
   );
   const [selectedNode, setSelectedNode] = useState<string>();
+  // The YAML and the graph go full screen together.
+  const fullscreen = useGraphFullscreenState();
   const [cursorLine, setCursorLine] = useState<number>();
   const [scrollKey, setScrollKey] = useState<number>();
   const tasks = definition.tasks;
@@ -433,38 +437,44 @@ function DefinitionView(props: {
         <ErrorAlert title="The run could not be loaded" error={run.error} />
       )}
       {overlay && <Legend overlay={overlay} />}
-      <div className={tp('tp-def-layout')}>
-        <div className={tp('tp-def-source')}>
-          {definition.content !== undefined ? (
-            <YamlView
-              content={definition.content}
-              highlight={selectedTask}
-              cursorLine={cursorLine}
-              scrollKey={scrollKey}
-              onLineSelect={selectLine}
-              errorLine={error?.kind === 'parse' ? error.line : undefined}
-            />
-          ) : (
-            <Text as="p" variant="body-medium" color="secondary">
-              No file to show.
-            </Text>
-          )}
+      <GraphFullscreenContext.Provider value={fullscreen}>
+        <div
+          className={tp('tp-def-layout')}
+          data-fullscreen={fullscreen.fullscreen}
+          data-testid="definition-layout"
+        >
+          <div className={tp('tp-def-source')}>
+            {definition.content !== undefined ? (
+              <YamlView
+                content={definition.content}
+                highlight={selectedTask}
+                cursorLine={cursorLine}
+                scrollKey={scrollKey}
+                onLineSelect={selectLine}
+                errorLine={error?.kind === 'parse' ? error.line : undefined}
+              />
+            ) : (
+              <Text as="p" variant="body-medium" color="secondary">
+                No file to show.
+              </Text>
+            )}
+          </div>
+          <div className={tp('tp-def-diagram')}>
+            {graph ? (
+              <DefinitionGraph
+                graph={graph}
+                overlay={overlay}
+                selectedId={selectedNode}
+                onSelect={selectNode}
+              />
+            ) : (
+              <Text as="p" variant="body-medium" color="secondary">
+                No graph: the file has no task list.
+              </Text>
+            )}
+          </div>
         </div>
-        <div className={tp('tp-def-diagram')}>
-          {graph ? (
-            <DefinitionGraph
-              graph={graph}
-              overlay={overlay}
-              selectedId={selectedNode}
-              onSelect={selectNode}
-            />
-          ) : (
-            <Text as="p" variant="body-medium" color="secondary">
-              No graph: the file has no task list.
-            </Text>
-          )}
-        </div>
-      </div>
+      </GraphFullscreenContext.Provider>
       {node && selectedTask && (
         <PanelCard
           title={node.title}
