@@ -5105,7 +5105,6 @@ __metadata:
     "@backstage/errors": "backstage:^"
     "@backstage/frontend-plugin-api": "backstage:^"
     "@backstage/frontend-test-utils": "backstage:^"
-    "@backstage/plugin-catalog-react": "backstage:^"
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-react": "backstage:^"
     "@backstage/test-utils": "backstage:^"
