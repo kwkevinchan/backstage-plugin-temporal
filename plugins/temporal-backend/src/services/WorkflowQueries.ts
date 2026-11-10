@@ -601,7 +601,7 @@ export class WorkflowQueries {
     return {
       ...steps,
       activities: steps.activities.map(
-        ({ llm: _llm, ...activity }) => activity,
+        ({ llm: _llm, tool: _tool, ...activity }) => activity,
       ),
     };
   }
@@ -661,6 +661,7 @@ export class WorkflowQueries {
       includePayloads: options.includePayloads,
       failure: workflow.failure,
       memo: workflow.memo,
+      aiWorkflows: this.options.aiWorkflows === true,
     });
     return this.options.aiWorkflows ? graph : withoutAiData(graph);
   }

@@ -156,6 +156,11 @@ export interface BuildGraphOptions {
   failure?: WorkflowFailure;
   /** Memo from describe, for the loop state. */
   memo?: JsonObject;
+  /**
+   * False (the experimental AI views are off): the summary of a loop step
+   * is kept, since the graph does not show the loop.
+   */
+  aiWorkflows?: boolean;
 }
 
 export interface Building extends WorkflowGraphNode {
@@ -256,7 +261,12 @@ export function buildWorkflowGraph(
       first: num(event.eventId),
     };
     const summary = summaryOf(event);
-    if (summary && !isLoopSummary(summary, init.loop)) node.summary = summary;
+    if (
+      summary &&
+      (options.aiWorkflows === false || !isLoopSummary(summary, init.loop))
+    ) {
+      node.summary = summary;
+    }
     nodes.push(node);
     byKey.set(key, node);
     return node;

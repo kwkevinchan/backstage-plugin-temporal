@@ -261,6 +261,12 @@ describe('LLM routes', () => {
     const { server } = await start({ history: true, ai: false });
     const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
+    // The model and tool calls are still there, as plain activities.
+    expect(
+      graph.body.nodes.some((n: { stepId?: string }) =>
+        n.stepId?.startsWith('llm/'),
+      ),
+    ).toBe(true);
     for (const node of graph.body.nodes) {
       expect(node.llm).toBeUndefined();
       expect(node.tool).toBeUndefined();
@@ -269,9 +275,8 @@ describe('LLM routes', () => {
     expect(steps.status).toBe(200);
     for (const activity of steps.body.activities) {
       expect(activity.llm).toBeUndefined();
+      expect(activity.tool).toBeUndefined();
     }
-    const calls = graph.body.nodes.length;
-    expect(calls).toBeGreaterThan(0);
     const res = await request(server).get(path('/llm-calls/5'));
     expect(res.status).toBe(404);
     expect(res.body.error.message).toMatch(/temporal.experimental.aiWorkflows/);

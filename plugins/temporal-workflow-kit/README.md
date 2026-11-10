@@ -12,6 +12,10 @@ It is not a Backstage package: install it in your worker, not in Backstage.
 There is no root entry point; import one of the two. `@temporalio/workflow`
 is an optional peer dependency, needed by `/loop` only.
 
+> **Not published yet.** This package goes with the experimental AI views
+> of the plugin (`temporal.experimental.aiWorkflows`) and will be released
+> with them. Until then, build it from this repository.
+
 ```sh
 # Your worker already has @temporalio/workflow:
 yarn add @kwkevinchan/temporal-workflow-kit

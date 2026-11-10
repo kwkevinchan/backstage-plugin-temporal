@@ -6,7 +6,7 @@ First release of the backend plugin. It reads; the operations that change
 workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
 
 - Permission-checked routes for the workflows of an entity and of the
-  Workflows page: lists, details, the step graph, progress, loops, the event
+  Workflows page: lists, details, the step graph, progress, the event
   history and downloads of large payloads in Temporal External Storage
   (`temporal.externalStorage.s3`: the references of the SDKs' S3 driver,
   read and verified by the backend itself).

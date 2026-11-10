@@ -110,8 +110,8 @@ Which ones to install:
   backend.
 - **With `TemporalWorkflow` entities:** also the catalog module in the
   backend.
-- **With loops or LLM steps of AI workflows:** the workflow kit in your
-  Temporal workers (not in Backstage).
+- **With loops or LLM steps of AI workflows (experimental):** the workflow
+  kit in your Temporal workers (not in Backstage; not published yet).
 - **To start, signal, update, cancel, terminate or rerun workflows from
   Backstage:** the two control modules (frontend and backend). Without them
   the plugin only reads; Query is in the core plugin.
@@ -130,12 +130,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                    |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                          |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                        |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                      |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                            |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                          |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
