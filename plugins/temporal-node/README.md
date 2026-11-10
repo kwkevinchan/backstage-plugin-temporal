@@ -7,7 +7,8 @@ for backend modules:
   connection, configured under `temporal.connection` (address, namespaces,
   `auth` with `none` or `bearer`). It gives a `Client` per namespace.
 - `temporalExtensionPoint`: `addWorkflowEnricher()` adds data to workflow
-  summaries; `addControlAction()` adds a custom workflow action.
+  summaries. Custom workflow actions use `temporalControlExtensionPoint`
+  from `/alpha`, available with the control module.
 
 ```ts
 import { createBackendModule } from '@backstage/backend-plugin-api';

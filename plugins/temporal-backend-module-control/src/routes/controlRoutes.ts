@@ -43,42 +43,45 @@ import {
   WorkflowDetail,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import {
-  TemporalControlAction,
-  TemporalService,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
-import express, { Request } from 'express';
+import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import {
   TemporalAccessService,
+  TemporalControlAction,
+  TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
-import { WorkflowController } from '../services/WorkflowController';
-import { matchesSource } from '../services/query';
-import { EntityContext, WorkflowQueries } from '../services/WorkflowQueries';
-import { entityRefFromParams } from './params';
+import express, { Request } from 'express';
+import Router from 'express-promise-router';
+import { WorkflowCommands } from '../services/WorkflowCommands';
+import {
+  entityRefFromParams,
+  entityWorkflowSource,
+  matchesSource,
+  parseEntityRefParam,
+  workflowRefFromParams,
+} from './params';
 
-/** A workflow loaded with the read checks of the router. */
-export interface LoadedWorkflow {
+/** A workflow loaded with the read checks of the access service. */
+interface LoadedWorkflow {
   credentials: BackstageCredentials;
   ref: WorkflowRef;
-  context?: EntityContext;
+  context?: TemporalEntityContext;
   workflow: WorkflowDetail;
 }
 
-export interface ControlRouteOptions {
+export interface ControlRouterOptions {
   httpAuth: HttpAuthService;
   access: TemporalAccessService;
   auditor: AuditorService;
   temporal: TemporalService;
-  controller: WorkflowController;
-  queries: WorkflowQueries;
+  commands: WorkflowCommands;
   actions: TemporalControlAction[];
-  workflowPaths: string[];
-  loadWorkflow(
-    req: Request,
-    level: TemporalWorkflowAccessLevel,
-  ): Promise<LoadedWorkflow>;
 }
+
+const workflowPaths = [
+  '/namespaces/:namespace/workflows/:workflowId',
+  '/namespaces/:namespace/workflows/:workflowId/runs/:runId',
+];
 
 /** Longest terminate reason. */
 const MAX_REASON_LENGTH = 1000;
@@ -173,20 +176,30 @@ function normalizedRef(value: string | undefined): string | undefined {
 
 /**
  * Routes that change workflows (start, signal, update, cancel, terminate,
- * rerun, custom actions) and the query route. Every operation is checked
- * with the permission framework and recorded with the auditor.
+ * rerun, custom actions), served under `/api/temporal` next to the plugin's
+ * read routes. Every operation is checked with the access service of the
+ * plugin and the permission framework, and recorded with the auditor.
  */
-export function addControlRoutes(
-  router: express.Router,
-  options: ControlRouteOptions,
-) {
-  const { httpAuth, access, auditor, controller, workflowPaths } = options;
-  const controlEnabled = controller.options.enabled;
+export function createControlRouter(
+  options: ControlRouterOptions,
+): express.Router {
+  const { httpAuth, access, auditor, commands } = options;
+  const router = Router();
+  router.use(express.json());
 
-  function checkEnabled() {
-    if (!controlEnabled) {
-      throw new NotFoundError('Workflow controls are disabled');
-    }
+  /** The workflow of the request's path, with the read checks. */
+  async function loadWorkflow(
+    req: Request,
+    level: TemporalWorkflowAccessLevel,
+  ): Promise<LoadedWorkflow> {
+    const credentials = await httpAuth.credentials(req);
+    const ref = workflowRefFromParams(req);
+    const loaded = await access.loadWorkflow(ref, {
+      entityRef: parseEntityRefParam(req.query.entityRef),
+      level,
+      credentials,
+    });
+    return { credentials, ref, ...loaded };
   }
 
   /**
@@ -269,15 +282,14 @@ export function addControlRoutes(
   const paths = (suffix: string) => workflowPaths.map(p => `${p}/${suffix}`);
 
   router.post(paths('signal'), async (req, res) => {
-    checkEnabled();
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowSignalPermission,
       loaded,
     );
     const name = parseName(body(req).name);
     const args = parseArgs(body(req).args);
-    controller.checkSignal(name);
+    commands.checkSignal(name);
     assertRunning(loaded.workflow);
     await audited(
       req,
@@ -285,7 +297,7 @@ export function addControlRoutes(
       workflowMeta(loaded.workflow, entityRef, { name }),
       'medium',
       () =>
-        controller.signal(
+        commands.signal(
           runRef(loaded.workflow),
           name,
           args,
@@ -296,15 +308,14 @@ export function addControlRoutes(
   });
 
   router.post(paths('update'), async (req, res) => {
-    checkEnabled();
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowUpdatePermission,
       loaded,
     );
     const name = parseName(body(req).name);
     const args = parseArgs(body(req).args);
-    controller.checkUpdate(name);
+    commands.checkUpdate(name);
     assertRunning(loaded.workflow);
     const result = await audited(
       req,
@@ -312,7 +323,7 @@ export function addControlRoutes(
       workflowMeta(loaded.workflow, entityRef, { name }),
       'medium',
       () =>
-        controller.update(
+        commands.update(
           runRef(loaded.workflow),
           name,
           args,
@@ -322,29 +333,8 @@ export function addControlRoutes(
     res.json({ result });
   });
 
-  // Queries only read the workflow: the read permission is enough, and they
-  // are served when the controls are disabled.
-  router.post(paths('query'), async (req, res) => {
-    const loaded = await options.loadWorkflow(req, 'read');
-    const name = parseName(body(req).name);
-    const args = parseArgs(body(req).args);
-    const result = await audited(
-      req,
-      'workflow-query',
-      workflowMeta(
-        loaded.workflow,
-        loaded.context?.entityRef ?? normalizedRef(loaded.workflow.entityRef),
-        { name },
-      ),
-      'low',
-      () => controller.query(runRef(loaded.workflow), name, args),
-    );
-    res.json({ result });
-  });
-
   router.post(paths('cancel'), async (req, res) => {
-    checkEnabled();
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowCancelPermission,
       loaded,
@@ -356,7 +346,7 @@ export function addControlRoutes(
       workflowMeta(loaded.workflow, entityRef),
       'medium',
       () =>
-        controller.cancel(
+        commands.cancel(
           runRef(loaded.workflow),
           identityOf(loaded.credentials),
         ),
@@ -365,8 +355,7 @@ export function addControlRoutes(
   });
 
   router.post(paths('terminate'), async (req, res) => {
-    checkEnabled();
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowTerminatePermission,
       loaded,
@@ -381,7 +370,7 @@ export function addControlRoutes(
       workflowMeta(loaded.workflow, entityRef, { reason }),
       'high',
       () =>
-        controller.terminate(
+        commands.terminate(
           runRef(loaded.workflow),
           reason,
           identityOf(loaded.credentials),
@@ -391,8 +380,7 @@ export function addControlRoutes(
   });
 
   router.post(paths('rerun'), async (req, res) => {
-    checkEnabled();
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowRerunPermission,
       loaded,
@@ -404,7 +392,7 @@ export function addControlRoutes(
       workflowMeta(loaded.workflow, entityRef),
       'medium',
       () =>
-        controller.rerun(loaded.workflow, {
+        commands.rerun(loaded.workflow, {
           workflowId,
           identity: identityOf(loaded.credentials),
           // Keeps the entity of the run; the initiator is the caller.
@@ -415,7 +403,6 @@ export function addControlRoutes(
   });
 
   router.post(paths('actions/:actionId'), async (req, res) => {
-    checkEnabled();
     const actionId = req.params.actionId;
     const action = isValidControlActionId(actionId)
       ? options.actions.find(a => a.id === actionId)
@@ -423,7 +410,7 @@ export function addControlRoutes(
     if (!action) {
       throw new NotFoundError(`No workflow action ${actionId}`);
     }
-    const loaded = await options.loadWorkflow(req, 'read');
+    const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(action.permission, loaded);
     if (action.filter && !action.filter(loaded.workflow)) {
       throw new ConflictError(
@@ -480,7 +467,6 @@ export function addControlRoutes(
   router.post(
     '/entities/:kind/:namespace/:name/workflows',
     async (req, res) => {
-      checkEnabled();
       const credentials = await httpAuth.credentials(req);
       const context = await access.loadEntity(
         entityRefFromParams(req),
@@ -488,7 +474,7 @@ export function addControlRoutes(
         credentials,
       );
       const start = parseStart(req);
-      const { annotations } = options.queries.filterOf(context);
+      const annotations = entityWorkflowSource(context.entity);
       const workflowType =
         start.workflowType ??
         (annotations.workflowTypes.length === 1
@@ -515,7 +501,7 @@ export function addControlRoutes(
         },
         'medium',
         () =>
-          controller.start({
+          commands.start({
             namespace: context.namespace,
             workflowType,
             taskQueue,
@@ -530,7 +516,6 @@ export function addControlRoutes(
   );
 
   router.post('/workflows', async (req, res) => {
-    checkEnabled();
     const credentials = await httpAuth.credentials(req);
     if (!(await access.canListAll(credentials))) {
       throw new NotAllowedError();
@@ -558,7 +543,7 @@ export function addControlRoutes(
       },
       'medium',
       () =>
-        controller.start({
+        commands.start({
           namespace,
           workflowType,
           taskQueue,
@@ -570,4 +555,6 @@ export function addControlRoutes(
     );
     res.status(201).json(started);
   });
+
+  return router;
 }

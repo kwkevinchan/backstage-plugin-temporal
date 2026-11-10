@@ -29,12 +29,9 @@ import type {
   WorkflowStartResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { decodePayloads } from './convert';
-import { mapTemporalError } from '../repositories/TemporalReadRepository';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
-  enabled: boolean;
   /** Empty allows every signal name. */
   allowedSignals: string[];
   /** Empty allows every update name. */
@@ -44,7 +41,6 @@ export interface ControlOptions {
 export function readControlOptions(config: Config): ControlOptions {
   const control = config.getOptionalConfig('temporal.control');
   return {
-    enabled: control?.getOptionalBoolean('enabled') ?? true,
     allowedSignals: control?.getOptionalStringArray('allowedSignals') ?? [],
     allowedUpdates: control?.getOptionalStringArray('allowedUpdates') ?? [],
   };
@@ -54,6 +50,9 @@ export function readControlOptions(config: Config): ControlOptions {
 const GRPC_DEADLINE_EXCEEDED = 4;
 const GRPC_ALREADY_EXISTS = 6;
 const GRPC_FAILED_PRECONDITION = 9;
+const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_NOT_FOUND = 5;
+const GRPC_UNAVAILABLE = 14;
 
 function mapControlError(error: unknown): never {
   const code = (error as { code?: unknown })?.code;
@@ -64,7 +63,12 @@ function mapControlError(error: unknown): never {
   if (code === GRPC_DEADLINE_EXCEEDED) {
     throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
   }
-  return mapTemporalError(error);
+  if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);
+  if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
+  if (code === GRPC_UNAVAILABLE) {
+    throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
+  }
+  throw error;
 }
 
 const JSON_ENCODING = Buffer.from('json/plain');
@@ -81,33 +85,34 @@ export function encodeArgs(args: JsonValue[] | undefined): {
   };
 }
 
-/** Payloads in their JSON form: bytes as base64 text. */
-function payloadsJson(payloads: any): any {
-  if (payloads && typeof payloads.toJSON === 'function') {
-    return payloads.toJSON();
+/** The value of one payload, like the default data converter. */
+function decodePayload(payload: any): JsonValue {
+  const text = (v: unknown) =>
+    v instanceof Uint8Array ? Buffer.from(v).toString('utf8') : String(v ?? '');
+  const encoding = text(payload?.metadata?.encoding);
+  const data: Uint8Array | undefined = payload?.data;
+  if (encoding === 'binary/null') return null;
+  if (encoding === 'json/plain' || encoding === 'json/protobuf') {
+    try {
+      return JSON.parse(text(data ?? new Uint8Array())) as JsonValue;
+    } catch {
+      // described below
+    }
   }
-  const base64 = (v: unknown) =>
-    v instanceof Uint8Array ? Buffer.from(v).toString('base64') : v;
-  return {
-    payloads: (payloads?.payloads ?? []).map((p: any) => ({
-      metadata: Object.fromEntries(
-        Object.entries(p?.metadata ?? {}).map(([k, v]) => [k, base64(v)]),
-      ),
-      data: base64(p?.data),
-    })),
-  };
+  // Binary data or a payload codec (for example encryption): describe it.
+  return { encoding, size: data?.length ?? 0, undecodable: true };
 }
 
 /**
- * The value of a result: decoded like the default data converter. A result
- * the backend cannot decode is described by its encoding and size.
+ * The value of an update result: one payload becomes its value, several an
+ * array. A payload the module cannot decode is described by its encoding
+ * and size.
  */
 export function decodeResult(payloads: unknown): JsonValue | undefined {
-  const decoded = decodePayloads(payloadsJson(payloads));
-  if (decoded === undefined) return undefined;
-  const one = (d: any): JsonValue =>
-    d && typeof d === 'object' && 'value' in d ? d.value : d;
-  return Array.isArray(decoded) ? decoded.map(one) : one(decoded);
+  const list: unknown[] = (payloads as any)?.payloads ?? [];
+  if (list.length === 0) return undefined;
+  const values = list.map(decodePayload);
+  return values.length === 1 ? values[0] : values;
 }
 
 /** The message of a Temporal failure, with its causes. */
@@ -163,8 +168,12 @@ function keywordAttributes(
   return indexedFields;
 }
 
-/** Changes workflows in Temporal. Permission checks are done by the router. */
-export class WorkflowController {
+/**
+ * The operations that change workflows in Temporal: signal, update, cancel,
+ * terminate, start and rerun. Permission checks are done by the routes,
+ * through the access service of the plugin.
+ */
+export class WorkflowCommands {
   constructor(
     private readonly temporal: TemporalService,
     readonly options: ControlOptions,
@@ -253,25 +262,6 @@ export class WorkflowController {
       throw new InputError(failureMessage(outcome.failure));
     }
     return decodeResult(outcome.success);
-  }
-
-  async query(
-    ref: Required<WorkflowRef>,
-    name: string,
-    args: JsonValue[] | undefined,
-  ): Promise<JsonValue | undefined> {
-    const service = await this.service();
-    const response: any = await service
-      .queryWorkflow({
-        namespace: ref.namespace,
-        execution: { workflowId: ref.workflowId, runId: ref.runId },
-        query: { queryType: name, queryArgs: encodeArgs(args) },
-      })
-      .catch(mapControlError);
-    if (response.queryRejected) {
-      throw new ConflictError('The workflow rejected the query');
-    }
-    return decodeResult(response.queryResult);
   }
 
   async cancel(ref: Required<WorkflowRef>, identity: string): Promise<void> {

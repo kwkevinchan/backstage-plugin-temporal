@@ -40,6 +40,10 @@ backend.add(
 );
 
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Start, signal, update, cancel, terminate, rerun and custom actions.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-temporal-backend-module-control'),
+);
 // Definition files of TemporalWorkflow entities written for Zigflow.
 backend.add(
   import('@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow'),

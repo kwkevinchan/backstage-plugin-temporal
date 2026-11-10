@@ -18,12 +18,25 @@
     "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
     "directory": "plugins/temporal-backend"
   },
+  "exports": {
+    ".": "./src/index.ts",
+    "./alpha": "./src/alpha.ts",
+    "./package.json": "./package.json"
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "typesVersions": {
+    "*": {
+      "alpha": [
+        "src/alpha.ts"
+      ],
+      "package.json": [
+        "package.json"
+      ]
+    }
+  },
   "publishConfig": {
-    "access": "public",
-    "main": "dist/index.cjs.js",
-    "types": "dist/index.d.ts"
+    "access": "public"
   },
   "backstage": {
     "role": "backend-plugin",

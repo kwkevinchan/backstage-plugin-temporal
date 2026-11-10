@@ -5004,6 +5004,30 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:plugins/temporal-backend-module-control":
+  version: 0.0.0-use.local
+  resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:plugins/temporal-backend-module-control"
+  dependencies:
+    "@backstage/backend-plugin-api": "backstage:^"
+    "@backstage/backend-test-utils": "backstage:^"
+    "@backstage/catalog-model": "backstage:^"
+    "@backstage/cli": "backstage:^"
+    "@backstage/config": "backstage:^"
+    "@backstage/errors": "backstage:^"
+    "@backstage/plugin-catalog-node": "backstage:^"
+    "@backstage/plugin-permission-common": "backstage:^"
+    "@backstage/types": "backstage:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
+    "@types/express": "npm:^4.17.6"
+    "@types/supertest": "npm:^2.0.12"
+    express: "npm:^4.22.0"
+    express-promise-router: "npm:^4.1.0"
+    supertest: "npm:^6.2.4"
+  languageName: unknown
+  linkType: soft
+
 "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow":
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow"
@@ -9929,6 +9953,7 @@ __metadata:
     "@backstage/plugin-permission-node": "backstage:^"
     "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend-module-control": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"

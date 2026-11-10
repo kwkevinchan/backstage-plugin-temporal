@@ -14,13 +14,23 @@
  * limitations under the License.
  */
 
-import { HttpAuthService } from '@backstage/backend-plugin-api';
+import {
+  AuditorService,
+  BackstageCredentials,
+  HttpAuthService,
+} from '@backstage/backend-plugin-api';
 import { InputError, NotFoundError } from '@backstage/errors';
-import { temporalWorkflowReadPermission } from '@kwkevinchan/backstage-plugin-temporal-common';
+import {
+  temporalWorkflowQueryPermission,
+  temporalWorkflowReadPermission,
+  WorkflowDetail,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {
   TemporalAccessService,
+  TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import {
@@ -30,36 +40,37 @@ import {
   WorkflowQueries,
 } from '../services/WorkflowQueries';
 import { parseStatus } from '../services/query';
-import {
-  addControlRoutes,
-  ControlRouteOptions,
-  LoadedWorkflow,
-} from './controlRoutes';
+import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { sendStoredPayload } from './download';
 import {
   entityRefFromParams,
   optionalString,
   parseEntityRefParam,
   parseFlag,
+  parseMessageBody,
   parsePageSize,
   workflowRefFromParams,
 } from './params';
 
 export interface RouterOptions {
   httpAuth: HttpAuthService;
+  auditor: AuditorService;
   access: TemporalAccessService;
   queries: WorkflowQueries;
-  /** When set, the routes that change workflows are served too. */
-  controls?: Omit<
-    ControlRouteOptions,
-    'httpAuth' | 'access' | 'workflowPaths' | 'loadWorkflow'
-  >;
+}
+
+/** A workflow loaded with the read checks of the access service. */
+interface LoadedWorkflow {
+  credentials: BackstageCredentials;
+  ref: WorkflowRef;
+  context?: TemporalEntityContext;
+  workflow: WorkflowDetail;
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { httpAuth, access, queries } = options;
+  const { httpAuth, auditor, access, queries } = options;
   const router = Router();
   router.use(express.json());
 
@@ -251,15 +262,58 @@ export async function createRouter(
     },
   );
 
-  if (options.controls) {
-    addControlRoutes(router, {
-      ...options.controls,
-      httpAuth,
-      access,
-      workflowPaths,
-      loadWorkflow,
-    });
-  }
+  // The signals, updates and queries a running workflow defines (for the
+  // operation dialogs). The backend runs the metadata query itself, so the
+  // read permission is enough.
+  router.get(
+    workflowPaths.map(p => `${p}/handlers`),
+    async (req, res) => {
+      const { workflow } = await loadWorkflow(req, 'read');
+      res.json(await queries.handlers(workflow));
+    },
+  );
+
+  // A query chosen by the user. Queries only read the workflow, but run
+  // the worker's code: they need temporal.workflow.query on the entity, and
+  // are recorded with the auditor.
+  router.post(
+    workflowPaths.map(p => `${p}/query`),
+    async (req, res) => {
+      const loaded = await loadWorkflow(req, 'read');
+      const { name, args } = parseMessageBody(req);
+      const entityRef =
+        loaded.context?.entityRef ??
+        (loaded.workflow.entityRef
+          ? normalizeEntityRef(loaded.workflow.entityRef)
+          : undefined);
+      await access.authorizeOn(
+        temporalWorkflowQueryPermission,
+        entityRef,
+        loaded.credentials,
+      );
+      const event = await auditor.createEvent({
+        eventId: 'workflow-query',
+        severityLevel: 'low',
+        request: req,
+        meta: {
+          namespace: loaded.workflow.namespace,
+          workflowId: loaded.workflow.workflowId,
+          runId: loaded.workflow.runId,
+          workflowType: loaded.workflow.workflowType,
+          name,
+          ...(entityRef ? { entityRef } : {}),
+        },
+      });
+      try {
+        const result = await queries.query(loaded.workflow, name, args);
+        await event.success();
+        res.json({ result });
+      } catch (error) {
+        await event.fail({ error: error as Error });
+        throw error;
+      }
+    },
+  );
 
   return router;
 }

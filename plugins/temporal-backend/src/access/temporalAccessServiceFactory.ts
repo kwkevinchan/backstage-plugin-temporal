@@ -36,6 +36,8 @@ import { DefaultTemporalAccessService } from './DefaultTemporalAccessService';
  *
  * The service is built from Backstage services only, not from anything the
  * plugin sets up in its init, because modules can start before the plugin.
+ *
+ * @alpha
  */
 export const temporalAccessServiceFactory = createServiceFactory({
   service: temporalAccessServiceRef,

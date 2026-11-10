@@ -79,6 +79,7 @@ describe('temporal common', () => {
       ['temporal.workflow.history.read', 'catalog-entity'],
       ['temporal.workflow.list', 'temporal-workflow'],
       ['temporal.workflow.history.list', 'temporal-workflow'],
+      ['temporal.workflow.query', 'catalog-entity'],
       ['temporal.workflow.start', 'catalog-entity'],
       ['temporal.workflow.signal', 'catalog-entity'],
       ['temporal.workflow.update', 'catalog-entity'],

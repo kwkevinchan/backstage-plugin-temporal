@@ -19,7 +19,7 @@ import {
   LoggerService,
 } from '@backstage/backend-plugin-api';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import {
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
@@ -45,8 +45,10 @@ import {
   ExternalPayload,
   parseLlmMarker,
   WorkflowLlmCallResponse,
+  WorkflowHandler,
+  WorkflowHandlersResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
-import type { JsonObject } from '@backstage/types';
+import type { JsonObject, JsonValue } from '@backstage/types';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { TemporalWorkflowEnricher } from '@kwkevinchan/backstage-plugin-temporal-node';
 import type { TemporalEntityContext } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
@@ -62,6 +64,7 @@ import {
 } from './convert';
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
+import { decodeResult, encodeArgs } from './messages';
 import { readLoopState } from './loops';
 import {
   findReferencePayloads,
@@ -90,6 +93,24 @@ export const MAX_PROGRESS_EVENTS = 1000;
 export const MAX_LOOP_RUNS = 20;
 /** Time the loop state query may take; a workflow without a worker never answers. */
 export const LOOP_QUERY_TIMEOUT_MS = 3000;
+/** Query of the Temporal SDKs that lists a workflow's handlers. */
+export const METADATA_QUERY = '__temporal_workflow_metadata';
+/** Time the metadata query may take. */
+export const METADATA_QUERY_TIMEOUT_MS = 5000;
+
+/** Handler definitions of the metadata query, without the SDKs' own (`__`). */
+function handlerList(definitions: unknown): WorkflowHandler[] {
+  if (!Array.isArray(definitions)) return [];
+  return definitions.flatMap(d => {
+    const name = (d as { name?: unknown })?.name;
+    if (typeof name !== 'string' || !name || name.startsWith('__')) return [];
+    const description = (d as { description?: unknown })?.description;
+    return typeof description === 'string' && description
+      ? [{ name, description }]
+      : [{ name }];
+  });
+}
+
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
 
@@ -725,7 +746,7 @@ export class WorkflowQueries {
       const response = await this.temporalReads.query(
         workflow,
         LOOP_STATE_QUERY,
-        LOOP_QUERY_TIMEOUT_MS,
+        { timeoutMs: LOOP_QUERY_TIMEOUT_MS },
       );
       if (response.rejected) return undefined;
       const decoded = decodePayloads(response.result);
@@ -856,6 +877,55 @@ export class WorkflowQueries {
     } catch (error) {
       this.logger.debug(`Could not count the runs of a workflow: ${error}`);
       return chain;
+    }
+  }
+
+  /**
+   * Runs a query chosen by the user on one run and decodes its result.
+   * Throws ConflictError when the workflow rejects it.
+   */
+  async query(
+    workflow: WorkflowDetail,
+    name: string,
+    args: JsonValue[] | undefined,
+  ): Promise<JsonValue | undefined> {
+    const response = await this.temporalReads.query(workflow, name, {
+      args: encodeArgs(args),
+    });
+    if (response.rejected) {
+      throw new ConflictError('The workflow rejected the query');
+    }
+    return decodeResult(response.result);
+  }
+
+  /**
+   * The signals, updates and queries a workflow defines, from the metadata
+   * query of the Temporal SDKs. Empty lists when no worker answers in time
+   * or the workflow does not answer it.
+   */
+  async handlers(workflow: WorkflowDetail): Promise<WorkflowHandlersResponse> {
+    const empty: WorkflowHandlersResponse = {
+      signals: [],
+      updates: [],
+      queries: [],
+    };
+    if (workflow.status !== 'Running') return empty;
+    try {
+      const response = await this.temporalReads.query(
+        workflow,
+        METADATA_QUERY,
+        { timeoutMs: METADATA_QUERY_TIMEOUT_MS },
+      );
+      if (response.rejected) return empty;
+      const definition = (decodeResult(response.result) as any)?.definition;
+      return {
+        signals: handlerList(definition?.signalDefinitions),
+        updates: handlerList(definition?.updateDefinitions),
+        queries: handlerList(definition?.queryDefinitions),
+      };
+    } catch (error) {
+      this.logger.debug(`Workflow metadata query failed: ${error}`);
+      return empty;
     }
   }
 

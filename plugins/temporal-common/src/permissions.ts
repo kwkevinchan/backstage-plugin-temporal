@@ -117,6 +117,21 @@ export const temporalWorkflowHistoryListPermission = createPermission({
   resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
 });
 
+/**
+ * Run a query chosen by the user on a workflow of an entity (the Query
+ * dialog). Queries only read; the backend's own queries (the handler list,
+ * the loop state) need {@link temporalWorkflowReadPermission} only.
+ * Checked on the entity; without an entity, only a policy that allows it
+ * for every entity lets it through.
+ *
+ * @public
+ */
+export const temporalWorkflowQueryPermission = createPermission({
+  name: 'temporal.workflow.query',
+  attributes: { action: 'read' },
+  resourceType: RESOURCE_TYPE_CATALOG_ENTITY,
+});
+
 function controlPermission(
   name: string,
   action: 'create' | 'update' | 'delete',
@@ -219,5 +234,6 @@ export const temporalPermissions = [
   temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
   temporalWorkflowHistoryListPermission,
+  temporalWorkflowQueryPermission,
   ...temporalControlPermissions,
 ];
