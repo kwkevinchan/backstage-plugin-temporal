@@ -415,8 +415,8 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   }
   expect(await insideGraph(page, /^notifyTeam, Completed/)).toBe(true);
   await shot('21-long-workflow-panel');
-  // "Whole graph" zooms out to every step; markers can be shown.
-  await page.getByRole('button', { name: 'Whole graph' }).click();
+  // The fit view control zooms out to every step; markers can be shown.
+  await page.getByRole('button', { name: 'Fit View' }).click();
   await graphSettled(page);
   expect(await insideGraph(page, /^Start, Completed/)).toBe(true);
   expect(await insideGraph(page, /^End, Completed/)).toBe(true);

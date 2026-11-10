@@ -41,6 +41,7 @@ import {
   GraphCanvas,
   RELAYOUT_DELAY_MS,
   useSettledWidth,
+  useGraphFullscreen,
   ViewButtons,
 } from './GraphCanvas';
 import { StepFlowNode, StepNode } from './StepNode';
@@ -480,7 +481,7 @@ function GraphToolbar(props: {
  * running steps pulse, waiting steps are dashed and retried activities show
  * their attempt. The graph opens at a readable size, starting at its first
  * step; long runs wrap into rows, the rest can be panned to, and
- * "Whole graph" zooms out to show every step.
+ * the fit view control zooms out to show every step.
  */
 export function WorkflowGraph(props: WorkflowGraphProps) {
   const showMarkers = props.showMarkers ?? false;
@@ -531,6 +532,7 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     ? focusFrame(focusBox, loopViews[focusBox.loop.name])?.id
     : undefined;
   const hasMarkers = props.graph.nodes.some(isMarkerStep);
+  const fullscreen = useGraphFullscreen();
   const minHeight = graphHeight(
     structure.layout,
     layoutWidth ?? structure.layout.width,
@@ -549,7 +551,8 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
         <div
           ref={areaRef}
           className={tp('tp-graph')}
-          style={{ minHeight }}
+          // Full screen: the graph takes the height of the window instead.
+          style={fullscreen?.fullscreen ? undefined : { minHeight }}
           role="region"
           aria-label="Workflow graph"
           data-testid="workflow-graph"

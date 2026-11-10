@@ -54,7 +54,7 @@ const WRAP_GAP = 40;
 export const NODE_FONT_SIZE = 13;
 /**
  * Smallest zoom the graph opens with: the step text stays at least 12px.
- * The view can still be zoomed out by hand or with "Whole graph".
+ * The view can still be zoomed out by hand or with the fit view control.
  */
 export const READABLE_ZOOM = 0.93;
 /**

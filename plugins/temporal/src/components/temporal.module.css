@@ -206,6 +206,29 @@
   flex: 1 1 auto;
   min-width: 0;
 }
+/* Full screen: the graph and its step panel cover the window (the page
+   itself goes full screen, so that menus and tooltips stay visible). */
+.tp-graph-layout[data-fullscreen='true'] {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  box-sizing: border-box;
+  padding: var(--bui-space-4, 16px);
+  background: var(--bui-bg-neutral-1);
+}
+.tp-graph-layout[data-fullscreen='true'] > .tp-graph-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tp-graph-layout[data-fullscreen='true'] .tp-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tp-graph-layout[data-fullscreen='true'] > .tp-drawer {
+  max-height: none;
+  align-self: stretch;
+}
 .tp-drawer {
   flex: 0 0 420px;
   max-width: 45%;

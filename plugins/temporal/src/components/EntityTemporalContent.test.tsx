@@ -131,6 +131,32 @@ describe('EntityTemporalContent', () => {
     );
   });
 
+  it('shows the graph and the step panel full screen', async () => {
+    const api = mockTemporalApi();
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    const layout = await screen.findByTestId('workflow-graph-layout');
+    expect(layout).toHaveAttribute('data-fullscreen', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+    expect(layout).toHaveAttribute('data-fullscreen', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Exit full screen' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    // Steps can still be opened next to the graph.
+    fireEvent.click(
+      within(screen.getByTestId('workflow-graph')).getByRole('button', {
+        name: 'chargeCard, Failed, attempt 2',
+      }),
+    );
+    expect(
+      await within(layout).findByTestId('step-drawer'),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() =>
+      expect(layout).toHaveAttribute('data-fullscreen', 'false'),
+    );
+    expect(screen.getByRole('button', { name: 'Full screen' })).toBeEnabled();
+  });
+
   it('opens a step with its input, output, error and attempts', async () => {
     const api = mockTemporalApi();
     await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');

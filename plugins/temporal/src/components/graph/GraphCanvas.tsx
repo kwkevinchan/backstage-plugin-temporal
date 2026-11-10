@@ -14,7 +14,16 @@
  * limitations under the License.
  */
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   Background,
   BaseEdge,
@@ -266,7 +275,12 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
       <Background gap={20} size={1} />
       <Controls
         showInteractive={false}
-        showFitView={false}
+        fitViewOptions={{
+          padding: 0.05,
+          minZoom: MIN_ZOOM,
+          maxZoom: 1,
+          duration: 200,
+        }}
         orientation="horizontal"
         position="bottom-right"
       />
@@ -274,63 +288,90 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   );
 }
 
+/** Full screen of a graph and the panel next to it. */
+export interface GraphFullscreen {
+  fullscreen: boolean;
+  toggle(): void;
+}
+
 /**
- * "Readable size" (the view the graph opens with, the selected box in
- * view) and "Whole graph" (zoomed out to every box).
+ * Given by the area that can go full screen (the graph and its step
+ * panel); without it the graph has no full screen button.
  */
-export function ViewButtons(props: {
-  layout: StepLayout;
+export const GraphFullscreenContext = createContext<
+  GraphFullscreen | undefined
+>(undefined);
+
+/** The full screen state of a graph area, for its context. */
+export function useGraphFullscreenState(): GraphFullscreen {
+  const [fullscreen, setFullscreen] = useState(false);
+  const current = useRef(false);
+  current.current = fullscreen;
+  useEffect(() => {
+    if (!fullscreen) return undefined;
+    // The browser leaves full screen on Esc; follow it.
+    const onChange = () => {
+      if (!document.fullscreenElement) setFullscreen(false);
+    };
+    // Without the browser's full screen (not allowed, or not supported),
+    // Esc leaves the area that covers the window.
+    const onKey = (event: KeyboardEvent) => {
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !document.fullscreenElement
+      ) {
+        setFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onChange);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [fullscreen]);
+  const toggle = useCallback(() => {
+    const next = !current.current;
+    setFullscreen(next);
+    // The whole page goes full screen, not only the graph: menus and
+    // tooltips open outside the graph area and must stay visible. The area
+    // covers the window with CSS.
+    const root = document.documentElement;
+    if (next && !document.fullscreenElement && root.requestFullscreen) {
+      root.requestFullscreen().catch(() => undefined);
+    } else if (!next && document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => undefined);
+    }
+  }, []);
+  return useMemo(() => ({ fullscreen, toggle }), [fullscreen, toggle]);
+}
+
+/** The full screen state around a graph, when it can go full screen. */
+export function useGraphFullscreen(): GraphFullscreen | undefined {
+  return useContext(GraphFullscreenContext);
+}
+
+/**
+ * "Full screen", in an area that can go full screen. Zooming is with the
+ * graph's own controls (zoom in, zoom out, fit the whole graph); the graph
+ * opens at a readable size.
+ */
+export function ViewButtons(_props: {
+  layout?: StepLayout;
   selectedId?: string;
 }) {
-  const { layout, selectedId } = props;
-  const flow = useReactFlow();
-  const width = useStore(s => s.width);
-  const height = useStore(s => s.height);
+  const fullscreen = useGraphFullscreen();
+  if (!fullscreen) return null;
   return (
-    <>
-      <Button
-        size="small"
-        variant="secondary"
-        onPress={() => {
-          const canvas = { width, height };
-          const view = initialViewport(layout, canvas);
-          const position = selectedId
-            ? layout.positions.get(selectedId)
-            : undefined;
-          flow.setViewport(
-            keepInGraph(
-              position && selectedId
-                ? panIntoView(
-                    view,
-                    position,
-                    canvas,
-                    boxSize(layout, selectedId),
-                  )
-                : view,
-              layout,
-              canvas,
-            ),
-            { duration: 200 },
-          );
-        }}
-      >
-        Readable size
-      </Button>
-      <Button
-        size="small"
-        variant="secondary"
-        onPress={() =>
-          flow.fitView({
-            padding: 0.05,
-            minZoom: MIN_ZOOM,
-            maxZoom: 1,
-            duration: 200,
-          })
-        }
-      >
-        Whole graph
-      </Button>
-    </>
+    <Button
+      size="small"
+      variant="secondary"
+      aria-pressed={fullscreen.fullscreen}
+      onPress={fullscreen.toggle}
+    >
+      {fullscreen.fullscreen ? 'Exit full screen' : 'Full screen'}
+    </Button>
   );
 }
 

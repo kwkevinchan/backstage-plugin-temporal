@@ -52,6 +52,10 @@ import { QueryButton } from './messages/QueryButton';
 import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
+import {
+  GraphFullscreenContext,
+  useGraphFullscreenState,
+} from './graph/GraphCanvas';
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { loopOfStep, LoopView, LoopViews } from './graph/loops';
 import { savedListSearch } from './listState';
@@ -265,6 +269,7 @@ function GraphCard(props: {
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
+  const fullscreen = useGraphFullscreenState();
   return (
     <Card>
       <CardHeader>
@@ -291,33 +296,36 @@ function GraphCard(props: {
           />
         )}
         {graph && (
-          <div
-            className={tp('tp-graph-layout')}
-            data-testid="workflow-graph-layout"
-          >
-            <WorkflowGraph
-              graph={graph}
-              selectedId={selectedId}
-              onSelect={onSelect}
-              showMarkers={props.showMarkers}
-              onShowMarkersChange={props.onShowMarkersChange}
-              loopViews={props.loopViews}
-              onLoopViewChange={props.onLoopViewChange}
-              panelOpen={Boolean(selected)}
-            />
-            {selected && (
-              <StepDrawer
-                step={selected}
-                payloadsHidden={graph.payloadsHidden}
-                workflowHref={props.workflowHref}
-                onClose={() => onSelect(undefined)}
-                nodes={graph.nodes}
-                workflowRef={props.workflowRef}
-                entityRef={props.entityRef}
-                onSelectStep={props.onSelectStep}
+          <GraphFullscreenContext.Provider value={fullscreen}>
+            <div
+              className={tp('tp-graph-layout')}
+              data-testid="workflow-graph-layout"
+              data-fullscreen={fullscreen.fullscreen}
+            >
+              <WorkflowGraph
+                graph={graph}
+                selectedId={selectedId}
+                onSelect={onSelect}
+                showMarkers={props.showMarkers}
+                onShowMarkersChange={props.onShowMarkersChange}
+                loopViews={props.loopViews}
+                onLoopViewChange={props.onLoopViewChange}
+                panelOpen={Boolean(selected)}
               />
-            )}
-          </div>
+              {selected && (
+                <StepDrawer
+                  step={selected}
+                  payloadsHidden={graph.payloadsHidden}
+                  workflowHref={props.workflowHref}
+                  onClose={() => onSelect(undefined)}
+                  nodes={graph.nodes}
+                  workflowRef={props.workflowRef}
+                  entityRef={props.entityRef}
+                  onSelectStep={props.onSelectStep}
+                />
+              )}
+            </div>
+          </GraphFullscreenContext.Provider>
         )}
       </CardBody>
     </Card>
