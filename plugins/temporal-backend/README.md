@@ -52,21 +52,21 @@ in the repository README for an example.
 
 ## API
 
-| Method | Path                                                                                | Permission                       |
-| ------ | ----------------------------------------------------------------------------------- | -------------------------------- |
-| GET    | `/workflows`                                                                        | `temporal.workflow.list`         |
-| GET    | `/entities/:kind/:namespace/:name/workflows`                                        | `temporal.workflow.read`         |
-| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                   | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                        | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                  | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                  | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`               | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops`                  | `temporal.workflow.read`         |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId`     | `temporal.workflow.history.read` |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=` | `temporal.workflow.history.read` |
-| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                  | `temporal.workflow.read`         |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                     | `temporal.workflow.query` + read |
+| Method | Path                                                                                   | Permission                       |
+| ------ | -------------------------------------------------------------------------------------- | -------------------------------- |
+| GET    | `/workflows`                                                                           | `temporal.workflow.list`         |
+| GET    | `/entities/:kind/:namespace/:name/workflows`                                           | `temporal.workflow.read`         |
+| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                      | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                           | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                   | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                     | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops` (experimental)      | `temporal.workflow.read`         |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read` |
+| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read` |
+| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`         |
+| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read |
 
 With the control module
 ([`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control)):

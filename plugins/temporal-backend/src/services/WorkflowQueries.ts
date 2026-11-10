@@ -120,6 +120,21 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
 /** Most schedules a list reads. */
 export const MAX_SCHEDULES = 500;
 
+/**
+ * A graph without the data of the experimental AI views: loop markers and
+ * groups, model call summaries and tool links. The steps stay, as plain
+ * activities.
+ */
+function withoutAiData(graph: WorkflowGraphResponse): WorkflowGraphResponse {
+  const { loops: _loops, ...rest } = graph;
+  return {
+    ...rest,
+    nodes: graph.nodes.map(
+      ({ loop: _loop, llm: _llm, tool: _tool, ...node }) => node,
+    ),
+  };
+}
+
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
 
@@ -235,8 +250,23 @@ export class WorkflowQueries {
     private readonly logger: LoggerService,
     readonly payloads: PayloadStore = new PayloadStore(),
     temporalReads?: TemporalReadRepository,
+    private readonly options: {
+      /**
+       * `temporal.experimental.aiWorkflows`: AI loops and LLM steps. Without
+       * it, graphs and steps carry no loop or model call data.
+       */
+      aiWorkflows?: boolean;
+    } = {},
   ) {
     this.temporalReads = temporalReads ?? new TemporalReadRepository(temporal);
+  }
+
+  private assertAiWorkflows() {
+    if (!this.options.aiWorkflows) {
+      throw new NotFoundError(
+        'AI loops and LLM steps are not enabled (temporal.experimental.aiWorkflows)',
+      );
+    }
   }
 
   /**
@@ -630,7 +660,14 @@ export class WorkflowQueries {
     const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS, {
       payloads: true,
     });
-    return toWorkflowSteps(events, truncated);
+    const steps = toWorkflowSteps(events, truncated);
+    if (this.options.aiWorkflows) return steps;
+    return {
+      ...steps,
+      activities: steps.activities.map(
+        ({ llm: _llm, tool: _tool, ...activity }) => activity,
+      ),
+    };
   }
 
   /**
@@ -675,10 +712,10 @@ export class WorkflowQueries {
       options.maxEvents ?? MAX_STEP_EVENTS,
       {
         payloads: options.includePayloads,
-        llmPayloads: options.llm !== false,
+        llmPayloads: options.llm !== false && this.options.aiWorkflows === true,
       },
     );
-    return buildWorkflowGraph(events, {
+    const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
       status: workflow.status,
@@ -688,7 +725,9 @@ export class WorkflowQueries {
       includePayloads: options.includePayloads,
       failure: workflow.failure,
       memo: workflow.memo,
+      aiWorkflows: this.options.aiWorkflows === true,
     });
+    return this.options.aiWorkflows ? graph : withoutAiData(graph);
   }
 
   /**
@@ -697,6 +736,7 @@ export class WorkflowQueries {
    * the `__loop_state` query when its worker answers.
    */
   async loops(workflow: WorkflowDetail): Promise<WorkflowLoopsResponse> {
+    this.assertAiWorkflows();
     type Read = { detail: WorkflowDetail; graph: WorkflowGraphResponse };
     const read = async (detail: WorkflowDetail): Promise<Read> => ({
       detail,
@@ -844,6 +884,7 @@ export class WorkflowQueries {
     workflow: WorkflowDetail,
     scheduledEventId: string,
   ): Promise<WorkflowLlmCallResponse> {
+    this.assertAiWorkflows();
     const ref = {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,

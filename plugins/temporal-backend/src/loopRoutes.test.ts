@@ -81,7 +81,7 @@ function runEvents(
   return events;
 }
 
-async function start(query: 'answers' | 'fails') {
+async function start(query: 'answers' | 'fails', ai = true) {
   const workflowService: any = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
     async (req: any) => ({
@@ -145,12 +145,31 @@ async function start(query: 'answers' | 'fails') {
       catalogServiceMock.factory({ entities: [ordersEntity] }),
       fakeTemporalServiceFactory(workflowService),
       mockServices.permissions.factory(),
+      mockServices.rootConfig.factory({
+        data: { temporal: { experimental: { aiWorkflows: ai } } },
+      }),
     ],
   });
   return { server, workflowService };
 }
 
 describe('loops route', () => {
+  it('is not served unless the AI views are enabled', async () => {
+    const { server } = await start('answers', false);
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/run-2/loops?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(404);
+    const graph = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/run-2/graph?entityRef=${ref}`,
+    );
+    expect(graph.status).toBe(200);
+    expect(graph.body.loops).toBeUndefined();
+    expect(graph.body.nodes.some((n: { loop?: unknown }) => n.loop)).toBe(
+      false,
+    );
+  });
+
   it('adds up the rounds of the continue-as-new runs and asks the running one', async () => {
     const { server, workflowService } = await start('answers');
     const res = await request(server).get(

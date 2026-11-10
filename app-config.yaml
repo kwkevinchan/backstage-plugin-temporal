@@ -48,6 +48,9 @@ permission:
 
 # Local Temporal development server. Override in app-config.local.yaml.
 temporal:
+  # The development app shows the experimental AI views too (loops, LLM steps).
+  experimental:
+    aiWorkflows: true
   connection:
     address: ${TEMPORAL_ADDRESS:-localhost:7233}
     namespaces: [default]

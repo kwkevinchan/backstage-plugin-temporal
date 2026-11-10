@@ -120,5 +120,15 @@ export interface Config {
         previewBytes?: number;
       };
     };
+    /**
+     * Views that are not part of the first release and will move to a
+     * separate package: AI loops (the Loops tab, loops in the graph) and LLM
+     * steps (model and tool calls). Off by default; no compatibility
+     * promise.
+     */
+    experimental?: {
+      /** Show AI loops and LLM steps. Defaults to false. */
+      aiWorkflows?: boolean;
+    };
   };
 }

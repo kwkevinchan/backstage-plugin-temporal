@@ -6,16 +6,15 @@ First release of the backend plugin. It reads; the operations that change
 workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
 
 - Permission-checked routes for the workflows of an entity and of the
-  Workflows page: lists, details, the step graph, progress, loops, the event
+  Workflows page: lists, details, the step graph, progress, the event
   history and downloads of large payloads in Temporal External Storage
   (`temporal.externalStorage.s3`: the references of the SDKs' S3 driver,
   read and verified by the backend itself).
-- LLM steps: model calls (activity ID `llm/...`) and their tool calls
-  (`tool/...`) are found without the payload codec; the graph, the steps
-  and the loops carry a summary of each call (model, tokens, duration,
-  tools, reasoning), and `GET .../llm-calls/:eventId` returns the full
-  record (OpenTelemetry GenAI attributes), also from S3, with the history
-  permission.
+- Experimental, off by default (`temporal.experimental.aiWorkflows`), to
+  move to a separate package: loops of AI workflows (`GET .../loops`) and
+  LLM steps (model and tool calls in the graph and the steps,
+  `GET .../llm-calls/:eventId`). When off, graphs and steps carry no loop
+  or model call data and those routes answer 404.
 - Queries (`POST .../query`, with `temporal.workflow.query`, recorded with
   the auditor) and `GET .../handlers`, the signals, updates and queries a
   workflow defines, with what its `TemporalWorkflow` entity describes in
