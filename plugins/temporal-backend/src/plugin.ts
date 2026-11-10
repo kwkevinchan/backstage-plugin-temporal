@@ -31,6 +31,7 @@ import {
   temporalAccessServiceRef,
   temporalWorkflowPermissionResourceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
@@ -90,10 +91,10 @@ export const temporalPlugin = createBackendPlugin({
           new TemporalReadRepository(temporal),
         );
         // Workflows as a permission resource, for the list permissions.
-        // Rules are added by modules (addPermissionRules).
+        // Modules can add more rules (addPermissionRules).
         permissionsRegistry.addResourceType({
           resourceRef: temporalWorkflowPermissionResourceRef,
-          rules: [],
+          rules: Object.values(temporalWorkflowPermissionRules),
           async getResources(resourceRefs) {
             return Promise.all(
               resourceRefs.map(async resourceRef => {

@@ -21,8 +21,12 @@ workflows are in `@kwkevinchan/backstage-plugin-temporal-backend-module-control`
   workflow defines.
 - The `temporal-workflow` permission resource type: `temporal.workflow.list`
   and `temporal.workflow.history.list` are checked with `authorizeConditional`,
-  and conditions from rules that modules add become a Temporal visibility
-  query for the Workflows page.
+  and conditions become a Temporal visibility query for the Workflows page.
+  Rules: `HAS_WORKFLOW_TYPE`, `HAS_TASK_QUEUE`, `IN_NAMESPACE` (decided for
+  the namespace being listed) and `IS_INITIATOR` (with
+  `temporal.searchAttributes.initiator`); `temporalWorkflowConditions` and
+  `createTemporalWorkflowConditionalDecision` from `/alpha` for policies.
+  Modules can add more rules.
 - The default export installs the plugin with the default factory of
   `temporalAccessServiceRef`; a backend can add its own factory instead.
 - Graph steps carry the summary of their event (Temporal user metadata).

@@ -20,4 +20,32 @@
  * @packageDocumentation
  */
 
+import { createConditionExports } from '@backstage/plugin-permission-node';
+import { temporalWorkflowPermissionResourceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { temporalWorkflowPermissionRules } from './access/rules';
+
 export { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
+export { temporalWorkflowPermissionRules };
+
+const { conditions, createConditionalDecision } = createConditionExports({
+  resourceRef: temporalWorkflowPermissionResourceRef,
+  rules: temporalWorkflowPermissionRules,
+});
+
+/**
+ * Conditions of the `temporal-workflow` resource type, for permission
+ * policies: `hasWorkflowType`, `hasTaskQueue`, `inNamespace` and
+ * `isInitiator`.
+ *
+ * @alpha
+ */
+export const temporalWorkflowConditions = conditions;
+
+/**
+ * Makes a conditional decision for `temporal.workflow.list` and
+ * `temporal.workflow.history.list` from {@link temporalWorkflowConditions}.
+ *
+ * @alpha
+ */
+export const createTemporalWorkflowConditionalDecision =
+  createConditionalDecision;

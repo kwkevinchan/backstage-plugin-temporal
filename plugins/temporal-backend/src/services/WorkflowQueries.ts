@@ -321,9 +321,11 @@ export class WorkflowQueries {
   }
 
   private convertOptions(namespace: string): ConvertOptions {
+    const attributes = this.temporal.getSearchAttributeNames();
     return {
       namespace,
-      entityRefAttribute: this.temporal.getSearchAttributeNames().entityRef,
+      entityRefAttribute: attributes.entityRef,
+      initiatorAttribute: attributes.initiator,
       webUiUrl: ref => this.temporal.getWebUiUrl(ref),
     };
   }

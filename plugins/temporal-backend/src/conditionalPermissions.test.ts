@@ -38,6 +38,7 @@ import {
   createCatalogConditionalDecision,
 } from '@backstage/plugin-catalog-backend/alpha';
 import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node';
+import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import {
   AuthorizeResult,
   isResourcePermission,
@@ -48,6 +49,10 @@ import catalogBackend from '@backstage/plugin-catalog-backend';
 import permissionBackend from '@backstage/plugin-permission-backend';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
+import {
+  createTemporalWorkflowConditionalDecision,
+  temporalWorkflowConditions,
+} from './alpha';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -232,5 +237,81 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
       .get(history)
       .set('Authorization', mockCredentials.user.header('user:default/bob'))
       .expect(403);
+  });
+});
+
+const workflowPolicyModule = createBackendModule({
+  pluginId: 'permission',
+  moduleId: 'test-workflow-policy',
+  register(reg) {
+    reg.registerInit({
+      deps: { policy: policyExtensionPoint },
+      async init({ policy }) {
+        policy.setPolicy({
+          async handle(req, user) {
+            if (isResourcePermission(req.permission, 'temporal-workflow')) {
+              return createTemporalWorkflowConditionalDecision(req.permission, {
+                allOf: [
+                  temporalWorkflowConditions.inNamespace({
+                    namespaces: ['default'],
+                  }),
+                  temporalWorkflowConditions.isInitiator({
+                    claims: user?.info.ownershipEntityRefs ?? [],
+                  }),
+                ],
+              });
+            }
+            return { result: AuthorizeResult.ALLOW };
+          },
+        });
+      },
+    });
+  },
+});
+
+describe('conditional temporal-workflow decisions from a policy', () => {
+  it('uses the rules of the plugin through the permission backend', async () => {
+    const workflowService = createFakeWorkflowService();
+    const { server } = await startTestBackend({
+      features: [
+        temporalPlugin,
+        temporalAccessServiceFactory,
+        permissionBackend,
+        workflowPolicyModule,
+        catalogServiceMock.factory({ entities: [] }),
+        fakeTemporalServiceFactory(workflowService, {
+          initiatorAttribute: 'BackstageInitiator',
+        }),
+        httpAuthWithActor,
+        mockServices.rootConfig.factory({
+          data: { permission: { enabled: true } },
+        }),
+      ],
+    });
+
+    const metadata = await request(server)
+      .get('/api/temporal/.well-known/backstage/permissions/metadata')
+      .set('Authorization', mockCredentials.service.header());
+    expect(metadata.status).toBe(200);
+    expect(
+      metadata.body.rules.map((rule: { name: string }) => rule.name).sort(),
+    ).toEqual([
+      'HAS_TASK_QUEUE',
+      'HAS_WORKFLOW_TYPE',
+      'IN_NAMESPACE',
+      'IS_INITIATOR',
+    ]);
+
+    const res = await request(server)
+      .get('/api/temporal/workflows')
+      .set('Authorization', mockCredentials.user.header('user:default/alice'));
+    expect(res.status).toBe(200);
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining(
+          "(BackstageInitiator = 'user:default/alice')",
+        ),
+      }),
+    );
   });
 });

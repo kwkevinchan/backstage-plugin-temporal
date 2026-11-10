@@ -59,6 +59,7 @@ import {
   TemporalWorkflowAccessLevel,
   TemporalWorkflowQuery,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { inQuery, isValidEntityRefValue } from '../services/query';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
@@ -71,30 +72,53 @@ export type TemporalWorkflowRuleset = PermissionRuleset<
   'temporal-workflow'
 >;
 
+/** What the conditions of a list are decided against. */
+export interface WorkflowListScope {
+  /** The namespace being listed. */
+  namespace: string;
+  /** The search attribute of `temporal.searchAttributes.initiator`. */
+  initiatorAttribute?: string;
+}
+
 /**
- * Turns the conditions of a decision into a visibility query: `allOf` with
- * AND, `anyOf` with OR. Temporal's query language has no general NOT, so a
- * `not` condition is refused.
+ * Turns the conditions of a decision into a visibility query for the
+ * namespace being listed: `allOf` with AND, `anyOf` with OR. Conditions on
+ * the namespace, and on the initiator without its search attribute, are
+ * decided here and become `true` or `false`. Temporal's query language has
+ * no general NOT, so a `not` condition is refused unless it is decided here.
  */
 export function criteriaToVisibilityQuery(
   criteria: PermissionCriteria<TemporalWorkflowQuery>,
-): TemporalWorkflowQuery {
-  if (isAndCriteria(criteria)) {
-    return criteria.allOf
-      .map(c => `(${criteriaToVisibilityQuery(c)})`)
-      .join(' AND ');
-  }
-  if (isOrCriteria(criteria)) {
-    return criteria.anyOf
-      .map(c => `(${criteriaToVisibilityQuery(c)})`)
-      .join(' OR ');
+  scope: WorkflowListScope,
+): string | boolean {
+  if (isAndCriteria(criteria) || isOrCriteria(criteria)) {
+    const and = isAndCriteria(criteria);
+    const parts = (and ? criteria.allOf : criteria.anyOf).map(c =>
+      criteriaToVisibilityQuery(c, scope),
+    );
+    // false decides AND, true decides OR; the other one drops out.
+    if (parts.includes(!and)) return !and;
+    const queries = parts.filter((p): p is string => typeof p === 'string');
+    if (queries.length === 0) return and;
+    return queries.map(q => `(${q})`).join(and ? ' AND ' : ' OR ');
   }
   if (isNotCriteria(criteria)) {
+    const inner = criteriaToVisibilityQuery(criteria.not, scope);
+    if (typeof inner === 'boolean') return !inner;
     throw new NotAllowedError(
       'A "not" condition cannot be applied to the workflow list',
     );
   }
-  return criteria;
+  if (typeof criteria === 'string') return criteria;
+  if ('namespaces' in criteria) {
+    return criteria.namespaces.includes(scope.namespace);
+  }
+  if (!scope.initiatorAttribute) return false;
+  return inQuery(
+    scope.initiatorAttribute,
+    criteria.initiators,
+    isValidEntityRefValue,
+  );
 }
 
 /**
@@ -109,6 +133,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     private readonly queries: WorkflowQueries,
     /** The rules of `temporal-workflow`, read when a decision needs them. */
     private readonly workflowRules: () => TemporalWorkflowRuleset,
+    private readonly options: { initiatorAttribute?: string } = {},
   ) {}
 
   private async listDecision(
@@ -171,7 +196,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   async authorizeWorkflowList(
     namespace: string,
     credentials: BackstageCredentials,
-  ): Promise<TemporalWorkflowQuery | undefined> {
+  ): Promise<string | undefined> {
     const decision = await this.listDecision(
       temporalWorkflowListPermission,
       credentials,
@@ -191,7 +216,16 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         `The workflow list conditions cannot be applied: ${error}`,
       );
     }
-    return criteriaToVisibilityQuery(criteria);
+    const query = criteriaToVisibilityQuery(criteria, {
+      namespace,
+      initiatorAttribute: this.options.initiatorAttribute,
+    });
+    if (query === false) {
+      throw new NotAllowedError(
+        `The policy allows no workflows of namespace ${namespace}`,
+      );
+    }
+    return query === true ? undefined : query;
   }
 
   /**

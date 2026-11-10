@@ -813,13 +813,8 @@ namespaces, and opening the details and the step graph of any of them
 without an entity. Their event history, inputs and results also need
 `temporal.workflow.history.list`. Both are resource permissions on the
 `temporal-workflow` resource type (a workflow): a policy can allow them,
-deny them, or return a conditional decision. The plugin ships no rules for
-this type yet; a backend module can add some with
-`coreServices.permissionsRegistry.addPermissionRules` and
-`temporalWorkflowPermissionResourceRef` from
-`@kwkevinchan/backstage-plugin-temporal-node/alpha`. Each rule's `toQuery`
-returns a Temporal visibility query, which is added to the list query
-(`allOf` with AND, `anyOf` with OR; `not` is refused). An unconditional
+deny them, or return a conditional decision with these rules (see
+[Workflow conditions](#workflow-conditions)). An unconditional
 ALLOW lets a user read every workflow. When a
 request names an entity (`entityRef`), the entity permissions are checked as
 before. Without the history permission the step graph is still shown, without
@@ -852,6 +847,56 @@ if (
 
 The permission backend sends this conditional decision to the catalog to
 resolve; this is covered by an integration test in the backend plugin.
+
+### Workflow conditions
+
+The backend plugin registers these rules for the `temporal-workflow`
+resource type, used by `temporal.workflow.list` and
+`temporal.workflow.history.list`:
+
+| Rule                | Params          | Allows the workflows                                                  |
+| ------------------- | --------------- | --------------------------------------------------------------------- |
+| `HAS_WORKFLOW_TYPE` | `workflowTypes` | of one of these workflow types                                        |
+| `HAS_TASK_QUEUE`    | `taskQueues`    | on one of these task queues                                           |
+| `IN_NAMESPACE`      | `namespaces`    | of one of these Temporal namespaces                                   |
+| `IS_INITIATOR`      | `claims`        | started by one of these users (`temporal.searchAttributes.initiator`) |
+
+For the Workflows page, the conditions become a Temporal visibility query
+that is added to the list query (`allOf` with AND, `anyOf` with OR).
+`IN_NAMESPACE` is decided for the namespace being listed, because a
+visibility query cannot filter on the namespace; a list whose conditions
+match no workflow of the namespace is refused (403). `not` is only accepted
+around `IN_NAMESPACE`. `IS_INITIATOR` allows nothing when the initiator
+search attribute is not configured. A workflow opened without an entity is
+checked against the same rules.
+
+For example, to let users see the workflows they started in the `default`
+namespace:
+
+```ts
+import {
+  createTemporalWorkflowConditionalDecision,
+  temporalWorkflowConditions,
+} from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
+import { isResourcePermission } from '@backstage/plugin-permission-common';
+
+if (isResourcePermission(request.permission, 'temporal-workflow')) {
+  return createTemporalWorkflowConditionalDecision(request.permission, {
+    allOf: [
+      temporalWorkflowConditions.inNamespace({ namespaces: ['default'] }),
+      temporalWorkflowConditions.isInitiator({
+        claims: user?.info.ownershipEntityRefs ?? [],
+      }),
+    ],
+  });
+}
+```
+
+A backend module can add more rules with
+`coreServices.permissionsRegistry.addPermissionRules` and
+`temporalWorkflowPermissionResourceRef` from
+`@kwkevinchan/backstage-plugin-temporal-node/alpha`. A rule's `toQuery`
+returns a visibility query (the part after `WHERE`).
 
 ## Workflow controls
 

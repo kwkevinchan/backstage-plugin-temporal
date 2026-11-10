@@ -80,6 +80,11 @@ export interface WorkflowSummary {
   /** Catalog entity reference from the configured search attribute. */
   entityRef?: string;
   /**
+   * Entity reference of the user who started the workflow, from the search
+   * attribute `temporal.searchAttributes.initiator`, when configured.
+   */
+  initiator?: string;
+  /**
    * The `TemporalWorkflow` entity this run matches, when it is listed for an
    * entity that depends on one.
    */

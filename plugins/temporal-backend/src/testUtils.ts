@@ -216,7 +216,7 @@ export type FakeWorkflowService = ReturnType<typeof createFakeWorkflowService>;
 /** Service factory replacing the Temporal connection with a fake. */
 export function fakeTemporalServiceFactory(
   workflowService: FakeWorkflowService,
-  options?: { entityRefAttribute?: string },
+  options?: { entityRefAttribute?: string; initiatorAttribute?: string },
 ) {
   const service: TemporalService = {
     getClient: async () => {
@@ -232,6 +232,7 @@ export function fakeTemporalServiceFactory(
     isNamespaceAllowed: ns => ns === 'default',
     getSearchAttributeNames: () => ({
       entityRef: options?.entityRefAttribute,
+      initiator: options?.initiatorAttribute,
     }),
     getWebUiUrl: ref =>
       `http://temporal-ui/namespaces/${ref.namespace}/workflows/${ref.workflowId}/${ref.runId}/history`,

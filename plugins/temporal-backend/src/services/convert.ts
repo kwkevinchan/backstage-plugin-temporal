@@ -210,6 +210,7 @@ function firstString(value: JsonValue | undefined): string | undefined {
 export interface ConvertOptions {
   namespace: string;
   entityRefAttribute?: string;
+  initiatorAttribute?: string;
   webUiUrl?: (ref: {
     namespace: string;
     workflowId: string;
@@ -240,6 +241,11 @@ export function toWorkflowSummary(
   if (options.entityRefAttribute) {
     summary.entityRef = firstString(
       searchAttributes[options.entityRefAttribute],
+    );
+  }
+  if (options.initiatorAttribute) {
+    summary.initiator = firstString(
+      searchAttributes[options.initiatorAttribute],
     );
   }
   const webUiUrl = options.webUiUrl?.({
