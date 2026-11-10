@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import Form from '@rjsf/core';
 import type { RJSFSchema, UiSchema } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
@@ -44,6 +44,9 @@ function SchemaForm(props: MessageArgsFieldProps & { schema: JsonObject }) {
   const { handler, userEntityRef, onChange } = props;
   const schema = props.schema as RJSFSchema;
   const field = handler?.userField;
+  // rjsf's default ID prefix is `root`, the ID of the element Backstage
+  // mounts the app in: the labels would point there.
+  const idPrefix = `tp-message-${useId().replace(/[^A-Za-z0-9]/g, '')}`;
   const [data, setData] = useState<JsonValue | undefined>(() => {
     const [first] = handlerExampleArgs(handler, userEntityRef);
     return first ?? (schema.type === 'object' ? {} : undefined);
@@ -75,6 +78,7 @@ function SchemaForm(props: MessageArgsFieldProps & { schema: JsonObject }) {
     <div className={tp('tp-schema-form')} data-testid="message-form">
       <Form
         tagName="div"
+        idPrefix={idPrefix}
         schema={schema}
         uiSchema={uiSchema}
         formData={data}

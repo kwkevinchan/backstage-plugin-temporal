@@ -340,6 +340,47 @@ describe('WorkflowControls', () => {
     );
   });
 
+  it('shows a form for a handler whose argument is a string', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        handlers: {
+          signals: [
+            {
+              name: 'addNote',
+              inputSchema: { type: 'string', title: 'Note', minLength: 1 },
+              example: 'Called the customer',
+            },
+          ],
+          updates: [],
+          queries: [],
+        },
+      },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Signal…' }),
+    );
+    const note = await screen.findByRole('textbox', { name: /Note/ });
+    // Not `root`: that is the ID of the element the app is mounted in.
+    expect(note.id).not.toBe('root');
+    expect(document.querySelectorAll(`[id="${note.id}"]`)).toHaveLength(1);
+    await waitFor(() => expect(note).toHaveValue('Called the customer'));
+    await userEvent.clear(note);
+    await userEvent.type(note, 'Checked the tray');
+    await userEvent.click(screen.getByRole('button', { name: 'Send signal' }));
+    expect(await screen.findByText('Signal addNote sent')).toBeInTheDocument();
+    expect(api.signalWorkflow).toHaveBeenCalledWith(
+      ref,
+      { name: 'addNote', args: ['Checked the tray'] },
+      { entityRef },
+    );
+  });
+
   it('shows the result and the error of an update', async () => {
     const { api } = render(
       <WorkflowControls
