@@ -30,6 +30,7 @@ import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   isValidControlActionId,
+  TemporalScheduleOperation,
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
@@ -142,6 +143,15 @@ function principalRef(credentials: BackstageCredentials): string | undefined {
   if (principal.type === 'user') return principal.userEntityRef;
   if (principal.type === 'service') return principal.subject;
   return undefined;
+}
+
+/** The note of a pause or an unpause: a short string, or undefined. */
+function optionalNote(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string' || value.length > 1000) {
+    throw new InputError('note must be a string of at most 1000 characters');
+  }
+  return value.trim() || undefined;
 }
 
 function identityOf(credentials: BackstageCredentials): string {
@@ -517,6 +527,104 @@ export function createControlRouter(
           }),
       );
       res.status(201).json(started);
+    },
+  );
+
+  // Pause, unpause or trigger a schedule. Schedules start workflows, so
+  // these need temporal.workflow.start: on the entity (whose workflow types
+  // the schedule must start), or without conditions without one.
+  router.post(
+    '/namespaces/:namespace/schedules/:scheduleId/:operation(pause|unpause|trigger)',
+    async (req, res) => {
+      const credentials = await httpAuth.credentials(req);
+      const { namespace, scheduleId } = req.params;
+      const operation = req.params.operation as TemporalScheduleOperation;
+      if (
+        !isValidNamespaceName(namespace) ||
+        !options.temporal.isNamespaceAllowed(namespace)
+      ) {
+        throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
+      }
+      if (!scheduleId || scheduleId.length > 1000) {
+        throw new InputError('Invalid schedule ID');
+      }
+      const note = optionalNote(req.body?.note);
+      if (note !== undefined && operation === 'trigger') {
+        throw new InputError('A note is only kept by pause and unpause');
+      }
+      const entityRef = parseEntityRefParam(req.query.entityRef);
+      // The permission first: the schedule is only read for callers that
+      // may start workflows, so its existence is not told to others.
+      let sources: ReturnType<typeof entityWorkflowSource>[] | undefined;
+      if (entityRef) {
+        const context = await access.loadEntity(
+          entityRef,
+          temporalWorkflowStartPermission,
+          credentials,
+        );
+        if (context.namespace !== namespace) {
+          throw new NotFoundError(
+            `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
+          );
+        }
+        // The entity and the related entities of the same namespace, as for
+        // its workflow list.
+        const defaultNamespace = options.temporal.getDefaultNamespace();
+        sources = [context.entity, ...context.relatedWorkflowEntities]
+          .map(entityWorkflowSource)
+          .filter(
+            source => (source.namespace ?? defaultNamespace) === namespace,
+          );
+      } else {
+        await authorizeOn(
+          temporalWorkflowStartPermission,
+          undefined,
+          credentials,
+        );
+      }
+      const client = await options.temporal.getClient({ namespace });
+      const handle = client.schedule.getHandle(scheduleId);
+      const description = await handle.describe().catch(error => {
+        if ((error as Error)?.name === 'ScheduleNotFoundError') {
+          throw new NotFoundError(`No schedule ${scheduleId}`);
+        }
+        throw error;
+      });
+      const action = {
+        workflowType: description.action.workflowType,
+        taskQueue: description.action.taskQueue,
+      };
+      if (sources && !sources.some(source => matchesSource(action, source))) {
+        throw new NotFoundError(
+          `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
+        );
+      }
+      const who = principalRef(credentials) ?? 'Backstage';
+      await audited(
+        req,
+        `schedule-${operation}`,
+        {
+          namespace,
+          scheduleId,
+          operation,
+          workflowType: action.workflowType,
+          entityRef,
+          ...(note ? { note } : {}),
+        },
+        'medium',
+        async () => {
+          if (operation === 'pause') {
+            await handle.pause(note ?? `Paused from Backstage by ${who}`);
+          } else if (operation === 'unpause') {
+            await handle.unpause(note ?? `Resumed from Backstage by ${who}`);
+          } else {
+            // With the schedule's own overlap policy (the SDK's default is
+            // to allow every overlap).
+            await handle.trigger(description.policies?.overlap);
+          }
+        },
+      );
+      res.status(202).json({});
     },
   );
 

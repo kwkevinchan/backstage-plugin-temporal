@@ -26,6 +26,8 @@ import type {
   WorkflowListResponse,
   WorkflowStepsResponse,
   WorkflowLoopsResponse,
+  TemporalSchedule,
+  TemporalScheduleListResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { TemporalApi } from './extensions';
 
@@ -702,10 +704,50 @@ export const llmCallResponse: WorkflowLlmCallResponse = {
   raw: { v: 1, attributes: { 'gen_ai.request.model': 'fake-reasoner-1' } },
 };
 
+/** One schedule of the Workflows page. */
+export const nightlySchedule: TemporalSchedule = {
+  namespace: 'default',
+  scheduleId: 'nightly-orders',
+  workflowType: 'orderWorkflow',
+  spec: ['02:00 on MONDAY-FRIDAY', 'every 1h'],
+  timezone: 'Asia/Taipei',
+  paused: false,
+  nextActionTimes: ['2026-01-02T02:00:00.000Z'],
+  recentActions: [
+    {
+      scheduledAt: '2026-01-01T02:00:00.000Z',
+      takenAt: '2026-01-01T02:00:01.000Z',
+      workflowId: 'nightly-orders-2026-01-01T02:00:00Z',
+      runId: 'run-n1',
+    },
+  ],
+};
+
+export const scheduleListResponse: TemporalScheduleListResponse = {
+  items: [
+    nightlySchedule,
+    {
+      ...nightlySchedule,
+      scheduleId: 'weekly-report',
+      workflowType: 'reportWorkflow',
+      spec: ['every 7d'],
+      paused: true,
+      note: 'Paused from Backstage by user:default/alice',
+      nextActionTimes: [],
+      recentActions: [],
+    },
+  ],
+  truncated: false,
+};
+
 export function mockTemporalApi(): jest.Mocked<TemporalApi> {
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
     listWorkflows: jest.fn().mockResolvedValue(listResponse),
+    listSchedules: jest.fn().mockResolvedValue(scheduleListResponse),
+    listEntitySchedules: jest
+      .fn()
+      .mockResolvedValue({ items: [], truncated: false }),
     getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),

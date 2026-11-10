@@ -49,6 +49,7 @@ import { temporalApiRef, temporalWorkflowExtensionsApiRef } from './extensions';
 import {
   temporalWorkflowActionDataRef,
   temporalWorkflowListActionDataRef,
+  temporalScheduleActionDataRef,
   temporalWorkflowSectionDataRef,
 } from './extensions/blueprints';
 import { TemporalClient } from './api';
@@ -57,9 +58,11 @@ import { entityContentRouteRef, rootRouteRef } from './routes';
 export {
   TemporalWorkflowActionBlueprint,
   TemporalWorkflowListActionBlueprint,
+  TemporalScheduleActionBlueprint,
   TemporalWorkflowSectionBlueprint,
   temporalWorkflowActionDataRef,
   temporalWorkflowListActionDataRef,
+  temporalScheduleActionDataRef,
   temporalWorkflowSectionDataRef,
   TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
 } from './extensions/blueprints';
@@ -91,6 +94,7 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
     actions: createExtensionInput([temporalWorkflowActionDataRef]),
     sections: createExtensionInput([temporalWorkflowSectionDataRef]),
     listActions: createExtensionInput([temporalWorkflowListActionDataRef]),
+    scheduleActions: createExtensionInput([temporalScheduleActionDataRef]),
   },
   factory(originalFactory, { inputs }) {
     const actions = inputs.actions.map(i =>
@@ -102,6 +106,9 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
     const listActions = inputs.listActions.map(i =>
       i.get(temporalWorkflowListActionDataRef),
     );
+    const scheduleActions = inputs.scheduleActions.map(i =>
+      i.get(temporalScheduleActionDataRef),
+    );
     return originalFactory(defineParams =>
       defineParams({
         api: temporalWorkflowExtensionsApiRef,
@@ -110,6 +117,7 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
           getActions: () => actions,
           getSections: () => sections,
           getListActions: () => listActions,
+          getScheduleActions: () => scheduleActions,
         }),
       }),
     );

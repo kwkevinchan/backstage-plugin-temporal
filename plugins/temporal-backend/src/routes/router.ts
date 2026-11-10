@@ -23,6 +23,7 @@ import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
   getTemporalWorkflowMessages,
+  SCHEDULES_PATH,
   isTemporalWorkflowEntity,
   mergeWorkflowHandlers,
   temporalWorkflowQueryPermission,
@@ -111,6 +112,37 @@ export async function createRouter(
       credentials,
     });
     res.json(result);
+  });
+
+  // Schedules of a namespace, for the Workflows page: like the workflow
+  // list without an entity, with the list permission for every workflow.
+  router.get(SCHEDULES_PATH, async (req, res) => {
+    const credentials = await httpAuth.credentials(req);
+    if (!(await access.canListAll(credentials))) {
+      throw new NotAllowedError(
+        'Listing schedules needs temporal.workflow.list without conditions',
+      );
+    }
+    const namespace =
+      optionalString(req.query.namespace, 'namespace') ||
+      queries.defaultNamespace();
+    res.json(await queries.listSchedules(namespace));
+  });
+
+  // Schedules that start the workflow types of an entity.
+  router.get('/entities/:kind/:namespace/:name/schedules', async (req, res) => {
+    const credentials = await httpAuth.credentials(req);
+    const context = await access.loadEntity(
+      entityRefFromParams(req),
+      temporalWorkflowReadPermission,
+      credentials,
+    );
+    const sources = queries.workflowSourcesOf(context);
+    res.json(
+      sources.length > 0
+        ? await queries.listSchedules(context.namespace, { sources })
+        : { items: [], truncated: false },
+    );
   });
 
   router.get('/workflows', async (req, res) => {

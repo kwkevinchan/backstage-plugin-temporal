@@ -45,6 +45,7 @@ import {
 import {
   createTemporalControlActionDef,
   temporalControlListActions,
+  temporalControlScheduleActions,
   temporalControlWorkflowActions,
 } from '@kwkevinchan/backstage-plugin-temporal-module-control';
 import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-temporal-module-zigflow';
@@ -118,6 +119,7 @@ const temporalRoute = (
     <EntityTemporalContent
       workflowActions={temporalWorkflowActions}
       workflowListActions={temporalControlListActions}
+      scheduleActions={temporalControlScheduleActions}
     />
   </EntityLayout.Route>
 );

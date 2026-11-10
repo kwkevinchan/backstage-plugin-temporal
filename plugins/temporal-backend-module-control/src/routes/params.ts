@@ -74,6 +74,7 @@ export function workflowRefFromParams(req: Request): WorkflowRef {
  * `TemporalWorkflow` entity, the annotations of any other entity.
  */
 export function entityWorkflowSource(entity: Entity): {
+  namespace?: string;
   taskQueue?: string;
   workflowTypes: string[];
 } {

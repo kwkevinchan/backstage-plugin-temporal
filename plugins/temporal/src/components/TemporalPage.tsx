@@ -16,13 +16,17 @@
 
 import { Route, Routes } from 'react-router-dom';
 import { Content, Header, Page } from '@backstage/core-components';
-import { Container } from '@backstage/ui';
+import { Container, Flex } from '@backstage/ui';
 import { AllWorkflowsList } from './AllWorkflowsList';
 import {
   WorkflowDetailPage,
   WorkflowDetailPageProps,
 } from './WorkflowDetailPage';
-import type { TemporalWorkflowListActionDef } from '../extensions';
+import type {
+  TemporalScheduleActionDef,
+  TemporalWorkflowListActionDef,
+} from '../extensions';
+import { SchedulesCard } from './SchedulesCard';
 import { tp } from './styles';
 
 /**
@@ -33,6 +37,8 @@ import { tp } from './styles';
 export type TemporalPageProps = WorkflowDetailPageProps & {
   /** Controls above the workflow list, such as "Start workflow". */
   workflowListActions?: TemporalWorkflowListActionDef[];
+  /** Controls on each schedule, such as "Pause". */
+  scheduleActions?: TemporalScheduleActionDef[];
 };
 
 /** Workflows page content: the list, and details on a nested route. */
@@ -47,7 +53,12 @@ export function TemporalPageContent(props: TemporalPageProps) {
     <Routes>
       <Route
         path="/"
-        element={<AllWorkflowsList listActions={props.workflowListActions} />}
+        element={
+          <Flex direction="column" gap="4">
+            <AllWorkflowsList listActions={props.workflowListActions} />
+            <SchedulesCard actions={props.scheduleActions} />
+          </Flex>
+        }
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"

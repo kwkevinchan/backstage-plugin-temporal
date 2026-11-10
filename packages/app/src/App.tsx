@@ -34,7 +34,10 @@ import {
   temporalPlugin,
 } from '@kwkevinchan/backstage-plugin-temporal';
 import { apis } from './apis';
-import { temporalControlListActions } from '@kwkevinchan/backstage-plugin-temporal-module-control';
+import {
+  temporalControlListActions,
+  temporalControlScheduleActions,
+} from '@kwkevinchan/backstage-plugin-temporal-module-control';
 import { temporalWorkflowActions } from './components/catalog/EntityPage';
 import { entityPage } from './components/catalog/EntityPage';
 import { Root } from './components/Root';
@@ -68,6 +71,7 @@ const routes = (
         <TemporalPage
           workflowActions={temporalWorkflowActions}
           workflowListActions={temporalControlListActions}
+          scheduleActions={temporalControlScheduleActions}
         />
       }
     />

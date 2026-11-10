@@ -47,6 +47,8 @@ import {
   WorkflowLlmCallResponse,
   WorkflowHandler,
   WorkflowHandlersResponse,
+  TemporalSchedule,
+  TemporalScheduleListResponse,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
@@ -69,6 +71,7 @@ import {
 import { buildWorkflowGraph } from './graph';
 import { llmRecordOf, normalizeLlmRecord } from './llm';
 import { readLoopState } from './loops';
+import { toTemporalSchedule } from './schedules';
 import {
   findReferencePayloads,
   PayloadStore,
@@ -113,6 +116,9 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
       : [{ name }];
   });
 }
+
+/** Most schedules a list reads. */
+export const MAX_SCHEDULES = 500;
 
 /** How many parents up a child workflow is looked for in an entity. */
 export const MAX_PARENT_DEPTH = 3;
@@ -341,6 +347,61 @@ export class WorkflowQueries {
     };
     this.filters.set(context, filter);
     return filter;
+  }
+
+  /**
+   * The schedules of a namespace, the first MAX_SCHEDULES of them; with
+   * `sources`, only those that start a workflow type of one of them (and on
+   * its task queue, when it has one: those schedules are described).
+   */
+  async listSchedules(
+    namespace: string,
+    filter?: { sources?: { taskQueue?: string; workflowTypes: string[] }[] },
+  ): Promise<TemporalScheduleListResponse> {
+    this.checkNamespace(namespace);
+    const client = await this.temporal.getClient({ namespace });
+    const items: TemporalSchedule[] = [];
+    let truncated = false;
+    let read = 0;
+    for await (const summary of client.schedule.list({ pageSize: 100 })) {
+      read += 1;
+      if (read > MAX_SCHEDULES) {
+        truncated = true;
+        break;
+      }
+      const schedule = toTemporalSchedule(namespace, summary);
+      if (filter?.sources) {
+        const type = schedule.workflowType ?? '';
+        const matching = filter.sources.filter(s =>
+          s.workflowTypes.includes(type),
+        );
+        if (matching.length === 0) continue;
+        if (matching.every(s => s.taskQueue)) {
+          // The list has no task queue: read it.
+          const description = await client.schedule
+            .getHandle(schedule.scheduleId)
+            .describe();
+          const queue = description.action.taskQueue;
+          if (!matching.some(s => s.taskQueue === queue)) continue;
+        }
+      }
+      items.push(schedule);
+    }
+    items.sort((a, b) => a.scheduleId.localeCompare(b.scheduleId));
+    return { items, truncated };
+  }
+
+  /**
+   * The workflow types and task queues of an entity: its own and those of
+   * the related entities in its namespace.
+   */
+  workflowSourcesOf(
+    context: TemporalEntityContext,
+  ): { taskQueue?: string; workflowTypes: string[] }[] {
+    const filter = this.filterOf(context);
+    return [filter.annotations, ...(filter.related ?? [])]
+      .map(s => ({ taskQueue: s.taskQueue, workflowTypes: s.workflowTypes }))
+      .filter(s => s.workflowTypes.length > 0);
   }
 
   defaultNamespace(): string {

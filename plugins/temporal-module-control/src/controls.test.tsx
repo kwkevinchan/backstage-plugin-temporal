@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
 import type { Entity } from '@backstage/catalog-model';
@@ -34,6 +34,7 @@ import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-comm
 import { TemporalControlApi, temporalControlApiRef } from './api';
 import { StartWorkflowButton } from './components/StartWorkflow';
 import { WorkflowControls } from './components/WorkflowControls';
+import { ScheduleControls } from './components/ScheduleControls';
 import { createTemporalControlActionDef } from './index';
 
 // usePermission caches results across tests; this one answers from `denied`.
@@ -97,6 +98,7 @@ function mockControlApi(): jest.Mocked<TemporalControlApi> {
       runId: 'run-started',
     }),
     runWorkflowAction: jest.fn().mockResolvedValue({ result: { ok: true } }),
+    runScheduleOperation: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -597,5 +599,75 @@ describe('ControlActionButton', () => {
     );
     expect(reload).toHaveBeenCalled();
     expect(def.id).toBe('escalate');
+  });
+});
+
+describe('ScheduleControls', () => {
+  const schedule = {
+    namespace: 'default',
+    scheduleId: 'nightly',
+    workflowType: 'orderWorkflow',
+    spec: ['every 1h'],
+    paused: false,
+    nextActionTimes: [],
+    recentActions: [],
+  };
+
+  it('pauses a schedule after confirming, then reloads', async () => {
+    const reload = jest.fn();
+    const { api } = render(
+      <ScheduleControls schedule={schedule} entity={entity} reload={reload} />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    expect(screen.getByText('Pause this schedule?')).toBeInTheDocument();
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Pause' }),
+    );
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(api.runScheduleOperation).toHaveBeenCalledWith(
+      { namespace: 'default', scheduleId: 'nightly' },
+      'pause',
+      undefined,
+      { entityRef },
+    );
+  });
+
+  it('resumes a paused schedule and runs one now', async () => {
+    const { api } = render(
+      <ScheduleControls
+        schedule={{ ...schedule, paused: true }}
+        reload={jest.fn()}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Run now' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Run now',
+      }),
+    );
+    await waitFor(() =>
+      expect(api.runScheduleOperation).toHaveBeenCalledWith(
+        { namespace: 'default', scheduleId: 'nightly' },
+        'trigger',
+        undefined,
+        { entityRef: undefined },
+      ),
+    );
+  });
+
+  it('is disabled without temporal.workflow.start', async () => {
+    render(
+      <ScheduleControls
+        schedule={schedule}
+        entity={entity}
+        reload={jest.fn()}
+      />,
+      { deny: ['temporal.workflow.start'] },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Run now' })).toBeDisabled(),
+    );
   });
 });

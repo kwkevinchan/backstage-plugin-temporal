@@ -36,6 +36,7 @@ import {
   TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
   temporalWorkflowActionDataRef,
   TemporalWorkflowActionBlueprint,
+  TemporalScheduleActionBlueprint,
   TemporalWorkflowListActionBlueprint,
 } from '@kwkevinchan/backstage-plugin-temporal/alpha';
 import {
@@ -99,6 +100,20 @@ export const temporalStartWorkflowListAction =
   });
 
 /**
+ * Pause or resume, and run now, on each schedule.
+ *
+ * @alpha
+ */
+export const temporalScheduleControlsAction =
+  TemporalScheduleActionBlueprint.make({
+    name: 'controls',
+    params: {
+      loader: () =>
+        import('./components/ScheduleControls').then(m => m.ScheduleControls),
+    },
+  });
+
+/**
  * Adds a button to the action bar of the workflow details page that runs a
  * custom action of the backend (added with
  * `temporalControlExtensionPoint.addControlAction()`) and shows its result.
@@ -156,5 +171,6 @@ export default createFrontendModule({
     temporalControlApi,
     temporalWorkflowControlsAction,
     temporalStartWorkflowListAction,
+    temporalScheduleControlsAction,
   ],
 });

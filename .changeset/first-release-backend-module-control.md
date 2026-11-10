@@ -10,3 +10,6 @@ and recorded with the auditor. `temporal.control.allowedSignals` and
 actions with `temporalControlExtensionPoint`
 (`@kwkevinchan/backstage-plugin-temporal-node/alpha`). Without this module
 the plugin only reads.
+`POST /namespaces/:namespace/schedules/:scheduleId/pause|unpause|trigger`
+with `temporal.workflow.start` on the entity whose workflow types the
+schedule starts, or without conditions without one.

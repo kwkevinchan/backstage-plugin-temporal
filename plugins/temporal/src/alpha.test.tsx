@@ -106,6 +106,7 @@ describe('temporal (new frontend system)', () => {
   it('shows the shared actions and sections on the entity tab and the Workflows page', async () => {
     const extensions: TemporalWorkflowExtensionsApi = {
       getListActions: () => [],
+      getScheduleActions: () => [],
       getActions: () => [
         {
           id: 'approve',

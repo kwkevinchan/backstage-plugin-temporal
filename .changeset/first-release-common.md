@@ -10,4 +10,5 @@ paths, the annotation constants, the `TemporalWorkflow` entity schema and
 entity, and `spec.messages` of that kind (`getTemporalWorkflowMessages()`,
 `mergeWorkflowHandlers()`): the description, input schema and example of
 each signal, update and query.
-Permission policies import the permissions from here.
+Permission policies import the permissions from here. Types and paths of
+Temporal schedules (`TemporalSchedule`, `TemporalScheduleListResponse`).
