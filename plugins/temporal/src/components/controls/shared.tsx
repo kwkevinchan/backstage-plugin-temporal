@@ -15,29 +15,11 @@
  */
 
 import { ReactNode, useState } from 'react';
-import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import { usePermission } from '@backstage/plugin-permission-react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
 import { Text } from '@backstage/ui';
 import { tp } from '../styles';
-
-/** `temporal.control` settings read by the frontend. */
-export interface ControlConfig {
-  enabled: boolean;
-  allowedSignals: string[];
-  allowedUpdates: string[];
-}
-
-export function useControlConfig(): ControlConfig {
-  const config = useApi(configApiRef);
-  const control = config.getOptionalConfig('temporal.control');
-  return {
-    enabled: control?.getOptionalBoolean('enabled') ?? true,
-    allowedSignals: control?.getOptionalStringArray('allowedSignals') ?? [],
-    allowedUpdates: control?.getOptionalStringArray('allowedUpdates') ?? [],
-  };
-}
 
 /**
  * Whether the user may use a control permission on the entity. Without an

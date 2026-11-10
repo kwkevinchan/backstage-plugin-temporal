@@ -20,11 +20,10 @@ import { ResponseError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import {
   buildEntityWorkflowStatsPath,
-  buildWorkflowActionPath,
+  buildWorkflowHandlersPath,
   buildWorkflowOperationPath,
+  WorkflowHandlersResponse,
   WorkflowMessageResponse,
-  WorkflowStartRequest,
-  WorkflowStartResponse,
   buildEntityWorkflowsPath,
   buildLlmCallPath,
   buildWorkflowPath,
@@ -236,30 +235,6 @@ export class TemporalClient implements TemporalApi {
     return response.blob();
   }
 
-  async signalWorkflow(
-    ref: WorkflowRef,
-    request: { name: string; args?: JsonValue[] },
-    options?: { entityRef?: string },
-  ): Promise<void> {
-    await this.post(
-      buildWorkflowOperationPath(ref, 'signal') +
-        queryString({ entityRef: options?.entityRef }),
-      request,
-    );
-  }
-
-  updateWorkflow(
-    ref: WorkflowRef,
-    request: { name: string; args?: JsonValue[] },
-    options?: { entityRef?: string },
-  ): Promise<WorkflowMessageResponse> {
-    return this.post(
-      buildWorkflowOperationPath(ref, 'update') +
-        queryString({ entityRef: options?.entityRef }),
-      request,
-    );
-  }
-
   queryWorkflow(
     ref: WorkflowRef,
     request: { name: string; args?: JsonValue[] },
@@ -272,62 +247,13 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
-  async cancelWorkflow(
+  getWorkflowHandlers(
     ref: WorkflowRef,
     options?: { entityRef?: string },
-  ): Promise<void> {
-    await this.post(
-      buildWorkflowOperationPath(ref, 'cancel') +
+  ): Promise<WorkflowHandlersResponse> {
+    return this.get(
+      buildWorkflowHandlersPath(ref) +
         queryString({ entityRef: options?.entityRef }),
-    );
-  }
-
-  async terminateWorkflow(
-    ref: WorkflowRef,
-    request: { reason?: string },
-    options?: { entityRef?: string },
-  ): Promise<void> {
-    await this.post(
-      buildWorkflowOperationPath(ref, 'terminate') +
-        queryString({ entityRef: options?.entityRef }),
-      request,
-    );
-  }
-
-  rerunWorkflow(
-    ref: WorkflowRef,
-    request?: { workflowId?: string },
-    options?: { entityRef?: string },
-  ): Promise<WorkflowStartResponse> {
-    return this.post(
-      buildWorkflowOperationPath(ref, 'rerun') +
-        queryString({ entityRef: options?.entityRef }),
-      request,
-    );
-  }
-
-  startWorkflow(
-    request: WorkflowStartRequest,
-    options?: { entityRef?: string },
-  ): Promise<WorkflowStartResponse> {
-    return this.post(
-      options?.entityRef
-        ? buildEntityWorkflowsPath(parseEntityRef(options.entityRef))
-        : WORKFLOWS_PATH,
-      request,
-    );
-  }
-
-  runWorkflowAction(
-    ref: WorkflowRef,
-    actionId: string,
-    body?: JsonValue,
-    options?: { entityRef?: string },
-  ): Promise<WorkflowMessageResponse> {
-    return this.post(
-      buildWorkflowActionPath(ref, actionId) +
-        queryString({ entityRef: options?.entityRef }),
-      body,
     );
   }
 }

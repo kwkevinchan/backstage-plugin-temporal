@@ -15,11 +15,10 @@
  */
 
 import { useState } from 'react';
+import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalControlActionButton, temporalApiRef } from '../../extensions';
 import {
   Alert,
   Button,
@@ -30,10 +29,41 @@ import {
   Flex,
   Text,
 } from '@backstage/ui';
-import { ErrorAlert } from '../feedback';
-import { JsonView } from '../PayloadView';
-import { tp } from '../styles';
-import { controlError, useControlPermission, WithReason } from './shared';
+import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
+import {
+  controlError,
+  ErrorAlert,
+  JsonView,
+  tp,
+  useControlPermission,
+  WithReason,
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
+import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { temporalControlApiRef } from '../api';
+
+/**
+ * A button on the workflow details page that runs a custom action of the
+ * backend (`POST .../actions/:actionId`, added with
+ * `temporalControlExtensionPoint.addControlAction()`). The page shows the
+ * result or the error and reloads the workflow.
+ *
+ * @public
+ */
+export interface TemporalControlActionButton {
+  /** ID of the backend action. */
+  actionId: string;
+  /** Button label. */
+  label: string;
+  /** When set, the page asks for confirmation with this text first. */
+  confirm?: string;
+  /** The JSON body sent to the action. Defaults to no body. */
+  body?: (workflow: WorkflowDetail) => JsonValue | undefined;
+  /**
+   * The permission of the backend action. When set, the button is disabled
+   * for users who do not have it on the workflow's entity.
+   */
+  permission?: ResourcePermission<'catalog-entity'>;
+}
 
 type Outcome = { result?: JsonValue } | { error: Error };
 
@@ -63,14 +93,14 @@ function PermissionGate(props: {
  * A button that runs a custom action of the backend and shows its result.
  * With `confirm`, it asks first.
  */
-export function ControlActionButton(props: {
-  action: TemporalControlActionButton;
-  workflow: WorkflowDetail;
-  entityRef?: string;
-  reload(): void;
-}) {
-  const { action, workflow, entityRef } = props;
-  const api = useApi(temporalApiRef);
+export function ControlActionButton(
+  props: TemporalWorkflowExtensionProps & {
+    action: TemporalControlActionButton;
+  },
+) {
+  const { action, workflow, entity } = props;
+  const entityRef = entity ? stringifyEntityRef(entity) : undefined;
+  const api = useApi(temporalControlApiRef);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();

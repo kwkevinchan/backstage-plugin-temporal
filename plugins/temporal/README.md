@@ -8,12 +8,15 @@ Shows Temporal workflows next to the catalog entities that own them: a
 **Temporal** tab with the workflow executions and their progress, a details page with
 the step graph, a **Timeline** tab (steps on a time axis), the loops of AI
 workflows, the LLM steps of agent workflows (model calls with their input,
-thinking, output, tool calls and tokens), events and details, the workflow controls, cards for
+thinking, output, tool calls and tokens), events and details, queries, cards for
 `TemporalWorkflow` entities (one entity is one workflow type and its
 definition) and a **Workflows** page. Works with the legacy
 and the new frontend system of Backstage 1.56. The **Definition** tab for
 workflows written in YAML (Zigflow) is a separate package,
 [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](../temporal-module-zigflow/README.md).
+The buttons that start, signal, update, cancel, terminate and rerun
+workflows are in
+[`@kwkevinchan/backstage-plugin-temporal-module-control`](../temporal-module-control/README.md).
 
 ## Installation
 
@@ -51,20 +54,21 @@ Plugins and app modules that add buttons or tabs to the workflow page, or
 that call the Temporal backend from their own components, use these exports.
 
 - `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
-  workflow reads and operations (start, signal, update, query, cancel,
-  terminate, rerun, custom actions).
-- `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`: actions and tabs
-  for the legacy frontend system (props `workflowActions` and
-  `workflowSections` of `EntityTemporalContent` and `TemporalPage`).
-- `createTemporalControlActionDef()`: a button that runs a custom backend
-  action, for the legacy frontend system.
+  workflow reads, queries and handler names. The operations that change
+  workflows are in the client of the control module
+  (`temporalControlApiRef` of
+  `@kwkevinchan/backstage-plugin-temporal-module-control`).
+- `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`,
+  `TemporalWorkflowListActionDef`: actions, tabs and list actions for the
+  legacy frontend system (props `workflowActions`, `workflowSections` and
+  `workflowListActions` of `EntityTemporalContent` and `TemporalPage`).
 - `useTemporalWorkflow()`, `TemporalWorkflowProvider`: the workflow shown on
   the current page.
 - `temporalWorkflowExtensionsApiRef`: the shared mount point of actions and
   sections.
-- `./alpha`: `TemporalWorkflowActionBlueprint` (with a `loader` or a
-  `controlAction`) and `TemporalWorkflowSectionBlueprint` for the new
-  frontend system.
+- `./alpha`: `TemporalWorkflowActionBlueprint`,
+  `TemporalWorkflowListActionBlueprint` and
+  `TemporalWorkflowSectionBlueprint` for the new frontend system.
 - The permissions (`temporalWorkflowSignalPermission` and the others, the
   same names and attributes as in the backend package), the annotation
   constants and the response types of the backend API (`WorkflowDetail`,

@@ -15,6 +15,7 @@
  */
 
 import { ComponentType, lazy, Suspense } from 'react';
+import type { Entity } from '@backstage/catalog-model';
 import {
   createExtensionBlueprint,
   createExtensionDataRef,
@@ -22,9 +23,10 @@ import {
 } from '@backstage/frontend-plugin-api';
 import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
 import type {
-  TemporalControlActionButton,
   TemporalWorkflowActionDef,
   TemporalWorkflowExtensionProps,
+  TemporalWorkflowListActionDef,
+  TemporalWorkflowListActionProps,
   TemporalWorkflowSectionDef,
 } from './extensions';
 
@@ -36,6 +38,16 @@ import type {
 export const temporalWorkflowActionDataRef =
   createExtensionDataRef<TemporalWorkflowActionDef>().with({
     id: 'temporal.workflow-action',
+  });
+
+/**
+ * Extension data with a workflow list action.
+ *
+ * @alpha
+ */
+export const temporalWorkflowListActionDataRef =
+  createExtensionDataRef<TemporalWorkflowListActionDef>().with({
+    id: 'temporal.workflow-list-action',
   });
 
 /**
@@ -58,14 +70,17 @@ export const TEMPORAL_WORKFLOW_EXTENSIONS_API_ID =
   'api:temporal/workflow-extensions';
 const ATTACH_ID = TEMPORAL_WORKFLOW_EXTENSIONS_API_ID;
 
-type Loader = () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
+type Loader<P> = () => Promise<ComponentType<P>>;
 
-function lazyComponent(
+function lazyComponent<P extends object>(
   node: Parameters<typeof ExtensionBoundary>[0]['node'],
-  loader: Loader,
-): ComponentType<TemporalWorkflowExtensionProps> {
-  const Lazy = lazy(() => loader().then(component => ({ default: component })));
-  return (props: TemporalWorkflowExtensionProps) => (
+  loader: Loader<P>,
+): ComponentType<P> {
+  // Typed loosely: React cannot check the props of a generic lazy component.
+  const Lazy = lazy<ComponentType<any>>(() =>
+    loader().then(component => ({ default: component })),
+  );
+  return (props: P) => (
     <ExtensionBoundary node={node}>
       <Suspense fallback={null}>
         <Lazy {...props} />
@@ -86,16 +101,11 @@ function lazyComponent(
  *     filter: workflow => workflow.status === 'Running',
  *   },
  * });
- *
- * // A button that runs a custom action of the backend.
- * TemporalWorkflowActionBlueprint.make({
- *   name: 'escalate',
- *   params: {
- *     controlAction: { actionId: 'escalate', label: 'Escalate' },
- *     filter: workflow => workflow.status === 'Running',
- *   },
- * });
  * ```
+ *
+ * A button that runs a custom action of the backend comes from
+ * `TemporalControlActionBlueprint` of
+ * `@kwkevinchan/backstage-plugin-temporal-module-control`.
  *
  * @alpha
  */
@@ -107,22 +117,52 @@ export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
   *factory(
     params: {
       /** Loads the control to show. */
-      loader?: Loader;
-      /** Instead of `loader`: a button that runs a custom backend action. */
-      controlAction?: TemporalControlActionButton;
+      loader: Loader<TemporalWorkflowExtensionProps>;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },
   ) {
-    if (!params.loader && !params.controlAction) {
-      throw new Error(
-        `${node.spec.id}: a workflow action needs a loader or a controlAction`,
-      );
-    }
     yield temporalWorkflowActionDataRef({
       id: node.spec.id,
-      component: params.loader ? lazyComponent(node, params.loader) : undefined,
-      controlAction: params.controlAction,
+      component: lazyComponent(node, params.loader),
+      filter: params.filter,
+    });
+  },
+});
+
+/**
+ * Adds a control above the workflow lists: the list of an entity and the
+ * Workflows page. `filter` gets the entity, absent on the Workflows page.
+ *
+ * @example
+ * ```tsx
+ * TemporalWorkflowListActionBlueprint.make({
+ *   name: 'export',
+ *   params: {
+ *     loader: () => import('./ExportButton').then(m => m.ExportButton),
+ *     filter: ({ entity }) => entity !== undefined,
+ *   },
+ * });
+ * ```
+ *
+ * @alpha
+ */
+export const TemporalWorkflowListActionBlueprint = createExtensionBlueprint({
+  kind: 'temporal-workflow-list-action',
+  attachTo: { id: ATTACH_ID, input: 'listActions' },
+  output: [temporalWorkflowListActionDataRef],
+  dataRefs: { listAction: temporalWorkflowListActionDataRef },
+  *factory(
+    params: {
+      /** Loads the control to show. */
+      loader: Loader<TemporalWorkflowListActionProps>;
+      filter?: (context: { entity?: Entity }) => boolean;
+    },
+    { node },
+  ) {
+    yield temporalWorkflowListActionDataRef({
+      id: node.spec.id,
+      component: lazyComponent(node, params.loader),
       filter: params.filter,
     });
   },
@@ -142,7 +182,7 @@ export const TemporalWorkflowSectionBlueprint = createExtensionBlueprint({
   *factory(
     params: {
       title?: string;
-      loader: Loader;
+      loader: Loader<TemporalWorkflowExtensionProps>;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },

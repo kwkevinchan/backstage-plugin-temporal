@@ -16,8 +16,9 @@
 
 /**
  * Building blocks of the Temporal plugin pages for companion packages of
- * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`:
- * the workflow graph canvas and its layout, node status helpers, panels and
+ * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`
+ * and `-module-control`: the workflow graph canvas and its layout, node
+ * status helpers, panels, the dialogs and fields of workflow operations and
  * the class names of the plugin styles. They follow the plugin version; an
  * app does not need them.
  *
@@ -42,3 +43,17 @@ export {
   useSettledWidth,
   ViewButtons,
 } from './components/graph/GraphCanvas';
+export { JsonView } from './components/PayloadView';
+export {
+  controlError,
+  JsonArgsField,
+  parseArgs,
+  useControlPermission,
+  WithReason,
+} from './components/controls/shared';
+export {
+  MessageDialog,
+  PermissionButton,
+  useWorkflowHandlers,
+} from './components/controls/MessageDialog';
+export type { MessageDialogText } from './components/controls/MessageDialog';

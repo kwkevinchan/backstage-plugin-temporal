@@ -16,9 +16,10 @@
 
 import type { ComponentType } from 'react';
 import type { Entity } from '@backstage/catalog-model';
-import type { ResourcePermission } from '@backstage/plugin-permission-common';
-import type { JsonValue } from '@backstage/types';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type {
+  WorkflowDetail,
+  WorkflowRef,
+} from '@kwkevinchan/backstage-plugin-temporal-common';
 
 /**
  * Props of components shown on the workflow details page.
@@ -31,47 +32,13 @@ export interface TemporalWorkflowExtensionProps {
   entity?: Entity;
   /** Reloads the workflow details. */
   reload(): void;
-}
-
-/**
- * A button on the workflow details page that runs a custom action of the
- * backend (`POST .../actions/:actionId`, added with
- * `temporalExtensionPoint.addControlAction()`). The page shows the result or
- * the error and reloads the workflow.
- *
- * @public
- */
-export interface TemporalControlActionButton {
-  /** ID of the backend action. */
-  actionId: string;
-  /** Button label. */
-  label: string;
-  /** When set, the page asks for confirmation with this text first. */
-  confirm?: string;
-  /** The JSON body sent to the action. Defaults to no body. */
-  body?: (workflow: WorkflowDetail) => JsonValue | undefined;
   /**
-   * The permission of the backend action. When set, the button is disabled
-   * for users who do not have it on the workflow's entity.
+   * Link of the details page of another workflow on the same page (entity
+   * tab or Workflows page), for example a run that was just started.
+   * Optional, as hosts that render these components themselves may not have
+   * one.
    */
-  permission?: ResourcePermission<'catalog-entity'>;
-}
-
-/**
- * Makes a {@link TemporalWorkflowActionDef} with a button that runs a custom
- * action of the backend, for the legacy frontend system.
- *
- * @public
- */
-export function createTemporalControlActionDef(
-  options: TemporalControlActionButton & {
-    /** Defaults to the action ID. */
-    id?: string;
-    filter?: (workflow: WorkflowDetail) => boolean;
-  },
-): TemporalWorkflowActionDef {
-  const { id, filter, ...controlAction } = options;
-  return { id: id ?? controlAction.actionId, controlAction, filter };
+  workflowHref?(ref: WorkflowRef): string;
 }
 
 /**
@@ -84,12 +51,42 @@ export function createTemporalControlActionDef(
  */
 export interface TemporalWorkflowActionDef {
   id: string;
-  /** The control to show. Without it, `controlAction` is shown as a button. */
-  component?: ComponentType<TemporalWorkflowExtensionProps>;
-  /** A button that runs a custom action of the backend. */
-  controlAction?: TemporalControlActionButton;
+  /** The control to show. */
+  component: ComponentType<TemporalWorkflowExtensionProps>;
   /** Show the action only when this returns true. */
   filter?: (workflow: WorkflowDetail) => boolean;
+}
+
+/**
+ * Props of components shown above a workflow list: the list of an entity
+ * (with `entity`) or the Workflows page (without).
+ *
+ * @public
+ */
+export interface TemporalWorkflowListActionProps {
+  /** The entity whose workflows are listed; absent on the Workflows page. */
+  entity?: Entity;
+  /** Link of the details page of a workflow, relative to the list. */
+  workflowHref(ref: WorkflowRef): string;
+}
+
+/**
+ * A button or other control above a workflow list, such as "Start
+ * workflow". Used directly by the legacy frontend system
+ * (`workflowListActions` prop of `EntityTemporalContent` and
+ * `TemporalPage`); the new frontend system uses
+ * `TemporalWorkflowListActionBlueprint`.
+ *
+ * @public
+ */
+export interface TemporalWorkflowListActionDef {
+  id: string;
+  component: ComponentType<TemporalWorkflowListActionProps>;
+  /**
+   * Show the action only when this returns true. `entity` is absent on the
+   * Workflows page.
+   */
+  filter?: (context: { entity?: Entity }) => boolean;
 }
 
 /**
@@ -110,13 +107,15 @@ export interface TemporalWorkflowSectionDef {
 }
 
 /**
- * Workflow actions and sections contributed by other plugins in the new
- * frontend system. The entity tab and the Workflows page both read it, so
- * blueprint extensions show on every workflow details page.
+ * Workflow actions, list actions and sections contributed by other plugins
+ * in the new frontend system. The entity tab and the Workflows page both
+ * read it, so blueprint extensions show on every page.
  *
  * @public
  */
 export interface TemporalWorkflowExtensionsApi {
   getActions(): TemporalWorkflowActionDef[];
   getSections(): TemporalWorkflowSectionDef[];
+  /** Optional, so other implementations of this API keep working. */
+  getListActions?(): TemporalWorkflowListActionDef[];
 }

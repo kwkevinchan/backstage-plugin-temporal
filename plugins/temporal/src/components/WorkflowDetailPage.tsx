@@ -48,8 +48,7 @@ import {
   Text,
 } from '@backstage/ui';
 import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
-import { ControlActionButton } from './controls/ControlActionButton';
-import { WorkflowControls } from './controls/WorkflowControls';
+import { QueryButton } from './controls/QueryButton';
 import { ErrorAlert, Loading } from './feedback';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
@@ -528,7 +527,12 @@ export function WorkflowDetailPage(
     );
   }
 
-  const extensionProps = { workflow, entity, reload: data.reload };
+  const extensionProps = {
+    workflow,
+    entity,
+    reload: data.reload,
+    workflowHref,
+  };
   const actions = workflowActions.filter(a => !a.filter || a.filter(workflow));
   const sections = workflowSections.filter(
     s => !s.filter || s.filter(workflow),
@@ -567,28 +571,16 @@ export function WorkflowDetailPage(
                 className={tp('tp-summary-actions')}
                 data-testid="workflow-actions"
               >
-                <WorkflowControls
-                  workflow={workflow}
-                  entityRef={entityRef}
-                  reload={data.reload}
-                  workflowHref={workflowHref}
-                />
-                {actions.map(({ id, component: Action, controlAction }) => (
-                  <div key={id} data-testid={`temporal-action-${id}`}>
-                    {Action ? (
-                      <Action {...extensionProps} />
-                    ) : (
-                      controlAction && (
-                        <ControlActionButton
-                          action={controlAction}
-                          workflow={workflow}
-                          entityRef={entityRef}
-                          reload={data.reload}
-                        />
-                      )
-                    )}
+                {actions.map(({ id, component: Action }) => (
+                  <div
+                    key={id}
+                    className={tp('tp-summary-action')}
+                    data-testid={`temporal-action-${id}`}
+                  >
+                    <Action {...extensionProps} />
                   </div>
                 ))}
+                <QueryButton workflow={workflow} entityRef={entityRef} />
                 {workflow.webUiUrl && (
                   <ButtonLink
                     variant="secondary"

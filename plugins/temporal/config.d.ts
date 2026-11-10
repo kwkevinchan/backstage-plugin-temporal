@@ -32,25 +32,5 @@ export interface Config {
        */
       baseUrl?: string;
     };
-    /** Operations that change workflows; see the backend plugin. */
-    control?: {
-      /**
-       * Show the operations. Defaults to true.
-       * @visibility frontend
-       */
-      enabled?: boolean;
-      /**
-       * Signal names offered in the Signal dialog. Empty or absent allows
-       * every name.
-       * @visibility frontend
-       */
-      allowedSignals?: string[];
-      /**
-       * Update names offered in the Update dialog. Empty or absent allows
-       * every name.
-       * @visibility frontend
-       */
-      allowedUpdates?: string[];
-    };
   };
 }
