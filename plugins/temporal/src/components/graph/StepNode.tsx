@@ -92,6 +92,30 @@ function KindIcon(props: { kind: WorkflowNodeKind; ended?: boolean }) {
   }
 }
 
+/**
+ * The kind tint of a step box: a pale background by kind, so that the
+ * kinds stand apart from far away. The status stays on the left bar and
+ * the border. Start, end and waiting boxes stay neutral.
+ */
+export function kindTint(kind: WorkflowNodeKind): string | undefined {
+  switch (kind) {
+    case 'activity':
+      return 'activity';
+    case 'timer':
+      return 'timer';
+    case 'signal':
+    case 'signalSent':
+    case 'update':
+      return 'message';
+    case 'childWorkflow':
+      return 'child';
+    case 'marker':
+      return 'marker';
+    default:
+      return undefined;
+  }
+}
+
 /** Status and duration of a tool box, or what it waits for. */
 function toolSubtitle(step: WorkflowGraphNode): string {
   if (isOpenStep(step)) return stepSubtitle(step) || statusLabel(step.status);
@@ -216,6 +240,7 @@ export const StepNode = memo(function StepNodeView(
       <button
         type="button"
         className={tp('tp-node', `tp-tone-${statusTone(step.status)}`)}
+        data-kind-tint={kindTint(step.kind)}
         data-selected={selected}
         data-dashed={dashed}
         data-active={isActiveStatus(step.status)}

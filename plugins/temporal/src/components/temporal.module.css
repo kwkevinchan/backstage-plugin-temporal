@@ -1053,13 +1053,87 @@
 .tp-loop-steps,
 .tp-drawer {
   --tp-llm: color-mix(in srgb, var(--bui-fg-info) 55%, var(--bui-fg-danger));
+  /* Kind hues, muted mixes of the theme tokens, apart from the status
+     colours; only a few percent of them reach the box background. */
+  --tp-kind-activity: color-mix(
+    in srgb,
+    var(--bui-fg-info) 55%,
+    var(--bui-fg-secondary)
+  );
+  --tp-kind-timer: color-mix(
+    in srgb,
+    var(--bui-fg-warning) 45%,
+    var(--bui-fg-secondary)
+  );
+  --tp-kind-message: color-mix(
+    in srgb,
+    var(--bui-fg-success) 45%,
+    var(--bui-fg-info)
+  );
+  --tp-kind-child: color-mix(
+    in srgb,
+    var(--bui-fg-danger) 45%,
+    var(--bui-fg-warning)
+  );
+  --tp-kind-marker: color-mix(
+    in srgb,
+    var(--bui-fg-success) 50%,
+    var(--bui-fg-warning)
+  );
+  --tp-tint: 7%;
+  --tp-tint-hover: 13%;
+}
+:global([data-theme-mode='dark']) .tp-graph,
+:global([data-theme-mode='dark']) .tp-loop-steps {
+  /* A dark surface needs a little more of the hue to show it. */
+  --tp-tint: 12%;
+  --tp-tint-hover: 18%;
 }
 .tp-node[data-llm] {
   border-left-color: var(--tp-llm);
-  background: color-mix(in srgb, var(--tp-llm) 7%, var(--bui-bg-neutral-2));
+  background: color-mix(
+    in srgb,
+    var(--tp-llm) var(--tp-tint, 7%),
+    var(--bui-bg-neutral-2)
+  );
 }
 .tp-node[data-llm]:hover {
-  background: color-mix(in srgb, var(--tp-llm) 13%, var(--bui-bg-neutral-2));
+  background: color-mix(
+    in srgb,
+    var(--tp-llm) var(--tp-tint-hover, 13%),
+    var(--bui-bg-neutral-2)
+  );
+}
+/* The kind of a step box, as a pale background (the status keeps the
+   left bar and the border). */
+.tp-node[data-kind-tint='activity'] {
+  --tp-kind: var(--tp-kind-activity);
+}
+.tp-node[data-kind-tint='timer'] {
+  --tp-kind: var(--tp-kind-timer);
+}
+.tp-node[data-kind-tint='message'] {
+  --tp-kind: var(--tp-kind-message);
+}
+.tp-node[data-kind-tint='child'] {
+  --tp-kind: var(--tp-kind-child);
+}
+.tp-node[data-kind-tint='marker'] {
+  --tp-kind: var(--tp-kind-marker);
+}
+.tp-node[data-kind-tint] {
+  background: color-mix(
+    in srgb,
+    var(--tp-kind) var(--tp-tint, 7%),
+    var(--bui-bg-neutral-2)
+  );
+}
+.tp-node[data-kind-tint]:hover {
+  background: color-mix(
+    in srgb,
+    var(--tp-kind) var(--tp-tint-hover, 13%),
+    var(--bui-bg-neutral-2)
+  );
 }
 .tp-node[data-llm='tool'] {
   gap: 0;
