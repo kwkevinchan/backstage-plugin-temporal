@@ -19,8 +19,12 @@ import {
   BackstageCredentials,
   HttpAuthService,
 } from '@backstage/backend-plugin-api';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
+  getTemporalWorkflowMessages,
+  isTemporalWorkflowEntity,
+  mergeWorkflowHandlers,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
   WorkflowDetail,
@@ -271,16 +275,65 @@ export async function createRouter(
     },
   );
 
-  // The signals, updates and queries a running workflow defines (for the
-  // operation dialogs). The backend runs the metadata query itself, so the
-  // read permission is enough.
+  // The signals, updates and queries a workflow defines (for the operation
+  // dialogs), with what its TemporalWorkflow entity describes in
+  // spec.messages. The backend runs the metadata query itself, so the read
+  // permission is enough.
   router.get(
     workflowPaths.map(p => `${p}/handlers`),
     async (req, res) => {
-      const { workflow } = await loadWorkflow(req, 'read');
-      res.json(await queries.handlers(workflow));
+      const { workflow, context, credentials } = await loadWorkflow(
+        req,
+        'read',
+      );
+      const [reported, entity] = await Promise.all([
+        queries.handlers(workflow),
+        workflowEntityOf(workflow, context, credentials),
+      ]);
+      res.json(
+        mergeWorkflowHandlers(reported, getTemporalWorkflowMessages(entity)),
+      );
     },
   );
+
+  /**
+   * The TemporalWorkflow entity of a run that the caller can read: the
+   * entity it was opened with, one it depends on, or the one that matches
+   * its workflow type and task queue.
+   */
+  async function workflowEntityOf(
+    workflow: WorkflowDetail,
+    context: TemporalEntityContext | undefined,
+    credentials: BackstageCredentials,
+  ): Promise<Entity | undefined> {
+    if (context && isTemporalWorkflowEntity(context.entity)) {
+      return context.entity;
+    }
+    const [linked] = await access.linkWorkflowEntities(
+      [workflow],
+      workflow.namespace,
+      credentials,
+    );
+    const ref = linked?.workflowEntityRef;
+    if (!ref) return undefined;
+    const related = context?.relatedWorkflowEntities.find(
+      e => stringifyEntityRef(e) === ref,
+    );
+    if (related) return related;
+    try {
+      const loaded = await access.loadEntity(
+        ref,
+        temporalWorkflowReadPermission,
+        credentials,
+      );
+      return loaded.entity;
+    } catch (error) {
+      if (error instanceof NotAllowedError || error instanceof NotFoundError) {
+        return undefined;
+      }
+      throw error;
+    }
+  }
 
   // A query chosen by the user. Queries only read the workflow, but run
   // the worker's code: they need temporal.workflow.query on the entity, and

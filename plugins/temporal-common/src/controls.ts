@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { JsonValue } from '@backstage/types';
+import type { JsonObject, JsonValue } from '@backstage/types';
 import { buildWorkflowPath } from './paths';
 import type { WorkflowRef } from './types';
 
@@ -142,12 +142,22 @@ export function buildWorkflowHandlersPath(ref: WorkflowRef): string {
 export interface WorkflowHandler {
   name: string;
   description?: string;
+  /**
+   * JSON Schema of the one argument the handler takes, from the
+   * `spec.messages` of the workflow's `TemporalWorkflow` entity.
+   */
+  inputSchema?: JsonObject;
+  /** Example arguments: an array of arguments, or the one argument. */
+  example?: JsonValue;
+  /** A property of the argument filled with the signed-in user's entity reference. */
+  userField?: string;
 }
 
 /**
- * The handlers of a workflow, from the metadata query of the
- * Temporal SDKs (`GET .../handlers`). Empty when no worker answers it.
- * Names starting with `__` (the SDKs' own) are left out.
+ * The handlers of a workflow (`GET .../handlers`): from the metadata query
+ * of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity
+ * describes in `spec.messages`. Names starting with `__` (the SDKs' own)
+ * are left out.
  *
  * @public
  */

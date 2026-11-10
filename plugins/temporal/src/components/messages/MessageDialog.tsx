@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
-import { useApi } from '@backstage/core-plugin-api';
+import { ComponentType, useEffect, useState } from 'react';
+import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import type {
+import {
+  exampleArgs,
   WorkflowDetail,
+  WorkflowHandler,
   WorkflowHandlersResponse,
   WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
@@ -92,18 +94,100 @@ export interface MessageDialogText {
   help: string;
 }
 
+/** The signed-in user's entity reference, once known. */
+export function useUserEntityRef(): string | undefined {
+  const identityApi = useApi(identityApiRef);
+  const [ref, setRef] = useState<string>();
+  useEffect(() => {
+    let current = true;
+    identityApi
+      .getBackstageIdentity()
+      .then(identity => current && setRef(identity.userEntityRef))
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [identityApi]);
+  return ref;
+}
+
 /**
- * Signal, update or query: a name, JSON arguments, then the result.
+ * The example arguments of a handler, with its `userField` set to the
+ * signed-in user on an object argument.
+ */
+export function handlerExampleArgs(
+  handler: WorkflowHandler | undefined,
+  userEntityRef: string | undefined,
+): JsonValue[] {
+  const args = exampleArgs(handler?.example);
+  const field = handler?.userField;
+  if (!field || !userEntityRef) return args;
+  const first = args[0];
+  const base =
+    first && typeof first === 'object' && !Array.isArray(first) ? first : {};
+  return [{ ...base, [field]: userEntityRef }, ...args.slice(1)];
+}
+
+/** Props of the arguments field of a {@link MessageDialog}. */
+export interface MessageArgsFieldProps {
+  /** The chosen handler, when the workflow or its entity describes it. */
+  handler?: WorkflowHandler;
+  /** The signed-in user's entity reference, for `handler.userField`. */
+  userEntityRef?: string;
+  /** Called with the arguments, or why they are not valid. */
+  onChange(value: { args: JsonValue[] } | { error: string }): void;
+}
+
+function argsText(args: JsonValue[]): string {
+  if (args.length === 0) return '[]';
+  // One object or array argument is shown as itself; parseArgs reads an
+  // array as the argument list, so only a non-array value can be bare.
+  const value = args.length === 1 && !Array.isArray(args[0]) ? args[0] : args;
+  return JSON.stringify(value, null, 2);
+}
+
+/**
+ * The default arguments field: JSON, filled with the handler's example.
+ */
+export function JsonMessageArgsField(props: MessageArgsFieldProps) {
+  const { handler, userEntityRef, onChange } = props;
+  const [text, setText] = useState(() =>
+    argsText(handlerExampleArgs(handler, userEntityRef)),
+  );
+  const [edited, setEdited] = useState(false);
+  // The user's reference may come after the field opens.
+  useEffect(() => {
+    if (!edited) setText(argsText(handlerExampleArgs(handler, userEntityRef)));
+  }, [edited, handler, userEntityRef]);
+  useEffect(() => {
+    onChange(parseArgs(text));
+  }, [text, onChange]);
+  return (
+    <JsonArgsField
+      value={text}
+      onChange={value => {
+        setEdited(true);
+        setText(value);
+      }}
+    />
+  );
+}
+
+/**
+ * Signal, update or query: a name, the arguments, then the result.
  * `send` sends the message; the dialog shows its result unless
- * `showResult` is false.
+ * `showResult` is false. `argsField` replaces the JSON field, for example
+ * with a form for handlers with an input schema.
  */
 export function MessageDialog(props: {
   /** `signal`, `update` or `query`; names the result's test ID. */
   kind: string;
   text: MessageDialogText;
-  options: string[];
+  /** The handlers to choose from. */
+  handlers: WorkflowHandler[];
   allowsCustomValue: boolean;
   showResult?: boolean;
+  argsField?: ComponentType<MessageArgsFieldProps>;
   send(request: {
     name: string;
     args: JsonValue[];
@@ -111,17 +195,21 @@ export function MessageDialog(props: {
   onClose(): void;
 }) {
   const { kind, text } = props;
-  const [name, setName] = useState(props.options[0] ?? '');
+  const ArgsField = props.argsField ?? JsonMessageArgsField;
+  const userEntityRef = useUserEntityRef();
+  const [name, setName] = useState(props.handlers[0]?.name ?? '');
   // The handler names may come after the dialog opens.
-  const firstOption = props.options[0];
+  const firstOption = props.handlers[0]?.name;
   useEffect(() => {
     if (firstOption) setName(current => current || firstOption);
   }, [firstOption]);
-  const [args, setArgs] = useState('[]');
+  const handler = props.handlers.find(h => h.name === name.trim());
+  const [parsed, setParsed] = useState<
+    { args: JsonValue[] } | { error: string }
+  >({ args: [] });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error>();
   const [done, setDone] = useState<{ result?: JsonValue }>();
-  const parsed = parseArgs(args);
 
   const submit = async () => {
     if (!name.trim() || 'error' in parsed) return;
@@ -147,14 +235,24 @@ export function MessageDialog(props: {
           </Text>
           <Combobox
             label={text.label}
-            options={props.options.map(o => ({ value: o, label: o }))}
+            description={handler?.description}
+            options={props.handlers.map(h => ({
+              value: h.name,
+              label: h.name,
+            }))}
             allowsCustomValue={props.allowsCustomValue}
             inputValue={name}
             onInputChange={setName}
             onSelectionChange={key => key !== null && setName(String(key))}
             isRequired
           />
-          <JsonArgsField value={args} onChange={setArgs} />
+          <ArgsField
+            // A new field, with its example, for each described handler.
+            key={handler?.name ?? ''}
+            handler={handler}
+            userEntityRef={userEntityRef}
+            onChange={setParsed}
+          />
           {error && <ErrorAlert error={error} />}
           {done && (
             <div data-testid={`workflow-${kind}-result`}>

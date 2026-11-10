@@ -7,5 +7,7 @@ their modules: the permissions (`temporalPermissions`, including the
 `temporal-workflow` resource type and its resource refs), the API types and
 paths, the annotation constants, the `TemporalWorkflow` entity schema and
 `getTemporalWorkflowSource()`, the rule for which workflows belong to an
-entity.
+entity, and `spec.messages` of that kind (`getTemporalWorkflowMessages()`,
+`mergeWorkflowHandlers()`): the description, input schema and example of
+each signal, update and query.
 Permission policies import the permissions from here.

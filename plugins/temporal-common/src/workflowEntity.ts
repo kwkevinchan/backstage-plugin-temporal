@@ -24,6 +24,10 @@ import {
   parseTemporalAnnotations,
   TemporalAnnotations,
 } from './annotations';
+import {
+  temporalWorkflowMessageSchema,
+  TemporalWorkflowMessagesSpec,
+} from './messages';
 
 /**
  * API version of the `TemporalWorkflow` kind.
@@ -73,6 +77,11 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
      * (`serverless-workflow`) drawn as a graph, or the source code
      * (`source`) with the workflow's function marked.
      */
+    /**
+     * The signals, updates and queries of the workflow: their arguments, for
+     * the forms of the operation dialogs.
+     */
+    messages?: TemporalWorkflowMessagesSpec;
     definition?: {
       /** Format of the file: `serverless-workflow` or `source`. */
       format: string;
@@ -163,6 +172,26 @@ export const temporalWorkflowEntityV1alpha1Schema = {
             exampleInput: {
               description:
                 'Example arguments for the Start workflow dialog: an array of arguments, or one value for a workflow with one argument.',
+            },
+            messages: {
+              type: 'object',
+              description:
+                'The signals, updates and queries of the workflow, for the forms of the operation dialogs.',
+              additionalProperties: false,
+              properties: {
+                signals: {
+                  type: 'array',
+                  items: temporalWorkflowMessageSchema,
+                },
+                updates: {
+                  type: 'array',
+                  items: temporalWorkflowMessageSchema,
+                },
+                queries: {
+                  type: 'array',
+                  items: temporalWorkflowMessageSchema,
+                },
+              },
             },
             definition: {
               type: 'object',

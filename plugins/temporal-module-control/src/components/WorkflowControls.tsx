@@ -16,6 +16,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { WorkflowHandler } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import {
   Button,
@@ -36,6 +37,7 @@ import {
   PermissionButton,
   useWorkflowHandlers,
 } from '@kwkevinchan/backstage-plugin-temporal/ui';
+import { SchemaArgsField } from './SchemaArgsField';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowRerunPermission,
@@ -157,12 +159,19 @@ export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
   );
   const close = () => setOpen(undefined);
 
-  const messageOptions = (kind: MessageKind): [string[], boolean] => {
+  const messageOptions = (kind: MessageKind): [WorkflowHandler[], boolean] => {
+    const defined =
+      (kind === 'signal' ? handlers?.signals : handlers?.updates) ?? [];
     const allowed =
       kind === 'signal' ? config.allowedSignals : config.allowedUpdates;
-    if (allowed.length > 0) return [allowed, false];
-    const defined = kind === 'signal' ? handlers?.signals : handlers?.updates;
-    return [(defined ?? []).map(h => h.name), true];
+    if (allowed.length > 0) {
+      // Only the configured names, with what the workflow tells of them.
+      return [
+        allowed.map(name => defined.find(h => h.name === name) ?? { name }),
+        false,
+      ];
+    }
+    return [defined, true];
   };
 
   return (
@@ -210,8 +219,9 @@ export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
           key={open}
           kind={open}
           text={MESSAGE_TEXT[open]}
-          options={messageOptions(open)[0]}
+          handlers={messageOptions(open)[0]}
           allowsCustomValue={messageOptions(open)[1]}
+          argsField={SchemaArgsField}
           showResult={open === 'update'}
           send={async request => {
             let result = {};

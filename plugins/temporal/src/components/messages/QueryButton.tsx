@@ -61,7 +61,7 @@ export function QueryButton(props: {
             submit: 'Run query',
             help: 'A query reads the state of the workflow without changing it.',
           }}
-          options={(handlers?.queries ?? []).map(h => h.name)}
+          handlers={handlers?.queries ?? []}
           allowsCustomValue
           send={request => api.queryWorkflow(ref, request, { entityRef })}
           onClose={() => setOpen(false)}

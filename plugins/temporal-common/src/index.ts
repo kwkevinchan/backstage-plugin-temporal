@@ -28,6 +28,7 @@ export * from './paths';
 export * from './workflowEntity';
 export * from './graph';
 export * from './controls';
+export * from './messages';
 export * from './loops';
 export * from './llm';
 export * from './definition';

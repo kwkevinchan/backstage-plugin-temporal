@@ -17,6 +17,7 @@
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import type { Entity } from '@backstage/catalog-model';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
@@ -69,7 +70,32 @@ function runningWorkflowService() {
   };
 }
 
-async function start(options?: { deny?: string[] }) {
+const ticketWorkflowEntity: Entity = {
+  apiVersion: 'temporal.io/v1alpha1',
+  kind: 'TemporalWorkflow',
+  metadata: { name: 'ticket-workflow', namespace: 'default' },
+  spec: {
+    owner: 'group:default/team-a',
+    workflowType: 'orderWorkflow',
+    taskQueue: 'orders',
+    messages: {
+      signals: [
+        {
+          name: 'addNote',
+          inputSchema: {
+            type: 'object',
+            properties: { text: { type: 'string' } },
+          },
+        },
+      ],
+      updates: [
+        { name: 'approve', example: { approved: true }, userField: 'by' },
+      ],
+    },
+  },
+};
+
+async function start(options?: { deny?: string[]; entities?: Entity[] }) {
   const workflowService = runningWorkflowService();
   const decide = (r: any) => ({
     result: options?.deny?.includes(r.permission.name)
@@ -89,7 +115,9 @@ async function start(options?: { deny?: string[] }) {
     features: [
       temporalPlugin,
       temporalAccessServiceFactory,
-      catalogServiceMock.factory({ entities: [ordersEntity] }),
+      catalogServiceMock.factory({
+        entities: [ordersEntity, ...(options?.entities ?? [])],
+      }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
       auditor.factory,
@@ -142,6 +170,51 @@ describe('query routes of the core plugin', () => {
       updates: [{ name: 'setPriority' }],
       queries: [{ name: 'state' }],
     });
+  });
+
+  it('adds what the TemporalWorkflow entity describes', async () => {
+    const { server } = await start({ entities: [ticketWorkflowEntity] });
+    const expected = {
+      signals: [
+        {
+          name: 'addNote',
+          description: 'Add a note',
+          inputSchema: {
+            type: 'object',
+            properties: { text: { type: 'string' } },
+          },
+        },
+      ],
+      updates: [
+        { name: 'setPriority' },
+        { name: 'approve', example: { approved: true }, userField: 'by' },
+      ],
+      queries: [{ name: 'state' }],
+    };
+    // Opened with the TemporalWorkflow entity itself.
+    const own = await request(server).get(
+      `${wf}/handlers?entityRef=temporalworkflow:default/ticket-workflow`,
+    );
+    expect(own.status).toBe(200);
+    expect(own.body).toEqual(expected);
+    // Opened with another entity, or from the Workflows page: the entity
+    // that matches the workflow type and task queue.
+    const other = await request(server).get(`${wf}/handlers${withEntity}`);
+    expect(other.body).toEqual(expected);
+    const page = await request(server).get(`${wf}/handlers`);
+    expect(page.body).toEqual(expected);
+  });
+
+  it('leaves out what an entity the caller cannot read describes', async () => {
+    // From the Workflows page (the list permission), without the read
+    // permission on the entity.
+    const { server } = await start({
+      entities: [ticketWorkflowEntity],
+      deny: ['temporal.workflow.read'],
+    });
+    const res = await request(server).get(`${wf}/handlers`);
+    expect(res.status).toBe(200);
+    expect(res.body.updates).toEqual([{ name: 'setPriority' }]);
   });
 
   it('lists the handlers of a closed run, for the Query dialog', async () => {

@@ -92,6 +92,14 @@ temporal:
     allowedUpdates: [setPriority]
 ```
 
+## Forms for signals and updates
+
+A signal or update that the workflow's `TemporalWorkflow` entity describes in
+`spec.messages` with an `inputSchema` gets a form (`@rjsf/core`, styled with
+the plugin's styles) instead of the JSON field; the others get the JSON field
+filled with their `example`. See
+[Workflow controls](../../README.md#workflow-controls).
+
 ## Permissions
 
 Each button is disabled, with the reason as a tooltip, when the user does

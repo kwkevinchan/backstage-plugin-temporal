@@ -55,8 +55,14 @@ export {
   WithReason,
 } from './components/messages/shared';
 export {
+  handlerExampleArgs,
+  JsonMessageArgsField,
   MessageDialog,
   PermissionButton,
+  useUserEntityRef,
   useWorkflowHandlers,
 } from './components/messages/MessageDialog';
-export type { MessageDialogText } from './components/messages/MessageDialog';
+export type {
+  MessageArgsFieldProps,
+  MessageDialogText,
+} from './components/messages/MessageDialog';
