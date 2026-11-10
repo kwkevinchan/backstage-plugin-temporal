@@ -37,6 +37,8 @@ system (`./alpha`).
   `TemporalWorkflowListActionBlueprint` and `TemporalWorkflowSectionBlueprint`
   (`./alpha`), and the `workflowActions`, `workflowListActions` and
   `workflowSections` props for the legacy system.
+- The step graph of the details page can go full screen with its step
+  panel (the page goes full screen; Esc leaves).
 - Step boxes have a pale background by kind (activity, timer, signal and
   update, child workflow, local activity), mixed from the theme tokens; the
   status keeps the left bar and the border.
