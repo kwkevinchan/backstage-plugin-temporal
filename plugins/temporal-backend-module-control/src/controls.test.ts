@@ -30,7 +30,7 @@ import {
   TemporalService,
   temporalServiceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { ScheduleNotFoundError } from '@temporalio/client';
+import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
 import {
@@ -119,6 +119,8 @@ async function start(options?: {
   action?: TemporalControlAction;
   /** Schedules of the fake client. */
   schedules?: { scheduleId: string; workflowType: string; taskQueue: string }[];
+  /** Errors of the schedule handles' methods, by method name. */
+  scheduleErrors?: Record<string, unknown>;
 }) {
   const workflowService = createControlWorkflowService(options?.status);
   const permissions = mockServices.permissions.mock({
@@ -157,6 +159,9 @@ async function start(options?: {
         const found = options?.schedules?.find(s => s.scheduleId === id);
         const handle = {
           describe: jest.fn(async () => {
+            if (options?.scheduleErrors?.describe) {
+              throw options.scheduleErrors.describe;
+            }
             if (!found) throw new ScheduleNotFoundError('not found', id);
             return {
               scheduleId: id,
@@ -168,7 +173,11 @@ async function start(options?: {
               policies: { overlap: 'SKIP' },
             };
           }),
-          pause: jest.fn(async () => undefined),
+          pause: jest.fn(async () => {
+            if (options?.scheduleErrors?.pause) {
+              throw options.scheduleErrors.pause;
+            }
+          }),
           unpause: jest.fn(async () => undefined),
           trigger: jest.fn(async () => undefined),
         };
@@ -430,6 +439,30 @@ describe('workflow controls', () => {
       )
       .send({ workflowType: 'paymentWorkflow' });
     expect(res.status).toBe(400);
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('refuses namespaces that are not in temporal.connection.namespaces', async () => {
+    const { server, workflowService } = await start();
+    const other = '/api/temporal/namespaces/secret/workflows/wf-1';
+    for (const op of ['signal', 'update', 'cancel', 'terminate', 'rerun']) {
+      const res = await request(server)
+        .post(`${other}/${op}${withEntity}`)
+        .send({ name: 'addNote', reason: 'test' });
+      expect([op, res.status]).toEqual([op, 400]);
+    }
+    const started = await request(server).post('/api/temporal/workflows').send({
+      namespace: 'secret',
+      workflowType: 'anyWorkflow',
+      taskQueue: 'jobs',
+    });
+    expect(started.status).toBe(400);
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.updateWorkflowExecution).not.toHaveBeenCalled();
+    expect(
+      workflowService.requestCancelWorkflowExecution,
+    ).not.toHaveBeenCalled();
+    expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
   });
 
@@ -697,6 +730,39 @@ describe('schedule controls', () => {
       .post(path('nightly', 'trigger'))
       .send({ note: 'kept nowhere' })
       .expect(400);
+  });
+
+  it('maps the Temporal errors of the schedule client', async () => {
+    // The schedule client wraps the gRPC error in a ServiceError.
+    const grpc = (code: number) =>
+      new ServiceError('Failed to pause schedule', {
+        cause: Object.assign(new Error(`code ${code}`), {
+          code,
+          details: `code ${code}`,
+        }),
+      });
+    const unavailable = await start({
+      schedules,
+      scheduleErrors: { pause: grpc(14) },
+    });
+    const res = await request(unavailable.server).post(
+      path('nightly', 'pause'),
+    );
+    expect(res.status).toBe(503);
+    expect(unavailable.auditEvent.fail).toHaveBeenCalled();
+    const refused = await start({
+      schedules,
+      scheduleErrors: { describe: grpc(7) },
+    });
+    await request(refused.server).post(path('nightly', 'trigger')).expect(503);
+    expect(
+      refused.scheduleHandles.get('nightly')!.trigger,
+    ).not.toHaveBeenCalled();
+    const conflict = await start({
+      schedules,
+      scheduleErrors: { pause: grpc(9) },
+    });
+    await request(conflict.server).post(path('nightly', 'pause')).expect(409);
   });
 
   it('refuses a schedule of another namespace than the entity', async () => {

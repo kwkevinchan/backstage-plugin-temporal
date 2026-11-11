@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import { mapTemporalError } from './TemporalReadRepository';
 
 const grpc = (code: number) =>
@@ -31,6 +32,28 @@ describe('mapTemporalError', () => {
     expect(() => mapTemporalError(grpc(code))).toThrow(
       expect.objectContaining({ name }),
     );
+  });
+
+  it('reads the gRPC error that the schedule client wraps', async () => {
+    const wrapped = (code: number) =>
+      new ServiceError('Failed to list schedules', {
+        cause: Object.assign(new Error(`code ${code}`), {
+          code,
+          details: 'refused',
+        }),
+      });
+    expect(() => mapTemporalError(wrapped(14))).toThrow(
+      expect.objectContaining({
+        name: 'ServiceUnavailableError',
+        message: expect.stringContaining('Failed to list schedules: refused'),
+      }),
+    );
+    expect(() => mapTemporalError(wrapped(16))).toThrow(
+      expect.objectContaining({ name: 'ServiceUnavailableError' }),
+    );
+    expect(() =>
+      mapTemporalError(new ScheduleNotFoundError('not found', 'nightly')),
+    ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
   });
 
   it('keeps other errors', () => {

@@ -76,7 +76,11 @@ import {
   findReferencePayloads,
   PayloadStore,
 } from '../repositories/PayloadStore';
-import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import {
+  TemporalReadRepository,
+  isScheduleNotFound,
+  mapTemporalError,
+} from '../repositories/TemporalReadRepository';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -368,27 +372,31 @@ export class WorkflowQueries {
     const toCheck: { schedule: TemporalSchedule; queues: string[] }[] = [];
     let truncated = false;
     let read = 0;
-    for await (const summary of client.schedule.list({ pageSize: 100 })) {
-      read += 1;
-      if (read > MAX_SCHEDULES) {
-        truncated = true;
-        break;
+    try {
+      for await (const summary of client.schedule.list({ pageSize: 100 })) {
+        read += 1;
+        if (read > MAX_SCHEDULES) {
+          truncated = true;
+          break;
+        }
+        const schedule = toTemporalSchedule(namespace, summary);
+        if (!filter?.sources) {
+          items.push(schedule);
+          continue;
+        }
+        const type = schedule.workflowType ?? '';
+        const matching = filter.sources.filter(s =>
+          s.workflowTypes.includes(type),
+        );
+        if (matching.length === 0) continue;
+        if (matching.every(s => s.taskQueue)) {
+          toCheck.push({ schedule, queues: matching.map(s => s.taskQueue!) });
+        } else {
+          items.push(schedule);
+        }
       }
-      const schedule = toTemporalSchedule(namespace, summary);
-      if (!filter?.sources) {
-        items.push(schedule);
-        continue;
-      }
-      const type = schedule.workflowType ?? '';
-      const matching = filter.sources.filter(s =>
-        s.workflowTypes.includes(type),
-      );
-      if (matching.length === 0) continue;
-      if (matching.every(s => s.taskQueue)) {
-        toCheck.push({ schedule, queues: matching.map(s => s.taskQueue!) });
-      } else {
-        items.push(schedule);
-      }
+    } catch (error) {
+      mapTemporalError(error);
     }
     // The list has no task queue: describe those schedules, a few at a time.
     for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
@@ -398,7 +406,12 @@ export class WorkflowQueries {
           client.schedule
             .getHandle(schedule.scheduleId)
             .describe()
-            .then(d => d.action.taskQueue as string | undefined),
+            .then(d => d.action.taskQueue as string | undefined)
+            .catch(error => {
+              // Deleted since the list was read: not shown.
+              if (isScheduleNotFound(error)) return undefined;
+              return mapTemporalError(error);
+            }),
         ),
       );
       batch.forEach(({ schedule, queues: allowed }, j) => {

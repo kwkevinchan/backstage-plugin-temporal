@@ -701,7 +701,8 @@ The step panel then shows, for the input and output of each step:
   not configured in Backstage)" with the bucket, key and SHA-256, and no
   error;
 - a payload in another bucket, written by another driver, larger than
-  50 MiB, missing, or not matching its SHA-256: the error.
+  50 MiB (by its reference or by the S3 object itself: the backend asks
+  for no more than that), missing, or not matching its SHA-256: the error.
 
 The backend reads the stored payload itself (the S3 object is a Temporal
 `Payload` message). Payloads that the workers' codec encrypted before they

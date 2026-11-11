@@ -61,9 +61,19 @@ const GRPC_INVALID_ARGUMENT = 3;
 const GRPC_NOT_FOUND = 5;
 const GRPC_UNAVAILABLE = 14;
 
-function mapControlError(error: unknown): never {
-  const code = (error as { code?: unknown })?.code;
+/**
+ * Rethrows a Temporal error as the Backstage error of its HTTP status. The
+ * raw service calls throw the gRPC error itself; the schedule client wraps
+ * it in a `ServiceError` with the gRPC error as `cause`.
+ */
+export function mapControlError(error: unknown): never {
   const message = (error as Error)?.message ?? String(error);
+  if ((error as Error)?.name === 'ScheduleNotFoundError') {
+    throw new NotFoundError(message);
+  }
+  const cause = (error as { cause?: { code?: unknown; details?: unknown } })
+    ?.cause;
+  const code = (error as { code?: unknown })?.code ?? cause?.code;
   if (code === GRPC_ALREADY_EXISTS || code === GRPC_FAILED_PRECONDITION) {
     throw new ConflictError(message);
   }

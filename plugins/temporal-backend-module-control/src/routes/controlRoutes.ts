@@ -53,7 +53,10 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
-import { WorkflowCommands } from '../services/WorkflowCommands';
+import {
+  WorkflowCommands,
+  mapControlError,
+} from '../services/WorkflowCommands';
 import {
   entityRefFromParams,
   entityWorkflowSource,
@@ -588,7 +591,7 @@ export function createControlRouter(
         if ((error as Error)?.name === 'ScheduleNotFoundError') {
           throw new NotFoundError(`No schedule ${scheduleId}`);
         }
-        throw error;
+        return mapControlError(error);
       });
       const action = {
         workflowType: description.action.workflowType,
@@ -613,14 +616,18 @@ export function createControlRouter(
         },
         'medium',
         async () => {
-          if (operation === 'pause') {
-            await handle.pause(note ?? `Paused from Backstage by ${who}`);
-          } else if (operation === 'unpause') {
-            await handle.unpause(note ?? `Resumed from Backstage by ${who}`);
-          } else {
-            // With the schedule's own overlap policy (the SDK's default is
-            // to allow every overlap).
-            await handle.trigger(description.policies?.overlap);
+          try {
+            if (operation === 'pause') {
+              await handle.pause(note ?? `Paused from Backstage by ${who}`);
+            } else if (operation === 'unpause') {
+              await handle.unpause(note ?? `Resumed from Backstage by ${who}`);
+            } else {
+              // With the schedule's own overlap policy (the SDK's default is
+              // to allow every overlap).
+              await handle.trigger(description.policies?.overlap);
+            }
+          } catch (error) {
+            mapControlError(error);
           }
         },
       );
