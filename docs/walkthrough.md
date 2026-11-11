@@ -87,9 +87,9 @@ builds.
    `backstage-example` task queue (successful, failed, running, with retries, a
    timer, a child workflow, loops and so on) and prints their workflow IDs. They
    look like `example-order-<suffix>`; the suffix is the start time in base 36.
-   The command runs a worker while the finished ones complete, waits for the
-   deployment workflow to get a retrying activity, sends one `comment` signal to
-   the approval workflow, and then exits, after a few tens of seconds. The deployment
+   The command runs a worker until the finished ones complete, sends one
+   `comment` signal to the approval workflow, waits for the deployment workflow to
+   get a retrying activity, and then exits, after a few tens of seconds. The deployment
    and approval workflows stay open.
 
 5. Signals, updates, queries and workflows started from Backstage need a worker
@@ -142,7 +142,7 @@ executions**.
 
 1. **The list.** Look at the status (Completed, Failed, Running), the times and the
    progress column: the current step, or the step where it failed (for example
-   `Waiting for approval · times out in 23h 58m`, or `0/1 steps · Failed at
+   `0/1 steps · Waiting for approval · times out in 23h 58m`, or `0/1 steps · Failed at
 chargeCard`). Try the status filter and **Show all runs**; the URL changes with
    them, so the browser's back button returns to the same page.
 2. **A failed run.** Open `example-payment-…`. The header shows the Workflow ID,
@@ -256,8 +256,9 @@ development backend allows everything; see
    **Workflow** field links to the child's own details page.
 3. **Large payloads (optional, needs Docker).** Temporal can store large payloads
    in S3 and keep only a reference in the history. This needs a different
-   configuration for the backend and the worker, so restart them. The commands are
-   the ones in the README's [Development section](../README.md#development):
+   configuration for the backend and the worker, so restart them. The README's
+   [Development section](../README.md#development) starts only the backend with the
+   extra config file; here the app and the backend are restarted together:
 
    1. Stop what is running: the worker from step 1.5 (Ctrl+C) and `yarn start`
       (Ctrl+C; this stops the frontend and the backend). Keep the Temporal
@@ -272,7 +273,8 @@ development backend allows everything; see
    3. Start RustFS:
       `docker compose -f examples/docker-compose.rustfs.yaml up -d`.
    4. Start the app and the backend again, with the extra config file (the paths
-      are relative to `packages/app` and `packages/backend`):
+      are relative to `packages/app` and `packages/backend`). Set
+      `TEMPORAL_UI_URL` again as in step 1.3 if you use **Open in Temporal UI**:
 
       ```sh
       yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
@@ -285,8 +287,9 @@ development backend allows everything; see
       if you want to operate workflows again.
 
    Open `example-report-…` and select `buildReport` and `renderChart`. The output
-   shows **Stored in S3**, the size and the media type: the JSON (1 MB) is shown
-   from S3, and the PNG chart (430 KB) has a **Download** button and a thumbnail.
+   shows **Stored in S3**, the size and the media type: the JSON (1 MB) is larger
+   than the inline limit, so the panel shows a short preview and a **Download**
+   button, and the PNG chart (430 KB) has a **Download** button too.
    The plugin read the objects from S3 and checked their SHA-256. Stop RustFS when
    you are done (`docker compose -f examples/docker-compose.rustfs.yaml down -v`,
    with the variables set).
@@ -370,10 +373,10 @@ the entity's task queue and workflow types, or with the entity in the
 `BackstageEntityRef` search attribute, and, unless **Show all runs** is on, leaves
 out runs that continued as new
 (`ExecutionStatus != 'ContinuedAsNew'`): one row per workflow. The CLI lists every
-run. With a fresh set of example workflows, the second command lists 19 executions;
-`pollWorkflow` (3 runs that continued as new plus the last one) and
-`longRefineWorkflow` (2 plus the last) account for 5 of them, so the plugin shows
-14 until you turn on **Show all runs**.
+run. Each batch of example workflows has five runs that continued as new
+(`pollWorkflow` three, `longRefineWorkflow` two), so until you turn on **Show all
+runs** the CLI lists five more executions per batch than the plugin does. The
+numbers also grow with every batch you started and every ticket you ran.
 
 ## 9. Automated checks and clean-up
 

@@ -58,7 +58,7 @@
    yarn workspace example-worker start
    ```
 
-   它會替 `example-orders` 元件，在 `backstage-example` Task Queue 上啟動一批流程（成功的、失敗的、執行中的、有重試的、有 Timer 的、有子流程的、有迴圈的等等），並印出 workflow ID。ID 長得像 `example-order-<suffix>`，suffix 是啟動時間的 36 進位表示。這個指令在已結束的流程完成之前會跑著一個 Worker，等 deployment 流程出現重試中的 Activity，並對 approval 流程送一個 `comment` Signal，然後在幾十秒後結束。deployment 和 approval 流程則會一直開著。
+   它會替 `example-orders` 元件，在 `backstage-example` Task Queue 上啟動一批流程（成功的、失敗的、執行中的、有重試的、有 Timer 的、有子流程的、有迴圈的等等），並印出 workflow ID。ID 長得像 `example-order-<suffix>`，suffix 是啟動時間的 36 進位表示。這個指令會先跑一個 Worker，直到已結束的流程都完成，再對 approval 流程送一個 `comment` Signal，接著等 deployment 流程出現重試中的 Activity，然後在幾十秒後結束。deployment 和 approval 流程則會一直開著。
 
 5. Signal、Update、Query，以及從 Backstage 啟動的流程，都需要一個持續輪詢的 Worker。在第三個終端機（或第四個）讓它一直跑到你做完為止：
 
@@ -85,7 +85,7 @@
 
 ![元件的 Temporal 分頁：Workflow executions 表格，有狀態、進度、開始時間和花費時間。](../images/entity-tab.png)
 
-1. **清單。** 看狀態（Completed、Failed、Running）、時間，和進度欄：目前在哪一步，或失敗在哪一步（例如 `Waiting for approval · times out in 23h 58m`，或 `0/1 steps · Failed at chargeCard`）。試試狀態篩選和 **Show all runs**；網址會跟著變，所以瀏覽器的上一頁會回到同一頁。
+1. **清單。** 看狀態（Completed、Failed、Running）、時間，和進度欄：目前在哪一步，或失敗在哪一步（例如 `0/1 steps · Waiting for approval · times out in 23h 58m`，或 `0/1 steps · Failed at chargeCard`）。試試狀態篩選和 **Show all runs**；網址會跟著變，所以瀏覽器的上一頁會回到同一頁。
 2. **失敗的執行。** 打開 `example-payment-…`。標頭顯示 Workflow ID、Run ID、狀態和停在哪裡（`Failed at chargeCard`）。**Steps** 流程圖裡失敗的方塊是紅色的；點選它，右邊的面板會顯示失敗類型和訊息（`CardDeclined`、`Card ending 4242 was declined`）、嘗試次數、輸入和輸出。流程本身失敗的原因鏈（`PaymentFailed`，起因是 Activity 失敗，再起因於 `CardDeclined`）在 **Details** 分頁的 **Failure** 底下。
 
    ![失敗執行的詳細頁：標頭、步驟流程圖和顯示錯誤的步驟面板。](../images/details-graph.png)
@@ -126,7 +126,7 @@
 
 1. **Continue-As-New。** 範例 Worker 會啟動 `pollWorkflow`，它會 Continue-As-New 三次。打開它那一列：標頭寫 `Run 4 of 4`，旁邊的 ⓘ 有說明，**← Run 3** 連結會到前一個 Run。前面幾個 Run 的狀態是 **Continued as new**；在清單打開 **Show all runs** 就能看到四筆。
 2. **子流程。** 在 `example-fulfillment-…` 裡，點子流程方塊（`notifyCustomerWorkflow`）：步驟面板會顯示它的輸入和輸出，面板裡的 **Workflow** 欄位連到子流程自己的詳細頁。
-3. **大型 Payload（選用，需要 Docker）。** Temporal 可以把大的 Payload 存在 S3，紀錄裡只留一個參照。這需要為後端和 Worker 換一組設定，所以要重新啟動它們。指令和 README 的 [Development 一節](../../README.md#development)一樣：
+3. **大型 Payload（選用，需要 Docker）。** Temporal 可以把大的 Payload 存在 S3，紀錄裡只留一個參照。這需要為後端和 Worker 換一組設定，所以要重新啟動它們。README 的 [Development 一節](../../README.md#development)只用額外的設定檔啟動後端；這裡是把 app 和後端一起重新啟動：
 
    1. 先停掉正在跑的東西：1.5 的 Worker（Ctrl+C）和 `yarn start`（Ctrl+C；前端和後端都會停）。Temporal 開發用伺服器留著。
    2. 在下面每個終端機都先設好本機 RustFS 的變數：
@@ -137,7 +137,7 @@
       ```
 
    3. 啟動 RustFS：`docker compose -f examples/docker-compose.rustfs.yaml up -d`。
-   4. 用額外的設定檔重新啟動 app 和後端（路徑相對於 `packages/app` 和 `packages/backend`）：
+   4. 用額外的設定檔重新啟動 app 和後端（路徑相對於 `packages/app` 和 `packages/backend`）。如果要用 **Open in Temporal UI**，請像 1.3 一樣再設一次 `TEMPORAL_UI_URL`：
 
       ```sh
       yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
@@ -145,7 +145,7 @@
 
    5. 在另一個終端機，用同樣的變數執行 `yarn workspace example-worker start`。它會建立 bucket，啟動一批新的流程（這次包含 `reportWorkflow`），並把超過 128 KiB 的 Payload 存進 S3。它結束後，如果還想操作流程，再用同樣的變數執行 `yarn workspace example-worker serve`。
 
-   打開 `example-report-…`，選 `buildReport` 和 `renderChart`。輸出會顯示 **Stored in S3**、大小和媒體類型：JSON（1 MB）從 S3 讀回來顯示，PNG 圖表（430 KB）有 **Download** 按鈕和縮圖。外掛從 S3 讀回物件並核對了它們的 SHA-256。做完請停掉 RustFS（設好變數後執行 `docker compose -f examples/docker-compose.rustfs.yaml down -v`）。
+   打開 `example-report-…`，選 `buildReport` 和 `renderChart`。輸出會顯示 **Stored in S3**、大小和媒體類型：JSON（1 MB）超過內嵌顯示的上限，所以面板只顯示一小段預覽和 **Download** 按鈕，PNG 圖表（430 KB）也有 **Download** 按鈕。外掛從 S3 讀回物件並核對了它們的 SHA-256。做完請停掉 RustFS（設好變數後執行 `docker compose -f examples/docker-compose.rustfs.yaml down -v`）。
 
    ![存在 S3 的 Payload，以圖片顯示。](../images/s3-payload.png)
 
@@ -187,7 +187,7 @@ temporal workflow list --query "BackstageEntityRef='component:default/example-or
 temporal workflow show --workflow-id <第 1 步印出的某個 workflow ID>
 ```
 
-`workflow show` 的事件和 **Raw** 事件一一對應。兩份清單的筆數不會完全一樣，這是正常的。外掛向 Temporal 查的是：屬於這個實體的 Task Queue 和流程類型的執行，或在 `BackstageEntityRef` Search Attribute 裡帶著這個實體的執行；而且在沒有打開 **Show all runs** 時，會排除已經 Continue-As-New 的 Run（`ExecutionStatus != 'ContinuedAsNew'`），所以一個流程只有一列。CLI 則列出每一個 Run。用一批新的範例流程時，第二個指令會列出 19 筆；其中 `pollWorkflow`（3 個 Continue-As-New 的 Run 加最後一個）和 `longRefineWorkflow`（2 個加最後一個）占了 5 筆，所以外掛顯示 14 筆，打開 **Show all runs** 才會多出來。
+`workflow show` 的事件和 **Raw** 事件一一對應。兩份清單的筆數不會完全一樣，這是正常的。外掛向 Temporal 查的是：屬於這個實體的 Task Queue 和流程類型的執行，或在 `BackstageEntityRef` Search Attribute 裡帶著這個實體的執行；而且在沒有打開 **Show all runs** 時，會排除已經 Continue-As-New 的 Run（`ExecutionStatus != 'ContinuedAsNew'`），所以一個流程只有一列。CLI 則列出每一個 Run。每一批範例流程有五個 Continue-As-New 的 Run（`pollWorkflow` 三個、`longRefineWorkflow` 兩個），所以在打開 **Show all runs** 之前，CLI 每一批會比外掛多列五筆。實際的筆數還會隨你啟動過幾批、跑過幾張客服單而增加。
 
 ## 9. 自動化檢查與收尾
 

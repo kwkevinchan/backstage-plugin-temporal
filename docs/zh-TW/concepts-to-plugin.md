@@ -13,9 +13,9 @@
 
 詳細頁從 catalog 實體進去：打開實體的 **Temporal** 分頁，裡面列著 **Workflow executions**，點一個 Workflow ID 就到了。
 
-![一個失敗執行的詳細頁截圖，標了六個編號：1 Workflow ID 與 Run ID、2 摘要列、3 操作按鈕、4 Steps 流程圖、5 步驟面板、6 分頁。](images/screen-map.svg)
+![一個失敗執行的詳細頁截圖，標了六個編號：1 Workflow ID 與 Run ID、2 摘要列、3 操作按鈕、4 Steps 流程圖、5 步驟面板、6 流程圖下方的分頁。](images/screen-map.svg)
 
-編號依序標出：Workflow ID（你的業務編號）和 Run ID（每次 Continue-As-New 都換新的）；有狀態和停在哪一步的摘要列；操作；步驟流程圖；有 attempt、error、input、output 的步驟面板；以及分頁：**Steps**（流程圖和步驟表）、**Timeline**、**Events**、**Details**。截圖是一個已結束的執行，所以只有 **Query…** 和 **Rerun**；執行中的流程還有 **Signal…**、**Update…**、**Cancel**、**Terminate**。
+編號依序標出：Workflow ID（你的業務編號）和 Run ID（每次 Continue-As-New 都換新的）；有狀態和停在哪一步的摘要列；操作；步驟流程圖；有 attempt、error、input、output 的步驟面板；以及圖下方的分頁：**Steps**（步驟表）、**Timeline**、**Events**、**Details**。截圖是一個已結束的執行，所以只有 **Query…** 和 **Rerun**；執行中的流程還有 **Signal…**、**Update…**、**Cancel**、**Terminate**。
 
 ## 逐個概念對照
 
@@ -120,13 +120,16 @@ temporal operator search-attribute create --name ApprovalPending --type Bool
 流程開始等待時設成 true，之後清掉：
 
 ```ts
+import { defineSearchAttributeKey } from '@temporalio/common';
 import { condition, upsertSearchAttributes } from '@temporalio/workflow';
+
+const APPROVAL_PENDING = defineSearchAttributeKey('ApprovalPending', 'BOOL');
 
 export async function releaseWorkflow(input: ReleaseInput) {
   // ... 做完簽核之前的工作
-  upsertSearchAttributes({ ApprovalPending: [true] });
+  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: true }]);
   const decided = await condition(() => decision !== undefined, '24 hours');
-  upsertSearchAttributes({ ApprovalPending: [false] });
+  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: false }]);
   // ... 依決定繼續
 }
 ```

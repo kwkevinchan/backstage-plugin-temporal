@@ -18,13 +18,13 @@ permissions and extension APIs are only named here; the
 You reach the details page from a catalog entity: open its **Temporal** tab,
 which lists **Workflow executions**, then select a Workflow ID.
 
-![A screenshot of the details page of a failed run with six numbered callouts: 1 Workflow ID and Run ID, 2 the summary row, 3 the action buttons, 4 the Steps graph, 5 the step panel, 6 the tabs.](images/screen-map.svg)
+![A screenshot of the details page of a failed run with six numbered callouts: 1 Workflow ID and Run ID, 2 the summary row, 3 the action buttons, 4 the Steps graph, 5 the step panel, 6 the tabs below the graph.](images/screen-map.svg)
 
 The numbers mark, in order: the Workflow ID (your business key) and the Run ID
 (new for every Continue-As-New); the summary row with the status and the step
 the run stopped at; the actions; the step graph; the step panel with attempt,
-error, input and output; and the tabs: **Steps** (the graph and a table of the steps), **Timeline**,
-**Events** and **Details**. The screenshot shows a run that has closed, so only
+error, input and output; and the tabs below the graph: **Steps** (a table of the steps),
+**Timeline**, **Events** and **Details**. The screenshot shows a run that has closed, so only
 **Query…** and **Rerun** are offered; a running workflow also has **Signal…**,
 **Update…**, **Cancel** and **Terminate**.
 
@@ -150,13 +150,16 @@ temporal operator search-attribute create --name ApprovalPending --type Bool
 and set it in the workflow when it starts to wait, and clear it afterwards:
 
 ```ts
+import { defineSearchAttributeKey } from '@temporalio/common';
 import { condition, upsertSearchAttributes } from '@temporalio/workflow';
+
+const APPROVAL_PENDING = defineSearchAttributeKey('ApprovalPending', 'BOOL');
 
 export async function releaseWorkflow(input: ReleaseInput) {
   // ... do the work that comes before the approval
-  upsertSearchAttributes({ ApprovalPending: [true] });
+  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: true }]);
   const decided = await condition(() => decision !== undefined, '24 hours');
-  upsertSearchAttributes({ ApprovalPending: [false] });
+  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: false }]);
   // ... continue according to the decision
 }
 ```
