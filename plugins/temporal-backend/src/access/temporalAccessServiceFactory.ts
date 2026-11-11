@@ -51,7 +51,7 @@ export const temporalAccessServiceFactory = createServiceFactory({
     // The access checks only need the workflow's status and search
     // attributes: no enrichers, and no S3 client (a memo stored in External
     // Storage is not resolved here). The routes answer with the plugin's own
-    // WorkflowQueries.
+    // query classes.
     const sources = new EntityWorkflowSources(temporal, logger);
     const queries = new WorkflowQueries(temporal, [], logger, sources);
     return new DefaultTemporalAccessService(

@@ -98,14 +98,10 @@ export class AiWorkflowQueries {
     private readonly temporalReads: TemporalReadRepository,
     private readonly logger: LoggerService,
     private readonly queries: WorkflowQueries,
-    private readonly options: {
-      /** `temporal.experimental.aiWorkflows`: AI loops and LLM steps. */
-      aiWorkflows?: boolean;
-    } = {},
   ) {}
 
   private assertAiWorkflows() {
-    if (!this.options.aiWorkflows) {
+    if (!this.queries.aiWorkflows) {
       throw new NotFoundError(
         'AI loops and LLM steps are not enabled (temporal.experimental.aiWorkflows)',
       );

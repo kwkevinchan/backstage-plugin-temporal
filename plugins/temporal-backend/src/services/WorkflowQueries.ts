@@ -128,12 +128,15 @@ export function llmResultPayloads(events: unknown[]): unknown[] {
 }
 
 /**
- * The read use cases of the plugin for one workflow: details, history,
- * steps, graph, queries and handlers. Callers check permissions first (see
+ * The read use cases of the plugin for one workflow: details, membership of
+ * an entity, history, steps, graph, run position, queries and handlers. Callers check permissions first (see
  * `access/`); this class checks that namespaces are allowed and reads
  * Temporal through {@link TemporalReadRepository}.
  */
 export class WorkflowQueries {
+  /** `temporal.experimental.aiWorkflows`; `AiWorkflowQueries` reads it too. */
+  readonly aiWorkflows: boolean;
+
   constructor(
     private readonly temporal: TemporalService,
     private readonly enrichers: TemporalWorkflowEnricher[],
@@ -143,15 +146,18 @@ export class WorkflowQueries {
     private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
       temporal,
     ),
-    private readonly options: {
+    options: {
       /**
        * `temporal.experimental.aiWorkflows`: AI loops and LLM steps. Without
        * it, graphs and steps carry no loop or model call data.
        */
       aiWorkflows?: boolean;
     } = {},
-  ) {}
+  ) {
+    this.aiWorkflows = options.aiWorkflows === true;
+  }
 
+  /** The conversion options of a namespace; the list queries use them too. */
   convertOptions(namespace: string): ConvertOptions {
     const attributes = this.temporal.getSearchAttributeNames();
     return {
@@ -162,6 +168,7 @@ export class WorkflowQueries {
     };
   }
 
+  /** Runs the enrichers over summaries; the list queries use it too. */
   async enrich<T extends WorkflowSummary>(
     items: T[],
     context: TemporalEntityContext,
@@ -319,7 +326,7 @@ export class WorkflowQueries {
       payloads: true,
     });
     const steps = toWorkflowSteps(events, truncated);
-    if (this.options.aiWorkflows) return steps;
+    if (this.aiWorkflows) return steps;
     return {
       ...steps,
       activities: steps.activities.map(
@@ -370,7 +377,7 @@ export class WorkflowQueries {
       options.maxEvents ?? MAX_STEP_EVENTS,
       {
         payloads: options.includePayloads,
-        llmPayloads: options.llm !== false && this.options.aiWorkflows === true,
+        llmPayloads: options.llm !== false && this.aiWorkflows,
       },
     );
     const graph = buildWorkflowGraph(events, {
@@ -383,9 +390,9 @@ export class WorkflowQueries {
       includePayloads: options.includePayloads,
       failure: workflow.failure,
       memo: workflow.memo,
-      aiWorkflows: this.options.aiWorkflows === true,
+      aiWorkflows: this.aiWorkflows,
     });
-    return this.options.aiWorkflows ? graph : withoutAiData(graph);
+    return this.aiWorkflows ? graph : withoutAiData(graph);
   }
 
   /**
