@@ -35,6 +35,9 @@ import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
+import { AiWorkflowQueries } from './services/AiWorkflowQueries';
+import { EntityWorkflowSources } from './services/EntityWorkflowSources';
+import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';
 
 /**
@@ -83,18 +86,29 @@ export const temporalPlugin = createBackendPlugin({
         // Layers: routes → access (permissions, catalog; shared with the
         // modules through temporalAccessServiceRef) → services (use cases)
         // → repositories (Temporal, S3).
+        const temporalReads = new TemporalReadRepository(temporal);
+        const aiWorkflows =
+          config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
+          false;
+        const sources = new EntityWorkflowSources(temporal, logger);
         const queries = new WorkflowQueries(
           temporal,
           enrichers,
           logger,
+          sources,
           PayloadStore.fromConfig(config, logger),
-          new TemporalReadRepository(temporal),
-          {
-            aiWorkflows:
-              config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
-              false,
-          },
+          temporalReads,
+          { aiWorkflows },
         );
+        const lists = new WorkflowListQueries(
+          temporal,
+          temporalReads,
+          sources,
+          queries,
+        );
+        const ai = new AiWorkflowQueries(temporalReads, logger, queries, {
+          aiWorkflows,
+        });
         // Workflows as a permission resource, for the list permissions.
         // Modules can add more rules (addPermissionRules).
         permissionsRegistry.addResourceType({
@@ -111,7 +125,15 @@ export const temporalPlugin = createBackendPlugin({
           },
         });
         httpRouter.use(
-          await createRouter({ httpAuth, auditor, access, queries }),
+          await createRouter({
+            httpAuth,
+            auditor,
+            access,
+            sources,
+            queries,
+            lists,
+            ai,
+          }),
         );
       },
     });

@@ -80,12 +80,26 @@ want protobufjs 7).
 `plugins/temporal-backend/src` has four folders; a request goes down them in
 order:
 
-| Folder          | Holds                                                                      | In clean-architecture terms |
-| --------------- | -------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Express handlers: parse and validate the request, call access and services | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups      | Authorization               |
-| `services/`     | `WorkflowQueries` and the conversions from Temporal data to API types      | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)          | Gateways                    |
+| Folder          | Holds                                                                            | In clean-architecture terms |
+| --------------- | -------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Express handlers: parse and validate the request, call access and services       | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups            | Authorization               |
+| `services/`     | The four query classes below and the conversions from Temporal data to API types | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)                | Gateways                    |
+
+The query classes in `services/` each cover one kind of read:
+
+| Class                   | Holds                                                                                                     |
+| ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks     |
+| `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list   |
+| `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and handlers |
+| `AiWorkflowQueries`     | The experimental AI views: loops and model call records                                                   |
+
+`EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
+`WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
+class that uses it. The access service uses `EntityWorkflowSources` and
+`WorkflowQueries`; the router uses all four.
 
 The API types (the model) are in `plugins/temporal-common`, and the shared
 Temporal client and extension point in `plugins/temporal-node`. The classes
