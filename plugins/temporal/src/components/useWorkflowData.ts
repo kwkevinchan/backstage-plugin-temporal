@@ -26,6 +26,13 @@ import { temporalApiRef } from '../extensions';
 /** Milliseconds between automatic reloads of a running workflow. */
 export const AUTO_REFRESH_MS = 10_000;
 
+/**
+ * Longest time an automatic reload reuses a step graph, because the graph
+ * also depends on things its key cannot see, such as a payload that failed
+ * to load once.
+ */
+export const GRAPH_MAX_AGE_MS = 60_000;
+
 export interface WorkflowData {
   workflow?: WorkflowDetail;
   graph?: WorkflowGraphResponse;
@@ -43,7 +50,8 @@ export interface WorkflowData {
 /**
  * What the step graph of a run changes with: a new event in its history
  * (the status, search attributes and memo change with one too) and the
- * state of its pending activities, which retry and heartbeat without one.
+ * fields of its pending activities that the graph shows, which change
+ * without an event (a heartbeat is not among them).
  * Undefined when the history length is not known.
  */
 function graphKey(ref: WorkflowRef, workflow: WorkflowDetail) {
@@ -54,7 +62,17 @@ function graphKey(ref: WorkflowRef, workflow: WorkflowDetail) {
     workflow.runId,
     workflow.status,
     workflow.historyLength,
-    workflow.pendingActivities,
+    // Keep in step with the pending activities part of `buildWorkflowGraph`.
+    [...workflow.pendingActivities]
+      .sort((a, b) => a.activityId.localeCompare(b.activityId))
+      .map(a => [
+        a.activityId,
+        a.attempt,
+        a.maximumAttempts,
+        a.lastFailure,
+        a.state,
+        a.lastStartedTime,
+      ]),
   ]);
 }
 
@@ -74,9 +92,10 @@ function usePageVisible(): boolean {
 /**
  * Loads a workflow and its step graph. While the workflow runs,
  * `autoRefresh` is on and the page is shown, the workflow is loaded again
- * every ten seconds, and its graph when it has changed (see `graphKey`):
- * the backend reads the whole history of the run for a graph. A page that
- * was hidden reloads when it is shown again.
+ * every ten seconds, and its graph when it has changed (see `graphKey`) or
+ * is a minute old: the backend reads the whole history of the run for a
+ * graph. An automatic reload does not start while another load is running.
+ * A page that was hidden reloads when it is shown again.
  */
 export function useWorkflowData(
   ref: WorkflowRef,
@@ -91,21 +110,34 @@ export function useWorkflowData(
   const generation = useRef(0);
   // The graph on screen and what it was loaded for.
   const loaded = useRef<
-    { key: string; graph: WorkflowGraphResponse } | undefined
+    { key: string; graph: WorkflowGraphResponse; at: number } | undefined
   >(undefined);
+  // Generations of the loads of the current `ref` that have not ended.
+  const inFlight = useRef(new Set<number>());
 
   // `onlyChanges`: the graph on screen is kept when it has not changed.
   const load = useCallback(
     async (onlyChanges: boolean) => {
+      if (onlyChanges && inFlight.current.size > 0) return;
       const current = ++generation.current;
+      const myLoads = inFlight.current;
+      myLoads.add(current);
       setState(s => ({ ...s, refreshing: true }));
       try {
         const workflow = await temporalApi.getWorkflow(ref, { entityRef });
         const key = graphKey(ref, workflow);
         let graph: WorkflowGraphResponse | undefined;
         let graphError: Error | undefined;
-        if (onlyChanges && key !== undefined && loaded.current?.key === key) {
-          graph = loaded.current.graph;
+        let fetchedAt = Date.now();
+        const cached = loaded.current;
+        if (
+          onlyChanges &&
+          key !== undefined &&
+          cached?.key === key &&
+          Date.now() - cached.at < GRAPH_MAX_AGE_MS
+        ) {
+          graph = cached.graph;
+          fetchedAt = cached.at;
         } else {
           try {
             graph = await temporalApi.getWorkflowGraph(
@@ -116,13 +148,16 @@ export function useWorkflowData(
               },
               { entityRef },
             );
+            fetchedAt = Date.now();
           } catch (e) {
             graphError = e as Error;
           }
         }
         if (current !== generation.current) return;
         loaded.current =
-          graph && key !== undefined ? { key, graph } : undefined;
+          graph && key !== undefined
+            ? { key, graph, at: fetchedAt }
+            : undefined;
         setState({
           workflow,
           graph,
@@ -138,6 +173,8 @@ export function useWorkflowData(
           loading: false,
           refreshing: false,
         }));
+      } finally {
+        myLoads.delete(current);
       }
     },
     [temporalApi, ref, entityRef],
@@ -149,6 +186,7 @@ export function useWorkflowData(
   useEffect(() => {
     setState({ loading: true, refreshing: false });
     loaded.current = undefined;
+    inFlight.current = new Set();
     load(false);
   }, [load]);
 

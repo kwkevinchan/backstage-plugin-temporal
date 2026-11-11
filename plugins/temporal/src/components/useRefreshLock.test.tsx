@@ -15,6 +15,7 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
+import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { REFRESH_LOCK_MS, useRefreshLock } from './useRefreshLock';
 
 describe('useRefreshLock', () => {
@@ -82,5 +83,87 @@ describe('useRefreshLock', () => {
       jest.advanceTimersByTime(REFRESH_LOCK_MS);
     });
     expect(result.current.locked).toBe(false);
+  });
+
+  describe('with useAsyncRetry', () => {
+    function setupLoader() {
+      const resolvers: Array<() => void> = [];
+      const load = jest.fn(
+        () => new Promise<void>(resolve => resolvers.push(resolve)),
+      );
+      const hook = renderHook(() => {
+        const state = useAsyncRetry(load, []);
+        return useRefreshLock(state.retry, state.loading);
+      });
+      const finishAll = async () => {
+        await act(async () => {
+          resolvers.splice(0).forEach(resolve => resolve());
+          await jest.advanceTimersByTimeAsync(0);
+        });
+      };
+      return { load, finishAll, ...hook };
+    }
+
+    async function pass(ms: number) {
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    it('reloads once however often it is pressed, and unlocks after the load and a second', async () => {
+      const { load, finishAll, result } = setupLoader();
+      await finishAll();
+      expect(load).toHaveBeenCalledTimes(1);
+
+      act(() => result.current.refresh());
+      await pass(0);
+      expect(load).toHaveBeenCalledTimes(2);
+      act(() => result.current.refresh());
+      act(() => result.current.refresh());
+      expect(load).toHaveBeenCalledTimes(2);
+
+      await pass(REFRESH_LOCK_MS * 3);
+      expect(result.current.locked).toBe(true);
+
+      await finishAll();
+      expect(result.current.locked).toBe(false);
+
+      act(() => result.current.refresh());
+      await pass(0);
+      expect(load).toHaveBeenCalledTimes(3);
+      await finishAll();
+      await pass(REFRESH_LOCK_MS - 1);
+      expect(result.current.locked).toBe(true);
+      await pass(1);
+      expect(result.current.locked).toBe(false);
+    });
+
+    it('is not left locked when the press came while a load was running', async () => {
+      const { load, finishAll, result } = setupLoader();
+      expect(load).toHaveBeenCalledTimes(1);
+
+      act(() => result.current.refresh());
+      await pass(REFRESH_LOCK_MS);
+      expect(result.current.locked).toBe(true);
+
+      await finishAll();
+      expect(result.current.locked).toBe(false);
+    });
+
+    it('does not update state or keep the timer after unmount', async () => {
+      const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const { finishAll, result, unmount } = setupLoader();
+      await finishAll();
+      act(() => result.current.refresh());
+      await pass(0);
+      expect(jest.getTimerCount()).toBe(1);
+
+      unmount();
+      expect(jest.getTimerCount()).toBe(0);
+      await finishAll();
+      await pass(REFRESH_LOCK_MS * 2);
+      expect(error).not.toHaveBeenCalled();
+      error.mockRestore();
+    });
   });
 });
