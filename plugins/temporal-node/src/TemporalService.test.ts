@@ -16,6 +16,7 @@
 
 import { ConfigReader } from '@backstage/config';
 import * as grpc from '@grpc/grpc-js';
+import { Connection } from '@temporalio/client';
 import {
   DefaultTemporalService,
   readTemporalServiceOptions,
@@ -228,5 +229,56 @@ describe('DefaultTemporalService', () => {
     expect(
       service.getWebUiUrl({ namespace: 'default', workflowId: 'wf' }),
     ).toBe('http://localhost:8080/namespaces/default/workflows/wf');
+  });
+});
+
+describe('connection options', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  async function connectOptions(options: {
+    tls?: boolean;
+    auth?: { type: 'none' } | { type: 'bearer'; token: string };
+  }) {
+    jest.restoreAllMocks();
+    const connect = jest
+      .spyOn(Connection, 'connect')
+      .mockResolvedValue({} as Connection);
+    await new DefaultTemporalService({
+      address: 'temporal.example.com:7233',
+      defaultNamespace: 'default',
+      namespaces: ['default'],
+      searchAttributes: {},
+      ...options,
+    }).getConnection();
+    expect(connect).toHaveBeenCalledTimes(1);
+    return connect.mock.calls[0][0];
+  }
+
+  it('connects without TLS by default, also with a bearer token', async () => {
+    expect(await connectOptions({})).toEqual({
+      address: 'temporal.example.com:7233',
+      tls: false,
+    });
+    // The client would turn TLS on for an API key by itself.
+    expect(
+      await connectOptions({ auth: { type: 'bearer', token: 'test-token' } }),
+    ).toEqual({
+      address: 'temporal.example.com:7233',
+      tls: false,
+      apiKey: 'test-token',
+    });
+  });
+
+  it('connects with TLS when configured', async () => {
+    expect(
+      await connectOptions({
+        tls: true,
+        auth: { type: 'bearer', token: 'test-token' },
+      }),
+    ).toEqual({
+      address: 'temporal.example.com:7233',
+      tls: true,
+      apiKey: 'test-token',
+    });
   });
 });

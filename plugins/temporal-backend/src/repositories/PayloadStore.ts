@@ -401,7 +401,8 @@ export class PayloadStore {
     const problem = this.notReadable(reference);
     if (problem) throw new Error(problem);
     const cached = this.cache.get(reference.sha256);
-    const object = cached ?? (await this.store.get(reference.key));
+    const object =
+      cached ?? (await this.store.get(reference.key, MAX_STORED_BYTES));
     const payload = verifyAndDecode(reference, object);
     // Cached once verified, so the cache holds correct objects only.
     if (!cached) this.cache.set(reference.sha256, object);

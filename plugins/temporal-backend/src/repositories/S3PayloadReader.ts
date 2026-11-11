@@ -76,12 +76,51 @@ export class S3PayloadReader {
     });
   }
 
-  /** Reads the whole object. */
-  async get(key: string): Promise<Uint8Array> {
-    const response = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-    );
+  /**
+   * Reads the whole object. With `maxBytes`, an object larger than that is
+   * refused, whatever size its reference claims: at most `maxBytes + 1`
+   * bytes are asked for.
+   */
+  async get(key: string, maxBytes?: number): Promise<Uint8Array> {
+    const limited = maxBytes !== undefined;
+    const response = await this.client
+      .send(
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          ...(limited ? { Range: `bytes=0-${maxBytes}` } : {}),
+        }),
+      )
+      .catch(error => {
+        // A range from byte 0 is only unsatisfiable for an empty object.
+        if (limited && isInvalidRange(error)) return undefined;
+        throw error;
+      });
+    if (!response) return new Uint8Array();
     if (!response.Body) throw new Error(`S3 object ${key} has no body`);
-    return response.Body.transformToByteArray();
+    const tooLarge = () =>
+      new Error(`S3 object ${key} is larger than ${maxBytes} bytes`);
+    // The whole size: after the slash of `Content-Range`, or the length
+    // when the service sent the whole object.
+    const total = response.ContentRange
+      ? Number(response.ContentRange.split('/')[1])
+      : response.ContentLength;
+    if (limited && total !== undefined && total > maxBytes) {
+      // Not read: closes the connection of the response.
+      (response.Body as { destroy?: () => void }).destroy?.();
+      throw tooLarge();
+    }
+    const data = await response.Body.transformToByteArray();
+    if (limited && data.length > maxBytes) throw tooLarge();
+    return data;
   }
+}
+
+/** S3's answer (416) to a range that the object does not have. */
+function isInvalidRange(error: unknown): boolean {
+  const e = error as {
+    name?: unknown;
+    $metadata?: { httpStatusCode?: unknown };
+  };
+  return e?.name === 'InvalidRange' || e?.$metadata?.httpStatusCode === 416;
 }

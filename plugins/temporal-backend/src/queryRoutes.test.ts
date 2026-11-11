@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
@@ -272,6 +273,49 @@ describe('query routes of the core plugin', () => {
         )
       ).status,
     ).toBe(403);
+  });
+
+  it('maps the Temporal errors of the schedule client', async () => {
+    // The schedule client wraps the gRPC error in a ServiceError.
+    const unreachable = new ServiceError('Failed to list schedules', {
+      cause: Object.assign(new Error('14 UNAVAILABLE'), {
+        code: 14,
+        details: 'connection refused',
+      }),
+    });
+    const down = fakeScheduleClient([]);
+    down.schedule.list = async function* list() {
+      yield* [];
+      throw unreachable;
+    };
+    const { server } = await start({ client: down });
+    const res = await request(server).get('/api/temporal/schedules');
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toContain('connection refused');
+
+    // A schedule deleted between the list and its describe is left out.
+    const client = fakeScheduleClient([
+      scheduleSummary('nightly', 'orderWorkflow'),
+      scheduleSummary('gone', 'orderWorkflow'),
+    ]);
+    const getHandle = client.schedule.getHandle;
+    client.schedule.getHandle = (id: string) => {
+      const handle = getHandle(id);
+      if (id === 'gone') {
+        handle.describe.mockRejectedValue(
+          new ScheduleNotFoundError('not found', id),
+        );
+      }
+      return handle;
+    };
+    const entity = await start({ client });
+    const listed = await request(entity.server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(listed.status).toBe(200);
+    expect(listed.body.items.map((s: any) => s.scheduleId)).toEqual([
+      'nightly',
+    ]);
   });
 
   it('refuses a search attribute filter that is not a name', async () => {

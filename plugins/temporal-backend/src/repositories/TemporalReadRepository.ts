@@ -32,11 +32,49 @@ const GRPC_FAILED_PRECONDITION = 9;
 const GRPC_NOT_FOUND = 5;
 const GRPC_UNAVAILABLE = 14;
 
+/**
+ * The gRPC status code and message of a Temporal error. The raw service
+ * calls throw the gRPC error itself; the client's higher-level APIs (the
+ * schedule client) wrap it in a `ServiceError` with the gRPC error as
+ * `cause`.
+ */
+export function grpcErrorOf(error: unknown): {
+  code: unknown;
+  message: string;
+} {
+  const message = (error as Error)?.message ?? String(error);
+  const own = (error as { code?: unknown })?.code;
+  if (own !== undefined) return { code: own, message };
+  const cause = (error as { cause?: { code?: unknown; details?: unknown } })
+    ?.cause;
+  if (cause?.code === undefined) return { code: undefined, message };
+  const details = typeof cause.details === 'string' ? cause.details : '';
+  return {
+    code: cause.code,
+    message: details ? `${message}: ${details}` : message,
+  };
+}
+
+/** The schedule client's error for a schedule that does not exist. */
+export function isScheduleNotFound(error: unknown): boolean {
+  return (error as Error)?.name === 'ScheduleNotFoundError';
+}
+
+/** The client's error for a namespace that the server does not have. */
+function isNamespaceNotFound(error: unknown): boolean {
+  return (error as Error)?.name === 'NamespaceNotFoundError';
+}
+
 /** Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status. */
 export function mapTemporalError(error: unknown): never {
-  const code = (error as { code?: unknown })?.code;
-  const message = (error as Error)?.message ?? String(error);
-  if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);
+  const { code, message } = grpcErrorOf(error);
+  if (
+    code === GRPC_NOT_FOUND ||
+    isScheduleNotFound(error) ||
+    isNamespaceNotFound(error)
+  ) {
+    throw new NotFoundError(message);
+  }
   if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
   if (code === GRPC_UNAVAILABLE) {
     throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
@@ -52,8 +90,7 @@ export function mapTemporalError(error: unknown): never {
 
 /** Like {@link mapTemporalError}, with the errors of a query. */
 function mapQueryError(error: unknown): never {
-  const code = (error as { code?: unknown })?.code;
-  const message = (error as Error)?.message ?? String(error);
+  const { code, message } = grpcErrorOf(error);
   if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
   if (code === GRPC_DEADLINE_EXCEEDED) {
     throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
