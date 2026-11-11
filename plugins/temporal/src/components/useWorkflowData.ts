@@ -23,8 +23,8 @@ import type {
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '../extensions';
 
-/** Seconds between automatic reloads of a running workflow. */
-export const AUTO_REFRESH_MS = 5000;
+/** Milliseconds between automatic reloads of a running workflow. */
+export const AUTO_REFRESH_MS = 10_000;
 
 export interface WorkflowData {
   workflow?: WorkflowDetail;
@@ -36,12 +36,47 @@ export interface WorkflowData {
   /** True only for the first load; reloads keep the data on screen. */
   loading: boolean;
   refreshing: boolean;
+  /** Loads the workflow and its graph again. */
   reload(): void;
 }
 
 /**
- * Loads a workflow and its step graph. While the workflow runs and
- * `autoRefresh` is on, both are reloaded every five seconds.
+ * What the step graph of a run changes with: a new event in its history
+ * (the status, search attributes and memo change with one too) and the
+ * state of its pending activities, which retry and heartbeat without one.
+ * Undefined when the history length is not known.
+ */
+function graphKey(ref: WorkflowRef, workflow: WorkflowDetail) {
+  if (workflow.historyLength === undefined) return undefined;
+  return JSON.stringify([
+    ref.namespace,
+    workflow.workflowId,
+    workflow.runId,
+    workflow.status,
+    workflow.historyLength,
+    workflow.pendingActivities,
+  ]);
+}
+
+/** True while the page is shown: false in a background tab. */
+function usePageVisible(): boolean {
+  const [visible, setVisible] = useState(
+    () => document.visibilityState !== 'hidden',
+  );
+  useEffect(() => {
+    const onChange = () => setVisible(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return visible;
+}
+
+/**
+ * Loads a workflow and its step graph. While the workflow runs,
+ * `autoRefresh` is on and the page is shown, the workflow is loaded again
+ * every ten seconds, and its graph when it has changed (see `graphKey`):
+ * the backend reads the whole history of the run for a graph. A page that
+ * was hidden reloads when it is shown again.
  */
 export function useWorkflowData(
   ref: WorkflowRef,
@@ -54,58 +89,86 @@ export function useWorkflowData(
     refreshing: false,
   });
   const generation = useRef(0);
+  // The graph on screen and what it was loaded for.
+  const loaded = useRef<
+    { key: string; graph: WorkflowGraphResponse } | undefined
+  >(undefined);
 
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setState(s => ({ ...s, refreshing: true }));
-    try {
-      const workflow = await temporalApi.getWorkflow(ref, { entityRef });
-      let graph: WorkflowGraphResponse | undefined;
-      let graphError: Error | undefined;
+  // `onlyChanges`: the graph on screen is kept when it has not changed.
+  const load = useCallback(
+    async (onlyChanges: boolean) => {
+      const current = ++generation.current;
+      setState(s => ({ ...s, refreshing: true }));
       try {
-        graph = await temporalApi.getWorkflowGraph(
-          {
-            namespace: workflow.namespace,
-            workflowId: workflow.workflowId,
-            runId: workflow.runId,
-          },
-          { entityRef },
-        );
+        const workflow = await temporalApi.getWorkflow(ref, { entityRef });
+        const key = graphKey(ref, workflow);
+        let graph: WorkflowGraphResponse | undefined;
+        let graphError: Error | undefined;
+        if (onlyChanges && key !== undefined && loaded.current?.key === key) {
+          graph = loaded.current.graph;
+        } else {
+          try {
+            graph = await temporalApi.getWorkflowGraph(
+              {
+                namespace: workflow.namespace,
+                workflowId: workflow.workflowId,
+                runId: workflow.runId,
+              },
+              { entityRef },
+            );
+          } catch (e) {
+            graphError = e as Error;
+          }
+        }
+        if (current !== generation.current) return;
+        loaded.current =
+          graph && key !== undefined ? { key, graph } : undefined;
+        setState({
+          workflow,
+          graph,
+          graphError,
+          loading: false,
+          refreshing: false,
+        });
       } catch (e) {
-        graphError = e as Error;
+        if (current !== generation.current) return;
+        setState(s => ({
+          ...s,
+          error: e as Error,
+          loading: false,
+          refreshing: false,
+        }));
       }
-      if (current !== generation.current) return;
-      setState({
-        workflow,
-        graph,
-        graphError,
-        loading: false,
-        refreshing: false,
-      });
-    } catch (e) {
-      if (current !== generation.current) return;
-      setState(s => ({
-        ...s,
-        error: e as Error,
-        loading: false,
-        refreshing: false,
-      }));
-    }
-  }, [temporalApi, ref, entityRef]);
+    },
+    [temporalApi, ref, entityRef],
+  );
+  const reload = useCallback(() => {
+    load(false);
+  }, [load]);
 
   useEffect(() => {
     setState({ loading: true, refreshing: false });
-    load();
+    loaded.current = undefined;
+    load(false);
   }, [load]);
 
   const running = state.workflow?.status === 'Running';
+  const visible = usePageVisible();
+  const wasHidden = useRef(false);
   useEffect(() => {
+    if (!visible) {
+      wasHidden.current = true;
+      return undefined;
+    }
+    const catchUp = wasHidden.current;
+    wasHidden.current = false;
     if (!running || !autoRefresh) return undefined;
+    if (catchUp) load(true);
     const timer = window.setInterval(() => {
-      load();
+      load(true);
     }, AUTO_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [running, autoRefresh, load]);
+  }, [running, autoRefresh, visible, load]);
 
-  return { ...state, reload: load };
+  return { ...state, reload };
 }

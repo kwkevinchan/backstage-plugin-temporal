@@ -67,6 +67,7 @@ import { DefinitionList, StepDrawer } from './StepDrawer';
 import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
 import { WorkflowTimeline } from './timeline/WorkflowTimeline';
+import { useRefreshLock } from './useRefreshLock';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
 import { workflowLink } from './WorkflowList';
@@ -446,6 +447,7 @@ export function WorkflowDetailPage(
   const graphRef = useRef<HTMLDivElement>(null);
   const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
   const { workflow, graph } = data;
+  const refresh = useRefreshLock(data.reload, data.refreshing);
 
   // The list this page was opened from, and links to other runs next to it.
   const rootPath = useResolvedPath(
@@ -603,8 +605,8 @@ export function WorkflowDetailPage(
                 <Button
                   variant="secondary"
                   iconStart={<RiRefreshLine />}
-                  isPending={data.refreshing && !running}
-                  onPress={data.reload}
+                  isPending={refresh.locked || (data.refreshing && !running)}
+                  onPress={refresh.refresh}
                 >
                   Refresh
                 </Button>

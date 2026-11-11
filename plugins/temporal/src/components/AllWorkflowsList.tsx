@@ -35,6 +35,7 @@ import {
 import { useListScroll, useWorkflowListState } from './listState';
 import { AllRunsSwitch, LostPageNotice } from './WorkflowList';
 import { WorkflowListActions } from './WorkflowListActions';
+import { useRefreshLock } from './useRefreshLock';
 
 interface Filters {
   status: WorkflowStatus | '';
@@ -83,6 +84,7 @@ export function AllWorkflowsList(props: {
       }),
     [temporalApi, applied, allRuns, list.pageSize, pageToken],
   );
+  const refresh = useRefreshLock(retry, loading);
   const scrollRef = useListScroll(Boolean(value) && !loading);
 
   const apply = (next: Filters) => {
@@ -139,7 +141,12 @@ export function AllWorkflowsList(props: {
       >
         Search
       </Button>
-      <Button variant="secondary" size="small" onPress={retry}>
+      <Button
+        variant="secondary"
+        size="small"
+        isPending={refresh.locked}
+        onPress={refresh.refresh}
+      >
         Refresh
       </Button>
       <AllRunsSwitch

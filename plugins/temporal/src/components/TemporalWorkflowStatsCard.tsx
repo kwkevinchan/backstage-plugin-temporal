@@ -23,6 +23,7 @@ import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import { ErrorAlert, Loading } from './feedback';
 import { formatMilliseconds } from './format';
 import { PanelCard } from './PanelCard';
+import { useRefreshLock } from './useRefreshLock';
 
 /** Props of the recent runs card. */
 export interface TemporalWorkflowStatsCardProps {
@@ -55,6 +56,7 @@ export function TemporalWorkflowStatsCard(
     () => temporalApi.getEntityWorkflowStats(entityRef, { limit }),
     [temporalApi, entityRef, limit],
   );
+  const refresh = useRefreshLock(retry, loading);
 
   let body;
   if (loading && !value) {
@@ -90,7 +92,12 @@ export function TemporalWorkflowStatsCard(
           : undefined
       }
       actions={
-        <Button variant="secondary" size="small" onPress={retry}>
+        <Button
+          variant="secondary"
+          size="small"
+          isPending={refresh.locked}
+          onPress={refresh.refresh}
+        >
           Refresh
         </Button>
       }

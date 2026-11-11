@@ -31,6 +31,7 @@ import {
 } from './WorkflowRunsTable';
 import { WorkflowListActions } from './WorkflowListActions';
 import { statusLabel } from './WorkflowStatusLabel';
+import { useRefreshLock } from './useRefreshLock';
 
 export { workflowLink } from './WorkflowRunsTable';
 
@@ -88,6 +89,7 @@ export function WorkflowList(props: {
       }),
     [temporalApi, entityRef, status, allRuns, list.pageSize, list.pageToken],
   );
+  const refresh = useRefreshLock(retry, loading);
   const scrollRef = useListScroll(Boolean(value) && !loading);
 
   // A TemporalWorkflow entity lists the runs of its one workflow type.
@@ -114,7 +116,12 @@ export function WorkflowList(props: {
                 list.setFilters({ ...list.filters, status: next })
               }
             />
-            <Button variant="secondary" size="small" onPress={retry}>
+            <Button
+              variant="secondary"
+              size="small"
+              isPending={refresh.locked}
+              onPress={refresh.refresh}
+            >
               Refresh
             </Button>
             <WorkflowListActions
