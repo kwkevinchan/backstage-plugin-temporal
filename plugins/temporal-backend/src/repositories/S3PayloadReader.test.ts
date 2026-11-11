@@ -19,17 +19,24 @@ import { S3PayloadReader } from './S3PayloadReader';
 /** A fake S3 client that answers GetObject with these bytes. */
 function fakeClient(
   object: Uint8Array,
-  options: { ignoreRange?: boolean } = {},
+  options: { ignoreRange?: boolean; chunked?: boolean } = {},
 ) {
   const destroy = jest.fn();
   const send = jest.fn(async (command: any) => {
     const range: string | undefined = command.input.Range;
+    if (range && !options.ignoreRange && object.length === 0) {
+      // What S3 answers for a range of an empty object.
+      throw Object.assign(new Error('The requested range is not satisfiable'), {
+        name: 'InvalidRange',
+        $metadata: { httpStatusCode: 416 },
+      });
+    }
     const match =
       range && !options.ignoreRange && /^bytes=0-(\d+)$/.exec(range);
     const body = match ? object.slice(0, Number(match[1]) + 1) : object;
     return {
       Body: { transformToByteArray: async () => body, destroy },
-      ContentLength: body.length,
+      ...(options.chunked ? {} : { ContentLength: body.length }),
       ...(match
         ? { ContentRange: `bytes 0-${body.length - 1}/${object.length}` }
         : {}),
@@ -65,6 +72,20 @@ describe('S3PayloadReader', () => {
     const client = fakeClient(bytes(11), { ignoreRange: true });
     const reader = new S3PayloadReader({ bucket: 'b', client });
     await expect(reader.get('k', 10)).rejects.toThrow('larger than 10 bytes');
+  });
+
+  it('refuses a larger object sent without a length', async () => {
+    const client = fakeClient(bytes(11), { ignoreRange: true, chunked: true });
+    const reader = new S3PayloadReader({ bucket: 'b', client });
+    await expect(reader.get('k', 10)).rejects.toThrow('larger than 10 bytes');
+  });
+
+  it('reads an empty object, whose range S3 refuses', async () => {
+    const reader = new S3PayloadReader({
+      bucket: 'b',
+      client: fakeClient(bytes(0)),
+    });
+    expect((await reader.get('k', 10)).length).toBe(0);
   });
 
   it('reads the whole object without a limit', async () => {

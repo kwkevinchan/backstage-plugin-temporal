@@ -68,7 +68,8 @@ const GRPC_UNAVAILABLE = 14;
  */
 export function mapControlError(error: unknown): never {
   const message = (error as Error)?.message ?? String(error);
-  if ((error as Error)?.name === 'ScheduleNotFoundError') {
+  const name = (error as Error)?.name;
+  if (name === 'ScheduleNotFoundError' || name === 'NamespaceNotFoundError') {
     throw new NotFoundError(message);
   }
   const cause = (error as { cause?: { code?: unknown; details?: unknown } })

@@ -60,10 +60,19 @@ export function isScheduleNotFound(error: unknown): boolean {
   return (error as Error)?.name === 'ScheduleNotFoundError';
 }
 
+/** The client's error for a namespace that the server does not have. */
+function isNamespaceNotFound(error: unknown): boolean {
+  return (error as Error)?.name === 'NamespaceNotFoundError';
+}
+
 /** Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status. */
 export function mapTemporalError(error: unknown): never {
   const { code, message } = grpcErrorOf(error);
-  if (code === GRPC_NOT_FOUND || isScheduleNotFound(error)) {
+  if (
+    code === GRPC_NOT_FOUND ||
+    isScheduleNotFound(error) ||
+    isNamespaceNotFound(error)
+  ) {
     throw new NotFoundError(message);
   }
   if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);

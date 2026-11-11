@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
+import {
+  NamespaceNotFoundError,
+  ScheduleNotFoundError,
+  ServiceError,
+} from '@temporalio/client';
 import { mapTemporalError } from './TemporalReadRepository';
 
 const grpc = (code: number) =>
@@ -53,6 +57,9 @@ describe('mapTemporalError', () => {
     );
     expect(() =>
       mapTemporalError(new ScheduleNotFoundError('not found', 'nightly')),
+    ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
+    expect(() =>
+      mapTemporalError(new NamespaceNotFoundError('team-a')),
     ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
   });
 
