@@ -342,7 +342,10 @@ The details page of a run shows, from top to bottom:
   step it failed at), the run of the execution chain (`Run 2 of 3`, with
   links to the run before and after and an explanation of continue-as-new),
   workflow type, duration and start time. Running workflows reload every
-  five seconds; the **Auto refresh** switch turns this off.
+  ten seconds while the tab is in front. The step graph is fetched when the
+  run changed (new events, another status or run, or a change in its pending
+  activities; a heartbeat alone does not count) and at least once a minute.
+  The **Auto refresh** switch turns this off.
 - the step graph: one box per step and arrows between them. Colors follow
   the status, running steps pulse, waiting steps are dashed, retried
   activities show their attempt (`×3`), and a child workflow links to its own

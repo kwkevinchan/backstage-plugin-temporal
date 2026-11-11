@@ -29,6 +29,7 @@ import {
   useTemporalWorkflow,
 } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
+import { AUTO_REFRESH_MS } from './useWorkflowData';
 import {
   entity,
   failedWorkflow,
@@ -277,14 +278,14 @@ describe('EntityTemporalContent', () => {
     expect(drawers[0]).toHaveTextContent('Card declined');
   });
 
-  it('reloads a running workflow every five seconds until turned off', async () => {
+  it('reloads a running workflow every ten seconds until turned off', async () => {
     const api = mockTemporalApi();
     api.getWorkflow.mockResolvedValue({ ...failedWorkflow, status: 'Running' });
     const intervals: (() => void)[] = [];
     const setIntervalSpy = jest
       .spyOn(window, 'setInterval')
       .mockImplementation(((fn: () => void, ms: number) => {
-        if (ms === 5000) intervals.push(fn);
+        if (ms === AUTO_REFRESH_MS) intervals.push(fn);
         return intervals.length as any;
       }) as any);
     try {
