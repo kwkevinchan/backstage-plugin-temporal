@@ -24,6 +24,7 @@ import {
   temporalAccessServiceRef,
   temporalWorkflowPermissionResourceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 import { DefaultTemporalAccessService } from './DefaultTemporalAccessService';
 
@@ -50,11 +51,13 @@ export const temporalAccessServiceFactory = createServiceFactory({
     // The access checks only need the workflow's status and search
     // attributes: no enrichers, and no S3 client (a memo stored in External
     // Storage is not resolved here). The routes answer with the plugin's own
-    // WorkflowQueries.
-    const queries = new WorkflowQueries(temporal, [], logger);
+    // query classes.
+    const sources = new EntityWorkflowSources(temporal, logger);
+    const queries = new WorkflowQueries(temporal, [], logger, sources);
     return new DefaultTemporalAccessService(
       permissions,
       catalog,
+      sources,
       queries,
       () =>
         permissionsRegistry.getPermissionRuleset(

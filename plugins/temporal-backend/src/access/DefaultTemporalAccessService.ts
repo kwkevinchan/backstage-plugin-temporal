@@ -60,6 +60,7 @@ import {
   TemporalWorkflowQuery,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { inQuery, isValidEntityRefValue } from '../services/query';
+import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
@@ -130,6 +131,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   constructor(
     private readonly permissions: PermissionsService,
     private readonly catalog: CatalogService,
+    private readonly sources: EntityWorkflowSources,
     private readonly queries: WorkflowQueries,
     /** The rules of `temporal-workflow`, read when a decision needs them. */
     private readonly workflowRules: () => TemporalWorkflowRuleset,
@@ -204,7 +206,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     if (decision.result === AuthorizeResult.DENY) throw new NotAllowedError();
     // After the permission, so a denied caller cannot probe which
     // namespaces are allowed.
-    this.queries.checkNamespace(namespace);
+    this.sources.checkNamespace(namespace);
     if (decision.result !== AuthorizeResult.CONDITIONAL) return undefined;
     // A condition the plugin cannot apply is a policy problem, not a bad
     // request: it allows nothing.
@@ -293,7 +295,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       permission,
       credentials,
     );
-    return this.queries.entityContext(entity, related);
+    return this.sources.entityContext(entity, related);
   }
 
   /**
@@ -309,7 +311,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     },
   ): Promise<TemporalAccessibleWorkflow> {
     const { level, credentials } = options;
-    this.queries.checkNamespace(ref.namespace);
+    this.sources.checkNamespace(ref.namespace);
     const permission =
       level === 'history'
         ? temporalWorkflowHistoryReadPermission
@@ -371,7 +373,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     const sources = entities.flatMap(entity => {
       try {
         const spec = parseTemporalWorkflowSpec(entity);
-        if ((spec.namespace ?? this.queries.defaultNamespace()) !== namespace) {
+        if ((spec.namespace ?? this.sources.defaultNamespace()) !== namespace) {
           return [];
         }
         return [{ ref: stringifyEntityRef(entity), spec }];

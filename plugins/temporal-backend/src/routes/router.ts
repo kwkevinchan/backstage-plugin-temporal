@@ -38,10 +38,15 @@ import {
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
+import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
-  HISTORY_PAGE_SIZE,
   LIST_PAGE_SIZE,
   STATS_LIMIT,
+  WorkflowListQueries,
+} from '../services/WorkflowListQueries';
+import {
+  HISTORY_PAGE_SIZE,
   WorkflowQueries,
 } from '../services/WorkflowQueries';
 import { parseStatus } from '../services/query';
@@ -61,7 +66,10 @@ export interface RouterOptions {
   httpAuth: HttpAuthService;
   auditor: AuditorService;
   access: TemporalAccessService;
+  sources: EntityWorkflowSources;
   queries: WorkflowQueries;
+  lists: WorkflowListQueries;
+  ai: AiWorkflowQueries;
 }
 
 /** A workflow loaded with the read checks of the access service. */
@@ -75,7 +83,8 @@ interface LoadedWorkflow {
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { httpAuth, auditor, access, queries } = options;
+  const { httpAuth, auditor, access, queries, lists, ai } = options;
+  const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
 
@@ -101,7 +110,7 @@ export async function createRouter(
       temporalWorkflowReadPermission,
       credentials,
     );
-    const result = await queries.listEntityWorkflows(context, {
+    const result = await lists.listEntityWorkflows(context, {
       status: parseStatus(req.query.status),
       allRuns: parseFlag(req.query.allRuns, 'allRuns'),
       searchAttribute:
@@ -125,8 +134,8 @@ export async function createRouter(
     }
     const namespace =
       optionalString(req.query.namespace, 'namespace') ||
-      queries.defaultNamespace();
-    res.json(await queries.listSchedules(namespace));
+      entitySources.defaultNamespace();
+    res.json(await lists.listSchedules(namespace));
   });
 
   // Schedules that start the workflow types of an entity.
@@ -137,10 +146,10 @@ export async function createRouter(
       temporalWorkflowReadPermission,
       credentials,
     );
-    const sources = queries.workflowSourcesOf(context);
+    const sources = entitySources.workflowSourcesOf(context);
     res.json(
       sources.length > 0
-        ? await queries.listSchedules(context.namespace, { sources })
+        ? await lists.listSchedules(context.namespace, { sources })
         : { items: [], truncated: false },
     );
   });
@@ -149,13 +158,13 @@ export async function createRouter(
     const credentials = await httpAuth.credentials(req);
     const namespace =
       optionalString(req.query.namespace, 'namespace') ||
-      queries.defaultNamespace();
+      entitySources.defaultNamespace();
     // Undefined, or the visibility query of a conditional decision.
     const permissionQuery = await access.authorizeWorkflowList(
       namespace,
       credentials,
     );
-    const result = await queries.listNamespaceWorkflows(
+    const result = await lists.listNamespaceWorkflows(
       namespace,
       {
         status: parseStatus(req.query.status),
@@ -195,7 +204,7 @@ export async function createRouter(
         credentials,
       );
       const limit = parsePageSize(req.query.limit, STATS_LIMIT, 'limit');
-      res.json(await queries.stats(context, { limit }));
+      res.json(await lists.stats(context, { limit }));
     },
   );
 
@@ -269,7 +278,7 @@ export async function createRouter(
     workflowPaths.map(p => `${p}/loops`),
     async (req, res) => {
       const { workflow } = await loadWorkflow(req, 'read');
-      res.json(await queries.loops(workflow));
+      res.json(await ai.loops(workflow));
     },
   );
 
@@ -281,7 +290,7 @@ export async function createRouter(
       const eventId = req.params.eventId;
       if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
       const { workflow } = await loadWorkflow(req, 'history');
-      res.json(await queries.llmCall(workflow, eventId));
+      res.json(await ai.llmCall(workflow, eventId));
     },
   );
 
@@ -289,7 +298,7 @@ export async function createRouter(
     workflowPaths.map(p => `${p}/progress`),
     async (req, res) => {
       const { workflow } = await loadWorkflow(req, 'read');
-      res.json(await queries.progress(workflow));
+      res.json(await lists.progress(workflow));
     },
   );
 
