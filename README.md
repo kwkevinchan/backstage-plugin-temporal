@@ -1129,7 +1129,12 @@ installed, custom workflow actions with
 `@kwkevinchan/backstage-plugin-temporal-node/alpha`. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
-call with the auditor and passes a Temporal client to `handle`:
+call with the auditor and passes a Temporal client to `handle`. The client
+reaches every workflow of the namespace, with the backend's credentials,
+while the permission was only checked for the workflow of the request: an
+action that signals, starts or changes other workflows must check the
+permissions for those itself (with `TemporalAccessService` from
+`@kwkevinchan/backstage-plugin-temporal-node/alpha`).
 
 ```ts
 temporal.addControlAction({

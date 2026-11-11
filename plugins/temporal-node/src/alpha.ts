@@ -224,7 +224,9 @@ export interface TemporalControlActionContext {
   credentials: BackstageCredentials;
   /**
    * The client the control module changes workflows with (today the shared
-   * connection of `temporalServiceRef`).
+   * connection of `temporalServiceRef`). It reaches every workflow of the
+   * namespace, but the permission was only checked for `workflow`: an action
+   * that changes other workflows must check those itself.
    */
   client: Client;
 }
