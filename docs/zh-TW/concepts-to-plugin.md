@@ -13,9 +13,9 @@
 
 詳細頁從 catalog 實體進去：打開實體的 **Temporal** 分頁，裡面列著 **Workflow executions**，點一個 Workflow ID 就到了。
 
-![一個失敗執行的詳細頁截圖，標了六個編號：1 Workflow ID 與 Run ID、2 摘要列、3 操作按鈕、4 Steps 流程圖、5 步驟面板、6 流程圖下方的分頁。](images/screen-map.svg)
+![一個失敗執行的詳細頁截圖，標了六個編號：1 Workflow ID 與 Run ID、2 摘要列、3 操作按鈕、4 Steps 流程圖、5 步驟面板、6 分頁。](images/screen-map.svg)
 
-編號依序標出：Workflow ID（你的業務編號）和 Run ID（每次 Continue-As-New 都換新的）；有狀態和停在哪一步的摘要列；操作；步驟流程圖；有 attempt、error、input、output 的步驟面板；以及圖下方的分頁（**Timeline**、**Events**、**Details**）。截圖是一個已結束的執行，所以只有 **Query…** 和 **Rerun**；執行中的流程還有 **Signal…**、**Update…**、**Cancel**、**Terminate**。
+編號依序標出：Workflow ID（你的業務編號）和 Run ID（每次 Continue-As-New 都換新的）；有狀態和停在哪一步的摘要列；操作；步驟流程圖；有 attempt、error、input、output 的步驟面板；以及分頁：**Steps**（流程圖和步驟表）、**Timeline**、**Events**、**Details**。截圖是一個已結束的執行，所以只有 **Query…** 和 **Rerun**；執行中的流程還有 **Signal…**、**Update…**、**Cancel**、**Terminate**。
 
 ## 逐個概念對照
 
@@ -39,13 +39,13 @@
 
 ### 步驟
 
-| Temporal 概念          | 外掛裡的對應                                                                                                 | 備註                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Activity               | 流程圖上的方塊，顏色依狀態，嘗試次數標 `×3`；步驟面板；**Steps** 表；**Details** 的 **Pending activities**。 | Temporal 只記錄最後一次嘗試和前一次的失敗。                                               |
-| Timer                  | Timer 方塊和長條；執行中的顯示 "Timer 24h: Timer fires at …"。                                               |                                                                                           |
-| Retry Policy           | 顯示結果：方塊上的嘗試次數、時間軸的 "2 retries" 和等待時間。                                                | 不顯示也不編輯策略，策略寫在你的程式碼裡。                                                |
-| Child Workflow         | 方塊，連到子流程的詳細頁。                                                                                   |                                                                                           |
-| Local Activity、Marker | Local Activity 是一個步驟（名稱像 local activity 的 `MarkerRecorded` 事件）。                                | 其他 Marker（side effect、版本標記）不畫在流程圖上；Events 分頁有 **Show markers** 開關。 |
+| Temporal 概念          | 外掛裡的對應                                                                                                                                                                         | 備註                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity               | 流程圖上的方塊，顏色依狀態，嘗試次數標 `×3`；步驟面板；**Steps** 表；**Details** 的 **Pending activities**。                                                                         | Temporal 只記錄最後一次嘗試和前一次的失敗。                                                                                                       |
+| Timer                  | Timer 方塊（標題 `Timer 24h`，副標題如 `Fires in 23h 59m`）和長條；步驟面板有 **Fires** 欄位。有 `…Pending` 屬性時，等待的 Timer 會顯示 "Waiting for approval" 和 "Times out in …"。 |                                                                                                                                                   |
+| Retry Policy           | 顯示結果：方塊上的嘗試次數、時間軸的 "2 retries" 和等待時間。                                                                                                                        | 不顯示也不編輯策略，策略寫在你的程式碼裡。                                                                                                        |
+| Child Workflow         | 方塊，連到子流程的詳細頁。                                                                                                                                                           |                                                                                                                                                   |
+| Local Activity、Marker | Local Activity 是一個步驟（名稱像 local activity 的 `MarkerRecorded` 事件）。                                                                                                        | 其他 Marker（side effect、版本標記）預設不畫在流程圖上，可以用圖上方的 **Show markers** 開關顯示（預設關閉）；Events 分頁有同樣的開關，預設開啟。 |
 
 ### 紀錄
 
@@ -69,9 +69,9 @@
 
 ### 長流程
 
-| Temporal 概念   | 外掛裡的對應                                                                                | 備註                       |
-| --------------- | ------------------------------------------------------------------------------------------- | -------------------------- |
-| Continue-As-New | 標頭的 `Run 2 of 3` 和說明、前後一段的連結；狀態保留 Temporal 的名稱 **Continued as new**。 | 清單有 **Show all runs**。 |
+| Temporal 概念   | 外掛裡的對應                                                                                           | 備註                       |
+| --------------- | ------------------------------------------------------------------------------------------------------ | -------------------------- |
+| Continue-As-New | 標頭的 `Run 2 of 3` 和說明、前一個和下一個 Run 的連結；狀態保留 Temporal 的名稱 **Continued as new**。 | 清單有 **Show all runs**。 |
 
 ### 搜尋與資料
 
@@ -120,24 +120,18 @@ temporal operator search-attribute create --name ApprovalPending --type Bool
 流程開始等待時設成 true，之後清掉：
 
 ```ts
-import {
-  condition,
-  defineSearchAttributeKey,
-  upsertSearchAttributes,
-} from '@temporalio/workflow';
-
-const APPROVAL_PENDING = defineSearchAttributeKey('ApprovalPending', 'BOOL');
+import { condition, upsertSearchAttributes } from '@temporalio/workflow';
 
 export async function releaseWorkflow(input: ReleaseInput) {
   // ... 做完簽核之前的工作
-  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: true }]);
+  upsertSearchAttributes({ ApprovalPending: [true] });
   const decided = await condition(() => decision !== undefined, '24 hours');
-  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: false }]);
+  upsertSearchAttributes({ ApprovalPending: [false] });
   // ... 依決定繼續
 }
 ```
 
-流程等待時，清單和流程圖就會顯示 "Waiting for approval"。沒有這種屬性的話，執行中而沒有任何開啟步驟的流程會顯示 "Waiting for an external event (signal or update)"。`packages/example-worker/src/workflows.js` 的 `approvalWorkflow` 就是這樣寫的。
+流程等待時，清單和流程圖就會顯示 "Waiting for approval"。沒有這種屬性的話，執行中而沒有任何開啟步驟的流程會顯示 "Waiting for an external event (signal or update)"。範例 Worker 裡，由 client 啟動 `approvalWorkflow` 時就帶上 `ApprovalPending` 為 true（`packages/example-worker/src/index.js`），流程在等待結束時把它清掉（`packages/example-worker/src/workflows.js`）。
 
 ### 權限與稽核
 

@@ -34,8 +34,8 @@ you write the sequence of steps as ordinary code.
 - **Automatic retries.** A call to an external service that fails is retried
   according to a retry policy (interval, number of attempts, errors that are
   not retried). You do not write a retry loop.
-- **Long waits.** `await sleep('3 days')`, or waiting for a person, holds no
-  thread and no memory while it waits. The workflow continues when the time
+- **Long waits.** `await sleep('3 days')`, or waiting for a person, needs no
+  thread or memory held for it while it waits. The workflow continues when the time
   has passed or the message arrives.
 - **Visibility.** Every execution has a complete event history: which step,
   when, with which input and output, and why it failed. The plugin draws this
@@ -167,8 +167,11 @@ work from the Task Queue and does it. Orange dashes are the plugin.
   activity retries without limit, so set a maximum. Screen: `×3` on a box and
   "2 retries" in the timeline; the policy itself is not shown.
 - **Timer.** A `sleep()` or the timeout of a wait, kept by the server; the
-  Worker does nothing while it runs. Screen: Timer boxes, for example
-  "Timer 24h: Timer fires at …".
+  Worker does nothing while it runs. Screen: a box titled `Timer 24h` whose
+  subtitle says when it fires (for example `Fires in 23h 59m`), and a **Fires**
+  field in the step panel. When the timer is the time limit of a wait and a
+  `…Pending` attribute is set, the box reads "Waiting for approval" with "Times
+  out in …".
 
 A retried activity shows as one box. In the timeline its light bar covers the time
 in the queue, the failed attempts and the retry backoff, and its solid bar the
@@ -291,17 +294,24 @@ export async function orderWorkflow(orderId: string) {
 import { NativeConnection, Worker } from '@temporalio/worker';
 import * as activities from './activities';
 
-const connection = await NativeConnection.connect({
-  address: 'localhost:7233',
+async function main() {
+  const connection = await NativeConnection.connect({
+    address: 'localhost:7233',
+  });
+  const worker = await Worker.create({
+    connection,
+    namespace: 'default',
+    taskQueue: 'orders', // the queue this Worker polls
+    workflowsPath: require.resolve('./workflows'),
+    activities,
+  });
+  await worker.run();
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
-const worker = await Worker.create({
-  connection,
-  namespace: 'default',
-  taskQueue: 'orders', // the queue this Worker polls
-  workflowsPath: require.resolve('./workflows'),
-  activities,
-});
-await worker.run();
 ```
 
 **client.ts** (start the workflow, send the Signal)
@@ -310,32 +320,41 @@ await worker.run();
 import { Client, Connection } from '@temporalio/client';
 import { orderWorkflow, approve } from './workflows';
 
-const client = new Client({
-  connection: await Connection.connect({ address: 'localhost:7233' }),
+async function main() {
+  const client = new Client({
+    connection: await Connection.connect({ address: 'localhost:7233' }),
+  });
+  const handle = await client.workflow.start(orderWorkflow, {
+    taskQueue: 'orders',
+    workflowId: 'order-1001', // business key; prevents duplicates
+    args: ['1001'],
+  });
+  await handle.signal(approve, 'manager-a');
+  console.log(await handle.result());
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
-const handle = await client.workflow.start(orderWorkflow, {
-  taskQueue: 'orders',
-  workflowId: 'order-1001', // business key; prevents duplicates
-  args: ['1001'],
-});
-await handle.signal(approve, 'manager-a');
-console.log(await handle.result());
 ```
 
 To try it locally, run `temporal server start-dev` (a development server with
-the Web UI), then the Worker and the Client. The top-level `await` needs ES
-modules, or wrap the code in an async function.
+the Web UI), then the Worker and the Client.
 
 ## What an execution looks like in the event history
 
 When `order-1001` above has run, its history looks roughly like the left side
 of the next figure. The plugin groups the events of each step into one box.
 
-![The event history of order-1001 on the left, with the workflow-task events greyed out, and the plugin's step graph on the right with Start, Timer, Signal, Timer, sendEmail and End boxes; dashed arrows link events to boxes.](images/events-to-steps.svg)
+![The event history of order-1001 on the left, with the workflow-task events greyed out, and the plugin's step graph on the right with Start, a canceled Timer, Signal, Timer, sendEmail and End boxes; dashed arrows link events to boxes.](images/events-to-steps.svg)
 
 Events are numbered in order and only appended. Workflow tasks (grey) are the
 Worker's internal steps of running workflow code; the plugin hides them by
-default. Two events (`TimerStarted`, `TimerFired`) make one Timer box, and
+default. `condition(…, '24 hours')` starts a timer; when the Signal makes the
+condition true, the SDK cancels it (`TimerCanceled`), so the first Timer box is
+marked canceled. Two events (`TimerStarted`, `TimerFired`) make the second Timer
+box, and
 `ActivityTaskScheduled`, `Started` and `Completed` make one activity box, whose
 time the timeline splits into "waiting for a Worker" (scheduled to started) and
 "running" (started to completed). The numbers are illustrative.

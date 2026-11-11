@@ -16,7 +16,7 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages in three layers: frontend packages in the Backstage app, backend packages in the Backstage backend, and two libraries, temporal-common and temporal-node, imported by both. The workflow kit belongs to the workers, outside Backstage.](images/package-map.svg)
+![The packages in three layers: frontend packages in the Backstage app, backend packages in the Backstage backend, and two libraries: temporal-common, imported by both sides, and temporal-node, used only by backend packages. The workflow kit belongs to the workers, outside Backstage.](images/package-map.svg)
 
 All names carry the prefix `@kwkevinchan/backstage-plugin-` (except the workflow
 kit, `@kwkevinchan/temporal-workflow-kit`). Teal is the core, orange the control

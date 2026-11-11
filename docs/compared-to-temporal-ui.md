@@ -15,7 +15,7 @@ screens, which differ between Temporal UI versions.
 
 ## The workflow list
 
-![Two wireframes side by side. Left, the Temporal Web UI Workflows page: a namespace selector, a filter bar over all workflows, a table of status, ID, type and times, batch operations and further pages. Right, the plugin's Temporal tab of an entity: only the entity's workflows with a progress column, plus start, rerun and schedule operations.](images/compare-list.svg)
+![Two wireframes side by side. Left, the Temporal Web UI Workflows page: a namespace selector, a filter bar over all workflows, a table of status, ID, type and times, batch operations and further pages. Right, the plugin's Temporal tab of an entity: only the entity's workflows with a progress column, plus schedule operations; Start workflow is on TemporalWorkflow entities and the Workflows page.](images/compare-list.svg)
 
 Left: the Temporal Web UI lists every workflow of a namespace, with a query bar
 and, around it, the cluster's other areas. Right: the plugin lists the workflows
@@ -37,16 +37,16 @@ history is the same; the plugin groups it into steps.
 What the Temporal Web UI offers depends on its version; see the
 [Temporal documentation](https://docs.temporal.io/web-ui).
 
-|                             | Temporal Web UI                                                                       | This plugin                                                                                                                   |
-| --------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| How you get there           | Pick a namespace and search all workflows                                             | From a Backstage component or `TemporalWorkflow` entity, showing only what belongs to it; a Workflows page shows the rest     |
-| Who may see and do what     | Temporal's namespace permissions                                                      | Backstage permissions, down to "only the component's owners may terminate"; operations are audited and attributed to the user |
-| Main view                   | Event history and timeline                                                            | A step graph; select a box for input and output. Timeline and events are tabs                                                 |
-| Operations                  | Start, signal, cancel, terminate, reset, batch operations, schedules and more         | Start, signal, update, query, cancel, terminate, rerun, and pause, resume or trigger schedules                                |
-| Cluster areas               | Namespaces, task queues, workers, worker versioning, Codec Server, creating schedules | None; use **Open in Temporal UI**                                                                                             |
-| Large data                  | Shows the External Storage reference                                                  | Reads the object from S3 and shows it, a preview or a thumbnail, with a download                                              |
-| AI workflows (experimental) | A long list of activities                                                             | Loops folded into rounds and a panel for each model call                                                                      |
-| Catalog context             | None                                                                                  | Owner, system, dependencies and the catalog graph next to the workflows                                                       |
+|                             | Temporal Web UI                                                                              | This plugin                                                                                                                   |
+| --------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| How you get there           | Pick a namespace and search all workflows                                                    | From a Backstage component or `TemporalWorkflow` entity, showing only what belongs to it; a Workflows page shows the rest     |
+| Who may see and do what     | Temporal's namespace permissions                                                             | Backstage permissions, down to "only the component's owners may terminate"; operations are audited and attributed to the user |
+| Main view                   | Event history and timeline                                                                   | A step graph; select a box for input and output. Timeline and events are tabs                                                 |
+| Operations                  | Start, signal, update, query, cancel, terminate, reset, batch operations, schedules and more | Start, signal, update, query, cancel, terminate, rerun, and pause, resume or trigger schedules                                |
+| Cluster areas               | Namespaces, task queues, workers, worker versioning, Codec Server, creating schedules        | None; use **Open in Temporal UI**                                                                                             |
+| Large data                  | Shows the External Storage reference                                                         | Reads the object from S3 and shows it, a preview or a thumbnail, with a download                                              |
+| AI workflows (experimental) | A long list of activities                                                                    | Loops folded into rounds and a panel for each model call                                                                      |
+| Catalog context             | None                                                                                         | Owner, system, dependencies and the catalog graph next to the workflows                                                       |
 
 ## When to use which
 

@@ -19,7 +19,7 @@
 
 - **耐久執行（durable execution）。** 流程的每一步都記在伺服器上。Worker 當機或重新部署，流程從上次停下的地方接著跑，變數也都還在。
 - **自動重試。** 呼叫外部服務失敗時，依重試策略（間隔、次數、哪些錯誤不重試）自動再試，不用自己寫 retry 迴圈。
-- **長時間等待。** `await sleep('3 days')` 或等人簽核，等待期間不佔執行緒也不佔記憶體；時間到或訊息來了才繼續。
+- **長時間等待。** `await sleep('3 days')` 或等人簽核，等待期間不需要替它佔著執行緒或記憶體；時間到或訊息來了才繼續。
 - **看得到發生什麼。** 每一次執行都有完整的事件紀錄：哪一步、何時、輸入輸出、失敗原因。外掛就是把這份紀錄畫出來。
 
 官方文件：[What is Temporal?](https://docs.temporal.io/temporal)、[Understanding Temporal](https://docs.temporal.io/evaluate/understanding-temporal)、[Retry Policies](https://docs.temporal.io/encyclopedia/retry-policies)、[Workflow Execution](https://docs.temporal.io/workflow-execution)。想邊做邊學，可以上 [learn.temporal.io](https://learn.temporal.io/) 上 Temporal 101（有 TypeScript 版）。
@@ -68,24 +68,24 @@ Task Queue 不用事先建立；第一次有 Worker 或 Client 用到某個名�
 - **Worker。** 你自己的程式，註冊流程和 Activity 的程式碼，並輪詢工作。畫面：沒有；外掛沒有 Worker 清單，只在 Activity 排著沒人拿時顯示 "Waiting for a worker"。
 - **Task Queue。** 伺服器上有名字的排隊區。畫面：清單和詳細頁的 **Task queue** 欄位。
 - **Retry Policy。** Activity 失敗時怎麼重試：第一次間隔、倍數、最多幾次、哪些錯誤不重試。Activity 預設會無限重試，所以要自己設上限。畫面：方塊上的 `×3`、時間軸的 "2 retries"；策略本身不顯示。
-- **Timer。** 流程裡的 `sleep()` 或等待的逾時，由伺服器計時；計時期間 Worker 什麼都不用做。畫面：Timer 方塊，例如 "Timer 24h: Timer fires at …"。
+- **Timer。** 流程裡的 `sleep()` 或等待的逾時，由伺服器計時；計時期間 Worker 什麼都不用做。畫面：標題為 `Timer 24h` 的方塊，副標題寫明何時觸發（例如 `Fires in 23h 59m`），步驟面板有 **Fires** 欄位。如果這個 Timer 是某次等待的時間限制，而且設了 `…Pending` 屬性，方塊會改寫 "Waiting for approval"，副標題是 "Times out in …"。
 
 一個重試過的 Activity 在圖上是一個方塊。在時間軸上，淺色長條涵蓋在佇列裡等待、失敗的嘗試和重試間隔，實心長條是最後執行的那一次嘗試。
 
 ### 紀錄
 
-- **Event History。** 一個 Run 的所有事件，依序編號，只會往後加。它是 Temporal 的真相來源：Worker 重新啟動時，就是重播這份紀錄把流程狀態算回來。流程圖、時間軸和 **Steps** 表都是從它算出來的。畫面：**Events** 分頁。
+- **Event History。** 一個 Run 的所有事件，依序編號，只會往後加。它是 Temporal 判斷流程狀態的唯一依據：Worker 重新啟動時，就是重播這份紀錄把流程狀態算回來。流程圖、時間軸和 **Steps** 表都是從它算出來的。畫面：**Events** 分頁。
 
 ### 和執行中的流程溝通
 
 - **Signal。** 從外面丟一個訊息進流程，不等回覆。流程在 handler 裡接住並改變狀態，會記進事件紀錄。畫面：**Signal…** 按鈕；流程圖上的 Signal 步驟。
 - **Query。** 讀流程目前的狀態，不改任何東西，也不記進事件紀錄。流程結束後也能查，只要有 Worker 在線。畫面：**Query…** 按鈕。
 - **Update。** 像 Signal，但會等流程處理完並回傳結果，而且 validator 可以在記錄之前就拒絕不合法的請求。畫面：**Update…** 按鈕；流程圖上的 Update 步驟（被拒絕的 Update 不在事件紀錄裡，所以不顯示）。
-- **Cancel 與 Terminate。** Cancel 是請流程停下來，流程可以收尾（例如回滾）。Terminate 是直接結束，流程不會執行任何程式碼，而且要填原因。畫面：**Cancel**、**Terminate** 按鈕。外掛另外提供 **Rerun**：用相同的輸入再啟動一次新的執行。這是外掛自己的組合操作，不是 Temporal 的 API。
+- **Cancel 與 Terminate。** Cancel 是請流程停下來，流程可以收尾（例如復原已做的變更）。Terminate 是直接結束，流程不會執行任何程式碼，而且要填原因。畫面：**Cancel**、**Terminate** 按鈕。外掛另外提供 **Rerun**：用相同的輸入再啟動一次新的執行。這是外掛自己的組合操作，不是 Temporal 的 API。
 
 ### 長時間執行的流程
 
-- **Continue-As-New。** 一個 Run 的事件紀錄有大小上限（見 [Event History](https://docs.temporal.io/encyclopedia/event-history)），所以跑很久或迴圈很多次的流程，會接續成新的 Run：同一個 Workflow ID、新的 Run ID、空的紀錄，並帶著狀態。外掛把這些 Run 串起來。畫面：`Run 2 of 3`、前後一段的連結，以及狀態 **Continued as new**。
+- **Continue-As-New。** 一個 Run 的事件紀錄有大小上限（見 [Event History](https://docs.temporal.io/encyclopedia/event-history)），所以跑很久或迴圈很多次的流程，會接續成新的 Run：同一個 Workflow ID、新的 Run ID、空的紀錄，並帶著狀態。外掛把這些 Run 串起來。畫面：`Run 2 of 3`、前一個和下一個 Run 的連結，以及狀態 **Continued as new**。
 - **Child Workflow。** 由另一個流程啟動的流程，有自己的 ID 和紀錄；父流程可以等它的結果。畫面：子流程方塊，連到子流程自己的詳細頁。
 
 ### 找流程、帶資料
@@ -149,17 +149,24 @@ export async function orderWorkflow(orderId: string) {
 import { NativeConnection, Worker } from '@temporalio/worker';
 import * as activities from './activities';
 
-const connection = await NativeConnection.connect({
-  address: 'localhost:7233',
+async function main() {
+  const connection = await NativeConnection.connect({
+    address: 'localhost:7233',
+  });
+  const worker = await Worker.create({
+    connection,
+    namespace: 'default',
+    taskQueue: 'orders', // 這個 Worker 輪詢的佇列
+    workflowsPath: require.resolve('./workflows'),
+    activities,
+  });
+  await worker.run();
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
-const worker = await Worker.create({
-  connection,
-  namespace: 'default',
-  taskQueue: 'orders', // 這個 Worker 輪詢的佇列
-  workflowsPath: require.resolve('./workflows'),
-  activities,
-});
-await worker.run();
 ```
 
 **client.ts**（啟動流程、送 Signal）
@@ -168,27 +175,34 @@ await worker.run();
 import { Client, Connection } from '@temporalio/client';
 import { orderWorkflow, approve } from './workflows';
 
-const client = new Client({
-  connection: await Connection.connect({ address: 'localhost:7233' }),
+async function main() {
+  const client = new Client({
+    connection: await Connection.connect({ address: 'localhost:7233' }),
+  });
+  const handle = await client.workflow.start(orderWorkflow, {
+    taskQueue: 'orders',
+    workflowId: 'order-1001', // 業務編號，防止重複
+    args: ['1001'],
+  });
+  await handle.signal(approve, 'manager-a');
+  console.log(await handle.result());
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
 });
-const handle = await client.workflow.start(orderWorkflow, {
-  taskQueue: 'orders',
-  workflowId: 'order-1001', // 業務編號，防止重複
-  args: ['1001'],
-});
-await handle.signal(approve, 'manager-a');
-console.log(await handle.result());
 ```
 
-想在本機試跑：執行 `temporal server start-dev`（含 Web UI 的開發用伺服器），再分別執行 Worker 和 Client。最上層的 `await` 需要以 ES module 執行，或把程式包進 async 函式。
+想在本機試跑：執行 `temporal server start-dev`（含 Web UI 的開發用伺服器），再分別執行 Worker 和 Client。
 
 ## 一次執行在事件紀錄裡的樣子
 
 上面的 `order-1001` 跑完後，事件紀錄大致像下圖左半邊。外掛把每一步的事件分組，畫成一個方塊。
 
-![左邊是 order-1001 的事件紀錄，其中 Workflow Task 事件是灰色的；右邊是外掛的步驟流程圖，有 Start、Timer、Signal、Timer、sendEmail 和 End 方塊；虛線箭頭把事件連到方塊。](images/events-to-steps.svg)
+![左邊是 order-1001 的事件紀錄，其中 Workflow Task 事件是灰色的；右邊是外掛的步驟流程圖，有 Start、已取消的 Timer、Signal、Timer、sendEmail 和 End 方塊；虛線箭頭把事件連到方塊。](images/events-to-steps.svg)
 
-事件依序編號、只會往後加。Workflow Task（灰色）是 Worker 執行流程程式碼的內部步驟，外掛預設隱藏。兩筆事件（`TimerStarted`、`TimerFired`）合成一個 Timer 方塊；`ActivityTaskScheduled`、`Started`、`Completed` 合成一個 Activity 方塊，時間軸把它的時間分成「等 Worker」（scheduled 到 started）和「執行中」（started 到 completed）。圖上的編號只是示意。
+事件依序編號、只會往後加。Workflow Task（灰色）是 Worker 執行流程程式碼的內部步驟，外掛預設隱藏。`condition(…, '24 hours')` 會啟動一個 Timer；Signal 讓條件成立後，SDK 會把它取消（`TimerCanceled`），所以第一個 Timer 方塊標成已取消。兩筆事件（`TimerStarted`、`TimerFired`）合成第二個 Timer 方塊；`ActivityTaskScheduled`、`Started`、`Completed` 合成一個 Activity 方塊，時間軸把它的時間分成「等 Worker」（scheduled 到 started）和「執行中」（started 到 completed）。圖上的編號只是示意。
 
 Temporal 只記錄 Activity 最後一次嘗試，以及前一次嘗試的失敗。所以外掛能顯示步驟目前是第幾次嘗試和最新的錯誤，但看不到更早每一次重試的細節。
 

@@ -11,7 +11,7 @@
 
 ## 套件
 
-![套件分成三層：Backstage app 的前端套件、Backstage 後端的後端套件，以及兩者都匯入的兩個函式庫 temporal-common 和 temporal-node。workflow kit 屬於 Worker 端，不在 Backstage 內。](images/package-map.svg)
+![套件分成三層：Backstage app 的前端套件、Backstage 後端的後端套件，以及兩個函式庫：前後端都匯入的 temporal-common，和只有後端用的 temporal-node。workflow kit 屬於 Worker 端，不在 Backstage 內。](images/package-map.svg)
 
 所有套件名稱都有 `@kwkevinchan/backstage-plugin-` 前綴（workflow kit 例外，它是 `@kwkevinchan/temporal-workflow-kit`）。青綠色是核心，橘色是會改動流程的 control 模組，紫色是其他選用模組。每個套件的角色表在 [README](../../README.md#packages)，裡面也有[該裝哪些](../../README.md#packages)。
 
@@ -71,12 +71,12 @@ Model（API 型別）在 `temporal-common`，共用的 client 在 `temporal-node
 
 下面是程式碼所依賴的決定，以及理由。
 
-- **核心只讀，寫入放在獨立的模組。** 只想看流程的安裝可以確定後端沒有任何會改動流程的路由。要不要能操作，在安裝時就決定，而不只是政策時才決定。
+- **核心只讀，寫入放在獨立的模組。** 只想看流程的安裝可以確定後端沒有任何會改動流程的路由。要不要能操作，在安裝時就決定，而不是等到寫權限政策時才決定。
 - **授權服務只有一份，共用。** 讀取路徑和操作路徑呼叫同一個 `loadWorkflow()`。模組透過 `temporalAccessServiceRef` 重用它，而不是重寫檢查，所以「誰能看這個流程」只有一個定義。這個 interface 是外掛裡唯一刻意設的契約（見 [CONTRIBUTING.md](../../CONTRIBUTING.md#backend-layout)）。
 - **共用的定義放在共用函式庫。** 前端和後端必須對型別、權限名稱和路徑有一致的看法。`temporal-common` 是唯一的來源；它的測試會用一份 fixture 檢查權限。
 - **外掛沒有資料庫。** Temporal 本來就是記錄系統。外掛每次都向它查詢，只保留小的記憶體快取（已結束 Run 的進度；32 MiB 的已下載 Payload），所以沒有需要搬移或維持一致的資料。
 - **流程屬於哪個實體，靠比對而不是登記。** 實體的流程是：流程類型相同且在它的 Task Queue 上（標註或 `TemporalWorkflow` spec），或在 Search Attribute 裡帶著它的參照。catalog 裡不會為每次執行存任何東西。
-- **一個 `TemporalWorkflow` 實體就是一個 Workflow Type，元件用 `dependsOn` 連過去。** 它的意思就是這個連結的意思（「需要它才能運作」），catalog 圖和 about 卡片本來就會顯示，而且不需要為其他 kind 另外寫 processor（[README](../../README.md#workflow-entities)）。
+- **一個 `TemporalWorkflow` 實體就是一個 Workflow Type，元件用 `dependsOn` 連過去。** `dependsOn` 的語意正好符合這個關係（「需要它才能運作」），catalog 圖和 about 卡片本來就會顯示它，而且不需要為其他 kind 另外寫 processor（[README](../../README.md#workflow-entities)）。
 - **流程是一種權限資源。** `temporal.workflow.list` 和 `temporal.workflow.history.list` 是 `temporal-workflow` 上的資源權限，規則（流程類型、Task Queue、Namespace、啟動者）由後端轉成清單用的 Temporal visibility 查詢。實體權限則留在 catalog 實體上，所以 catalog 的規則（例如 `isEntityOwner`）可以用。
 - **下載走後端，不發 presigned URL。** presigned URL 在到期前，拿到的人都能用，繞過 Backstage 的權限檢查。代價是資料要經過後端，並有大小上限（[Large payloads](../../README.md#large-payloads-external-storage)）。
 - **一般的類別，不事先做抽象。** 沒有 repository interface，也沒有容器：各層就是資料夾，由 `plugin.ts` 把物件互相傳進去。

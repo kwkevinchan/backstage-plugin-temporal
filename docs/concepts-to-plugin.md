@@ -18,13 +18,13 @@ permissions and extension APIs are only named here; the
 You reach the details page from a catalog entity: open its **Temporal** tab,
 which lists **Workflow executions**, then select a Workflow ID.
 
-![A screenshot of the details page of a failed run with six numbered callouts: 1 Workflow ID and Run ID, 2 the summary row, 3 the action buttons, 4 the Steps graph, 5 the step panel, 6 the tabs below the graph.](images/screen-map.svg)
+![A screenshot of the details page of a failed run with six numbered callouts: 1 Workflow ID and Run ID, 2 the summary row, 3 the action buttons, 4 the Steps graph, 5 the step panel, 6 the tabs.](images/screen-map.svg)
 
 The numbers mark, in order: the Workflow ID (your business key) and the Run ID
 (new for every Continue-As-New); the summary row with the status and the step
 the run stopped at; the actions; the step graph; the step panel with attempt,
-error, input and output; and the tabs below the graph (**Timeline**,
-**Events**, **Details**). The screenshot shows a run that has closed, so only
+error, input and output; and the tabs: **Steps** (the graph and a table of the steps), **Timeline**,
+**Events** and **Details**. The screenshot shows a run that has closed, so only
 **Query…** and **Rerun** are offered; a running workflow also has **Signal…**,
 **Update…**, **Cancel** and **Terminate**.
 
@@ -52,13 +52,13 @@ not available.
 
 ### Steps
 
-| Temporal concept       | In the plugin                                                                                                                          | Notes                                                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Activity               | A box in the graph, coloured by status, `×3` for attempts; the step panel; the **Steps** table; **Pending activities** on **Details**. | Only the last attempt and the failure before it are recorded by Temporal.                                              |
-| Timer                  | A Timer box and bar; for a running timer, "Timer 24h: Timer fires at …".                                                               |                                                                                                                        |
-| Retry Policy           | The result: attempts on the box, "2 retries" and the waiting time in the timeline.                                                     | The policy is not shown or edited; it lives in your code.                                                              |
-| Child Workflow         | A box that links to the child's details page.                                                                                          |                                                                                                                        |
-| Local Activity, Marker | A local activity is a step (a `MarkerRecorded` event named like a local activity).                                                     | Other markers (side effects, version markers) are left out of the graph; the Events tab has a **Show markers** switch. |
+| Temporal concept       | In the plugin                                                                                                                                                                                                      | Notes                                                                                                                                                                                     |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Activity               | A box in the graph, coloured by status, `×3` for attempts; the step panel; the **Steps** table; **Pending activities** on **Details**.                                                                             | Only the last attempt and the failure before it are recorded by Temporal.                                                                                                                 |
+| Timer                  | A Timer box (titled `Timer 24h`, subtitle such as `Fires in 23h 59m`) and bar; the step panel has a **Fires** field. With a `…Pending` attribute a wait's timer reads "Waiting for approval" and "Times out in …". |                                                                                                                                                                                           |
+| Retry Policy           | The result: attempts on the box, "2 retries" and the waiting time in the timeline.                                                                                                                                 | The policy is not shown or edited; it lives in your code.                                                                                                                                 |
+| Child Workflow         | A box that links to the child's details page.                                                                                                                                                                      |                                                                                                                                                                                           |
+| Local Activity, Marker | A local activity is a step (a `MarkerRecorded` event named like a local activity).                                                                                                                                 | Other markers (side effects, version markers) are left out of the graph unless you turn on **Show markers** above it (off by default); the Events tab has the same switch, on by default. |
 
 ### The record
 
@@ -150,28 +150,23 @@ temporal operator search-attribute create --name ApprovalPending --type Bool
 and set it in the workflow when it starts to wait, and clear it afterwards:
 
 ```ts
-import {
-  condition,
-  defineSearchAttributeKey,
-  upsertSearchAttributes,
-} from '@temporalio/workflow';
-
-const APPROVAL_PENDING = defineSearchAttributeKey('ApprovalPending', 'BOOL');
+import { condition, upsertSearchAttributes } from '@temporalio/workflow';
 
 export async function releaseWorkflow(input: ReleaseInput) {
   // ... do the work that comes before the approval
-  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: true }]);
+  upsertSearchAttributes({ ApprovalPending: [true] });
   const decided = await condition(() => decision !== undefined, '24 hours');
-  upsertSearchAttributes([{ key: APPROVAL_PENDING, value: false }]);
+  upsertSearchAttributes({ ApprovalPending: [false] });
   // ... continue according to the decision
 }
 ```
 
 The lists and the graph then show "Waiting for approval" while the workflow
 waits. Without such an attribute a running workflow with nothing open shows
-"Waiting for an external event (signal or update)". The workflow in
-`packages/example-worker/src/workflows.js` (`approvalWorkflow`) does exactly
-this.
+"Waiting for an external event (signal or update)". In the example worker,
+the client starts `approvalWorkflow` with `ApprovalPending` set to true
+(`packages/example-worker/src/index.js`) and the workflow clears it when its wait
+ends (`packages/example-worker/src/workflows.js`).
 
 ### Permissions and audit
 

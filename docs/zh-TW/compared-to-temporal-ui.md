@@ -8,7 +8,7 @@
 
 ## 流程清單
 
-![並排的兩張線框圖。左邊是 Temporal Web UI 的 Workflows 頁：Namespace 選擇器、對所有流程的篩選列、狀態、ID、類型和時間的表格、批次操作和其他頁面。右邊是外掛在實體上的 Temporal 分頁：只列出這個實體的流程，有進度欄，並有啟動、Rerun 和 Schedule 操作。](images/compare-list.svg)
+![並排的兩張線框圖。左邊是 Temporal Web UI 的 Workflows 頁：Namespace 選擇器、對所有流程的篩選列、狀態、ID、類型和時間的表格、批次操作和其他頁面。右邊是外掛在實體上的 Temporal 分頁：只列出這個實體的流程，有進度欄，並有 Schedule 操作；Start workflow 在 TemporalWorkflow 實體和 Workflows 頁。](images/compare-list.svg)
 
 左邊：Temporal Web UI 列出一個 Namespace 的所有流程，有查詢列，周圍是叢集的其他區域。右邊：外掛列出屬於目前這個實體的流程，多一個進度欄（目前的步驟，或失敗的步驟），並提供你的政策允許的操作。你有權列出所有流程時，**Workflows** 頁會列出整個 Namespace。
 
@@ -27,7 +27,7 @@ Temporal Web UI 提供哪些功能取決於它的版本，請看 [Temporal 文�
 | 從哪裡進去         | 選一個 Namespace，搜尋所有流程                                                | 從 Backstage 的元件或 `TemporalWorkflow` 實體進去，只看屬於它的；Workflows 頁看其餘的     |
 | 誰能看、誰能做什麼 | 依 Temporal 的 Namespace 權限                                                 | 依 Backstage 權限，可以細到「只有元件的 owner 能 Terminate」；操作會稽核並記在使用者名下  |
 | 主畫面             | 事件紀錄和時間軸                                                              | 步驟流程圖；選一個方塊看輸入和輸出。時間軸和事件是分頁                                    |
-| 操作               | Start、Signal、Cancel、Terminate、Reset、批次操作、Schedule 等                | Start、Signal、Update、Query、Cancel、Terminate、Rerun，以及暫停、恢復、立即執行 Schedule |
+| 操作               | Start、Signal、Update、Query、Cancel、Terminate、Reset、批次操作、Schedule 等 | Start、Signal、Update、Query、Cancel、Terminate、Rerun，以及暫停、恢復、立即執行 Schedule |
 | 叢集區域           | Namespace、Task Queue、Worker、Worker Versioning、Codec Server、建立 Schedule | 沒有；用 **Open in Temporal UI**                                                          |
 | 大型資料           | 顯示 External Storage 的參照                                                  | 從 S3 讀回物件並顯示內容、預覽或縮圖，可下載                                              |
 | AI 流程（實驗性）  | 一長串 Activity                                                               | 迴圈收成一輪一輪，每次模型呼叫有專屬面板                                                  |
