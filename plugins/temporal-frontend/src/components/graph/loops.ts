@@ -66,26 +66,9 @@ export function loopNodeId(name: string): string {
   return `${LOOP_NODE_PREFIX}${name}`;
 }
 
-export function isLoopNodeId(id: string | undefined): boolean {
-  return Boolean(id?.startsWith(LOOP_NODE_PREFIX));
-}
-
 /** ID of the frame of a round. */
 export function roundFrameId(name: string, iteration: number): string {
   return `${loopNodeId(name)}#${iteration}`;
-}
-
-/** The latest round, or the round with `iteration` when there is one. */
-export function shownRound(
-  loop: WorkflowLoopGroup,
-  view?: LoopView,
-): WorkflowLoopRound | undefined {
-  const rounds = loop.rounds;
-  if (view?.iteration !== undefined) {
-    const chosen = rounds.find(r => r.iteration === view.iteration);
-    if (chosen) return chosen;
-  }
-  return rounds[rounds.length - 1];
 }
 
 /**

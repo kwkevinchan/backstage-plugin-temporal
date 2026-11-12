@@ -18,16 +18,15 @@
 // frontend system, and the blueprint of buttons that run custom backend
 // actions. `../alpha` adds them to the plugin and exports them.
 
-import { lazy, Suspense } from 'react';
 import {
   ApiBlueprint,
   createExtensionBlueprint,
   discoveryApiRef,
-  ExtensionBoundary,
   fetchApiRef,
 } from '@backstage/frontend-plugin-api';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
+  lazyComponent,
   TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
   temporalWorkflowActionDataRef,
   TemporalWorkflowActionBlueprint,
@@ -37,12 +36,6 @@ import {
 import { isTemporalWorkflowEntity, WorkflowDetail } from '../common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
 import type { TemporalControlActionButtonOptions } from './ControlActionButton';
-
-const LazyControlActionButton = lazy(() =>
-  import('./ControlActionButton').then(m => ({
-    default: m.ControlActionButton,
-  })),
-);
 
 /**
  * The client of the control routes (`api:temporal/control`).
@@ -135,12 +128,12 @@ export const TemporalControlActionBlueprint = createExtensionBlueprint({
     const { filter, ...action } = params;
     yield temporalWorkflowActionDataRef({
       id: node.spec.id,
-      component: (props: TemporalWorkflowExtensionProps) => (
-        <ExtensionBoundary node={node}>
-          <Suspense fallback={null}>
-            <LazyControlActionButton {...props} action={action} />
-          </Suspense>
-        </ExtensionBoundary>
+      component: lazyComponent<TemporalWorkflowExtensionProps>(node, () =>
+        import('./ControlActionButton').then(
+          m => (props: TemporalWorkflowExtensionProps) => (
+            <m.ControlActionButton {...props} action={action} />
+          ),
+        ),
       ),
       filter,
     });

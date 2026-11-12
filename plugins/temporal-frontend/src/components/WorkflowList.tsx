@@ -17,6 +17,7 @@
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
+import { isTemporalWorkflowEntityRef } from '../common';
 import { TemporalWorkflowListActionDef, temporalApiRef } from '../extensions';
 import { Alert, Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
@@ -32,8 +33,6 @@ import {
 import { WorkflowListActions } from './WorkflowListActions';
 import { statusLabel } from './WorkflowStatusLabel';
 import { useRefreshLock } from './useRefreshLock';
-
-export { workflowLink } from './WorkflowRunsTable';
 
 /**
  * Switch of the workflow lists: off lists only the latest run of a workflow
@@ -93,9 +92,7 @@ export function WorkflowList(props: {
   const scrollRef = useListScroll(Boolean(value) && !loading);
 
   // A TemporalWorkflow entity lists the runs of its one workflow type.
-  const isWorkflowTypeEntity = entityRef
-    .toLocaleLowerCase('en-US')
-    .startsWith('temporalworkflow:');
+  const isWorkflowTypeEntity = isTemporalWorkflowEntityRef(entityRef);
 
   return (
     <div ref={scrollRef}>

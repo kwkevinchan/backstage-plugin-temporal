@@ -42,10 +42,12 @@ the configuration.
 New frontend system (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`):
 the default export is the plugin, with the entity content, the Workflows
 page, the entity cards, the APIs and the buttons of the operations
-(`api:temporal/control`, `temporal-workflow-action:temporal/controls`,
+(`temporal-workflow-action:temporal/controls`,
 `temporal-workflow-list-action:temporal/start` and
-`temporal-schedule-action:temporal/controls`, which can be disabled in
-`app.extensions` like any other extension).
+`temporal-schedule-action:temporal/controls`). To turn the operations off,
+set `temporal.control.enabled: false`; the buttons need the API
+`api:temporal/control`, so do not disable that one. Disable the three button
+extensions in `app.extensions` only to remove individual buttons.
 
 Legacy frontend system:
 

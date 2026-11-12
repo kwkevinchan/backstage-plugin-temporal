@@ -15,7 +15,7 @@
  */
 
 import { act, render, screen } from '@testing-library/react';
-import { useSettledWidth } from './WorkflowGraph';
+import { useSettledWidth } from './GraphCanvas';
 
 describe('useSettledWidth', () => {
   let callback: (() => void) | undefined;

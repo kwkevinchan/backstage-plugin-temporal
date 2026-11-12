@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-import { useMemo } from 'react';
 import type { Entity } from '@backstage/catalog-model';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi, useApiHolder } from '@backstage/core-plugin-api';
+import { useApi } from '@backstage/core-plugin-api';
 import {
   Cell,
   Column,
@@ -34,11 +33,11 @@ import type { TemporalSchedule } from '../common';
 import {
   temporalApiRef,
   TemporalScheduleActionDef,
-  temporalWorkflowExtensionsApiRef,
 } from '../extensions';
 import { ErrorAlert } from './feedback';
 import { formatTime } from './format';
 import { PanelCard } from './PanelCard';
+import { useSharedExtensions } from './useSharedExtensions';
 import { workflowLink } from './WorkflowRunsTable';
 import { useShownScheduleActions } from '../control';
 
@@ -47,21 +46,6 @@ type ColumnDef = {
   title: string;
   cell: (schedule: TemporalSchedule) => React.ReactNode;
 };
-
-/**
- * The schedule actions (such as "Pause") from the props (legacy frontend
- * system) and from the shared workflow extensions API (new frontend
- * system).
- */
-function useScheduleActions(
-  actions: TemporalScheduleActionDef[] | undefined,
-): TemporalScheduleActionDef[] {
-  const shared = useApiHolder().get(temporalWorkflowExtensionsApiRef);
-  return useMemo(() => {
-    const all = [...(actions ?? []), ...(shared?.getScheduleActions() ?? [])];
-    return all.filter((a, i) => all.findIndex(o => o.id === a.id) === i);
-  }, [actions, shared]);
-}
 
 /**
  * The Temporal schedules of an entity (those that start its workflow types)
@@ -82,7 +66,9 @@ export function SchedulesCard(props: {
       entityRef ? api.listEntitySchedules(entityRef) : api.listSchedules(),
     [api, entityRef],
   );
-  const actions = useShownScheduleActions(useScheduleActions(props.actions));
+  const actions = useShownScheduleActions(
+    useSharedExtensions('getScheduleActions', props.actions),
+  );
 
   const status = error as
     | { statusCode?: number; response?: { status?: number } }

@@ -27,6 +27,7 @@ import {
   temporalWorkflowExtensionsApiRef,
 } from '../extensions';
 import { mockTemporalApi, scheduleListResponse } from '../testData';
+import { temporalControlScheduleActions } from '../control';
 import { SchedulesCard } from './SchedulesCard';
 
 const entity: Entity = {
@@ -138,7 +139,7 @@ describe('SchedulesCard with the schedule buttons of the operations', () => {
   async function renderWith(system: 'legacy' | 'new', control: object) {
     const action = operations(
       system === 'legacy'
-        ? 'temporal-schedule-controls'
+        ? temporalControlScheduleActions[0].id
         : 'temporal-schedule-action:temporal/controls',
     );
     await renderInTestApp(

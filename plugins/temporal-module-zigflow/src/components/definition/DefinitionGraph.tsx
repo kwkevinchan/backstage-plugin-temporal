@@ -112,7 +112,7 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
           gap="2"
         >
           {props.toolbar}
-          <ViewButtons layout={layout} selectedId={selectedId} />
+          <ViewButtons />
         </Flex>
         <div
           ref={areaRef}

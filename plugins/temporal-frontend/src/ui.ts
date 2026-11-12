@@ -49,4 +49,3 @@ export {
   useSettledWidth,
   ViewButtons,
 } from './components/graph/GraphCanvas';
-export { JsonView } from './components/PayloadView';
