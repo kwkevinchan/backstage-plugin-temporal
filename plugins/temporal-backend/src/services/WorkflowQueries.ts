@@ -127,6 +127,12 @@ export function llmResultPayloads(events: unknown[]): unknown[] {
   return roots;
 }
 
+/** What `WorkflowQueries.describe` read, by the detail it returned. */
+const described = new WeakMap<
+  WorkflowDetail,
+  { json: any; closeEvent?: any }
+>();
+
 /**
  * The read use cases of the plugin for one workflow: details, membership of
  * an entity, history, steps, graph, run position, queries and handlers. Callers check permissions first (see
@@ -205,12 +211,35 @@ export class WorkflowQueries {
         ...ref,
         runId: detail.runId,
       });
-      return toWorkflowDetail(json, {
+      const closed = toWorkflowDetail(json, {
         ...this.convertOptions(ref.namespace),
         closeEvent,
       });
+      described.set(closed, { json, closeEvent });
+      return closed;
     }
+    described.set(detail, { json });
     return detail;
+  }
+
+  /**
+   * The detail of a workflow that `describe` returned, with the memo
+   * resolved by this instance's `PayloadStore`. It reuses what that
+   * `describe` read from Temporal, so no second request is made; a workflow
+   * that did not come from `describe` (another access service) is
+   * described here.
+   */
+  async withPayloads(
+    workflow: WorkflowDetail,
+    ref: WorkflowRef,
+  ): Promise<WorkflowDetail> {
+    const read = described.get(workflow);
+    if (!read) return this.describe({ ...ref, runId: workflow.runId });
+    await this.payloads.resolve(read.json.workflowExecutionInfo?.memo);
+    return toWorkflowDetail(read.json, {
+      ...this.convertOptions(ref.namespace),
+      closeEvent: read.closeEvent,
+    });
   }
 
   /**
