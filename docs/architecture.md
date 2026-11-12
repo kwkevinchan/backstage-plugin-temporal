@@ -16,43 +16,72 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages in three layers: frontend packages in the Backstage app, backend packages in the Backstage backend, and two libraries: temporal-common, imported by both sides, and temporal-node, used only by backend packages. The workflow kit belongs to the workers, outside Backstage.](images/package-map.svg)
+![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its two modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions. The workflow kit belongs to the workers, outside Backstage.](images/package-map.svg)
 
 All names carry the prefix `@kwkevinchan/backstage-plugin-` (except the workflow
-kit, `@kwkevinchan/temporal-workflow-kit`). Teal is the core, orange the control
-modules that change workflows, purple other optional modules. The
-[README](../README.md#packages) has the table with the role of each package and
-[which ones to install](../README.md#packages).
+kit, `@kwkevinchan/temporal-workflow-kit`). Teal is the core, purple the
+optional modules. The [README](../README.md#packages) has the table with the
+role of each package and [which ones to install](../README.md#packages).
 
-- **Core** (`temporal` and `temporal-backend`): reads only. The frontend has the
-  entity tab, the details page and the Workflows page; the backend serves
-  `/api/temporal` and checks access. Query is part of the core.
-- **Control** (`temporal-module-control` and `temporal-backend-module-control`):
-  Start, Signal, Update, Cancel, Terminate, Rerun, schedule operations and custom
-  actions. Without them the plugin cannot change anything.
-- **Catalog** (`catalog-backend-module-temporal`): the `TemporalWorkflow` kind.
+- **Core, backend** (`temporal-backend`): serves `/api/temporal`, reads and
+  operates workflows, checks access, adds the `TemporalWorkflow` kind to the
+  catalog, and gives other backend code the shared Temporal client
+  (`./node`), the extension points (`./node`, `./alpha`) and the shared
+  definitions (`./common`). One `backend.add()` installs all of it.
+- **Core, frontend** (`temporal-frontend`): the entity tab, the details page,
+  the Workflows page and the buttons of the operations, for both frontend
+  systems. It needs the backend.
+- **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
+  Definition tab. Each one needs the core of its side.
 - **Scaffolder** (`scaffolder-backend-module-temporal`,
   `scaffolder-module-temporal`): template actions and the workflow picker field.
-- **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
-  Definition tab.
-- **Libraries** (`temporal-common`, `temporal-node`): shared code, below.
 - **`temporal-workflow-kit`**: for your Workers, not Backstage. Experimental,
   `private`, not published; it goes with the experimental AI views.
 - **Development only** (never published): `packages/app`, `packages/app-next`,
   `packages/backend` and `packages/example-worker`.
 
-### The two libraries
+What works with what:
 
-A Backstage frontend plugin cannot import a backend plugin, so everything that
-both sides need lives in `temporal-common`: the API types, the permissions, the
-URL paths, the annotation constants and the schema of the `TemporalWorkflow`
-kind. Import it in your permission policies and modules.
+| You install                                                      | What you get                                                                                                                                                                      |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temporal-backend` only                                          | The API (reads, Query, operations unless `temporal.control.enabled` is false), the `TemporalWorkflow` kind, and the shared client and extension points for your own backend code. |
+| `temporal-backend` in a backend without the catalog plugin       | The same without the kind: the backend skips the catalog module and logs one line.                                                                                                |
+| `temporal-frontend` and `temporal-backend`                       | Every page of the plugin in both frontend systems; no Definition tab and no Scaffolder field.                                                                                     |
+| `temporal-frontend` without a reachable `temporal-backend`       | The pages load and show the error of each request (for example `Request failed with 404 Not Found`); nothing works.                                                               |
+| Zigflow frontend module without the Zigflow backend module       | The Definition tab says that the backend serves no workflow definitions.                                                                                                          |
+| Zigflow backend module without `temporal-backend` (same backend) | The backend skips the module; the route does not exist.                                                                                                                           |
+| Scaffolder backend module                                        | The three actions, calling a reachable `temporal-backend` (possibly another backend) as the user. With the operations turned off there, `start` and `signal` fail with a message. |
 
-`temporal-node` is for backend code that works with the plugin: `temporalServiceRef`
-(the shared Temporal client), `temporalExtensionPoint` (workflow enrichers), and,
-in `/alpha`, `temporalAccessServiceRef`, `temporalControlExtensionPoint` and the
-`temporal-workflow` permission resource. Backend modules depend on it instead of
-on `temporal-backend`, so the core's internals can change without breaking them.
+### Why two core packages
+
+The backend is the core: without a frontend, Backstage backend code can still
+call Temporal through it. The frontend always goes with the backend and is
+never installed alone. The `TemporalWorkflow` kind is something the backend
+needs (it reads the entities to decide which workflows belong to them), so it
+comes with the backend. The operations are two halves of one feature, the
+routes and the buttons, so each half lives in the core of its side, behind
+one key (`temporal.control.enabled`). The aim is the least setup to get
+started: one package and one `backend.add()` in the backend, one package in
+the app.
+
+The cost:
+
+- **Modules import a backend plugin package.** Backend modules (yours, and the
+  Zigflow and Scaffolder ones) import the client service and the extension
+  points from `temporal-backend` (`./node`, `./alpha`). Backstage's lint rule
+  `@backstage/no-mixed-plugin-imports` prints a warning for that; it does not
+  fail the lint. Those entry points do not load the plugin itself (a test
+  checks it), but installing a module brings the whole backend package and
+  its dependencies (the AWS SDK for S3, for example).
+- **The shared definitions exist twice.** A frontend plugin cannot import a
+  backend plugin, so `temporal-frontend` carries a copy of the definitions of
+  `temporal-backend/src/common`. The copy is generated (`yarn sync:common`)
+  and checked in CI, and both sides compare permissions, services and
+  extension points by name or ID, so two copies of the objects do not break
+  anything.
+- **Operating is on by default.** The plugin can change workflows as soon as
+  it is installed; who may do so is decided by the permission policy, or the
+  key turns it off (see [Security](../README.md#security)).
 
 ## The layers
 
@@ -68,11 +97,13 @@ and the classes are described in
 | `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
 | `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3).                                                                                              | Gateways                    |
 
-The model (the API types) is in `temporal-common`, and the shared client in
-`temporal-node`. The classes are plain; `plugin.ts` creates and wires them, and
+The model (the API types) is in `src/common`, and the shared client in
+`src/node`. The classes are plain; `plugin.ts` creates and wires them, and
 there is no repository interface and no dependency-injection container inside
-the plugin. The control module has `routes/` and `services/` only:
-`WorkflowCommands` calls Temporal directly.
+the plugin. The routes that change workflows are their own router
+(`routes/controlRoutes.ts`), mounted by `plugin.ts` unless
+`temporal.control.enabled` is false; `WorkflowCommands` calls Temporal
+directly. The experimental AI views are in `services/ai/`.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query
@@ -81,8 +112,10 @@ by `WorkflowListQueries` and `AiWorkflowQueries`; none depends on a class that
 uses it.
 
 On the frontend, `TemporalClient` (the default `temporalApiRef`) reads through the
-backend; the control module adds `temporalControlApiRef` for operations. The
-screens use `@backstage/ui`.
+backend and `TemporalControlClient` (`temporalControlApiRef`) operates. The
+buttons of the operations read `temporal.control.enabled` themselves and
+render nothing when it is false, in both frontend systems. The screens use
+`@backstage/ui`.
 
 ## Extension points
 
@@ -91,16 +124,17 @@ You can extend the plugin without changing it. The usage and examples are in
 
 | You want to                                         | Use                                                                                                                                                                           | Where                                   |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| Add a button to the details page                    | `TemporalWorkflowActionBlueprint` (new frontend system) or `workflowActions` (legacy)                                                                                         | `temporal/alpha`                        |
-| Add a tab to the details page                       | `TemporalWorkflowSectionBlueprint` or `workflowSections`                                                                                                                      | `temporal/alpha`                        |
-| Add a control above the workflow lists              | `TemporalWorkflowListActionBlueprint` or `workflowListActions`                                                                                                                | `temporal/alpha`                        |
-| Call the plugin from another plugin                 | `temporalApiRef`, `temporalControlApiRef`                                                                                                                                     | frontend                                |
-| Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-node/alpha`                   |
-| Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-module-control`               |
-| Add data to workflow summaries                      | `temporalExtensionPoint.addWorkflowEnricher()`                                                                                                                                | `temporal-node`                         |
-| Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-node/alpha`                   |
+| Add a button to the details page                    | `TemporalWorkflowActionBlueprint` (new frontend system) or `workflowActions` (legacy)                                                                                         | `temporal-frontend/alpha`               |
+| Add a tab to the details page                       | `TemporalWorkflowSectionBlueprint` or `workflowSections`                                                                                                                      | `temporal-frontend/alpha`               |
+| Add a control above the workflow lists              | `TemporalWorkflowListActionBlueprint` or `workflowListActions`                                                                                                                | `temporal-frontend/alpha`               |
+| Call the plugin from another plugin                 | `temporalApiRef`, `temporalControlApiRef`                                                                                                                                     | `temporal-frontend`                     |
+| Call Temporal from other backend code               | `temporalServiceRef` (`getClient()`)                                                                                                                                          | `temporal-backend/node`                 |
+| Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                |
+| Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)          |
+| Add data to workflow summaries                      | `temporalExtensionPoint.addWorkflowEnricher()`                                                                                                                                | `temporal-backend/node`                 |
+| Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                |
 | Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                 |
-| Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-node/alpha`                   |
+| Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                |
 | Restrict who may do what                            | A Backstage permission policy using the permissions and conditions of the plugin                                                                                              | [Permissions](../README.md#permissions) |
 
 A custom action receives a Temporal client that can reach every workflow of the
@@ -112,17 +146,21 @@ permissions for those itself; see [Extending](../README.md#extending).
 
 These are decisions the code relies on, with their reasons.
 
-- **Read-only core; writes in separate modules.** An installation that only wants
-  to look at workflows can be sure that the backend has no route that changes
-  them. Operating is opt-in at install time, not just at policy time.
+- **The operations are in the core, behind one key.** `temporal.control.enabled:
+false` removes the routes that change workflows (404, not 403) and their
+  buttons, so an installation that only wants to look at workflows can be
+  sure that the backend has no such route. The extension point for custom
+  actions stays registered, so modules that add actions still start.
 - **One access service, shared.** Read paths and operation paths call the same
   `loadWorkflow()`. Modules reuse it through `temporalAccessServiceRef` instead
   of repeating the checks, so there is one definition of "who may see this
   workflow". The interface is the one deliberate contract in the plugin (see
   [CONTRIBUTING.md](../CONTRIBUTING.md#backend-layout)).
-- **Shared definitions in a common library.** Frontend and backend must agree on
-  types, permission names and paths. `temporal-common` is that single source;
-  its tests check the permissions against a fixture.
+- **Shared definitions: the backend has the original, the frontend a copy.**
+  Frontend and backend must agree on types, permission names and paths.
+  `temporal-backend/src/common` is the single source, tested against a
+  fixture; `temporal-frontend/src/common` is generated from it and checked in
+  CI.
 - **No database in the plugin.** Temporal already is the system of record. The
   plugin queries it each time and keeps only small in-memory caches (progress of
   closed runs; 32 MiB of downloaded payloads), so there is nothing to migrate or
@@ -152,7 +190,9 @@ These are decisions the code relies on, with their reasons.
   ([Compatibility](../README.md#compatibility)).
 - **Optional packages stay out of apps that do not need them.** The Zigflow tab is
   two packages, so apps without Zigflow carry no YAML editor; the AI views are
-  behind a flag and their worker-side kit is not published.
+  behind a flag (their code is in `components/ai/` and `services/ai/`, to
+  move to a package of their own) and their worker-side kit is not
+  published.
 - **Formats written by workers are tested on both sides.** The workflow kit writes
   the loop markers and LLM records, and the backend reads them with its own code;
   both are tested against shared fixtures (`test-fixtures/`).

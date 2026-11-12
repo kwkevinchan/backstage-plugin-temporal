@@ -181,8 +181,9 @@ events to the boxes, you understand
 
 ## 4. Operate running workflows
 
-These steps need the worker from step 1.5 and use the control modules, which the
-development apps install.
+These steps need the worker from step 1.5 and use the operations that change
+workflows, which are on in the development apps (`temporal.control.enabled`
+is not set).
 
 The page of a running workflow reloads every ten seconds while its browser tab is in
 front; the **Auto refresh** switch turns that off. The **Raw** events are the
