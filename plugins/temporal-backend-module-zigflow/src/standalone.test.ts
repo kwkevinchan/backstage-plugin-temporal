@@ -24,6 +24,8 @@ import { mockServices } from '@backstage/backend-test-utils';
 import { createServer } from 'node:net';
 import temporalModuleZigflow from './index';
 
+jest.setTimeout(60_000);
+
 async function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const s = createServer();

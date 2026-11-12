@@ -16,14 +16,14 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { parseLlmMarker, parseLoopMarker } from '../common';
-import { toWorkflowSteps } from './convert';
-import { buildWorkflowGraph } from './graph';
+import { parseLlmMarker, parseLoopMarker } from '../../common';
+import { toWorkflowSteps } from '../convert';
+import { buildWorkflowGraph } from '../graph';
 import { normalizeLlmRecord, summarizeLlmCall } from './llm';
 
 const fixture = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../../test-fixtures/llm-records.json'),
+    resolve(__dirname, '../../../../../test-fixtures/llm-records.json'),
     'utf8',
   ),
 );

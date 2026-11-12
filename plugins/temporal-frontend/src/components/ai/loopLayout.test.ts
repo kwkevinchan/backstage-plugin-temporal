@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { layoutSteps, NODE_HEIGHT, NODE_WIDTH } from './layout';
+import { layoutSteps, NODE_HEIGHT, NODE_WIDTH } from '../graph/layout';
 import {
   FRAME_GAP,
   FRAME_HEADER_HEIGHT,

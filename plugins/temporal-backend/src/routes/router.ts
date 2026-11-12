@@ -38,7 +38,7 @@ import {
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '../node/alpha';
-import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
+import { AiWorkflowQueries } from '../services/ai/AiWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
   LIST_PAGE_SIZE,

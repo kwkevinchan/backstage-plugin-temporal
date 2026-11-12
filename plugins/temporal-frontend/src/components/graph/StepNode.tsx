@@ -38,7 +38,7 @@ import {
   llmStatsText,
   modelText,
   toolName,
-} from '../llm/llmText';
+} from '../ai/llmText';
 import {
   isActiveStatus,
   statusLabel,

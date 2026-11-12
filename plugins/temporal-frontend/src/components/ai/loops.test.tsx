@@ -23,15 +23,15 @@ import {
 } from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { temporalApiRef } from '../extensions';
-import { EntityTemporalContentPage } from './EntityTemporalContent';
-import { focusFrame, groupLoops, isLoopBoxNode } from './graph/loops';
+import { temporalApiRef } from '../../extensions';
+import { EntityTemporalContentPage } from '../EntityTemporalContent';
+import { focusFrame, groupLoops, isLoopBoxNode } from './loops';
 import {
   entity,
   failedWorkflow,
   loopGraphResponse,
   mockTemporalApi,
-} from '../testData';
+} from '../../testData';
 
 const pairs = (edges: { source: string; target: string }[]) =>
   edges.map(e => `${e.source}>${e.target}`);

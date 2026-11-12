@@ -36,7 +36,7 @@ import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
-import { AiWorkflowQueries } from './services/AiWorkflowQueries';
+import { AiWorkflowQueries } from './services/ai/AiWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';

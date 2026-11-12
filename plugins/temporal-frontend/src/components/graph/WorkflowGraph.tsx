@@ -32,7 +32,7 @@ import {
   noteAfterId,
   noteBeforeId,
   placeLoopBlocks,
-} from './loopLayout';
+} from '../ai/loopLayout';
 import {
   flowNodeBase,
   GraphCanvas,
@@ -49,7 +49,7 @@ import {
   LoopNoteNode,
   RoundFrameFlowNode,
   RoundFrameNode,
-} from './LoopNode';
+} from '../ai/LoopNode';
 import {
   focusFrame,
   groupLoops,
@@ -57,8 +57,8 @@ import {
   LoopBox,
   LoopView,
   LoopViews,
-} from './loops';
-import { loopStatusLabel, roundLabel, roundsText } from '../loopText';
+} from '../ai/loops';
+import { loopStatusLabel, roundLabel, roundsText } from '../ai/loopText';
 import { tp } from '../styles';
 
 const nodeTypes = {

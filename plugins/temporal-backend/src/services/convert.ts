@@ -27,7 +27,7 @@ import {
   WorkflowSummary,
   parseLlmMarker,
 } from '../common';
-import { linkLlmSteps, summarizeLlmCall } from './llm';
+import { linkLlmSteps, summarizeLlmCall } from './ai/llm';
 import {
   EXTERNAL_PAYLOAD,
   referenceInfo,

@@ -57,9 +57,9 @@ import {
   useGraphFullscreenState,
 } from './graph/GraphCanvas';
 import { WorkflowGraph } from './graph/WorkflowGraph';
-import { loopOfStep, LoopView, LoopViews } from './graph/loops';
+import { loopOfStep, LoopView, LoopViews } from './ai/loops';
 import { savedListSearch } from './listState';
-import { LoopsTab } from './LoopsTab';
+import { LoopsTab } from './ai/LoopsTab';
 import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
 import { RunHelp } from './RunHelp';

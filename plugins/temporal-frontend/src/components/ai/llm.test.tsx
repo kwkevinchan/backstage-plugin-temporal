@@ -16,19 +16,19 @@
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import { temporalApiRef } from '../extensions';
+import { temporalApiRef } from '../../extensions';
 import {
   failedWorkflow,
   graphResponse,
   llmCallResponse,
   llmGraphResponse,
   mockTemporalApi,
-} from '../testData';
-import { WorkflowGraph } from './graph/WorkflowGraph';
-import { layoutSteps, stepSize, visibleSteps } from './graph/layout';
-import { StepDrawer } from './StepDrawer';
+} from '../../testData';
+import { WorkflowGraph } from '../graph/WorkflowGraph';
+import { layoutSteps, stepSize, visibleSteps } from '../graph/layout';
+import { StepDrawer } from '../StepDrawer';
 import { LoopsTab } from './LoopsTab';
-import { formatCallDuration, formatTokens, llmStatsText } from './llm/llmText';
+import { formatCallDuration, formatTokens, llmStatsText } from './llmText';
 
 const node = (id: string) => llmGraphResponse.nodes.find(n => n.id === id)!;
 const ref = { namespace: 'default', workflowId: 'agent-1', runId: 'run-1' };
