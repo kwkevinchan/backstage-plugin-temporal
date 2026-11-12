@@ -49,7 +49,7 @@ interface HistoryState {
 }
 
 function emptyState(key: string): HistoryState {
-  return { key, events: [], loading: false, done: false };
+  return { key, events: [], loading: true, done: false };
 }
 
 /**

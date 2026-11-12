@@ -447,7 +447,15 @@ export function WorkflowDetailPage(
   const graphRef = useRef<HTMLDivElement>(null);
   const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
   const { workflow, graph } = data;
-  const refresh = useRefreshLock(data.reload, data.refreshing);
+  // The raw events load when they are opened and when the user reloads, not
+  // when the page updates itself.
+  const [historyReload, setHistoryReload] = useState(0);
+  const { reload } = data;
+  const reloadAll = useCallback(() => {
+    reload();
+    setHistoryReload(n => n + 1);
+  }, [reload]);
+  const refresh = useRefreshLock(reloadAll, data.refreshing);
 
   // The list this page was opened from, and links to other runs next to it.
   const rootPath = useResolvedPath(
@@ -540,7 +548,7 @@ export function WorkflowDetailPage(
   const extensionProps = {
     workflow,
     entity,
-    reload: data.reload,
+    reload: reloadAll,
     workflowHref,
   };
   const actions = workflowActions.filter(a => !a.filter || a.filter(workflow));
@@ -755,6 +763,7 @@ export function WorkflowDetailPage(
                     steps={graph.nodes}
                     workflowRef={historyRef}
                     entityRef={entityRef}
+                    reloadKey={historyReload}
                     payloadsHidden={graph.payloadsHidden}
                     onSelect={selectFromTab}
                   />

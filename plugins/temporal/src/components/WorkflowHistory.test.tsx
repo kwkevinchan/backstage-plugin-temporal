@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { act, screen, waitFor } from '@testing-library/react';
+import { Profiler } from 'react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import type {
@@ -72,12 +73,20 @@ function setup() {
     calls.push({ ref, pageToken: options?.pageToken, response });
     return response.promise;
   });
+  // The Load more button as every commit left it.
+  const commits: { disabled: boolean }[] = [];
+  const record = () => {
+    const button = screen.queryByRole('button', { name: /events/ });
+    commits.push({ disabled: button?.hasAttribute('disabled') ?? false });
+  };
   const ui = (ref: WorkflowRef, entityRef?: string) => (
     <TestApiProvider apis={[[temporalApiRef, api]]}>
-      <WorkflowHistory workflowRef={ref} entityRef={entityRef} />
+      <Profiler id="history" onRender={record}>
+        <WorkflowHistory workflowRef={ref} entityRef={entityRef} />
+      </Profiler>
     </TestApiProvider>
   );
-  return { api, calls, ui };
+  return { api, calls, ui, commits };
 }
 
 const loadMore = () => screen.getByRole('button', { name: /Load more events/ });
@@ -171,6 +180,40 @@ describe('WorkflowHistory', () => {
     await act(async () => calls[1].response.resolve(page('A', ['2'])));
     expect(screen.getAllByText('A2')).toHaveLength(1);
     expect(api.getWorkflowHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends one request for presses that come before the next render', async () => {
+    const { api, calls, ui } = setup();
+    await renderInTestApp(ui(runA));
+    await act(async () => calls[0].response.resolve(page('A', ['1'], 'a2')));
+    const button = loadMore();
+
+    act(() => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
+
+    // The first page and one next page.
+    expect(api.getWorkflowHistory).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows loading, not a Load more button to press, until the first page of a workflow is there', async () => {
+    const { calls, ui, commits } = setup();
+    const { rerender } = await renderInTestApp(ui(runA));
+    expect(commits.length).toBeGreaterThan(0);
+    expect(commits.every(c => c.disabled)).toBe(true);
+    await act(async () => calls[0].response.resolve(page('A', ['1'], 'a2')));
+    expect(loadMore()).toBeEnabled();
+
+    commits.length = 0;
+    rerender(ui(runB));
+    // No commit of the new workflow shows a button that can be pressed.
+    expect(commits.length).toBeGreaterThan(0);
+    expect(commits.every(c => c.disabled)).toBe(true);
+    expect(screen.queryByText('A1')).not.toBeInTheDocument();
+    expect(loadMore()).toBeDisabled();
+    await act(async () => calls[1].response.resolve(page('B', ['1'], 'b2')));
+    expect(loadMore()).toBeEnabled();
   });
 
   it('keeps the loaded pages when the next page fails', async () => {

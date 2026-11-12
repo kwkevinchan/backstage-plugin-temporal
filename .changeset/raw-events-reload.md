@@ -4,5 +4,6 @@
 
 For a running workflow, the pages of the Raw event list that you load with
 Load more events no longer disappear when the workflow page updates itself.
-The list starts again from the first page only when you open another
-workflow or run.
+The Raw list loads when you open it and starts again from the first page
+when you press Refresh or finish an action such as a signal; the automatic
+update does not change it.

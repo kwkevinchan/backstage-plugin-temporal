@@ -353,7 +353,9 @@ The details page of a run shows, from top to bottom:
   ten seconds while the tab is in front. The step graph is fetched when the
   run changed (new events, another status or run, or a change in its pending
   activities; a heartbeat alone does not count) and at least once a minute.
-  The **Auto refresh** switch turns this off.
+  The **Auto refresh** switch turns this off. The **Raw** events are the
+  exception: they are loaded when opened and again when you press **Refresh**
+  or finish an action, not by the automatic reload.
 - the step graph: one box per step and arrows between them. Colors follow
   the status, running steps pulse, waiting steps are dashed, retried
   activities show their attempt (`×3`), and a child workflow links to its own
