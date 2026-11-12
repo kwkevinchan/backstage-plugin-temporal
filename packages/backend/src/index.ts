@@ -27,10 +27,6 @@ backend.add(import('@backstage/plugin-auth-backend-module-guest-provider'));
 
 backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
-// The TemporalWorkflow kind.
-backend.add(
-  import('@kwkevinchan/backstage-plugin-catalog-backend-module-temporal'),
-);
 
 backend.add(import('@backstage/plugin-permission-backend'));
 // Development only: every permission is allowed. Temporal permissions are
@@ -39,11 +35,9 @@ backend.add(
   import('@backstage/plugin-permission-backend-module-allow-all-policy'),
 );
 
+// The Temporal plugin, with the operations that change workflows
+// (temporal.control.enabled) and the TemporalWorkflow kind of the catalog.
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
-// Start, signal, update, cancel, terminate, rerun and custom actions.
-backend.add(
-  import('@kwkevinchan/backstage-plugin-temporal-backend-module-control'),
-);
 // Definition files of TemporalWorkflow entities written for Zigflow.
 backend.add(
   import('@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow'),

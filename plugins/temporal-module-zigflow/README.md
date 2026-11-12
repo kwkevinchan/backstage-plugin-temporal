@@ -1,7 +1,7 @@
 # @kwkevinchan/backstage-plugin-temporal-module-zigflow
 
 Unofficial module of the Backstage Temporal plugin
-([`@kwkevinchan/backstage-plugin-temporal`](../temporal/README.md)) with the
+([`@kwkevinchan/backstage-plugin-temporal-frontend`](../temporal-frontend/README.md)) with the
 **Definition** tab for workflows written in the Serverless Workflow DSL and
 run by [Zigflow](https://github.com/zigflow/zigflow). It reads the
 definitions through the backend module
@@ -21,8 +21,11 @@ that [Zigflow](https://github.com/zigflow/zigflow) 0.18 runs on Temporal:
 
 ## Installation
 
-Install the Temporal plugin and the catalog module for the
-`TemporalWorkflow` kind first (see the [main README](../../README.md)).
+Install the Temporal plugin first, the backend plugin (which brings the
+`TemporalWorkflow` kind) and the frontend plugin (see the
+[main README](../../README.md)). Without the backend module below, the tab
+shows "The definition could not be loaded" and says that the backend serves
+no workflow definitions.
 
 Backend:
 
@@ -47,7 +50,7 @@ yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-zigflo
 ```
 
 ```tsx
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
 import temporalZigflowModule from '@kwkevinchan/backstage-plugin-temporal-module-zigflow/alpha';
 
 export default createApp({

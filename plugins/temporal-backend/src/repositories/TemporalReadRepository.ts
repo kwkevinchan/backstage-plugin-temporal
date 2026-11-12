@@ -20,8 +20,8 @@ import {
   NotFoundError,
   ServiceUnavailableError,
 } from '@backstage/errors';
-import type { WorkflowRef } from '@kwkevinchan/backstage-plugin-temporal-common';
-import type { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+import type { WorkflowRef } from '../common';
+import type { TemporalService } from '../node';
 
 /** gRPC status codes used to map Temporal errors to HTTP errors. */
 const GRPC_INVALID_ARGUMENT = 3;

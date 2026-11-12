@@ -22,7 +22,7 @@ import {
   buildWorkflowPath,
   exampleArgs,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import { TemporalPluginClient } from './client';
 
 /** Options of the Temporal template actions. */

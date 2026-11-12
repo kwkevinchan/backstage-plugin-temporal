@@ -58,6 +58,13 @@ const isWebOnlyDep = name =>
 
 const roleOf = workspace => workspace.manifest.backstage?.role;
 
+/**
+ * The plugin ships one backend and one frontend package; every other
+ * published package is a module that builds on the core of its side.
+ */
+const BACKEND_CORE = '@kwkevinchan/backstage-plugin-temporal-backend';
+const FRONTEND_CORE = '@kwkevinchan/backstage-plugin-temporal-frontend';
+
 module.exports = defineConfig({
   async constraints({ Yarn }) {
     const byIdent = new Map(Yarn.workspaces().map(w => [w.ident, w]));
@@ -119,6 +126,31 @@ module.exports = defineConfig({
         dep.error(
           `${dep.ident} is not part of this repository; depending on packages outside it is not allowed`,
         );
+      }
+
+      // Published packages: no private workspaces; the two core packages
+      // depend on no other workspace; a module only on the core of its side.
+      if (isPublished && target && dep.type !== 'devDependencies') {
+        const isCore =
+          workspace.ident === BACKEND_CORE || workspace.ident === FRONTEND_CORE;
+        if (target.manifest.private === true) {
+          dep.error(
+            `Published packages must not depend on the private package ${dep.ident}`,
+          );
+        } else if (isCore) {
+          dep.error(
+            `${workspace.ident} must not depend on other packages of this repository (${dep.ident})`,
+          );
+        } else {
+          const core = BACKEND_ROLES.has(roleOf(workspace))
+            ? BACKEND_CORE
+            : FRONTEND_CORE;
+          if (dep.ident !== core) {
+            dep.error(
+              `${workspace.ident} may only depend on ${core} of this repository, not ${dep.ident}`,
+            );
+          }
+        }
       }
 
       // Published packages must not use local or git protocols.

@@ -1,9 +1,15 @@
-# The Plugins Folder
+# Packages
 
-This is where your own plugins and their associated modules live, each in a
-separate folder of its own.
+| Folder                                                                     | Package                                                            | Runs in           |
+| -------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------- |
+| [`temporal-backend`](temporal-backend)                                     | `@kwkevinchan/backstage-plugin-temporal-backend`                   | Backstage backend |
+| [`temporal-frontend`](temporal-frontend)                                   | `@kwkevinchan/backstage-plugin-temporal-frontend`                  | Backstage app     |
+| [`temporal-backend-module-zigflow`](temporal-backend-module-zigflow)       | `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`    | Backstage backend |
+| [`temporal-module-zigflow`](temporal-module-zigflow)                       | `@kwkevinchan/backstage-plugin-temporal-module-zigflow`            | Backstage app     |
+| [`scaffolder-backend-module-temporal`](scaffolder-backend-module-temporal) | `@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` | Backstage backend |
+| [`scaffolder-module-temporal`](scaffolder-module-temporal)                 | `@kwkevinchan/backstage-plugin-scaffolder-module-temporal`         | Backstage app     |
+| [`temporal-workflow-kit`](temporal-workflow-kit)                           | `@kwkevinchan/temporal-workflow-kit` (private, not published)      | Temporal workers  |
 
-If you want to create a new plugin here, go to your project root directory, run
-the command `yarn new`, and follow the on-screen instructions.
-
-You can also check out existing plugins on [the plugin marketplace](https://backstage.io/plugins)!
+The backend and the frontend package are the plugin; the four modules build
+on the package of their side. See the [repository README](../README.md#packages)
+for which ones to install.

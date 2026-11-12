@@ -32,12 +32,8 @@ import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
 import {
   TemporalPage,
   temporalPlugin,
-} from '@kwkevinchan/backstage-plugin-temporal';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import { apis } from './apis';
-import {
-  temporalControlListActions,
-  temporalControlScheduleActions,
-} from '@kwkevinchan/backstage-plugin-temporal-module-control';
 import { temporalWorkflowActions } from './components/catalog/EntityPage';
 import { entityPage } from './components/catalog/EntityPage';
 import { Root } from './components/Root';
@@ -67,13 +63,7 @@ const routes = (
     </Route>
     <Route
       path="/temporal"
-      element={
-        <TemporalPage
-          workflowActions={temporalWorkflowActions}
-          workflowListActions={temporalControlListActions}
-          scheduleActions={temporalControlScheduleActions}
-        />
-      }
+      element={<TemporalPage workflowActions={temporalWorkflowActions} />}
     />
     <Route path="/settings" element={<UserSettingsPage />} />
   </FlatRoutes>

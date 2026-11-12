@@ -30,9 +30,10 @@ error, input and output; and the tabs below the graph: **Steps** (a table of the
 
 ## Concept by concept
 
-"Core" means the core plugin, "control" the optional control modules (see
-[Architecture](architecture.md#packages)). The right-hand column names what is
-not available.
+"An operation" means one of the operations that change workflows: on by
+default, off for everyone with `temporal.control.enabled: false` (see
+[Workflow controls](../README.md#workflow-controls)). The right-hand column
+names what is not available.
 
 ### Connection and scope
 
@@ -68,17 +69,17 @@ not available.
 
 ### Operations
 
-| Temporal concept  | In the plugin                                                                                                                                    | Notes                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| Start             | **Start workflow** on the Temporal tab of `TemporalWorkflow` entities and on the Workflows page; `spec.exampleInput` prefills the input.         | Control modules. The backend starts only the entity's own workflow types on its task queue. |
-| Signal            | **Signal…**: a dialog that lists the signal names the workflow declares and takes JSON arguments.                                                | Control modules.                                                                            |
-| Query             | **Query…**; it also works on closed workflows.                                                                                                   | Core, with its own permission.                                                              |
-| Update            | **Update…**: shows the result or the validator's error message.                                                                                  | Control modules. A rejected update is not in the history, so it is not in the graph.        |
-| Cancel, Terminate | Two buttons, both with confirmation; Terminate takes a reason that stays in the history.                                                         | Control modules.                                                                            |
-| Reset             | Not available.                                                                                                                                   | Use the Temporal UI or CLI.                                                                 |
-| Rerun             | Starts the workflow again with the same input, type, task queue and so on, under a new Workflow ID.                                              | The plugin's own operation.                                                                 |
-| Batch operations  | Not available.                                                                                                                                   | Use the Temporal UI or CLI.                                                                 |
-| Schedules         | Listed on the Workflows page (default namespace) and on an entity's Temporal tab; **Pause**/**Resume** and **Run now** with the control modules. | Creating and editing schedules is left to code or the Temporal UI.                          |
+| Temporal concept  | In the plugin                                                                                                                            | Notes                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Start             | **Start workflow** on the Temporal tab of `TemporalWorkflow` entities and on the Workflows page; `spec.exampleInput` prefills the input. | An operation (`temporal.control.enabled`). The backend starts only the entity's own workflow types on its task queue. |
+| Signal            | **Signal…**: a dialog that lists the signal names the workflow declares and takes JSON arguments.                                        | An operation (`temporal.control.enabled`).                                                                            |
+| Query             | **Query…**; it also works on closed workflows.                                                                                           | Always available, with its own permission.                                                                            |
+| Update            | **Update…**: shows the result or the validator's error message.                                                                          | An operation (`temporal.control.enabled`). A rejected update is not in the history, so it is not in the graph.        |
+| Cancel, Terminate | Two buttons, both with confirmation; Terminate takes a reason that stays in the history.                                                 | An operation (`temporal.control.enabled`).                                                                            |
+| Reset             | Not available.                                                                                                                           | Use the Temporal UI or CLI.                                                                                           |
+| Rerun             | Starts the workflow again with the same input, type, task queue and so on, under a new Workflow ID.                                      | The plugin's own operation.                                                                                           |
+| Batch operations  | Not available.                                                                                                                           | Use the Temporal UI or CLI.                                                                                           |
+| Schedules         | Listed on the Workflows page (default namespace) and on an entity's Temporal tab; **Pause**/**Resume** and **Run now** as operations.    | Creating and editing schedules is left to code or the Temporal UI.                                                    |
 
 ### Long workflows
 
@@ -123,8 +124,8 @@ in the catalog graph. The `temporal.io/v1alpha1` API version is chosen by this
 plugin; it is not defined by Temporal. A component that uses a workflow lists it
 in the standard `spec.dependsOn`, and the component's Temporal tab then lists
 the workflow types it depends on and their executions. The reasons for using
-`dependsOn` are in the [README](../README.md#workflow-entities). The catalog
-module that provides the kind is optional.
+`dependsOn` are in the [README](../README.md#workflow-entities). The default export of the backend plugin brings the kind
+(`catalogModuleTemporalWorkflowKind`).
 
 ### Annotations
 
@@ -187,7 +188,7 @@ checks are layered is in [How it works](how-it-works.md).
 
 ### Controls, schedules and templates
 
-The control modules add Start, Signal, Update, Cancel, Terminate and Rerun, and
+The operations are Start, Signal, Update, Cancel, Terminate and Rerun, and
 pause, resume or trigger of schedules ([Workflow controls](../README.md#workflow-controls),
 [Schedules](../README.md#schedules)). The Scaffolder modules add the actions
 `temporal:workflow:start`, `temporal:workflow:wait` and `temporal:workflow:signal`

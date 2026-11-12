@@ -1,7 +1,7 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-backend",
   "version": "0.0.0",
-  "description": "Unofficial Backstage backend plugin for Temporal workflows: the read API, queries and permission checks",
+  "description": "Unofficial Backstage backend plugin for Temporal workflows: the API that reads and operates workflows, permission checks, the TemporalWorkflow catalog kind, and the Temporal connection and extension points for backend modules",
   "license": "Apache-2.0",
   "keywords": [
     "backstage",
@@ -21,6 +21,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./alpha": "./src/alpha.ts",
+    "./common": "./src/common/index.ts",
+    "./node": "./src/node/index.ts",
     "./package.json": "./package.json"
   },
   "main": "src/index.ts",
@@ -29,6 +31,12 @@
     "*": {
       "alpha": [
         "src/alpha.ts"
+      ],
+      "common": [
+        "src/common/index.ts"
+      ],
+      "node": [
+        "src/node/index.ts"
       ],
       "package.json": [
         "package.json"
@@ -42,10 +50,8 @@
     "role": "backend-plugin",
     "pluginId": "temporal",
     "pluginPackages": [
-      "@kwkevinchan/backstage-plugin-temporal",
       "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-common",
-      "@kwkevinchan/backstage-plugin-temporal-node"
+      "@kwkevinchan/backstage-plugin-temporal-frontend"
     ]
   },
   "scripts": {
@@ -66,8 +72,6 @@
     "@backstage/plugin-permission-common": "backstage:^",
     "@backstage/plugin-permission-node": "backstage:^",
     "@backstage/types": "backstage:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^",
     "@temporalio/client": "~1.24.0",
     "express": "^4.22.0",
     "express-promise-router": "^4.1.0",
@@ -79,7 +83,7 @@
     "@backstage/cli": "backstage:^",
     "@backstage/plugin-catalog-backend": "backstage:^",
     "@backstage/plugin-permission-backend": "backstage:^",
-    "@backstage/plugin-permission-node": "backstage:^",
+    "@grpc/grpc-js": "^1.12.4",
     "@temporalio/common": "~1.24.0",
     "@temporalio/external-storage-s3": "~1.24.0",
     "@temporalio/proto": "~1.24.0",

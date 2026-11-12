@@ -9,8 +9,9 @@ read), and pressing Cancel on it (an operation). It then follows a longer
 scenario, a Scaffolder template that starts a workflow, waits for it and
 sends it an update.
 
-The plugin has two parts: it shows Temporal workflows in Backstage, and, when
-the control modules are installed, it lets people operate them from Backstage.
+The plugin has two parts: it shows Temporal workflows in Backstage, and,
+unless `temporal.control.enabled` is false, it lets people operate them from
+Backstage.
 It has no database of its own. Every request asks Temporal, and Backstage's
 permission framework decides what the user may see.
 
@@ -18,8 +19,8 @@ permission framework decides what the user may see.
 
 ![Two requests, a read and an operation, go down the same layers: browser, routes, access checks, services, repositories, the shared connection and Temporal. Both pass the same access check; the operation also passes an operation permission and is audited.](images/request-path.svg)
 
-Teal is the read path (core plugin). Orange is the operation path (control
-modules). Both go down the same layers and through the same access check. After
+Teal is the read path. Orange is the operation path (the routes that change
+workflows, unless `temporal.control.enabled` is false). Both go down the same layers and through the same access check. After
 that, a read goes to a query service; an operation passes a second, operation
 permission and runs inside an audit record. Both reach Temporal through the same
 connection. The layers are described in
@@ -53,7 +54,7 @@ permission instead, whose conditions the backend turns into a visibility query.
 
 ### Operate: press Cancel
 
-1. The button comes from the frontend control module. After confirmation it sends
+1. The button comes from the frontend plugin. After confirmation it sends
    `POST …/cancel`.
 2. `controlRoutes.ts` first calls the same `loadWorkflow()`. A user who cannot see
    a workflow cannot operate it.
@@ -69,11 +70,12 @@ permission instead, whose conditions the backend turns into a visibility query.
 
 - **No database.** The plugin is a layer in front of Temporal. Every request asks
   Temporal and uses Backstage permissions to decide what to show.
-- **One access check.** The core plugin provides `TemporalAccessService`
-  (`temporalAccessServiceRef`); the control module and others use it. There are
-  not two copies that could disagree.
-- **The operate column can be left out.** Without the control module the backend
-  has no route that changes a workflow, and the pages are read-only.
+- **One access check.** The backend plugin provides `TemporalAccessService`
+  (`temporalAccessServiceRef`); the routes that change workflows and the
+  modules use it. There are not two copies that could disagree.
+- **The operate column can be turned off.** With `temporal.control.enabled:
+false` the backend has no route that changes a workflow, and the pages are
+  read-only.
 
 ## Figure 2: from a template to a decision
 
@@ -83,7 +85,7 @@ The workflow code is yours; the figure uses no workflow of this repository.
 
 ![Time runs downward in four phases. The user runs a template, whose step starts a workflow through the plugin as that user. A second step waits until the workflow sets a search attribute. An update is sent through the plugin and delivered to the workflow, which then completes. Every plugin call passes the permission checks.](images/request-sequence.svg)
 
-Orange arrows are operations through the control module, teal arrows are reads,
+Orange arrows are operations (the routes that change workflows), teal arrows are reads,
 purple is your code (the Worker and what it sends), black is Backstage and
 Temporal doing their own work, and dashed lines are replies. Time runs downward.
 
@@ -132,15 +134,18 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
 
 ## Where the optional modules attach
 
-| Module                                                          | Attaches at                 | What it does                                                                                                                                               |
-| --------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `catalog-backend-module-temporal`                               | the Catalog                 | A processor that makes the catalog accept `TemporalWorkflow` entities and emit their relations.                                                            |
-| `scaffolder-backend-module-temporal`                            | in front of Routes          | The template steps `temporal:workflow:start`, `wait` and `signal` call the same HTTP routes as the user, so permissions and audit are the same.            |
-| `scaffolder-module-temporal`                                    | the browser                 | The `TemporalWorkflowPicker` field in the Create form, fed by the plugin's routes.                                                                         |
-| `temporal-module-zigflow` and `temporal-backend-module-zigflow` | the browser and Routes      | A **Definition** tab and a route that reads the YAML definition file of an entity.                                                                         |
-| `temporal-backend-module-control` and `temporal-module-control` | Routes and the browser      | The operations of Figure 1's orange column.                                                                                                                |
-| Your control action                                             | the control module's Routes | Registered with `temporalControlExtensionPoint`; served as `POST …/actions/:actionId`, with the same access check, its own permission and an audit record. |
-| Your workflow enricher                                          | Services                    | Registered with `temporalExtensionPoint`; adds fields to workflow summaries and details before they are returned.                                          |
+The backend plugin itself adds a processor to the catalog, which makes the
+catalog accept `TemporalWorkflow` entities and emit their relations, and
+serves the operations of Figure 1's orange column unless
+`temporal.control.enabled` is false.
+
+| Module                                                          | Attaches at            | What it does                                                                                                                                               |
+| --------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scaffolder-backend-module-temporal`                            | in front of Routes     | The template steps `temporal:workflow:start`, `wait` and `signal` call the same HTTP routes as the user, so permissions and audit are the same.            |
+| `scaffolder-module-temporal`                                    | the browser            | The `TemporalWorkflowPicker` field in the Create form, fed by the plugin's routes.                                                                         |
+| `temporal-module-zigflow` and `temporal-backend-module-zigflow` | the browser and Routes | A **Definition** tab and a route that reads the YAML definition file of an entity.                                                                         |
+| Your control action                                             | the control Routes     | Registered with `temporalControlExtensionPoint`; served as `POST …/actions/:actionId`, with the same access check, its own permission and an audit record. |
+| Your workflow enricher                                          | Services               | Registered with `temporalExtensionPoint`; adds fields to workflow summaries and details before they are returned.                                          |
 
 Back to [the documentation index](README.md), or on to
 [Architecture](architecture.md).

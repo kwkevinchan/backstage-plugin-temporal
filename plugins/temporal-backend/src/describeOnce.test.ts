@@ -19,11 +19,8 @@ import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { createServiceFactory } from '@backstage/backend-plugin-api';
-import {
-  temporalAccessServiceRef,
-  TemporalAccessService,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
-import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { temporalAccessServiceRef, TemporalAccessService } from './node/alpha';
+import { temporalExtensionPoint } from './node';
 import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';

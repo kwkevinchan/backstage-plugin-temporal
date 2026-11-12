@@ -18,7 +18,7 @@ import { Entity } from '@backstage/catalog-model';
 import {
   InvalidTemporalAnnotationError,
   parseTemporalAnnotations,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,

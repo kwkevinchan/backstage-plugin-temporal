@@ -16,7 +16,7 @@
 
 /*
  * Styles of the Definition tab. The components also use the styles of
- * @kwkevinchan/backstage-plugin-temporal (graph, nodes, badges): the class
+ * @kwkevinchan/backstage-plugin-temporal-frontend (graph, nodes, badges): the class
  * helper in styles.ts gives an element both class names, so the rules here
  * that name classes of the core plugin (.tp-node, .tp-badge) apply to the
  * elements of this package.

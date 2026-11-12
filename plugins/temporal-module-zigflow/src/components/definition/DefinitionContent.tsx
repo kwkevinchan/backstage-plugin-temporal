@@ -33,12 +33,12 @@ import {
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { Alert, ButtonLink, Flex, Link, Select, Text } from '@backstage/ui';
 import { RiExternalLinkLine } from '@remixicon/react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import {
   getTemporalWorkflowDefinitionSpec,
   isTemporalWorkflowEntity,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import {
   DefinitionList,
   ErrorAlert,
@@ -48,7 +48,7 @@ import {
   statusLabel,
   useGraphFullscreenState,
   workflowLink,
-} from '@kwkevinchan/backstage-plugin-temporal/ui';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import {
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,

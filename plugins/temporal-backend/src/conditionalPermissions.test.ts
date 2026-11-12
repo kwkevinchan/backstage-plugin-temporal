@@ -45,7 +45,7 @@ import {
   isResourcePermission,
 } from '@backstage/plugin-permission-common';
 import { policyExtensionPoint } from '@backstage/plugin-permission-node/alpha';
-import { temporalPermissions } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { temporalPermissions } from './common';
 import catalogBackend from '@backstage/plugin-catalog-backend';
 import permissionBackend from '@backstage/plugin-permission-backend';
 import request from 'supertest';

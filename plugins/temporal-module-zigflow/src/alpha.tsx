@@ -24,7 +24,7 @@
 import { compatWrapper } from '@backstage/core-compat-api';
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
-import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 
 /**
  * Definition tab of `TemporalWorkflow` entities
@@ -48,7 +48,7 @@ export const temporalDefinitionContent = EntityContentBlueprint.make({
 });
 
 /**
- * Module of the Temporal plugin (`@kwkevinchan/backstage-plugin-temporal/alpha`)
+ * Module of the Temporal plugin (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`)
  * for the new frontend system: adds the Definition tab.
  *
  * @alpha

@@ -102,6 +102,8 @@ async function start(options?: {
   deny?: string[];
   entities?: Entity[];
   client?: unknown;
+  /** The `temporal.control` config. */
+  control?: object;
 }) {
   const workflowService = runningWorkflowService();
   const decide = (r: any) => ({
@@ -128,6 +130,9 @@ async function start(options?: {
       fakeTemporalServiceFactory(workflowService, { client: options?.client }),
       permissions.factory,
       auditor.factory,
+      mockServices.rootConfig.factory({
+        data: { temporal: { control: options?.control ?? {} } },
+      }),
     ],
   });
   return { server, workflowService, permissions, auditor, auditEvent };
@@ -355,8 +360,10 @@ describe('query routes of the core plugin', () => {
     expect(res.body).toEqual({ signals: [], updates: [], queries: [] });
   });
 
-  it('serves no routes that change workflows without the control module', async () => {
-    const { server, workflowService } = await start();
+  it('serves no routes that change workflows when control is turned off', async () => {
+    const { server, workflowService } = await start({
+      control: { enabled: false },
+    });
     const res = await request(server)
       .post(`${wf}/signal${withEntity}`)
       .send({ name: 'addNote' });

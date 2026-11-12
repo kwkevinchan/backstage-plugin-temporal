@@ -31,7 +31,7 @@ import { TemporalPluginClient } from './client';
  * `temporal:workflow:start`, `temporal:workflow:wait` and
  * `temporal:workflow:signal`. They call the Temporal backend plugin as the
  * user who runs the template; starting, signals and updates need its
- * control module.
+ * operations (`temporal.control.enabled`, on by default).
  *
  * @public
  */

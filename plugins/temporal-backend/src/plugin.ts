@@ -19,32 +19,38 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import {
+  isValidControlActionId,
   parseTemporalWorkflowResourceRef,
   temporalPermissions,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from './common';
+import { temporalExtensionPoint, TemporalWorkflowEnricher } from './node';
+import { temporalServiceRef } from './node';
 import {
-  temporalExtensionPoint,
-  TemporalWorkflowEnricher,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
-import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
-import {
+  TemporalControlAction,
   temporalAccessServiceRef,
+  temporalControlExtensionPoint,
   temporalWorkflowPermissionResourceRef,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from './node/alpha';
 import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
+import { createControlRouter } from './routes/controlRoutes';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';
+import {
+  readControlOptions,
+  WorkflowCommands,
+} from './services/WorkflowCommands';
 
 /**
  * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
- * workflows, checked with the permission framework. The control module
- * (`@kwkevinchan/backstage-plugin-temporal-backend-module-control`) adds the
- * routes that change them.
+ * workflows and, unless `temporal.control.enabled` is false, the routes that
+ * change them (start, signal, update, cancel, terminate, rerun, custom
+ * actions and schedule operations). Every route is checked with the
+ * permission framework; the operations are recorded with the auditor.
  *
  * @public
  */
@@ -58,6 +64,17 @@ export const temporalPlugin = createBackendPlugin({
           throw new Error(`Duplicate workflow enricher id: ${enricher.id}`);
         }
         enrichers.push(enricher);
+      },
+    });
+    // Registered whether or not the operations are enabled, so that the
+    // modules that add actions start either way.
+    const actions: TemporalControlAction[] = [];
+    env.registerExtensionPoint(temporalControlExtensionPoint, {
+      addControlAction(action) {
+        if (actions.some(a => a.id === action.id)) {
+          throw new Error(`Duplicate control action id: ${action.id}`);
+        }
+        actions.push(action);
       },
     });
 
@@ -83,6 +100,35 @@ export const temporalPlugin = createBackendPlugin({
         access,
       }) {
         permissionsRegistry.addPermissions(temporalPermissions);
+        const controlEnabled =
+          config.getOptionalBoolean('temporal.control.enabled') ?? true;
+        if (controlEnabled) {
+          for (const action of actions) {
+            if (!isValidControlActionId(action.id)) {
+              throw new Error(`Invalid control action id: ${action.id}`);
+            }
+          }
+          const commands = new WorkflowCommands(
+            temporal,
+            readControlOptions(config),
+          );
+          httpRouter.use(
+            createControlRouter({
+              httpAuth,
+              access,
+              auditor,
+              temporal,
+              commands,
+              actions,
+            }),
+          );
+        } else {
+          for (const action of actions) {
+            logger.warn(
+              `Ignoring the control action ${action.id}: temporal.control.enabled is false, so the routes that change workflows are not served`,
+            );
+          }
+        }
         // Layers: routes → access (permissions, catalog; shared with the
         // modules through temporalAccessServiceRef) → services (use cases)
         // → repositories (Temporal, S3).

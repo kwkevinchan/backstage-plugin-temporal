@@ -5297,20 +5297,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@kwkevinchan/backstage-plugin-catalog-backend-module-temporal@workspace:^, @kwkevinchan/backstage-plugin-catalog-backend-module-temporal@workspace:plugins/catalog-backend-module-temporal":
-  version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal@workspace:plugins/catalog-backend-module-temporal"
-  dependencies:
-    "@backstage/backend-plugin-api": "backstage:^"
-    "@backstage/backend-test-utils": "backstage:^"
-    "@backstage/catalog-model": "backstage:^"
-    "@backstage/cli": "backstage:^"
-    "@backstage/plugin-catalog-node": "backstage:^"
-    "@backstage/types": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-  languageName: unknown
-  linkType: soft
-
 "@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal@workspace:plugins/scaffolder-backend-module-temporal":
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal@workspace:plugins/scaffolder-backend-module-temporal"
@@ -5320,10 +5306,11 @@ __metadata:
     "@backstage/catalog-model": "backstage:^"
     "@backstage/cli": "backstage:^"
     "@backstage/errors": "backstage:^"
+    "@backstage/plugin-catalog-node": "backstage:^"
     "@backstage/plugin-scaffolder-node": "backstage:^"
     "@backstage/plugin-scaffolder-node-test-utils": "backstage:^"
     "@backstage/types": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
   languageName: unknown
   linkType: soft
 
@@ -5338,8 +5325,7 @@ __metadata:
     "@backstage/plugin-scaffolder-react": "backstage:^"
     "@backstage/test-utils": "backstage:^"
     "@backstage/ui": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^"
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
     "@testing-library/user-event": "npm:^14.0.0"
@@ -5353,35 +5339,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:plugins/temporal-backend-module-control":
-  version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-control@workspace:plugins/temporal-backend-module-control"
-  dependencies:
-    "@backstage/backend-plugin-api": "backstage:^"
-    "@backstage/backend-test-utils": "backstage:^"
-    "@backstage/catalog-model": "backstage:^"
-    "@backstage/cli": "backstage:^"
-    "@backstage/config": "backstage:^"
-    "@backstage/errors": "backstage:^"
-    "@backstage/plugin-catalog-node": "backstage:^"
-    "@backstage/plugin-permission-common": "backstage:^"
-    "@backstage/types": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
-    "@temporalio/client": "npm:~1.24.0"
-    "@types/express": "npm:^4.17.6"
-    "@types/supertest": "npm:^2.0.12"
-    express: "npm:^4.22.0"
-    express-promise-router: "npm:^4.1.0"
-    supertest: "npm:^6.2.4"
-  languageName: unknown
-  linkType: soft
-
 "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow":
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow"
   dependencies:
+    "@backstage/backend-defaults": "backstage:^"
     "@backstage/backend-plugin-api": "backstage:^"
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
@@ -5392,7 +5354,7 @@ __metadata:
     "@backstage/plugin-catalog-node": "backstage:^"
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/types": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
     "@types/express": "npm:^4.17.6"
     "@types/supertest": "npm:^2.0.12"
     express: "npm:^4.22.0"
@@ -5420,8 +5382,7 @@ __metadata:
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-node": "backstage:^"
     "@backstage/types": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
+    "@grpc/grpc-js": "npm:^1.12.4"
     "@temporalio/client": "npm:~1.24.0"
     "@temporalio/common": "npm:~1.24.0"
     "@temporalio/external-storage-s3": "npm:~1.24.0"
@@ -5435,34 +5396,30 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@kwkevinchan/backstage-plugin-temporal-common@workspace:^, @kwkevinchan/backstage-plugin-temporal-common@workspace:plugins/temporal-common":
+"@kwkevinchan/backstage-plugin-temporal-frontend@workspace:^, @kwkevinchan/backstage-plugin-temporal-frontend@workspace:plugins/temporal-frontend":
   version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-temporal-common@workspace:plugins/temporal-common"
+  resolution: "@kwkevinchan/backstage-plugin-temporal-frontend@workspace:plugins/temporal-frontend"
   dependencies:
     "@backstage/catalog-model": "backstage:^"
     "@backstage/cli": "backstage:^"
-    "@backstage/plugin-permission-common": "backstage:^"
-    "@backstage/types": "backstage:^"
-  languageName: unknown
-  linkType: soft
-
-"@kwkevinchan/backstage-plugin-temporal-module-control@workspace:^, @kwkevinchan/backstage-plugin-temporal-module-control@workspace:plugins/temporal-module-control":
-  version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-temporal-module-control@workspace:plugins/temporal-module-control"
-  dependencies:
-    "@backstage/catalog-model": "backstage:^"
-    "@backstage/cli": "backstage:^"
+    "@backstage/core-app-api": "backstage:^"
+    "@backstage/core-compat-api": "backstage:^"
+    "@backstage/core-components": "backstage:^"
     "@backstage/core-plugin-api": "backstage:^"
+    "@backstage/dev-utils": "backstage:^"
     "@backstage/errors": "backstage:^"
+    "@backstage/filter-predicates": "backstage:^"
     "@backstage/frontend-plugin-api": "backstage:^"
     "@backstage/frontend-test-utils": "backstage:^"
+    "@backstage/plugin-catalog-react": "backstage:^"
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-react": "backstage:^"
     "@backstage/test-utils": "backstage:^"
+    "@backstage/theme": "backstage:^"
     "@backstage/types": "backstage:^"
     "@backstage/ui": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@backstage/version-bridge": "backstage:^"
+    "@dagrejs/dagre": "npm:^1.1.4"
     "@remixicon/react": "npm:>=4.6.0 <4.9.0"
     "@rjsf/core": "npm:5.24.13"
     "@rjsf/utils": "npm:5.24.13"
@@ -5470,9 +5427,11 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.0.0"
     "@testing-library/react": "npm:^14.0.0"
     "@testing-library/user-event": "npm:^14.0.0"
+    "@xyflow/react": "npm:^12.12.0"
     react: "npm:^18.0.0"
     react-dom: "npm:^18.0.0"
     react-router-dom: "npm:^6.0.0"
+    react-use: "npm:^17.2.4"
   peerDependencies:
     react: ^18.0.0
     react-dom: ^18.0.0
@@ -5489,6 +5448,7 @@ __metadata:
     "@backstage/core-compat-api": "backstage:^"
     "@backstage/core-plugin-api": "backstage:^"
     "@backstage/errors": "backstage:^"
+    "@backstage/filter-predicates": "backstage:^"
     "@backstage/frontend-plugin-api": "backstage:^"
     "@backstage/frontend-test-utils": "backstage:^"
     "@backstage/plugin-catalog-react": "backstage:^"
@@ -5502,8 +5462,7 @@ __metadata:
     "@codemirror/language": "npm:^6.0.0"
     "@codemirror/state": "npm:^6.0.0"
     "@codemirror/view": "npm:^6.0.0"
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^"
     "@lezer/highlight": "npm:^1.0.0"
     "@remixicon/react": "npm:>=4.6.0 <4.9.0"
     "@testing-library/jest-dom": "npm:^6.0.0"
@@ -5514,63 +5473,6 @@ __metadata:
     react-router-dom: "npm:^6.0.0"
     react-use: "npm:^17.2.4"
     yaml: "npm:^2.7.0"
-  peerDependencies:
-    react: ^18.0.0
-    react-dom: ^18.0.0
-    react-router-dom: ^6.0.0
-  languageName: unknown
-  linkType: soft
-
-"@kwkevinchan/backstage-plugin-temporal-node@workspace:^, @kwkevinchan/backstage-plugin-temporal-node@workspace:plugins/temporal-node":
-  version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-temporal-node@workspace:plugins/temporal-node"
-  dependencies:
-    "@backstage/backend-plugin-api": "backstage:^"
-    "@backstage/catalog-model": "backstage:^"
-    "@backstage/cli": "backstage:^"
-    "@backstage/config": "backstage:^"
-    "@backstage/plugin-permission-common": "backstage:^"
-    "@backstage/plugin-permission-node": "backstage:^"
-    "@backstage/types": "backstage:^"
-    "@grpc/grpc-js": "npm:^1.12.4"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-    "@temporalio/client": "npm:~1.24.0"
-  languageName: unknown
-  linkType: soft
-
-"@kwkevinchan/backstage-plugin-temporal@workspace:^, @kwkevinchan/backstage-plugin-temporal@workspace:plugins/temporal":
-  version: 0.0.0-use.local
-  resolution: "@kwkevinchan/backstage-plugin-temporal@workspace:plugins/temporal"
-  dependencies:
-    "@backstage/catalog-model": "backstage:^"
-    "@backstage/cli": "backstage:^"
-    "@backstage/core-app-api": "backstage:^"
-    "@backstage/core-compat-api": "backstage:^"
-    "@backstage/core-components": "backstage:^"
-    "@backstage/core-plugin-api": "backstage:^"
-    "@backstage/dev-utils": "backstage:^"
-    "@backstage/errors": "backstage:^"
-    "@backstage/frontend-plugin-api": "backstage:^"
-    "@backstage/frontend-test-utils": "backstage:^"
-    "@backstage/plugin-catalog-react": "backstage:^"
-    "@backstage/plugin-permission-common": "backstage:^"
-    "@backstage/plugin-permission-react": "backstage:^"
-    "@backstage/test-utils": "backstage:^"
-    "@backstage/theme": "backstage:^"
-    "@backstage/types": "backstage:^"
-    "@backstage/ui": "backstage:^"
-    "@backstage/version-bridge": "backstage:^"
-    "@dagrejs/dagre": "npm:^1.1.4"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-    "@remixicon/react": "npm:>=4.6.0 <4.9.0"
-    "@testing-library/jest-dom": "npm:^6.0.0"
-    "@testing-library/react": "npm:^14.0.0"
-    "@testing-library/user-event": "npm:^14.0.0"
-    "@xyflow/react": "npm:^12.12.0"
-    react: "npm:^18.0.0"
-    react-dom: "npm:^18.0.0"
-    react-router-dom: "npm:^6.0.0"
-    react-use: "npm:^17.2.4"
   peerDependencies:
     react: ^18.0.0
     react-dom: ^18.0.0
@@ -9901,8 +9803,7 @@ __metadata:
     "@backstage/plugin-org": "backstage:^"
     "@backstage/plugin-user-settings": "backstage:^"
     "@backstage/ui": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-module-control": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-module-zigflow": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
@@ -9939,8 +9840,7 @@ __metadata:
     "@backstage/test-utils": "backstage:^"
     "@backstage/theme": "backstage:^"
     "@backstage/ui": "backstage:^"
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-module-control": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-module-zigflow": "workspace:^"
     "@material-ui/core": "npm:^4.12.2"
     "@material-ui/icons": "npm:^4.9.1"
@@ -10471,12 +10371,8 @@ __metadata:
     "@backstage/plugin-permission-backend-module-allow-all-policy": "backstage:^"
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-node": "backstage:^"
-    "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-backend-module-control": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
-    "@kwkevinchan/backstage-plugin-temporal-node": "workspace:^"
     app: "workspace:^"
     better-sqlite3: "npm:^12.0.0"
     node-gyp: "npm:^10.0.0"

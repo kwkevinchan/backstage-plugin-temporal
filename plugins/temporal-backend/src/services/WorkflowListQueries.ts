@@ -24,9 +24,9 @@ import {
   WorkflowDetail,
   TemporalSchedule,
   TemporalScheduleListResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
-import type { TemporalEntityContext } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../common';
+import { TemporalService } from '../node';
+import type { TemporalEntityContext } from '../node/alpha';
 import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
 import { toTemporalSchedule } from './schedules';
 import {

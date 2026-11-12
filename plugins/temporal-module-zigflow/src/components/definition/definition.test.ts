@@ -22,7 +22,7 @@ import type {
   WorkflowGraphResponse,
   WorkflowNodeKind,
   WorkflowNodeStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import {
   buildDefinitionGraph,
   durationText,

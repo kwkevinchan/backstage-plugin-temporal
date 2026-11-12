@@ -78,6 +78,34 @@ export interface Config {
       initiator?: string;
     };
     /**
+     * The operations that change workflows: start, signal, update, cancel,
+     * terminate, rerun, custom actions, and pause, resume and run now on
+     * schedules. Each one is checked with its permission and recorded with
+     * the auditor.
+     */
+    control?: {
+      /**
+       * Serve the routes that change workflows and show their buttons.
+       * Defaults to true. When false, those routes do not exist (404) and
+       * custom actions added by modules are ignored; reading and queries
+       * are not affected. Without a permission policy every signed-in user
+       * may use the operations, so turn them off or restrict them with a
+       * policy.
+       * @visibility frontend
+       */
+      enabled?: boolean;
+      /**
+       * Signal names that may be sent. Empty or absent allows every name.
+       * @visibility frontend
+       */
+      allowedSignals?: string[];
+      /**
+       * Update names that may be sent. Empty or absent allows every name.
+       * @visibility frontend
+       */
+      allowedUpdates?: string[];
+    };
+    /**
      * Temporal External Storage: payloads that workers store outside the
      * workflow history with the `ExternalStorage` of the Temporal SDKs.
      */

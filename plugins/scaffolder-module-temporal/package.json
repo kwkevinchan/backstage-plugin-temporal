@@ -59,8 +59,7 @@
     "@backstage/plugin-scaffolder": "backstage:^",
     "@backstage/plugin-scaffolder-react": "backstage:^",
     "@backstage/ui": "backstage:^",
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^"
   },
   "peerDependencies": {
     "react": "^18.0.0",

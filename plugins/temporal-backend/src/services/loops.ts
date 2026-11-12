@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { addLlmUsage } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { addLlmUsage } from '../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmUsage,
@@ -26,7 +26,7 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { dropUndefined } from './convert';
 
 /*

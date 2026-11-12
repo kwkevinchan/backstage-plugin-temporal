@@ -16,7 +16,7 @@ New frontend system:
 ```ts
 import temporalScaffolderModule from '@kwkevinchan/backstage-plugin-scaffolder-module-temporal/alpha';
 
-export default createApp({ features: [, /* ... */ temporalScaffolderModule] });
+export default createApp({ features: [/* ... */ temporalScaffolderModule] });
 ```
 
 Legacy frontend system:

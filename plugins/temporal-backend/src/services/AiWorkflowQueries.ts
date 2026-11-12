@@ -25,11 +25,11 @@ import {
   WorkflowLoopsResponse,
   ExternalPayload,
   WorkflowLlmCallResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type { JsonObject } from '@backstage/types';
 import { decodePayloads } from './convert';
 import { buildWorkflowGraph } from './graph';
-import { llmRecordOf, normalizeLlmRecord } from './llm';
+import { llmRecordOf, normalizeLlmRecord } from './llm/llm';
 import { readLoopState } from './loops';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';

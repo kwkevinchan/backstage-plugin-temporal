@@ -19,11 +19,11 @@ import {
   createServiceFactory,
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
-import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { temporalServiceRef } from '../node';
 import {
   temporalAccessServiceRef,
   temporalWorkflowPermissionResourceRef,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 import { DefaultTemporalAccessService } from './DefaultTemporalAccessService';

@@ -31,15 +31,15 @@ import {
   parseLlmMarker,
   WorkflowHandler,
   WorkflowHandlersResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type { JsonValue } from '@backstage/types';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
-import { TemporalWorkflowEnricher } from '@kwkevinchan/backstage-plugin-temporal-node';
+import { TemporalService } from '../node';
+import { TemporalWorkflowEnricher } from '../node';
 import {
   decodeJsonPayloads,
   encodeJsonPayloads,
   type TemporalEntityContext,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 import {
   ConvertOptions,
   decodePageToken,

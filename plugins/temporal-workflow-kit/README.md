@@ -40,7 +40,7 @@ activity and child workflow of a round with the loop name, the round and the
 step, keeps the state of each loop in a query and in the memo, and carries
 the round count into the next run when the workflow continues as new.
 
-The [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal/README.md) reads the markers: the
+The [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-frontend/README.md) reads the markers: the
 step graph shows a loop as one box (`draft-review · Round 4 of 5 · Done`)
 that expands to every round of the run, one frame per round, and the Loops
 tab lists every round

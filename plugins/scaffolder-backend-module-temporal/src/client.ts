@@ -33,7 +33,26 @@ import {
   WorkflowStartResponse,
   WorkflowStepsResponse,
   WORKFLOWS_PATH,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
+
+/**
+ * The message of a 404 without an error body from a route that changes
+ * workflows: the Temporal backend serves no such route because
+ * `temporal.control.enabled` is false there. That backend may be another
+ * deployment, so its config cannot be read here.
+ */
+export const CONTROL_DISABLED_MESSAGE =
+  'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false in the app-config of the backend that runs it. Set temporal.control.enabled to true there (it is the default) to start, signal or update workflows from templates';
+
+/** True when a response carries a Backstage error body (`{ error }`). */
+async function hasErrorBody(response: Response): Promise<boolean> {
+  try {
+    const body = JSON.parse(await response.text());
+    return typeof body?.error?.name === 'string';
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Calls the routes of the Temporal backend plugin on behalf of the user who
@@ -51,6 +70,7 @@ export class TemporalPluginClient {
     path: string,
     credentials: BackstageCredentials,
     body?: unknown,
+    options?: { control?: boolean },
   ): Promise<T> {
     const baseUrl = await this.discovery.getBaseUrl('temporal');
     const { token } = await this.auth.getPluginRequestToken({
@@ -70,6 +90,16 @@ export class TemporalPluginClient {
         'The Temporal plugin refused the credentials of the user who runs the template; their token may have expired (it lasts about an hour from when the task was created)',
       );
     }
+    // A route that changes workflows answers 404 without an error body when
+    // it does not exist; the plugin's own 404s (an unknown entity or
+    // workflow) have one.
+    if (
+      response.status === 404 &&
+      options?.control &&
+      !(await hasErrorBody(response.clone()))
+    ) {
+      throw new Error(CONTROL_DISABLED_MESSAGE);
+    }
     if (!response.ok) throw await ResponseError.fromResponse(response);
     const text = await response.text();
     return (text ? JSON.parse(text) : undefined) as T;
@@ -87,7 +117,7 @@ export class TemporalPluginClient {
     const path = entityRef
       ? buildEntityWorkflowsPath(parseEntityRef(entityRef))
       : WORKFLOWS_PATH;
-    return this.call('POST', path, credentials, body);
+    return this.call('POST', path, credentials, body, { control: true });
   }
 
   describe(
@@ -128,6 +158,7 @@ export class TemporalPluginClient {
       buildWorkflowOperationPath(ref, kind) + query(entityRef),
       credentials,
       message,
+      { control: true },
     );
   }
 }

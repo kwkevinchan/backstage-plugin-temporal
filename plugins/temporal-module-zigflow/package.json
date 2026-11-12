@@ -43,7 +43,7 @@
   "backstage": {
     "role": "frontend-plugin-module",
     "pluginId": "temporal",
-    "pluginPackage": "@kwkevinchan/backstage-plugin-temporal"
+    "pluginPackage": "@kwkevinchan/backstage-plugin-temporal-frontend"
   },
   "sideEffects": false,
   "scripts": {
@@ -59,6 +59,7 @@
     "@backstage/core-compat-api": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/filter-predicates": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/types": "backstage:^",
@@ -69,8 +70,7 @@
     "@codemirror/language": "^6.0.0",
     "@codemirror/state": "^6.0.0",
     "@codemirror/view": "^6.0.0",
-    "@kwkevinchan/backstage-plugin-temporal": "workspace:^",
-    "@kwkevinchan/backstage-plugin-temporal-common": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-frontend": "workspace:^",
     "@lezer/highlight": "^1.0.0",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@xyflow/react": "^12.12.0",

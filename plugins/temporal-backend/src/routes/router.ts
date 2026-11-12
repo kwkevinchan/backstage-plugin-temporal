@@ -30,14 +30,14 @@ import {
   temporalWorkflowReadPermission,
   WorkflowDetail,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {
   TemporalAccessService,
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {

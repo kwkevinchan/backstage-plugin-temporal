@@ -15,7 +15,7 @@
  */
 
 import { createComponentExtension } from '@backstage/core-plugin-api';
-import { temporalPlugin } from '@kwkevinchan/backstage-plugin-temporal';
+import { temporalPlugin } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 
 /**
  * Definition tab of `TemporalWorkflow` entities for the legacy frontend
