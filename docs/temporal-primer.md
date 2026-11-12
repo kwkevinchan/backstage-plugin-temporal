@@ -121,7 +121,7 @@ The numbers follow `order-1001` from the example below:
 1. A Client starts the workflow, and History schedules its first Workflow Task
    on the Workflow Task queue of `orders`.
 2. A Worker that is long-polling that queue gets the task at once if it is
-   waiting (a "sync match"; nothing is written). If nobody is waiting, the task
+   waiting (a "sync match": the task is not stored in the database). If nobody is waiting, the task
    is stored in the database as backlog until a Worker polls.
 3. The Worker runs the workflow code and reports commands such as "schedule
    `sendEmail`" (the line across the top, through the Frontend). History
@@ -134,8 +134,8 @@ The numbers follow `order-1001` from the example below:
    that Worker does not take the task in time, it goes back to the normal queue
    for any Worker. Activity Tasks do not use sticky queues.
 
-Each queue is split into partitions to spread the load; that is invisible to
-you. See
+Each queue is split into partitions to spread the load; you do not
+configure it, but it can affect the order in which tasks are handed out. See
 [Task Queues](https://docs.temporal.io/task-queue) and
 [Tasks](https://docs.temporal.io/tasks).
 

@@ -543,7 +543,8 @@ Setup, the `spec.definition` field of the entity and the configuration
 
 The complete set of keys; only `temporal.connection.address` is required.
 The `definitions` keys belong to the optional Zigflow backend module and are
-described in its [README](plugins/temporal-module-zigflow/README.md).
+described in the README of the Zigflow frontend module
+([`plugins/temporal-module-zigflow`](plugins/temporal-module-zigflow/README.md)).
 
 ```yaml
 temporal:
@@ -591,7 +592,8 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
-  # Optional: views that are not part of the first release, see below.
+  # Optional: views that are not part of the first release, see Loops and
+  # LLM steps.
   experimental:
     aiWorkflows: false
 ```
@@ -1289,16 +1291,20 @@ export PAYLOAD_S3_ACCESS_KEY=dev-access PAYLOAD_S3_SECRET_KEY=dev-secret-key
 docker compose -f examples/docker-compose.rustfs.yaml up -d
 
 # Frontend and backend; the paths are relative to packages/app and
-# packages/backend. Use start:next for the new frontend system app.
+# packages/backend. Use start:next for the new frontend system app. With
+# --config, only the listed files are read: if you keep local settings in
+# app-config.local.yaml, add --config ../../app-config.local.yaml.
 yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
 
 # In another terminal, with the same variables exported:
 yarn workspace example-worker start
-SMOKE_S3=1 yarn test:e2e   # adds the External Storage smoke test
 ```
 
-`yarn workspace example-worker start` creates the bucket when it is missing
-and exits when the workflows it started have finished. To operate workflows from
+`yarn workspace example-worker start` creates the bucket when it is missing,
+runs the example workflows until the finished ones complete, and then exits;
+the approval and deployment workflows stay open. When it has exited, the
+External Storage smoke test, which only reads the history and needs no worker,
+runs with `SMOKE_S3=1 yarn test:e2e e2e-tests/payloads.test.ts`. To operate workflows from
 Backstage afterwards, run `yarn workspace example-worker serve` with the same
 variables. When you are done, stop `yarn start` and the worker, and stop
 RustFS with the variables set (`-v` also deletes the stored objects):

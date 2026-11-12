@@ -53,12 +53,12 @@ Task Queue 不用事先建立；第一次有 Worker 或 Client 用到某個名�
 圖上的編號以下面範例裡的 `order-1001` 為例：
 
 1. Client 啟動流程，History 在 `orders` 的 Workflow Task 佇列排第一個 Workflow Task。
-2. 正在長輪詢這條佇列的 Worker，如果正在等，就立刻拿到任務（sync match，不寫進資料庫）。沒人在等，任務就存進資料庫排著（backlog），等 Worker 來輪詢。
+2. 正在長輪詢這條佇列的 Worker，如果正在等，就立刻拿到任務（sync match：任務不存進資料庫）。沒人在等，任務就存進資料庫排著（backlog），等 Worker 來輪詢。
 3. Worker 執行流程程式碼，回報指令，例如「排 `sendEmail`」（圖上方橫跨的線，經 Frontend）。History 把它們記成事件，並在 Activity Task 佇列放一個 Activity Task。
 4. 任何一個輪詢這條佇列的 Worker 都可以拿走它。同一條佇列上的兩個 Worker 分攤工作；一個任務只給一個 Worker。
 5. 跑過某個流程的 Worker 會把它的狀態留在記憶體，伺服器之後會優先把這個流程的下一個 Workflow Task，經由只有它在輪詢的 "sticky" 佇列送給同一個 Worker，省掉重播紀錄。那個 Worker 如果沒有及時來拿，任務就退回一般佇列，任何 Worker 都可以拿。Activity Task 不使用 sticky 佇列。
 
-每條佇列內部會切成幾個分區（partition）來分散負載，對使用者是透明的。細節見 [Task Queues](https://docs.temporal.io/task-queue) 和 [Tasks](https://docs.temporal.io/tasks)。
+每條佇列內部會切成幾個分區（partition）來分散負載，不用你設定，但可能影響任務交出去的先後順序。細節見 [Task Queues](https://docs.temporal.io/task-queue) 和 [Tasks](https://docs.temporal.io/tasks)。
 
 ## 核心概念
 

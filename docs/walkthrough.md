@@ -257,8 +257,8 @@ development backend allows everything; see
 3. **Large payloads (optional, needs Docker).** Temporal can store large payloads
    in S3 and keep only a reference in the history. This needs a different
    configuration for the backend and the worker, so restart them. The README's
-   [Development section](../README.md#development) lists the same commands in one
-   block; here they are numbered, with the order that matters (stop, set the
+   [Development section](../README.md#development) lists the same commands in two
+   blocks; here they are numbered, with the order that matters (stop, set the
    variables, RustFS, app and backend, worker):
 
    1. Stop what is running: the worker from step 1.5 (Ctrl+C) and `yarn start`
@@ -280,6 +280,9 @@ development backend allows everything; see
       ```sh
       yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
       ```
+
+      Only the listed files are read: if you keep local settings in
+      `app-config.local.yaml`, add `--config ../../app-config.local.yaml`.
 
    5. In another terminal run `yarn workspace example-worker start` with the same
       variables. It creates the bucket, starts a fresh set of workflows, now
