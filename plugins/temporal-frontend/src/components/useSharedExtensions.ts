@@ -21,26 +21,29 @@ import {
   TemporalWorkflowExtensionsApi,
 } from '../extensions';
 
+/** Selectors of the lists of the shared workflow extensions API. */
+export const sharedExtensions = {
+  actions: (api: TemporalWorkflowExtensionsApi) => api.getActions(),
+  sections: (api: TemporalWorkflowExtensionsApi) => api.getSections(),
+  listActions: (api: TemporalWorkflowExtensionsApi) => api.getListActions(),
+  scheduleActions: (api: TemporalWorkflowExtensionsApi) =>
+    api.getScheduleActions(),
+};
+
 /**
  * The extensions of one kind: the ones passed as props (legacy frontend
  * system) first, then those of the shared workflow extensions API (new
- * frontend system), without a second entry for an id.
+ * frontend system), without a second entry for an id. `select` must be one
+ * of {@link sharedExtensions}, so that it is the same function on every
+ * render.
  */
-export function useSharedExtensions<
-  K extends keyof TemporalWorkflowExtensionsApi,
->(
-  kind: K,
-  own: ReturnType<TemporalWorkflowExtensionsApi[K]> | undefined,
-): ReturnType<TemporalWorkflowExtensionsApi[K]> {
+export function useSharedExtensions<T extends { id: string }>(
+  select: (api: TemporalWorkflowExtensionsApi) => T[],
+  own: T[] | undefined,
+): T[] {
   const shared = useApiHolder().get(temporalWorkflowExtensionsApiRef);
   return useMemo(() => {
-    const all: { id: string }[] = [
-      ...(own ?? []),
-      ...(shared?.[kind]() ?? []),
-    ];
-    // Every item comes from the list of `kind`; the filter keeps the type.
-    return all.filter(
-      (item, i) => all.findIndex(o => o.id === item.id) === i,
-    ) as unknown as ReturnType<TemporalWorkflowExtensionsApi[K]>;
-  }, [kind, own, shared]);
+    const all = [...(own ?? []), ...(shared ? select(shared) : [])];
+    return all.filter((item, i) => all.findIndex(o => o.id === item.id) === i);
+  }, [select, own, shared]);
 }

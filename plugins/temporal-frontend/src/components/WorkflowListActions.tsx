@@ -18,7 +18,7 @@ import type { Entity } from '@backstage/catalog-model';
 import type { WorkflowRef } from '../common';
 import type { TemporalWorkflowListActionDef } from '../extensions';
 import { tp } from './styles';
-import { useSharedExtensions } from './useSharedExtensions';
+import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 
 /**
  * The list actions (such as "Start workflow") from the props (legacy
@@ -32,7 +32,10 @@ export function WorkflowListActions(props: {
   workflowHref(ref: WorkflowRef): string;
 }) {
   const { entity, workflowHref } = props;
-  const actions = useSharedExtensions('getListActions', props.actions);
+  const actions = useSharedExtensions(
+    sharedExtensions.listActions,
+    props.actions,
+  );
   return (
     <>
       {actions

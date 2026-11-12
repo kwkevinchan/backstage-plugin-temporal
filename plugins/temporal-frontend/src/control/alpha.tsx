@@ -130,9 +130,8 @@ export const TemporalControlActionBlueprint = createExtensionBlueprint({
       id: node.spec.id,
       component: lazyComponent<TemporalWorkflowExtensionProps>(node, () =>
         import('./ControlActionButton').then(
-          m => (props: TemporalWorkflowExtensionProps) => (
-            <m.ControlActionButton {...props} action={action} />
-          ),
+          m => (props: TemporalWorkflowExtensionProps) =>
+            <m.ControlActionButton {...props} action={action} />,
         ),
       ),
       filter,

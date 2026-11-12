@@ -17,7 +17,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
-import type { Entity } from '@backstage/catalog-model';
 import { configApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import {
   mockApis,
@@ -26,6 +25,12 @@ import {
 } from '@backstage/test-utils';
 import { temporalApiRef } from '../extensions';
 import type { WorkflowDetail } from '../common';
+import {
+  entity,
+  failedWorkflow,
+  mockTemporalApi,
+  workflowEntity,
+} from '../testData';
 import {
   TemporalControlApi,
   TemporalControlClient,
@@ -45,41 +50,13 @@ jest.mock('@backstage/plugin-permission-react', () => ({
   }),
 }));
 
-const failedWorkflow: WorkflowDetail = {
-  namespace: 'default',
-  workflowId: 'payment-1',
-  runId: 'run-2',
-  workflowType: 'paymentWorkflow',
-  taskQueue: 'orders',
-  status: 'Failed',
-  startTime: '2026-01-01T11:00:00.000Z',
-  closeTime: '2026-01-01T11:00:01.000Z',
-  pendingActivities: [],
-};
 const running: WorkflowDetail = { ...failedWorkflow, status: 'Running' };
 const ref = {
   namespace: running.namespace,
   workflowId: running.workflowId,
   runId: running.runId,
 };
-const entity: Entity = {
-  apiVersion: 'backstage.io/v1alpha1',
-  kind: 'Component',
-  metadata: { name: 'orders', namespace: 'default' },
-  spec: {},
-};
 const entityRef = 'component:default/orders';
-const workflowEntity: Entity = {
-  apiVersion: 'temporal.io/v1alpha1',
-  kind: 'TemporalWorkflow',
-  metadata: { name: 'order-workflow', namespace: 'default' },
-  spec: {
-    owner: 'group:default/team-a',
-    workflowType: 'orderWorkflow',
-    taskQueue: 'orders',
-  },
-};
-
 function mockControlApi(): jest.Mocked<TemporalControlApi> {
   return {
     signalWorkflow: jest.fn().mockResolvedValue(undefined),
@@ -112,6 +89,7 @@ function render(
 ) {
   const api = mockControlApi();
   const temporal = {
+    ...mockTemporalApi(),
     getWorkflowHandlers: jest.fn().mockResolvedValue(
       options?.handlers ?? {
         signals: [{ name: 'addNote' }],
@@ -128,7 +106,7 @@ function render(
       <TestApiProvider
         apis={[
           [temporalControlApiRef, api],
-          [temporalApiRef, temporal as any],
+          [temporalApiRef, temporal],
           [
             identityApiRef,
             mockApis.identity({ userEntityRef: 'user:default/alice' }),

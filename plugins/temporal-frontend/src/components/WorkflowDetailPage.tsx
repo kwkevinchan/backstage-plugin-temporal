@@ -66,7 +66,7 @@ import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
 import { WorkflowTimeline } from './timeline/WorkflowTimeline';
 import { useRefreshLock } from './useRefreshLock';
-import { useSharedExtensions } from './useSharedExtensions';
+import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
 import { workflowLink } from './WorkflowRunsTable';
@@ -91,8 +91,14 @@ export function EntityWorkflowDetailPage(props: WorkflowDetailPageProps) {
  */
 function useExtensions(props: WorkflowDetailPageProps) {
   return {
-    actions: useSharedExtensions('getActions', props.workflowActions),
-    sections: useSharedExtensions('getSections', props.workflowSections),
+    actions: useSharedExtensions(
+      sharedExtensions.actions,
+      props.workflowActions,
+    ),
+    sections: useSharedExtensions(
+      sharedExtensions.sections,
+      props.workflowSections,
+    ),
   };
 }
 

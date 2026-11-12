@@ -30,14 +30,11 @@ import {
 } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import type { TemporalSchedule } from '../common';
-import {
-  temporalApiRef,
-  TemporalScheduleActionDef,
-} from '../extensions';
+import { temporalApiRef, TemporalScheduleActionDef } from '../extensions';
 import { ErrorAlert } from './feedback';
 import { formatTime } from './format';
 import { PanelCard } from './PanelCard';
-import { useSharedExtensions } from './useSharedExtensions';
+import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { workflowLink } from './WorkflowRunsTable';
 import { useShownScheduleActions } from '../control';
 
@@ -67,7 +64,7 @@ export function SchedulesCard(props: {
     [api, entityRef],
   );
   const actions = useShownScheduleActions(
-    useSharedExtensions('getScheduleActions', props.actions),
+    useSharedExtensions(sharedExtensions.scheduleActions, props.actions),
   );
 
   const status = error as
