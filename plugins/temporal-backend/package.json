@@ -83,7 +83,6 @@
     "@backstage/cli": "backstage:^",
     "@backstage/plugin-catalog-backend": "backstage:^",
     "@backstage/plugin-permission-backend": "backstage:^",
-    "@backstage/plugin-permission-node": "backstage:^",
     "@grpc/grpc-js": "^1.12.4",
     "@temporalio/common": "~1.24.0",
     "@temporalio/external-storage-s3": "~1.24.0",
