@@ -141,6 +141,14 @@ describe('the default export of the package', () => {
     const res = await request(server).post(cancel).send({});
     expect(res.status).toBe(409);
 
+    // Without the Zigflow backend module there is no definition route: a 404
+    // without a body, which the Definition tab tells apart from its own.
+    const definition = await request(server).get(
+      '/api/temporal/entities/temporalworkflow/default/order-workflow/definition',
+    );
+    expect(definition.status).toBe(404);
+    expect(definition.text).toBe('');
+
     const entity = await waitForWorkflowEntity(server);
     expect(entity.status).toBe(200);
     expect(entity.body.kind).toBe('TemporalWorkflow');
