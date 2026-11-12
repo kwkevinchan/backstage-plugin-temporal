@@ -55,17 +55,17 @@
 
 ### 操作
 
-| Temporal 概念     | 外掛裡的對應                                                                                                 | 備註                                                                                   |
-| ----------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Start             | `TemporalWorkflow` 實體的 Temporal 分頁和 Workflows 頁的 **Start workflow**；`spec.exampleInput` 預填輸入。  | 操作（`temporal.control.enabled`）。後端只啟動實體自己的流程類型和它的 Task Queue。    |
-| Signal            | **Signal…**：對話框列出流程宣告的 Signal 名稱，參數填 JSON。                                                 | 操作（`temporal.control.enabled`）。                                                   |
-| Query             | **Query…**；流程結束後也能查。                                                                               | 一定可用，有自己的權限。                                                               |
-| Update            | **Update…**：顯示回傳值或 validator 的錯誤訊息。                                                             | 操作（`temporal.control.enabled`）。被拒絕的 Update 不在事件紀錄裡，所以流程圖上沒有。 |
-| Cancel、Terminate | 兩個按鈕，都要確認；Terminate 要填原因，原因留在事件紀錄。                                                   | 操作（`temporal.control.enabled`）。                                                   |
-| Reset             | 沒有。                                                                                                       | 用 Temporal UI 或 CLI。                                                                |
-| Rerun             | 用相同的輸入、類型、Task Queue 等，以新的 Workflow ID 再啟動一次。                                           | 外掛自己的操作。                                                                       |
-| Batch operations  | 沒有。                                                                                                       | 用 Temporal UI 或 CLI。                                                                |
-| Schedules         | 列在 Workflows 頁（預設 Namespace）和實體的 Temporal 分頁；可以用操作 **Pause**／**Resume** 和 **Run now**。 | 建立和修改 Schedule 留給程式碼或 Temporal UI。                                         |
+| Temporal 概念     | 外掛裡的對應                                                                                                    | 備註                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Start             | `TemporalWorkflow` 實體的 Temporal 分頁和 Workflows 頁的 **Start workflow**；`spec.exampleInput` 預填輸入。     | 操作（`temporal.control.enabled`）。後端只啟動實體自己的流程類型和它的 Task Queue。    |
+| Signal            | **Signal…**：對話框列出流程宣告的 Signal 名稱，參數填 JSON。                                                    | 操作（`temporal.control.enabled`）。                                                   |
+| Query             | **Query…**；流程結束後也能查。                                                                                  | 一定可用，有自己的權限。                                                               |
+| Update            | **Update…**：顯示回傳值或 validator 的錯誤訊息。                                                                | 操作（`temporal.control.enabled`）。被拒絕的 Update 不在事件紀錄裡，所以流程圖上沒有。 |
+| Cancel、Terminate | 兩個按鈕，都要確認；Terminate 要填原因，原因留在事件紀錄。                                                      | 操作（`temporal.control.enabled`）。                                                   |
+| Reset             | 沒有。                                                                                                          | 用 Temporal UI 或 CLI。                                                                |
+| Rerun             | 用相同的輸入、類型、Task Queue 等，以新的 Workflow ID 再啟動一次。                                              | 外掛自己的操作。                                                                       |
+| Batch operations  | 沒有。                                                                                                          | 用 Temporal UI 或 CLI。                                                                |
+| Schedules         | 列在 Workflows 頁（預設 Namespace）和實體的 Temporal 分頁；也有 **Pause**／**Resume** 和 **Run now** 這些操作。 | 建立和修改 Schedule 留給程式碼或 Temporal UI。                                         |
 
 ### 長流程
 
@@ -103,7 +103,7 @@
 
 ### `TemporalWorkflow` 實體
 
-catalog 裡的一個 kind，**一個實體代表一個 Workflow Type** 和它的定義。有了它，流程類型就有 owner、所屬系統、相依關係，也出現在 catalog 關係圖裡。`temporal.io/v1alpha1` 這個 API 版本是這個外掛自己訂的，不是 Temporal 定義的。使用某個流程的元件，用標準的 `spec.dependsOn` 列出它，元件的 Temporal 分頁就會列出它相依的流程類型和它們的執行。為什麼用 `dependsOn`，見 [README](../../README.md#workflow-entities)。提供這個 kind 的 catalog 模組是選用的。
+catalog 裡的一個 kind，**一個實體代表一個 Workflow Type** 和它的定義。有了它，流程類型就有 owner、所屬系統、相依關係，也出現在 catalog 關係圖裡。`temporal.io/v1alpha1` 這個 API 版本是這個外掛自己訂的，不是 Temporal 定義的。使用某個流程的元件，用標準的 `spec.dependsOn` 列出它，元件的 Temporal 分頁就會列出它相依的流程類型和它們的執行。為什麼用 `dependsOn`，見 [README](../../README.md#workflow-entities)。後端外掛的預設匯出就帶這個 kind（`catalogModuleTemporalWorkflowKind`）。
 
 ### 標註（annotations）
 

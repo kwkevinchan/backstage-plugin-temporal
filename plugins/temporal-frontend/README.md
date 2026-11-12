@@ -30,8 +30,8 @@ yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
 
 It needs the backend plugin
 [`@kwkevinchan/backstage-plugin-temporal-backend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/README.md):
-without it the pages show the error of each request (for example
-`Request failed with 404 Not Found`). This package does not depend on the
+without it the pages show an error that says the backend does not serve the
+Temporal plugin and names that package. This package does not depend on the
 backend package; it carries its own copy of the shared definitions in
 `./common`.
 See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal#readme) for the setup of both frontend systems and

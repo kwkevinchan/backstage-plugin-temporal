@@ -24,15 +24,15 @@
 
 哪些組合能用：
 
-| 你裝了                                                | 得到什麼                                                                                                                                               |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 只有 `temporal-backend`                               | API（讀取、Query，以及除非 `temporal.control.enabled` 是 false 的各項操作）、`TemporalWorkflow` kind，以及給你自己的後端程式用的共用 client 和擴充點。 |
-| `temporal-backend`，但後端沒有 catalog 外掛           | 同上，但沒有 kind：後端略過 catalog 模組，並記一行 log。                                                                                               |
-| `temporal-frontend` 加 `temporal-backend`             | 兩套前端系統裡外掛的每一頁；沒有 Definition 分頁，也沒有 Scaffolder 欄位。                                                                             |
-| `temporal-frontend`，但連不到 `temporal-backend`      | 頁面會載入，並顯示每個請求的錯誤（例如 `Request failed with 404 Not Found`）；功能都不能用。                                                           |
-| Zigflow 前端模組，但沒有 Zigflow 後端模組             | Definition 分頁說明後端沒有提供流程定義。                                                                                                              |
-| Zigflow 後端模組，但同一個後端沒有 `temporal-backend` | 後端略過這個模組；路由不存在。                                                                                                                         |
-| Scaffolder 後端模組                                   | 三個 action，以使用者的身分呼叫連得到的 `temporal-backend`（可以在另一個後端）。那邊關掉操作時，`start` 和 `signal` 會失敗並說明原因。                 |
+| 你裝了                                                | 得到什麼                                                                                                                                                    |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 只有 `temporal-backend`                               | API（讀取、Query，以及各項操作（`temporal.control.enabled` 設為 false 時沒有））、`TemporalWorkflow` kind，以及給你自己的後端程式用的共用 client 和擴充點。 |
+| `temporal-backend`，但後端沒有 catalog 外掛           | 同上，但沒有 kind：後端略過 catalog 模組。                                                                                                                  |
+| `temporal-frontend` 加 `temporal-backend`             | 兩套前端系統裡外掛的每一頁；沒有 Definition 分頁，也沒有 Scaffolder 欄位。                                                                                  |
+| `temporal-frontend`，但連不到 `temporal-backend`      | 頁面會載入，並顯示指名 `@kwkevinchan/backstage-plugin-temporal-backend` 的錯誤（後端整個連不到時，顯示請求本身的錯誤）；功能都不能用。                      |
+| Zigflow 前端模組，但沒有 Zigflow 後端模組             | Definition 分頁說明後端沒有提供流程定義。                                                                                                                   |
+| Zigflow 後端模組，但同一個後端沒有 `temporal-backend` | 後端略過這個模組；路由不存在。                                                                                                                              |
+| Scaffolder 後端模組                                   | 三個 action，以使用者的身分呼叫連得到的 `temporal-backend`（可以在另一個後端）。那邊關掉操作時，`start` 和 `signal` 會失敗並說明原因。                      |
 
 ### 為什麼是兩個核心套件
 
@@ -40,7 +40,7 @@
 
 代價：
 
-- **模組要匯入後端外掛套件。** 後端模組（你寫的，以及 Zigflow 和 Scaffolder 的）從 `temporal-backend` 的 `./node`、`./alpha` 匯入 client 服務和擴充點。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依（例如 S3 用的 AWS SDK）。
+- **模組要匯入後端外掛套件。** 後端模組要匯入 `temporal-backend`：Zigflow 和 Scaffolder 的模組只匯入它的共用定義（`./common`），你自己寫的模組還會從 `./node`、`./alpha` 匯入 client 服務和擴充點。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依（例如 S3 用的 AWS SDK）。
 - **共用定義有兩份。** 前端外掛不能匯入後端外掛，所以 `temporal-frontend` 帶著 `temporal-backend/src/common` 的一份副本。副本是產生出來的（`yarn sync:common`），CI 會檢查；兩邊比對權限、服務和擴充點都是靠名稱或 ID，所以物件有兩份不會出問題。
 - **操作預設開著。** 外掛一裝好就能改動流程；誰能做由權限政策決定，或用設定鍵整個關掉（見 [Security](../../README.md#security)）。
 

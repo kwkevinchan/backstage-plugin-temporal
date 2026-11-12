@@ -121,8 +121,9 @@ Which ones to install:
   backend plugins and modules call Temporal through its shared client
   (`temporalServiceRef`), and the API serves any client that has Backstage
   credentials. The frontend plugin does not work without the backend plugin:
-  its pages show the error of each request (for example
-  `Request failed with 404 Not Found`).
+  its pages show an error that says the backend does not serve the Temporal
+  plugin and names `@kwkevinchan/backstage-plugin-temporal-backend` (when
+  the backend cannot be reached at all, the error of the request).
 - **With workflows written in YAML for Zigflow:** the two Zigflow modules
   (frontend and backend) for the Definition tab. Without the backend module
   the tab says that it is missing.
@@ -134,8 +135,8 @@ Which ones to install:
   reads the references itself and only needs `temporal.externalStorage.s3`.
 
 The catalog module of the backend package is skipped when the backend has no
-catalog plugin (the backend logs one line about it); a split deployment adds
-`catalogModuleTemporalWorkflowKind` to the backend that runs the catalog.
+catalog plugin; a split deployment adds `catalogModuleTemporalWorkflowKind` to
+the backend that runs the catalog.
 
 Plugins and app modules that add buttons or tabs to the workflow page use the
 frontend plugin (`./alpha` for the blueprints); backend modules use
@@ -206,7 +207,8 @@ import {
 import { temporalAccessServiceFactory } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
 
 backend.add(temporalPlugin);
-// The default access checks; a backend with its own factory leaves it out.
+// Needed with temporalPlugin: the default access checks. A backend with its
+// own factory for temporalAccessServiceRef adds that one instead.
 backend.add(temporalAccessServiceFactory);
 // The TemporalWorkflow kind, in the backend that runs the catalog.
 backend.add(catalogModuleTemporalWorkflowKind);
@@ -1162,8 +1164,8 @@ TemporalWorkflowActionBlueprint.make({
 the shared mount point `api:temporal/workflow-extensions`
 (`temporalWorkflowExtensionsApiRef`), so they show on the pages of the
 entity tab and of the Workflows page. In the legacy system, pass
-`workflowActions`, `workflowSections` and `workflowListActions` to
-`EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
+`workflowActions`, `workflowSections`, `workflowListActions` and
+`scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`.
 
 Backend modules that serve their own routes under `/api/temporal` use the

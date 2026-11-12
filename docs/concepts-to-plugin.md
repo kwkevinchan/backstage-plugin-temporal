@@ -124,8 +124,8 @@ in the catalog graph. The `temporal.io/v1alpha1` API version is chosen by this
 plugin; it is not defined by Temporal. A component that uses a workflow lists it
 in the standard `spec.dependsOn`, and the component's Temporal tab then lists
 the workflow types it depends on and their executions. The reasons for using
-`dependsOn` are in the [README](../README.md#workflow-entities). The catalog
-module that provides the kind is optional.
+`dependsOn` are in the [README](../README.md#workflow-entities). The default export of the backend plugin brings the kind
+(`catalogModuleTemporalWorkflowKind`).
 
 ### Annotations
 

@@ -10,7 +10,7 @@
 
 ![看和做兩種請求由上往下經過同樣的層：瀏覽器、Routes、Access 授權、Services、Repositories、共用連線，最後到 Temporal。兩者共用同一個授權檢查；操作多一道操作權限和稽核紀錄。](images/request-path.svg)
 
-青綠色是讀取路徑，橘色是操作路徑（改動流程的路由，除非 `temporal.control.enabled` 是 false）。兩條路經過同樣的層、同一個授權檢查。之後，讀取交給查詢 service；操作要再過第二道操作權限，並且整段包在稽核紀錄裡。兩者都從同一條連線到 Temporal。各層的說明見[架構](architecture.md#各層)。
+青綠色是讀取路徑，橘色是操作路徑（改動流程的路由；`temporal.control.enabled` 設為 false 時沒有這條路）。兩條路經過同樣的層、同一個授權檢查。之後，讀取交給查詢 service；操作要再過第二道操作權限，並且整段包在稽核紀錄裡。兩者都從同一條連線到 Temporal。各層的說明見[架構](architecture.md#各層)。
 
 ### 讀取：打開詳細頁
 

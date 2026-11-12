@@ -4,7 +4,8 @@
 
 First release of the frontend plugin, for the legacy and the new frontend
 system (`./alpha`). It needs the backend plugin
-`@kwkevinchan/backstage-plugin-temporal-backend`.
+`@kwkevinchan/backstage-plugin-temporal-backend`; without it the pages say
+that the backend does not serve the Temporal plugin and name that package.
 
 - An entity tab with the workflows of an entity (annotations, the
   `TemporalWorkflow` kind and `spec.dependsOn`), a Workflows page
