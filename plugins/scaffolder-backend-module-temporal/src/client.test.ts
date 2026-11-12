@@ -144,4 +144,78 @@ describe('TemporalPluginClient', () => {
       ),
     ).rejects.toThrow(/403/);
   });
+
+  describe('when the operations are turned off in the Temporal backend', () => {
+    // A route that does not exist: 404 without an error body.
+    const missingRoute = () => new Response('', { status: 404 });
+    const message =
+      /does not serve the operations that change workflows: temporal\.control\.enabled is false/;
+
+    it('says so when a workflow is started', async () => {
+      fetchMock.mockResolvedValue(missingRoute());
+      const { c } = client();
+      await expect(
+        c.start(
+          { entityRef: 'temporalworkflow:default/release' },
+          mockCredentials.user(),
+        ),
+      ).rejects.toThrow(message);
+      await expect(
+        c.start(
+          { workflowType: 'orderWorkflow', taskQueue: 'orders' },
+          mockCredentials.user(),
+        ),
+      ).rejects.toThrow(message);
+    });
+
+    it('says so when a signal or an update is sent', async () => {
+      const { c } = client();
+      for (const kind of ['signal', 'update'] as const) {
+        fetchMock.mockResolvedValue(missingRoute());
+        await expect(
+          c.send(
+            kind,
+            { namespace: 'default', workflowId: 'w' },
+            { name: 'approve', args: [] },
+            undefined,
+            mockCredentials.user(),
+          ),
+        ).rejects.toThrow(message);
+      }
+    });
+
+    it('keeps the error of the backend for a 404 with an error body', async () => {
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { name: 'NotFoundError', message: 'No such entity' },
+          }),
+          { status: 404, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+      const { c } = client();
+      const error = await c
+        .start(
+          { entityRef: 'temporalworkflow:default/missing' },
+          mockCredentials.user(),
+        )
+        .catch(e => e);
+      expect(error.message).not.toMatch(message);
+      expect(error.name).toBe('ResponseError');
+    });
+
+    it('does not change the routes that read', async () => {
+      fetchMock.mockResolvedValue(missingRoute());
+      const { c } = client();
+      const error = await c
+        .describe(
+          { namespace: 'default', workflowId: 'w' },
+          undefined,
+          mockCredentials.user(),
+        )
+        .catch(e => e);
+      expect(error.message).not.toMatch(message);
+      expect(error.name).toBe('ResponseError');
+    });
+  });
 });

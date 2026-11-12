@@ -121,6 +121,7 @@ async function start(options?: {
   schedules?: { scheduleId: string; workflowType: string; taskQueue: string }[];
   /** Errors of the schedule handles' methods, by method name. */
   scheduleErrors?: Record<string, unknown>;
+  logger?: ReturnType<typeof mockServices.logger.mock>;
 }) {
   const workflowService = createControlWorkflowService(options?.status);
   const permissions = mockServices.permissions.mock({
@@ -215,6 +216,7 @@ async function start(options?: {
       data: { temporal: { control: options?.control ?? {} } },
     }),
   ];
+  if (options?.logger) features.push(options.logger.factory);
   if (options?.action) {
     const action = options.action;
     features.push(
@@ -775,5 +777,93 @@ describe('schedule controls', () => {
     await request(server)
       .post('/api/temporal/namespaces/secret/schedules/nightly/pause')
       .expect(400);
+  });
+});
+
+describe('with temporal.control.enabled: false', () => {
+  const disabled = { enabled: false };
+  const schedules = [
+    { scheduleId: 'nightly', workflowType: 'orderWorkflow', taskQueue: 'o' },
+  ];
+  const routesThatChange: [string, string, object][] = [
+    ...controlRoutes.map(
+      ([name, path, body]): [string, string, object] => [
+        name,
+        path.startsWith(wf) ? `${path}${withEntity}` : path,
+        body,
+      ],
+    ),
+    [
+      'start from the Workflows page',
+      '/api/temporal/workflows',
+      { workflowType: 'orderWorkflow', taskQueue: 'orders' },
+    ],
+    ['custom action', `${wf}/actions/escalate${withEntity}`, {}],
+    ...['pause', 'unpause', 'trigger'].map((op): [string, string, object] => [
+      `schedule ${op}`,
+      `/api/temporal/namespaces/default/schedules/nightly/${op}?entityRef=component:default/orders`,
+      {},
+    ]),
+  ];
+
+  it.each(routesThatChange)(
+    'serves no %s route (404)',
+    async (_name, path, body) => {
+      const { server, workflowService, permissions, scheduleHandles } =
+        await start({ control: disabled, schedules });
+      const res = await request(server).post(path).send(body);
+      expect(res.status).toBe(404);
+      expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+      expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+      expect(permissions.authorize).not.toHaveBeenCalled();
+      expect(scheduleHandles.size).toBe(0);
+    },
+  );
+
+  it('still serves the read routes and queries', async () => {
+    const { server, workflowService } = await start({ control: disabled });
+    await request(server).get(`${wf}${withEntity}`).expect(200);
+    const res = await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ result: { notes: ['hello'] } });
+    expect(workflowService.queryWorkflow).toHaveBeenCalled();
+  });
+
+  it('starts with modules that add actions, and ignores them with a warning', async () => {
+    const handle = jest.fn(async () => ({}));
+    const logger = mockServices.logger.mock();
+    logger.child.mockReturnValue(logger);
+    const { server } = await start({
+      control: disabled,
+      logger,
+      action: {
+        id: 'escalate',
+        permission: temporalWorkflowUpdatePermission,
+        handle,
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Ignoring the control action escalate: temporal\.control\.enabled is false/,
+      ),
+    );
+    await request(server)
+      .post(`${wf}/actions/escalate${withEntity}`)
+      .send({})
+      .expect(404);
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('serves the routes when enabled is true or not set', async () => {
+    for (const control of [{ enabled: true }, {}]) {
+      const { server, workflowService } = await start({ control });
+      await request(server)
+        .post(`${wf}/signal${withEntity}`)
+        .send({ name: 'addNote' })
+        .expect(202);
+      expect(workflowService.signalWorkflowExecution).toHaveBeenCalled();
+    }
   });
 });
