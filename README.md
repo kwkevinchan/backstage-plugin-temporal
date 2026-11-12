@@ -12,6 +12,14 @@ entities that own them in [Backstage](https://backstage.io), and lets people
 operate them from there, with every operation checked by the Backstage
 permission framework and recorded with the auditor.
 
+## Documentation
+
+This README is the reference. The guides in [`docs/`](docs/README.md) explain how
+the plugin works and why: a Temporal primer, how a request travels from the
+browser to Temporal, the architecture, a comparison with the Temporal Web UI and
+a walkthrough with the example worker. They are also available in Traditional
+Chinese ([繁體中文](docs/zh-TW/README.md)).
+
 ## Terms
 
 The plugin uses the Temporal terms:
