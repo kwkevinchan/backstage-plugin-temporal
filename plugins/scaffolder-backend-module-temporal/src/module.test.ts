@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
-import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
+import {
+  mockCredentials,
+  mockServices,
+  startTestBackend,
+} from '@backstage/backend-test-utils';
 import { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node';
+import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import { scaffolderTemporalModule } from './module';
 
 describe('scaffolderTemporalModule', () => {
@@ -36,5 +41,43 @@ describe('scaffolderTemporalModule', () => {
       'temporal:workflow:wait',
       'temporal:workflow:signal',
     ]);
+  });
+
+  it('signals in the default namespace of the Temporal backend plugin', async () => {
+    const addActions = jest.fn();
+    await startTestBackend({
+      extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
+      features: [
+        scaffolderTemporalModule,
+        mockServices.rootConfig.factory({
+          data: {
+            app: { baseUrl: 'http://backstage' },
+            temporal: { connection: { defaultNamespace: 'team-a' } },
+          },
+        }),
+      ],
+    });
+    const signal = addActions.mock.calls
+      .flat()
+      .find((a: { id: string }) => a.id === 'temporal:workflow:signal');
+    const fetchMock = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 202 }));
+    try {
+      const ctx = createMockActionContext({
+        input: { workflowId: 'release-1', name: 'approve' },
+      });
+      Object.assign(ctx, {
+        getInitiatorCredentials: async () =>
+          mockCredentials.user('user:default/alice'),
+        checkpoint: async ({ fn }: any) => fn(),
+      });
+      await signal.handler(ctx);
+      expect(String(fetchMock.mock.calls[0][0])).toMatch(
+        /\/api\/temporal\/namespaces\/team-a\/workflows\/release-1\/signal$/,
+      );
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 });

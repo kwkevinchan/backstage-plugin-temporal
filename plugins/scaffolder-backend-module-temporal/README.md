@@ -42,8 +42,13 @@ lasts about an hour from when the task is created, so `wait` is limited to
 | `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute` (a Bool search attribute that ends the wait when true), `timeoutSeconds` (600), `intervalSeconds` (5; the pause before the second look, doubled after each look), `maxIntervalSeconds` (30; the longest pause, equal to `intervalSeconds` for a fixed interval; a larger `intervalSeconds` wins), `failIfNotCompleted` (true), `includeResult` (false; needs the history permission) | `status`, `runId`, `searchAttributes`, `result`   |
 | `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                                                                                                                                                                                                                                                                                                               | `result` (of an update)                           |
 
-`args` is an array of arguments, or one value for one argument. `namespace`
-defaults to `default`. Starting, signals and updates are kept in a
+`args` is an array of arguments, or one value for one argument. Without a
+`namespace`, `start` uses the namespace of the entity or the default of the
+Temporal backend plugin, and `wait` and `signal` use that default: the
+`temporal.connection.defaultNamespace` (`default` when it is not set), read
+from the app-config of the backend that runs the Scaffolder, so it must be
+the same there when the Temporal plugin runs in another backend. Pass the `namespace` output of `start` to `wait` and `signal`
+for a workflow in another namespace. Starting, signals and updates are kept in a
 checkpoint, so a retried task does not start or send them again. Dry runs
 start and send nothing.
 

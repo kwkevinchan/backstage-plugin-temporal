@@ -30,9 +30,13 @@ export interface TemporalActionsOptions {
   client: TemporalPluginClient;
   /** `app.baseUrl`, for the link to the workflow. */
   appBaseUrl: string;
+  /**
+   * The namespace that the Temporal backend plugin uses when none is given
+   * (`temporal.connection.defaultNamespace`). The routes of one workflow
+   * have the namespace in their path, so wait and signal fill it in.
+   */
+  defaultNamespace: string;
 }
-
-const DEFAULT_NAMESPACE = 'default';
 
 /** Link to the workflow on the Workflows page of the frontend plugin. */
 function workflowUrl(appBaseUrl: string, ref: WorkflowRef): string {
@@ -72,7 +76,9 @@ const workflowInput = {
     z
       .string()
       .optional()
-      .describe(`Temporal namespace; defaults to ${DEFAULT_NAMESPACE}`),
+      .describe(
+        'Temporal namespace; defaults to the backend default (temporal.connection.defaultNamespace)',
+      ),
   entityRef: (z: any) =>
     z
       .string()
@@ -170,7 +176,7 @@ export function createTemporalWorkflowStartAction(
           } argument(s)`,
         );
         const ref = {
-          namespace: namespace ?? DEFAULT_NAMESPACE,
+          namespace: namespace ?? options.defaultNamespace,
           workflowId: workflowId ?? 'dry-run',
           runId: 'dry-run',
         };
@@ -292,7 +298,7 @@ export function createTemporalWorkflowWaitAction(
     async handler(ctx) {
       const { input } = ctx;
       let ref: WorkflowRef = {
-        namespace: input.namespace ?? DEFAULT_NAMESPACE,
+        namespace: input.namespace ?? options.defaultNamespace,
         workflowId: input.workflowId,
         ...(input.runId ? { runId: input.runId } : {}),
       };
@@ -422,7 +428,7 @@ export function createTemporalWorkflowSignalAction(
       const { input } = ctx;
       const kind = input.kind ?? 'signal';
       const ref: WorkflowRef = {
-        namespace: input.namespace ?? DEFAULT_NAMESPACE,
+        namespace: input.namespace ?? options.defaultNamespace,
         workflowId: input.workflowId,
         ...(input.runId ? { runId: input.runId } : {}),
       };

@@ -25,7 +25,7 @@ import { TemporalPluginClient } from './client';
 
 const user = mockCredentials.user('user:default/alice');
 
-function setup() {
+function setup(defaultNamespace = 'default') {
   const client = {
     start: jest.fn().mockResolvedValue({
       namespace: 'default',
@@ -39,6 +39,7 @@ function setup() {
   const options = {
     client: client as unknown as TemporalPluginClient,
     appBaseUrl: 'http://backstage/',
+    defaultNamespace,
   };
   return { client, options };
 }
@@ -455,5 +456,45 @@ describe('temporal:workflow:signal', () => {
       user,
     );
     expect(ctx.output).not.toHaveBeenCalled();
+  });
+});
+
+describe('the namespace of wait and signal', () => {
+  // The backend plugin's default namespace when none is given, as for
+  // start: a workflow started there is found without a namespace.
+  it('is the default namespace of the backend plugin', async () => {
+    const { client, options } = setup('team-a');
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(options).handler(
+      context({ workflowId: 'release-1' }),
+    );
+    expect(client.describe).toHaveBeenCalledWith(
+      { namespace: 'team-a', workflowId: 'release-1' },
+      undefined,
+      user,
+    );
+    await createTemporalWorkflowSignalAction(options).handler(
+      context({ workflowId: 'release-1', name: 'approve' }),
+    );
+    expect(client.send).toHaveBeenCalledWith(
+      'signal',
+      { namespace: 'team-a', workflowId: 'release-1' },
+      { name: 'approve', args: [] },
+      undefined,
+      user,
+    );
+  });
+
+  it('is the given one', async () => {
+    const { client, options } = setup('team-a');
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(options).handler(
+      context({ workflowId: 'release-1', namespace: 'billing' }),
+    );
+    expect(client.describe).toHaveBeenCalledWith(
+      { namespace: 'billing', workflowId: 'release-1' },
+      undefined,
+      user,
+    );
   });
 });
