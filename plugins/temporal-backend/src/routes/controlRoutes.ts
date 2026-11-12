@@ -52,7 +52,6 @@ import {
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
-import { mapCommandError } from '../repositories/TemporalReadRepository';
 import { WorkflowCommands } from '../services/WorkflowCommands';
 import {
   EntityWorkflowSources,
@@ -477,8 +476,11 @@ export function createControlRouter(
             `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
           );
         }
-        // The entity and the related entities of the same namespace, as for
-        // its workflow list.
+        // The entity and the related entities of the same namespace. The
+        // schedule must match one of them (matchesSource): an entity with
+        // only a task queue covers every schedule on that queue. This is
+        // not the rule of the entity's schedule list, which only shows the
+        // schedules of its workflow types.
         const defaultNamespace = sources.defaultNamespace();
         entitySources = [context.entity, ...context.relatedWorkflowEntities]
           .map(readEntityWorkflowFilter)
@@ -492,27 +494,15 @@ export function createControlRouter(
           credentials,
         );
       }
-      const client = await options.temporal.getClient({ namespace });
-      const handle = client.schedule.getHandle(scheduleId);
-      const description = await handle.describe().catch(error => {
-        if ((error as Error)?.name === 'ScheduleNotFoundError') {
-          throw new NotFoundError(`No schedule ${scheduleId}`);
-        }
-        return mapCommandError(error);
-      });
-      const action = {
-        workflowType: description.action.workflowType,
-        taskQueue: description.action.taskQueue,
-      };
+      const schedule = await commands.describeSchedule(namespace, scheduleId);
       if (
         entitySources &&
-        !entitySources.some(source => matchesSource(action, source))
+        !entitySources.some(source => matchesSource(schedule, source))
       ) {
         throw new NotFoundError(
           `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
         );
       }
-      const who = principalRef(credentials) ?? 'Backstage';
       await audited(
         auditor,
         req,
@@ -521,26 +511,16 @@ export function createControlRouter(
           namespace,
           scheduleId,
           operation,
-          workflowType: action.workflowType,
+          workflowType: schedule.workflowType,
           entityRef,
           ...(note ? { note } : {}),
         },
         'medium',
-        async () => {
-          try {
-            if (operation === 'pause') {
-              await handle.pause(note ?? `Paused from Backstage by ${who}`);
-            } else if (operation === 'unpause') {
-              await handle.unpause(note ?? `Resumed from Backstage by ${who}`);
-            } else {
-              // With the schedule's own overlap policy (the SDK's default is
-              // to allow every overlap).
-              await handle.trigger(description.policies?.overlap);
-            }
-          } catch (error) {
-            mapCommandError(error);
-          }
-        },
+        () =>
+          commands.operateSchedule(schedule, operation, {
+            note,
+            requestedBy: principalRef(credentials) ?? 'Backstage',
+          }),
       );
       res.status(202).json({});
     },

@@ -22,7 +22,9 @@ import {
   ServiceUnavailableError,
 } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
+import type { ScheduleOverlapPolicy } from '@temporalio/client';
 import type {
+  TemporalScheduleOperation,
   WorkflowDetail,
   WorkflowRef,
   WorkflowStartResponse,
@@ -33,7 +35,10 @@ import {
   encodeJsonPayloads,
   TemporalJsonPayload,
 } from '../node/alpha';
-import { mapCommandError } from '../repositories/TemporalReadRepository';
+import {
+  isScheduleNotFound,
+  mapCommandError,
+} from '../repositories/TemporalReadRepository';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -83,6 +88,15 @@ export interface StartOptions {
   identity: string;
 }
 
+/** A schedule to operate: what it starts, and its overlap policy. */
+export interface ScheduleTarget {
+  namespace: string;
+  scheduleId: string;
+  workflowType: string;
+  taskQueue: string;
+  overlap?: ScheduleOverlapPolicy;
+}
+
 const JSON_ENCODING = Buffer.from('json/plain');
 type Payload = TemporalJsonPayload;
 
@@ -104,8 +118,9 @@ function keywordAttributes(
 
 /**
  * The operations that change workflows in Temporal: signal, update, cancel,
- * terminate, start and rerun. Permission checks are done by the routes,
- * through the access service of the plugin.
+ * terminate, start and rerun, and pause, unpause and trigger of schedules.
+ * Permission checks are done by the routes, through the access service of
+ * the plugin.
  */
 export class WorkflowCommands {
   constructor(
@@ -313,5 +328,60 @@ export class WorkflowCommands {
       workflowId,
       runId: response.runId ?? '',
     };
+  }
+
+  /** A schedule, read from Temporal for an operation on it. */
+  async describeSchedule(
+    namespace: string,
+    scheduleId: string,
+  ): Promise<ScheduleTarget> {
+    const client = await this.temporal.getClient({ namespace });
+    const description = await client.schedule
+      .getHandle(scheduleId)
+      .describe()
+      .catch(error => {
+        if (isScheduleNotFound(error)) {
+          throw new NotFoundError(`No schedule ${scheduleId}`);
+        }
+        return mapCommandError(error);
+      });
+    return {
+      namespace,
+      scheduleId,
+      workflowType: description.action.workflowType,
+      taskQueue: description.action.taskQueue,
+      overlap: description.policies?.overlap,
+    };
+  }
+
+  /**
+   * Pauses, unpauses or triggers a schedule. A pause or an unpause keeps
+   * `note`, or a note that names `requestedBy`. A trigger uses the
+   * schedule's own overlap policy (the SDK's default is to allow every
+   * overlap).
+   */
+  async operateSchedule(
+    schedule: ScheduleTarget,
+    operation: TemporalScheduleOperation,
+    options: { note?: string; requestedBy: string },
+  ): Promise<void> {
+    const client = await this.temporal.getClient({
+      namespace: schedule.namespace,
+    });
+    const handle = client.schedule.getHandle(schedule.scheduleId);
+    const { note, requestedBy } = options;
+    try {
+      if (operation === 'pause') {
+        await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
+      } else if (operation === 'unpause') {
+        await handle.unpause(
+          note ?? `Resumed from Backstage by ${requestedBy}`,
+        );
+      } else {
+        await handle.trigger(schedule.overlap);
+      }
+    } catch (error) {
+      mapCommandError(error);
+    }
   }
 }
