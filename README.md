@@ -99,40 +99,48 @@ first release and will move to a separate package. Turn them on with
 
 ## Packages
 
-| Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                     |
-| ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                                     | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions and sections; `./ui` for companion packages. |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | REST API under `/api/temporal`: read workflows, queries, permission checks.                                                                                                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](plugins/temporal-backend-module-control)       | backend-plugin-module  | Backstage backend | Start, signal, update, cancel, terminate, rerun and custom actions (optional; without it the plugin only reads).                                                                                            |
-| [`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](plugins/scaffolder-backend-module-temporal) | backend-plugin-module  | Backstage backend | Scaffolder actions: start a workflow, wait for it, send a signal or an update (optional).                                                                                                                   |
-| [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal)                 | frontend-plugin-module | Backstage app     | Scaffolder form field `TemporalWorkflowPicker` (optional).                                                                                                                                                  |
-| [`@kwkevinchan/backstage-plugin-temporal-module-control`](plugins/temporal-module-control)                       | frontend-plugin-module | Backstage app     | The buttons and dialogs of those operations, with the backend module above (optional).                                                                                                                      |
-| [`@kwkevinchan/backstage-plugin-temporal-common`](plugins/temporal-common)                                       | common-library         | (dependency)      | Permissions, API types, annotation constants and the `TemporalWorkflow` kind. Import it in permission policies and modules.                                                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-node`](plugins/temporal-node)                                           | node-library           | (dependency)      | `temporalServiceRef` (shared Temporal client) and `temporalExtensionPoint`, for backend modules.                                                                                                            |
-| [`@kwkevinchan/backstage-plugin-catalog-backend-module-temporal`](plugins/catalog-backend-module-temporal)       | backend-plugin-module  | Backstage backend | Catalog module with the `TemporalWorkflow` kind (optional).                                                                                                                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional).                                                                                                                                 |
-| [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for that tab (optional, with the module above).                                                                                                                                  |
-| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                            | node-library           | Your workers      | Experimental, not published yet (with the AI views). Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).  |
+| Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension points (`./node`, `./alpha`) and the permissions and types (`./common`).                |
+| [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions and sections; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
+| [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                             |
+| [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                        |
+| [`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](plugins/scaffolder-backend-module-temporal) | backend-plugin-module  | Backstage backend | Scaffolder actions: start a workflow, wait for it, send a signal or an update (optional). Calls a reachable Temporal backend plugin.                                                                                                                                                                       |
+| [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal)                 | frontend-plugin-module | Backstage app     | Scaffolder form field `TemporalWorkflowPicker` (optional). Needs the frontend plugin.                                                                                                                                                                                                                      |
+| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                            | node-library           | Your workers      | Experimental, not published yet (with the AI views). Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                                                                                 |
 
 Which ones to install:
 
-- **Everyone:** the frontend plugin in the app and the backend plugin in the
-  backend.
-- **With `TemporalWorkflow` entities:** also the catalog module in the
-  backend.
+- **Everyone:** the backend plugin in the backend and the frontend plugin in
+  the app. One `backend.add()` brings the read routes, the operations that
+  change workflows (on by default, see
+  [Workflow controls](#workflow-controls)) and the `TemporalWorkflow` kind.
+  The frontend shows the buttons of the operations unless
+  `temporal.control.enabled` is false.
+- **Backend only:** the backend plugin works without the frontend: other
+  backend plugins and modules call Temporal through its shared client
+  (`temporalServiceRef`), and the API serves any client that has Backstage
+  credentials. The frontend plugin does not work without the backend plugin:
+  its pages show the error of each request (for example
+  `Request failed with 404 Not Found`).
+- **With workflows written in YAML for Zigflow:** the two Zigflow modules
+  (frontend and backend) for the Definition tab. Without the backend module
+  the tab says that it is missing.
+- **With templates:** the Scaffolder modules. The backend module may run in
+  another backend than the Temporal plugin; it calls the plugin over HTTP.
 - **With loops or LLM steps of AI workflows (experimental):** the workflow
   kit in your Temporal workers (not in Backstage; not published yet).
-- **To start, signal, update, cancel, terminate or rerun workflows from
-  Backstage:** the two control modules (frontend and backend). Without them
-  the plugin only reads; Query is in the core plugin.
-- **With workflows written in YAML for Zigflow:** the two Zigflow modules
-  (frontend and backend) for the Definition tab.
 - **With large payloads in External Storage:** nothing more; the backend
   reads the references itself and only needs `temporal.externalStorage.s3`.
 
+The catalog module of the backend package is skipped when the backend has no
+catalog plugin (the backend logs one line about it); a split deployment adds
+`catalogModuleTemporalWorkflowKind` to the backend that runs the catalog.
+
 Plugins and app modules that add buttons or tabs to the workflow page use the
 frontend plugin (`./alpha` for the blueprints); backend modules use
-`-node`, and permission policies the permissions of `-common`.
+`./node` and `./alpha` of the backend plugin, and permission policies its
+permissions in `./common`.
 
 Development-only packages (never published): `packages/app` (legacy frontend
 system), `packages/app-next` (new frontend system), `packages/backend` and
@@ -157,33 +165,52 @@ The backend parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
 
 ## Installation
 
+> **Security.** The operations that change workflows are on by default.
+> Without a permission policy (the allow-all policy), every signed-in user
+> may start, cancel and terminate workflows. `temporal.control.allowedSignals`
+> and `allowedUpdates` only limit the names of signals and updates; they do
+> not stop cancel or terminate. Restrict the operations with a permission
+> policy (see [Permissions](#permissions)) or turn them off with
+> `temporal.control.enabled: false` (see
+> [Workflow controls](#workflow-controls)).
+
 ### Backend
 
 ```sh
 yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-temporal-backend
-# Optional: the TemporalWorkflow kind.
-yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-catalog-backend-module-temporal
 ```
 
 `packages/backend/src/index.ts`:
 
 ```ts
+// The plugin, the operations that change workflows and the TemporalWorkflow
+// kind of the catalog.
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
-// Optional: start, signal, update, cancel, terminate, rerun and custom
-// actions. Without it the plugin only reads.
-backend.add(
-  import('@kwkevinchan/backstage-plugin-temporal-backend-module-control'),
-);
-// Optional: the TemporalWorkflow kind.
-backend.add(
-  import('@kwkevinchan/backstage-plugin-catalog-backend-module-temporal'),
-);
 ```
 
 The backend plugin needs the catalog and the permission framework. It only
 uses `@temporalio/client` (no worker code runs inside Backstage). Add at
 least `temporal.connection` to your app config (see
-[Configuration](#configuration)).
+[Configuration](#configuration)), and allow the kind in the catalog rules if
+you use `TemporalWorkflow` entities (see
+[Workflow entities](#workflow-entities)).
+
+The default export is a feature loader. To leave a part out, add the
+features one by one instead:
+
+```ts
+import {
+  catalogModuleTemporalWorkflowKind,
+  temporalPlugin,
+} from '@kwkevinchan/backstage-plugin-temporal-backend';
+import { temporalAccessServiceFactory } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
+
+backend.add(temporalPlugin);
+// The default access checks; a backend with its own factory leaves it out.
+backend.add(temporalAccessServiceFactory);
+// The TemporalWorkflow kind, in the backend that runs the catalog.
+backend.add(catalogModuleTemporalWorkflowKind);
+```
 
 **Content security policy.** With large payloads in External Storage, the step panel shows
 stored images as thumbnails from `blob:` URLs. The backend's default content
@@ -203,13 +230,13 @@ this header, so the problem only shows in a production build.
 ### Frontend, new frontend system
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
 ```
 
 Add the plugin to your app features, or let feature discovery find it:
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
 
 export default createApp({ features: [temporalPlugin /* ... */] });
 ```
@@ -222,26 +249,14 @@ and the **Workflows** page on `/temporal`. The page has a title and an icon,
 so the app lists it in the sidebar with the nav items it discovers from pages
 (`navItems` of `NavContentBlueprint`).
 
-With the backend control module, add the frontend control module for the
-buttons of the operations (Signal, Update, Cancel, Terminate, Rerun and
-Start workflow):
-
-```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-control
-```
-
-```ts
-import temporalControlModule from '@kwkevinchan/backstage-plugin-temporal-module-control/alpha';
-
-export default createApp({
-  features: [temporalPlugin, temporalControlModule /* ... */],
-});
-```
+The buttons of the operations (Signal, Update, Cancel, Terminate, Rerun,
+Start workflow, and Pause, Resume and Run now on schedules) are extensions
+of the plugin; they show nothing when `temporal.control.enabled` is false.
 
 ### Frontend, legacy frontend system
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
 ```
 
 `EntityPage.tsx`:
@@ -250,7 +265,7 @@ yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
 import {
   EntityTemporalContent,
   isTemporalAvailable,
-} from '@kwkevinchan/backstage-plugin-temporal';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend';
 
 <EntityLayout.Route path="/temporal" title="Temporal" if={isTemporalAvailable}>
   <EntityTemporalContent />
@@ -268,7 +283,7 @@ import {
   EntityTemporalWorkflowSummaryCard,
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend';
 
 const temporalWorkflowPage = (
   <EntityLayout>
@@ -305,7 +320,7 @@ component (use it with
 The Workflows page (`App.tsx` and the sidebar in `Root.tsx`):
 
 ```tsx
-import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal';
+import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 <Route path="/temporal" element={<TemporalPage />} />;
@@ -313,31 +328,10 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 <SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />;
 ```
 
-With the backend control module, add the frontend control module
-(`yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-control`)
-and pass its buttons to the props of the entity tab and the Workflows page.
-Its API factory in `apis.ts` is optional: without it the buttons use the
-default client.
-
-```tsx
-import {
-  temporalControlApiFactory,
-  temporalControlListActions,
-  temporalControlWorkflowActions,
-} from '@kwkevinchan/backstage-plugin-temporal-module-control';
-
-// apis.ts, optional: without it the buttons use the default client
-export const apis = [/* ... */ temporalControlApiFactory];
-
-<EntityTemporalContent
-  workflowActions={temporalControlWorkflowActions}
-  workflowListActions={temporalControlListActions}
-/>;
-<TemporalPage
-  workflowActions={temporalControlWorkflowActions}
-  workflowListActions={temporalControlListActions}
-/>;
-```
+`EntityTemporalContent` and `TemporalPage` show the buttons of the
+operations by themselves, first in the action bar and above the lists; the
+`workflowActions`, `workflowListActions` and `scheduleActions` props add
+yours after them.
 
 ## Workflow details
 
@@ -575,8 +569,10 @@ temporal:
     entityRef: BackstageEntityRef
     # Keyword attribute set to the user who started a workflow from Backstage.
     initiator: BackstageInitiator
-  # Optional (control module): limit the signals and updates that may be sent.
+  # Optional: the operations that change workflows (on by default), and the
+  # signals and updates that may be sent.
   control:
+    enabled: true
     allowedSignals: [addNote, close]
     allowedUpdates: [setPriority]
   # Optional: large payloads in Temporal External Storage, see Large payloads.
@@ -612,6 +608,7 @@ temporal:
 | `webUi.baseUrl`                     |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                        |
 | `searchAttributes.entityRef`        |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                         |
 | `searchAttributes.initiator`        |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                  |
+| `control.enabled`                   | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).   |
 | `control.allowedSignals`            | (all)                | Signal names that may be sent.                                                                                                                                                            |
 | `control.allowedUpdates`            | (all)                | Update names that may be sent.                                                                                                                                                            |
 | `externalStorage.s3.bucket`         | (required)           | Bucket the workers store payloads in.                                                                                                                                                     |
@@ -759,7 +756,8 @@ so reloading a page does not download the same data again.
 
 ## Workflow entities
 
-The catalog module adds the `TemporalWorkflow` kind. One entity stands for
+The backend plugin adds the `TemporalWorkflow` kind to the catalog (its
+catalog module, `catalogModuleTemporalWorkflowKind`). One entity stands for
 one Temporal Workflow Type and its Workflow Definition (the workflow code);
 the entity page shows it as **Workflow type**. Its workflow executions are
 listed on its Temporal tab.
@@ -948,22 +946,42 @@ if (isResourcePermission(request.permission, 'temporal-workflow')) {
 A backend module can add more rules with
 `coreServices.permissionsRegistry.addPermissionRules` and
 `temporalWorkflowPermissionResourceRef` from
-`@kwkevinchan/backstage-plugin-temporal-node/alpha`. A rule's `toQuery`
+`@kwkevinchan/backstage-plugin-temporal-backend/alpha`. A rule's `toQuery`
 returns a visibility query (the part after `WHERE`).
 
 ## Workflow controls
 
-The operations that change workflows come from the control modules: the
-routes from `@kwkevinchan/backstage-plugin-temporal-backend-module-control`,
-the buttons from `@kwkevinchan/backstage-plugin-temporal-module-control`.
-Without them the backend has no such routes and the pages only read. Query
-stays in the core plugin and needs `temporal.workflow.query`.
+> **Security.** The operations are on by default. Without a permission
+> policy (the allow-all policy), every signed-in user may start, cancel and
+> terminate workflows. `allowedSignals` and `allowedUpdates` only limit the
+> names of signals and updates; they do not stop cancel or terminate.
+> Restrict the operations with a policy (below) or turn them off.
+
+The operations that change workflows (start, signal, update, cancel,
+terminate, rerun, custom actions, and pause, resume and run now on
+schedules) come with the two core packages: the routes with the backend
+plugin, the buttons with the frontend plugin. Turn them all off with one
+key, read by both:
+
+```yaml
+temporal:
+  control:
+    enabled: false
+```
+
+The backend then serves none of those routes (they answer 404), ignores the
+custom actions that modules add (with a warning in the log; the modules
+still start), and the pages show no buttons for them. Reading, Query and the
+Definition tab are not affected. The Scaffolder steps `temporal:workflow:start`
+and `temporal:workflow:signal` fail with a message that names the key;
+`temporal:workflow:wait` keeps working. Query needs `temporal.workflow.query`
+and is never turned off by this key.
 
 The details page has an action bar with the operations that fit the run:
 
 - running: **Signal…**, **Update…**, **Cancel** and **Terminate**;
 - closed: **Rerun**;
-- always: **Query…** (core plugin).
+- always: **Query…** (also when `temporal.control.enabled` is false).
 
 Cancel and Terminate ask for confirmation; Terminate needs a reason, which is
 kept in the history. Rerun starts a new workflow with the input, workflow
@@ -1066,7 +1084,7 @@ import { isPermission } from '@backstage/plugin-permission-common';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowTerminatePermission,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 
 if (
   isPermission(request.permission, temporalWorkflowTerminatePermission) ||
@@ -1099,7 +1117,7 @@ task queue, when it has one). Each one shows when it
 runs (`every 1h`, `02:00 on MONDAY-FRIDAY`, with its time zone), whether it
 is paused and why, its next run and a link to the workflow of its last run.
 
-With the control modules, each schedule has **Pause** or **Resume** and
+Unless `temporal.control.enabled` is false, each schedule has **Pause** or **Resume** and
 **Run now**. They need `temporal.workflow.start`, since a schedule starts
 workflows: on the entity whose workflow types it starts, or without
 conditions on the Workflows page. Each one is recorded with the auditor
@@ -1126,7 +1144,7 @@ do the same from the frontend with `temporalApiRef` and
 ## Extending
 
 New frontend system, with the blueprints of
-`@kwkevinchan/backstage-plugin-temporal/alpha`:
+`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`:
 
 ```ts
 TemporalWorkflowActionBlueprint.make({
@@ -1150,16 +1168,16 @@ entity tab and of the Workflows page. In the legacy system, pass
 
 Backend modules that serve their own routes under `/api/temporal` use the
 plugin's access checks through `temporalAccessServiceRef`
-(`@kwkevinchan/backstage-plugin-temporal-node/alpha`). To decide access in
+(`@kwkevinchan/backstage-plugin-temporal-backend/alpha`). To decide access in
 another way, add your own factory for that ref to the backend; the default
 factory that the backend package brings is then skipped.
 
 Backend modules can add data to workflow summaries with
 `temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-node`, and, with the control module
-installed, custom workflow actions with
-`temporalControlExtensionPoint.addControlAction()` from
-`@kwkevinchan/backstage-plugin-temporal-node/alpha`. An action is served as
+`@kwkevinchan/backstage-plugin-temporal-backend/node`, and custom workflow
+actions with `temporalControlExtensionPoint.addControlAction()` from
+`@kwkevinchan/backstage-plugin-temporal-backend/alpha` (ignored, with a
+warning, when `temporal.control.enabled` is false). An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
 call with the auditor and passes a Temporal client to `handle`. The client
@@ -1167,7 +1185,7 @@ reaches every workflow of the namespace, with the backend's credentials,
 while the permission was only checked for the workflow of the request: an
 action that signals, starts or changes other workflows must check the
 permissions for those itself, with `temporalAccessServiceRef` from
-`@kwkevinchan/backstage-plugin-temporal-node/alpha`: `loadWorkflow()` reads
+`@kwkevinchan/backstage-plugin-temporal-backend/alpha`: `loadWorkflow()` reads
 the other workflow and its entity, then `authorizeOn()` checks the
 permission on that entity.
 
@@ -1183,9 +1201,9 @@ temporal.addControlAction({
 });
 ```
 
-The frontend control module shows it as a button that runs the action and
-shows the result. New frontend system, with the blueprint of
-`@kwkevinchan/backstage-plugin-temporal-module-control/alpha`:
+The frontend plugin shows it as a button that runs the action and shows the
+result. New frontend system, with the blueprint of
+`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`:
 
 ```ts
 TemporalControlActionBlueprint.make({
@@ -1203,11 +1221,40 @@ TemporalControlActionBlueprint.make({
 
 Legacy system: add
 `createTemporalControlActionDef({ actionId: 'escalate', label: 'Escalate' })`
-of the same package to `workflowActions`. Custom components can call the
+of `@kwkevinchan/backstage-plugin-temporal-frontend` to `workflowActions`. Custom components can call the
 actions and the operations with `temporalControlApiRef`
 (`runWorkflowAction`, `signalWorkflow`, …), and the reads and queries with
 `temporalApiRef`.
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
+
+The other backend code that only needs Temporal uses the shared connection
+of the backend plugin, without its routes:
+
+```ts
+import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
+
+env.registerInit({
+  deps: { temporal: temporalServiceRef },
+  async init({ temporal }) {
+    const client = await temporal.getClient({ namespace: 'default' });
+    // client.workflow.start(...), client.workflow.list(...)
+  },
+});
+```
+
+The entry points for modules (`./node`, `./alpha`, `./common`) do not load
+the plugin itself. Importing a backend plugin package from a module makes
+the Backstage lint rule `@backstage/no-mixed-plugin-imports` print a
+warning; it does not fail the lint.
+
+| What                                                           | Import from                                              |
+| -------------------------------------------------------------- | -------------------------------------------------------- |
+| `temporalServiceRef`, `temporalExtensionPoint` and their types | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
+| `temporalAccessServiceRef`, `temporalControlExtensionPoint`, … | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
+| Permissions, API types and paths, annotations (backend code)   | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
+| Permissions, API types and paths, annotations (frontend code)  | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
+| `TemporalControlActionBlueprint`                               | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
+| `temporalControlApiRef`, `createTemporalControlActionDef`      | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
 
 ## Security
 
@@ -1215,11 +1262,16 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
   (`connection.auth.token`) and the S3 credentials are marked as secrets in
   the config schema and are never sent to the browser. Read them from
   environment variables or mounted secrets, not from files in git.
-- **Access is open by default.** With the allow-all policy, or with the
-  permission framework off, every signed-in user can read every workflow
-  of the configured namespaces (including inputs and results) and use
-  every operation. Write a permission policy before you enable the plugin
-  for people who should not have that (see [Permissions](#permissions)).
+- **Access is open by default, operations included.** The operations that
+  change workflows are on by default (`temporal.control.enabled`). With the
+  allow-all policy, or with the permission framework off, every signed-in
+  user can read every workflow of the configured namespaces (including
+  inputs and results) and start, cancel and terminate workflows.
+  `control.allowedSignals` and `control.allowedUpdates` only limit the
+  names of signals and updates; they do not stop cancel or terminate.
+  Write a permission policy before you enable the plugin for people who
+  should not have that (see [Permissions](#permissions)), or set
+  `temporal.control.enabled: false` to keep the plugin read-only.
 - **Inputs and results can contain personal or secret data.** They are part
   of the history and need `temporal.workflow.history.read`; without it the
   graph is shown without them. Keep the list permissions
@@ -1235,8 +1287,8 @@ The development apps have an example (`packages/backend/src/escalateAction.ts`).
 - **Operations are recorded.** Every operation is checked with the
   permission framework and recorded with the auditor, and the Temporal
   history shows the user as the identity. Limit signal and update names
-  with `control.allowedSignals` and `control.allowedUpdates`, or leave
-  the control module out to keep the plugin read-only.
+  with `control.allowedSignals` and `control.allowedUpdates`, or turn the
+  operations off with `control.enabled: false`.
 - **Downloads are checked.** A payload can only be downloaded when its key
   belongs to a reference in the history of the run that names the
   configured bucket and driver; its SHA-256 is checked before anything is
