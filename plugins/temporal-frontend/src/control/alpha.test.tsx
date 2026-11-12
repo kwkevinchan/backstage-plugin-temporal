@@ -59,7 +59,7 @@ const component: Entity = {
   spec: { type: 'service', owner: 'team' },
 };
 
-describe('control module (new frontend system)', () => {
+describe('operations (new frontend system)', () => {
   it('adds the operations to the action bar of the details page', () => {
     const action = createExtensionTester(temporalWorkflowControlsAction).get(
       temporalWorkflowActionDataRef,

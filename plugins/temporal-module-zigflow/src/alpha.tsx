@@ -48,7 +48,7 @@ export const temporalDefinitionContent = EntityContentBlueprint.make({
 });
 
 /**
- * Module of the Temporal plugin (`@kwkevinchan/backstage-plugin-temporal/alpha`)
+ * Module of the Temporal plugin (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`)
  * for the new frontend system: adds the Definition tab.
  *
  * @alpha
