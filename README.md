@@ -4,8 +4,8 @@
 > endorsed by, or supported by Temporal Technologies, Inc. or the Backstage
 > project. "Temporal" is used only to describe what the plugin connects to.
 
-**Status: pre-release.** The first release will be `0.1.0`. Until `1.0.0`,
-minor versions may change the API.
+**Status: early release (`0.x`).** Until `1.0.0`, minor versions may change
+the API.
 
 The plugin shows [Temporal](https://temporal.io) workflows next to the catalog
 entities that own them in [Backstage](https://backstage.io), and lets people
@@ -71,7 +71,7 @@ workflow definition.
   [Permissions](#permissions)).
 
 **Experimental, off by default.** Views of AI workflows are not part of the
-first release and will move to a separate package. Turn them on with
+published packages and will move to a separate package. Turn them on with
 `temporal.experimental.aiWorkflows: true` (no compatibility promise):
 
 - **Loops of AI workflows.** Rounds of generate, check and revise loops are
@@ -592,7 +592,7 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
-  # Optional: views that are not part of the first release, see Loops and
+  # Optional: views that are not part of the published packages, see Loops and
   # LLM steps.
   experimental:
     aiWorkflows: false

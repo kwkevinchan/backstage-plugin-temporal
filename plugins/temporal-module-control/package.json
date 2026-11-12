@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-module-control",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Module of the unofficial Backstage Temporal plugin with the operations that change workflows: start, signal, update, cancel, terminate, rerun and custom actions",
   "license": "Apache-2.0",
   "keywords": [

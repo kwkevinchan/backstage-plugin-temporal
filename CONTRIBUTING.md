@@ -1,7 +1,8 @@
 # Contributing
 
-Thanks for your interest. The project is pre-alpha, so please open an issue to
-discuss larger changes before sending a pull request.
+Thanks for your interest. The project is early (`0.x`: the API may still
+change before `1.0.0`), so please open an issue to discuss larger changes
+before sending a pull request.
 
 ## Workflow
 
@@ -22,11 +23,11 @@ discuss larger changes before sending a pull request.
 ## Releasing
 
 Releases are cut by the maintainer from `main`, with
-[changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`.
+[changesets](https://github.com/changesets/changesets). The first release is
+`0.1.0` for every published package.
 
 1. `yarn changeset version`: bumps the versions (the first-release
-   changesets are `minor`), updates the internal dependency ranges and
+   changesets were `minor`), updates the internal dependency ranges and
    writes the changelogs. Then `yarn install` (not `--immutable`: the
    workspace versions are in `yarn.lock`). Review and commit both in a pull
    request.
