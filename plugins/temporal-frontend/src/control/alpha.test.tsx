@@ -25,6 +25,7 @@ import {
   temporalStartWorkflowListAction,
   temporalWorkflowControlsAction,
 } from './alpha';
+import temporalPlugin from '../alpha';
 
 const workflowEntity: Entity = {
   apiVersion: 'temporal.io/v1alpha1',
@@ -75,3 +76,15 @@ describe('control module (new frontend system)', () => {
     expect(action.filter).toBe(filter);
   });
 });
+
+describe('the operations in the plugin (new frontend system)', () => {
+  it.each([
+    'api:temporal/control',
+    'temporal-workflow-action:temporal/controls',
+    'temporal-workflow-list-action:temporal/start',
+    'temporal-schedule-action:temporal/controls',
+  ])('includes %s', id => {
+    expect(temporalPlugin.getExtension(id as any)).toBeDefined();
+  });
+});
+

@@ -671,3 +671,93 @@ describe('ScheduleControls', () => {
     );
   });
 });
+
+describe('with temporal.control.enabled: false', () => {
+  const disabled = { control: { enabled: false } };
+  const schedule = {
+    namespace: 'default',
+    scheduleId: 'nightly',
+    workflowType: 'orderWorkflow',
+    spec: ['every 1h'],
+    paused: false,
+    nextActionTimes: [],
+    recentActions: [],
+  };
+  const Escalate = createTemporalControlActionDef({
+    actionId: 'escalate',
+    label: 'Escalate',
+  }).component;
+
+  /** Renders the element after a marker and waits for the marker. */
+  async function renderAll(element: JSX.Element, control: object) {
+    const result = render(
+      <>
+        <p>rendered</p>
+        {element}
+      </>,
+      { control },
+    );
+    expect(await screen.findByText('rendered')).toBeInTheDocument();
+    return result;
+  }
+
+  it.each([
+    [
+      'the operations of a running workflow',
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    ],
+    [
+      'Rerun of a closed workflow',
+      <WorkflowControls
+        workflow={failedWorkflow}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    ],
+    [
+      'Start workflow on a TemporalWorkflow entity',
+      <StartWorkflowButton entity={workflowEntity} workflowHref={href} />,
+    ],
+    [
+      'Start workflow on the Workflows page',
+      <StartWorkflowButton workflowHref={href} />,
+    ],
+    [
+      'a custom action',
+      <Escalate workflow={running} entity={entity} reload={jest.fn()} />,
+    ],
+    [
+      'the schedule buttons',
+      <ScheduleControls schedule={schedule} entity={entity} reload={jest.fn()} />,
+    ],
+  ])('shows no buttons for %s', async (_name, element) => {
+    const { api, temporal } = await renderAll(element, disabled.control);
+    expect(screen.queryAllByRole('button')).toEqual([]);
+    expect(temporal.getWorkflowHandlers).not.toHaveBeenCalled();
+    expect(Object.values(api).some(fn => fn.mock.calls.length > 0)).toBe(
+      false,
+    );
+  });
+
+  it('shows them when enabled is true', async () => {
+    await renderAll(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { enabled: true },
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Cancel' }),
+    ).toBeInTheDocument();
+  });
+});
+
