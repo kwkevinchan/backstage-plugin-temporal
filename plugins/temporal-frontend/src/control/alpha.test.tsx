@@ -14,7 +14,25 @@
  * limitations under the License.
  */
 
-import { createExtensionTester } from '@backstage/frontend-test-utils';
+import { screen } from '@testing-library/react';
+import {
+  ApiBlueprint,
+  coreExtensionData,
+} from '@backstage/frontend-plugin-api';
+import {
+  createExtensionTester,
+  mockApis,
+  renderInTestApp,
+} from '@backstage/frontend-test-utils';
+import { EntityProvider } from '@backstage/plugin-catalog-react';
+import { permissionApiRef } from '@backstage/plugin-permission-react';
+import {
+  temporalApiRef,
+  TemporalWorkflowExtensionsApi,
+  temporalWorkflowExtensionsApiRef,
+} from '../extensions';
+import { entity, mockTemporalApi } from '../testData';
+import { TemporalControlApi, temporalControlApiRef } from './api';
 import type { Entity } from '@backstage/catalog-model';
 import {
   temporalWorkflowActionDataRef,
@@ -85,5 +103,53 @@ describe('the operations in the plugin (new frontend system)', () => {
     'temporal-schedule-action:temporal/controls',
   ])('includes %s', id => {
     expect(temporalPlugin.getExtension(id as any)).toBeDefined();
+  });
+});
+
+describe('the operations on the pages (new frontend system)', () => {
+  /** The shared extensions API of the plugin, with its control extensions. */
+  function workflowExtensions(): TemporalWorkflowExtensionsApi {
+    const factory = createExtensionTester(
+      temporalPlugin.getExtension('api:temporal/workflow-extensions'),
+    )
+      .add(temporalWorkflowControlsAction)
+      .add(temporalStartWorkflowListAction)
+      .get(ApiBlueprint.dataRefs.factory);
+    return factory.factory({}) as TemporalWorkflowExtensionsApi;
+  }
+
+  it.each([
+    ['shows Rerun', {}, true],
+    ['shows no operations with temporal.control.enabled false', { enabled: false }, false],
+  ])('%s on the entity tab and the Workflows page', async (_name, control, shown) => {
+    for (const id of ['entity-content:temporal', 'page:temporal']) {
+      const element = createExtensionTester(
+        temporalPlugin.getExtension(id as 'page:temporal'),
+      ).get(coreExtensionData.reactElement);
+      const { unmount } = renderInTestApp(
+        <EntityProvider entity={entity}>{element}</EntityProvider>,
+        {
+          apis: [
+            [temporalApiRef, mockTemporalApi()],
+            [temporalWorkflowExtensionsApiRef, workflowExtensions()],
+            [temporalControlApiRef, {} as TemporalControlApi],
+            [permissionApiRef, mockApis.permission()],
+          ],
+          config: { temporal: { control } },
+          initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
+        },
+      );
+      expect(
+        await screen.findByTestId('workflow-summary', {}, { timeout: 10_000 }),
+      ).toHaveTextContent('Failed');
+      if (shown) {
+        expect(
+          await screen.findByRole('button', { name: 'Rerun' }),
+        ).toBeInTheDocument();
+      } else {
+        expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+      }
+      unmount();
+    }
   });
 });

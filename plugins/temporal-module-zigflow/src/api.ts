@@ -22,6 +22,20 @@ import {
   WorkflowDefinitionResponse,
 } from './common/definition';
 
+/** The error when the backend has no definition route. */
+export const MODULE_MISSING_MESSAGE =
+  'The Temporal backend serves no workflow definitions: add @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow to the backend';
+
+/** True when a response carries a Backstage error body (`{ error }`). */
+async function hasErrorBody(response: Response): Promise<boolean> {
+  try {
+    const body = JSON.parse(await response.text());
+    return typeof body?.error?.name === 'string';
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Reads the definition file of a `TemporalWorkflow` entity from the
  * Temporal backend plugin (the route of
@@ -35,6 +49,10 @@ export async function loadEntityDefinition(
   const response = await apis.fetchApi.fetch(
     `${baseUrl}${buildEntityDefinitionPath(parseEntityRef(entityRef))}`,
   );
+  if (response.status === 404 && !(await hasErrorBody(response.clone()))) {
+    // No such route: the backend module is not installed.
+    throw new Error(MODULE_MISSING_MESSAGE);
+  }
   if (!response.ok) throw await ResponseError.fromResponse(response);
   return (await response.json()) as WorkflowDefinitionResponse;
 }
