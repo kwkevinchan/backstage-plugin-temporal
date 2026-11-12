@@ -187,7 +187,7 @@ development apps install.
 The page of a running workflow reloads every ten seconds while its browser tab is in
 front; the **Auto refresh** switch turns that off. The **Raw** events are the
 exception: they load when opened and again when you press **Refresh** (or finish an
-action), not by the automatic reload. The **Refresh** button stays
+action), or when the page moves to another run, not by the automatic reload. The **Refresh** button stays
 locked until its reload has ended and at least a second has passed, so pressing it
 repeatedly sends one request.
 

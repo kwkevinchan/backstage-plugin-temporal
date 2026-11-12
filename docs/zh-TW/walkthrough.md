@@ -102,7 +102,7 @@
 
 這幾步需要 1.5 的 Worker，並且用到開發用 app 已安裝的 control 模組。
 
-執行中流程的頁面，在瀏覽器分頁位於前景時，每十秒重新載入一次；**Auto refresh** 開關可以關掉它。**Raw** 事件是例外：它在打開時載入，按 **Refresh**（或做完一個操作）時才重新載入，自動重新載入不會動它。**Refresh** 按鈕按下後會鎖住，要等重新載入結束而且至少過了一秒才能再按，所以連按只會送出一次請求。
+執行中流程的頁面，在瀏覽器分頁位於前景時，每十秒重新載入一次；**Auto refresh** 開關可以關掉它。**Raw** 事件是例外：它在打開時載入，按 **Refresh**（或做完一個操作）或頁面換到另一個 run 時才重新載入，自動重新載入不會動它。**Refresh** 按鈕按下後會鎖住，要等重新載入結束而且至少過了一秒才能再按，所以連按只會送出一次請求。
 
 1. **等簽核的流程。** 打開 `example-approval-…`（狀態 Running）。進度欄寫 **Waiting for approval · times out in …**：這個流程啟動時就帶著 Search Attribute `ApprovalPending` 為 true，外掛把它翻成這句話（[說明](concepts-to-plugin.md#pending-search-attribute-的約定)）。流程圖上已經有一個 `comment` Signal 步驟：1.4 的指令送過一個。
    - 按 **Signal…**，名稱保持 `comment`，參數填 `"looks fine"`。對話框顯示 `Signal comment sent`，流程圖多一個 Signal 步驟。

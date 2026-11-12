@@ -30,7 +30,12 @@ import type {
 import { temporalApiRef, useTemporalWorkflow } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { AUTO_REFRESH_MS } from './useWorkflowData';
-import { entity, failedWorkflow, mockTemporalApi } from '../testData';
+import {
+  entity,
+  failedWorkflow,
+  graphResponse,
+  mockTemporalApi,
+} from '../testData';
 
 const PATH = '/namespaces/default/workflows/payment-1/runs/run-2';
 
@@ -133,14 +138,24 @@ describe('Raw events of the workflow page', () => {
 
   it('does not touch the raw events when the page updates itself', async () => {
     const api = mockTemporalApi();
-    api.getWorkflow.mockResolvedValue({ ...failedWorkflow, status: 'Running' });
+    // A new object on every load, like parsed JSON, so that nothing on the
+    // page can tell an update by the identity of the data.
+    api.getWorkflow.mockImplementation(async () => ({
+      ...failedWorkflow,
+      status: 'Running',
+    }));
+    api.getWorkflowGraph.mockImplementation(async () => ({ ...graphResponse }));
     pagedHistory(api);
     const intervals: (() => void)[] = [];
+    const realSetInterval = window.setInterval;
     const setIntervalSpy = jest
       .spyOn(window, 'setInterval')
       .mockImplementation(((fn: () => void, ms: number) => {
-        if (ms === AUTO_REFRESH_MS) intervals.push(fn);
-        return intervals.length as any;
+        // Only the automatic update is held; other timers, such as the
+        // polling of waitFor, run as usual. The fake id matches no timer.
+        if (ms !== AUTO_REFRESH_MS) return realSetInterval(fn, ms);
+        intervals.push(fn);
+        return -intervals.length;
       }) as any);
     try {
       await render(api);
