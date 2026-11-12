@@ -542,6 +542,9 @@ Setup, the `spec.definition` field of the entity and the configuration
 ## Configuration
 
 The complete set of keys; only `temporal.connection.address` is required.
+The `definitions` keys belong to the optional Zigflow backend module and are
+described in the README of the Zigflow frontend module
+([`plugins/temporal-module-zigflow`](plugins/temporal-module-zigflow/README.md)).
 
 ```yaml
 temporal:
@@ -549,10 +552,13 @@ temporal:
     # Temporal frontend service, host:port.
     address: temporal-frontend.temporal.svc:7233
     # Namespaces the plugin may read; requests for others are rejected.
-    # Default: [default].
+    # Default: only defaultNamespace, which is always included.
     namespaces: [default, orders]
     # Namespace of entities without temporal.io/namespace. Default: default.
     defaultNamespace: default
+    # Connect with TLS (server certificate checked with the system's CAs),
+    # for example to Temporal Cloud. Default: false. No client certificates.
+    tls: true
     auth:
       # none (default) or bearer, see Authentication below.
       type: bearer
@@ -582,30 +588,43 @@ temporal:
         secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
       maxInlineBytes: 262144
       previewBytes: 2048
+  # Optional (Zigflow backend module): limits of the Definition tab.
+  definitions:
+    maxBytes: 1048576
+    readFileLocations: false
+  # Optional: views that are not part of the first release, see Loops and
+  # LLM steps.
+  experimental:
+    aiWorkflows: false
 ```
 
-| Key                                 | Default        | Meaning                                                                                                |
-| ----------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| `connection.address`                | (required)     | Temporal frontend service, `host:port`.                                                                |
-| `connection.namespaces`             | `[default]`    | Namespaces the plugin may read. The UI uses one namespace per entity; the API takes it as a parameter. |
-| `connection.defaultNamespace`       | `default`      | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                             |
-| `connection.auth.type`              | `none`         | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                           |
-| `connection.auth.token`             |                | Token for `bearer`. A secret: read it from an environment variable.                                    |
-| `webUi.baseUrl`                     |                | Temporal Web UI; adds "Open in Temporal UI" links.                                                     |
-| `searchAttributes.entityRef`        |                | Keyword search attribute with the entity reference of a workflow.                                      |
-| `searchAttributes.initiator`        |                | Keyword search attribute set to the user who started or reran a workflow from Backstage.               |
-| `control.allowedSignals`            | (all)          | Signal names that may be sent.                                                                         |
-| `control.allowedUpdates`            | (all)          | Update names that may be sent.                                                                         |
-| `externalStorage.s3.bucket`         | (required)     | Bucket the workers store payloads in.                                                                  |
-| `externalStorage.s3.driverName`     | `aws.s3driver` | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                         |
-| `externalStorage.s3.endpoint`       | AWS S3         | Endpoint of an S3-compatible service.                                                                  |
-| `externalStorage.s3.region`         | `us-east-1`    | Region.                                                                                                |
-| `externalStorage.s3.forcePathStyle` | `false`        | Bucket in the path instead of the host name (most self-hosted services).                               |
-| `externalStorage.s3.credentials`    | (required)     | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).       |
-| `externalStorage.s3.maxInlineBytes` | `262144`       | JSON payloads up to this size are shown like payloads in the history.                                  |
-| `externalStorage.s3.previewBytes`   | `2048`         | Bytes of text shown as the preview of a larger payload.                                                |
+| Key                                 | Default              | Meaning                                                                                                                                                                                   |
+| ----------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.address`                | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                   |
+| `connection.namespaces`             | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                         |
+| `connection.defaultNamespace`       | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                |
+| `connection.tls`                    | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication). |
+| `connection.auth.type`              | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                              |
+| `connection.auth.token`             |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                       |
+| `webUi.baseUrl`                     |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                        |
+| `searchAttributes.entityRef`        |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                         |
+| `searchAttributes.initiator`        |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                  |
+| `control.allowedSignals`            | (all)                | Signal names that may be sent.                                                                                                                                                            |
+| `control.allowedUpdates`            | (all)                | Update names that may be sent.                                                                                                                                                            |
+| `externalStorage.s3.bucket`         | (required)           | Bucket the workers store payloads in.                                                                                                                                                     |
+| `externalStorage.s3.driverName`     | `aws.s3driver`       | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                                                                                                            |
+| `externalStorage.s3.endpoint`       | AWS S3               | Endpoint of an S3-compatible service.                                                                                                                                                     |
+| `externalStorage.s3.region`         | `us-east-1`          | Region.                                                                                                                                                                                   |
+| `externalStorage.s3.forcePathStyle` | `false`              | Bucket in the path instead of the host name (most self-hosted services).                                                                                                                  |
+| `externalStorage.s3.credentials`    | (required)           | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).                                                                                          |
+| `externalStorage.s3.maxInlineBytes` | `262144`             | JSON payloads up to this size are shown like payloads in the history.                                                                                                                     |
+| `externalStorage.s3.previewBytes`   | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                   |
+| `definitions.maxBytes`              | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                   |
+| `definitions.readFileLocations`     | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                          |
+| `experimental.aiWorkflows`          | `false`              | Show the AI loops and LLM steps (experimental, no compatibility promise).                                                                                                                 |
 
-All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
+All keys are under `temporal`. `maxInlineBytes` and `previewBytes` must be
+non-negative integers. The frontend reads `connection.defaultNamespace`,
 `webUi` and `control`; the token and the S3 credentials stay in the backend.
 
 ### Authentication
@@ -1256,19 +1275,42 @@ Start the example workflows for the `example-orders` component with:
 yarn workspace example-worker start
 ```
 
-Large payloads: start RustFS (an S3-compatible store) on port 9100, then the
-backend with `app-config.s3.yaml` and the example worker with the same
-`PAYLOAD_S3_*` variables. The worker then uses Temporal External Storage
+Large payloads: the backend (with `app-config.s3.yaml`) and the example worker
+need the same `PAYLOAD_S3_*` variables and a local RustFS (an S3-compatible
+store) on port 9100. The worker then uses Temporal External Storage
 (threshold 128 KiB) and also runs `reportWorkflow`, with about 1 MB of JSON,
-180 KiB of JSON and a PNG as outputs:
+180 KiB of JSON and a PNG as outputs. Stop a running `yarn start` and a
+running example worker first (Ctrl+C in their terminals; the backend would
+otherwise find port 7007 taken, and the old worker has no S3 configuration).
+Keep the Temporal server. In every terminal below, set the variables first;
+the compose file refuses to start without the access key and the secret key:
 
 ```sh
 export PAYLOAD_S3_ENDPOINT=http://localhost:9100 PAYLOAD_S3_BUCKET=temporal-payloads
 export PAYLOAD_S3_ACCESS_KEY=dev-access PAYLOAD_S3_SECRET_KEY=dev-secret-key
 docker compose -f examples/docker-compose.rustfs.yaml up -d
-yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml
+
+# Frontend and backend; the paths are relative to packages/app and
+# packages/backend. Use start:next for the new frontend system app. With
+# --config, only the listed files are read: if you keep local settings in
+# app-config.local.yaml, add --config ../../app-config.local.yaml.
+yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
+
+# In another terminal, with the same variables exported:
 yarn workspace example-worker start
-SMOKE_S3=1 yarn test:e2e   # adds the External Storage smoke test
+```
+
+`yarn workspace example-worker start` creates the bucket when it is missing,
+runs the example workflows until the finished ones complete, and then exits;
+the approval and deployment workflows stay open. When it has exited, the
+External Storage smoke test, which only reads the history and needs no worker,
+runs with `SMOKE_S3=1 yarn test:e2e e2e-tests/payloads.test.ts`. To operate workflows from
+Backstage afterwards, run `yarn workspace example-worker serve` with the same
+variables. When you are done, stop `yarn start` and the worker, and stop
+RustFS with the variables set (`-v` also deletes the stored objects):
+
+```sh
+docker compose -f examples/docker-compose.rustfs.yaml down -v
 ```
 
 The example worker also runs two loops: `draftReviewWorkflow` (draft,

@@ -126,7 +126,7 @@
 
 1. **Continue-As-New。** 範例 Worker 會啟動 `pollWorkflow`，它會 Continue-As-New 三次。打開它那一列：標頭寫 `Run 4 of 4`，旁邊的 ⓘ 有說明，**← Run 3** 連結會到前一個 Run。前面幾個 Run 的狀態是 **Continued as new**；在清單打開 **Show all runs** 就能看到四筆。
 2. **子流程。** 在 `example-fulfillment-…` 裡，點子流程方塊（`notifyCustomerWorkflow`）：步驟面板會顯示它的輸入和輸出，面板裡的 **Workflow** 欄位連到子流程自己的詳細頁。
-3. **大型 Payload（選用，需要 Docker）。** Temporal 可以把大的 Payload 存在 S3，紀錄裡只留一個參照。這需要為後端和 Worker 換一組設定，所以要重新啟動它們。README 的 [Development 一節](../../README.md#development)只用額外的設定檔啟動後端；這裡是把 app 和後端一起重新啟動：
+3. **大型 Payload（選用，需要 Docker）。** Temporal 可以把大的 Payload 存在 S3，紀錄裡只留一個參照。這需要為後端和 Worker 換一組設定，所以要重新啟動它們。README 的 [Development 一節](../../README.md#development)把同樣的指令寫成兩個區塊；這裡逐步編號，並說明順序為什麼重要（先停、設變數、RustFS、app 和後端、Worker）：
 
    1. 先停掉正在跑的東西：1.5 的 Worker（Ctrl+C）和 `yarn start`（Ctrl+C；前端和後端都會停）。Temporal 開發用伺服器留著。
    2. 在下面每個終端機都先設好本機 RustFS 的變數：
@@ -142,6 +142,8 @@
       ```sh
       yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
       ```
+
+      給了 `--config` 之後只會讀列出的檔案：如果你把本機設定放在 `app-config.local.yaml`，要再加 `--config ../../app-config.local.yaml`。
 
    5. 在另一個終端機，用同樣的變數執行 `yarn workspace example-worker start`。它會建立 bucket，啟動一批新的流程（這次包含 `reportWorkflow`），並把超過 128 KiB 的 Payload 存進 S3。它結束後，如果還想操作流程，再用同樣的變數執行 `yarn workspace example-worker serve`。
 

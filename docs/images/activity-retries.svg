@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 364" width="800" height="364" role="img" aria-label="Timeline of one Activity, sendEmail. The task waits in the Task Queue for a Worker; the Worker runs attempt 1, which fails; the Server waits 1 second and the task is queued again; attempt 2 fails; the Server waits 2 seconds; attempt 3 succeeds and the Activity completes. A Timer for a 5 minute sleep is then kept by the Server while the Worker does nothing."><style>
+:root{--bg:#f6f8fa;--surface:#ffffff;--ink:#1f2933;--muted:#52606d;--line:#9aa5b1;--acc:#0b6e7f;--acc-soft:#dcf1f4;--ours:#b0440d;--ours-soft:#fbe9dd;--fail:#b42318;--fail-soft:#fde8e6;--q:#e9edf1}
+@media (prefers-color-scheme:dark){:root{--bg:#10151a;--surface:#1d2630;--ink:#e6ecf1;--muted:#a3b0bd;--line:#566574;--acc:#5cc6d4;--acc-soft:#12343b;--ours:#f2965d;--ours-soft:#3f2616;--fail:#f28b82;--fail-soft:#40201e;--q:#26313c}}
+text{font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.bg{fill:var(--bg)}
+.box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+.acc{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.6}
+.ours{fill:var(--ours-soft);stroke:var(--ours);stroke-width:1.5;stroke-dasharray:6 4}
+.dash{stroke-dasharray:5 4}
+.q{fill:var(--q);stroke:var(--line);stroke-width:1.2}
+.bfail{fill:var(--fail-soft);stroke:var(--fail);stroke-width:1.5}
+.bok{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.5}
+.bwait{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-dasharray:5 4}
+.grid{stroke:var(--line);stroke-width:1}
+.ln{stroke:var(--ink);stroke-width:1.7;fill:none}
+.la{stroke:var(--acc);stroke-width:2;fill:none}
+.lo{stroke:var(--ours);stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.lm{stroke:var(--muted);stroke-width:1.7;fill:none;stroke-dasharray:4 4}
+.mn{fill:var(--ink)}.ma{fill:var(--acc)}.mo{fill:var(--ours)}.mm{fill:var(--muted)}
+.h{fill:var(--ink);font-size:15px;font-weight:700}
+.t{fill:var(--ink);font-size:13.5px;font-weight:600}
+.s{fill:var(--muted);font-size:12.5px}
+.sa{fill:var(--acc);font-size:12.5px;font-weight:600}
+.so{fill:var(--ours);font-size:12.5px;font-weight:600}
+.sf{fill:var(--fail);font-size:12.5px;font-weight:600}
+.c{text-anchor:middle}
+.badge{fill:var(--acc);stroke:none}.bn{fill:var(--bg);font-size:12px;font-weight:700;text-anchor:middle}
+</style><defs>
+<marker id="mn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mn"/></marker>
+<marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ma"/></marker>
+<marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mo"/></marker>
+<marker id="mm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mm"/></marker>
+</defs><rect class="bg" x="0" y="0" width="800" height="364"/><text x="20" y="26" class="h">One Activity (sendEmail), from the queue to its result, then a 5 minute sleep</text><path d="M150 58 L790 58" class="grid"/><path d="M150 133 L790 133" class="grid"/><path d="M150 208 L790 208" class="grid"/><path d="M150 283 L790 283" class="grid"/><text x="20" y="91" class="t">Task Queue</text><text x="20" y="109" class="s">waiting for a Worker</text><text x="20" y="166" class="t">Worker</text><text x="20" y="184" class="s">running</text><text x="20" y="241" class="t">Server</text><text x="20" y="259" class="s">retry backoff,</text><text x="20" y="275" class="s">Timer</text><rect x="160" y="75" width="30" height="40" rx="3" class="q"/><rect x="335" y="75" width="20" height="40" rx="3" class="q"/><rect x="525" y="75" width="20" height="40" rx="3" class="q"/><rect x="190" y="150" width="90" height="40" rx="3" class="bfail"/><text x="235" y="167" class="sf c">Attempt 1</text><text x="235" y="183" class="sf c">failed</text><rect x="355" y="150" width="90" height="40" rx="3" class="bfail"/><text x="400" y="167" class="sf c">Attempt 2</text><text x="400" y="183" class="sf c">failed</text><rect x="545" y="150" width="90" height="40" rx="3" class="bok"/><text x="590" y="167" class="sa c">Attempt 3</text><text x="590" y="183" class="sa c">succeeded</text><rect x="280" y="225" width="55" height="40" rx="3" class="bwait"/><text x="307.5" y="249" class="s c">1 s</text><rect x="445" y="225" width="80" height="40" rx="3" class="bwait"/><text x="485" y="249" class="s c">2 s</text><rect x="640" y="225" width="150" height="40" rx="3" class="bwait"/><text x="715" y="249" class="s c">Timer: sleep 5 min</text><text x="655" y="166" class="s">The Worker is</text><text x="655" y="182" class="s">free meanwhile</text><path d="M160 40 L160 73" class="ln" marker-end="url(#mn)"/><text x="168" y="52" class="s">Scheduled</text><path d="M635 40 L635 148" class="ln" marker-end="url(#mn)"/><text x="643" y="52" class="s">Completed</text><text x="20" y="312" class="s">Retry policy in this example: initial interval 1 s, backoff coefficient 2 (both defaults),</text><text x="20" y="330" class="s">maximum attempts 5. Attempts 4 and 5 are not needed.</text><text x="20" y="348" class="s">In the plugin this Activity is one box marked ×3 (third attempt); the timeline says 2 retries.</text></svg>

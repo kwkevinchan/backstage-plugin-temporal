@@ -38,13 +38,27 @@ Temporal Service 本身不執行你的程式碼。它只負責記帳（事件紀
 
 Service 是同一個程式依角色分成四種，可以各自擴充：**Frontend**（唯一的 gRPC 入口，Client、Worker 和這個外掛都連它）、**History**（每個 Workflow Execution 的狀態、事件紀錄和計時器）、**Matching**（管理 Task Queue，Worker 的長輪詢掛在這裡），以及跑 Temporal 自己系統流程的內部 **Worker**。`temporal server start-dev` 把所有角色放在同一個行程裡、用 SQLite，本版本庫的開發環境用的就是它。正式環境的部署請見 [Temporal Service](https://docs.temporal.io/temporal-service) 和 [self-hosted guide](https://docs.temporal.io/self-hosted-guide)。
 
-後面有兩個儲存：**persistence**（流程狀態和紀錄）和 **visibility**（清單和搜尋）。外掛靠查詢 visibility 來列出流程，所以需要支援[進階 visibility](https://docs.temporal.io/self-hosted-guide/visibility) 的 Temporal（支援的 SQL 資料庫，或 Elasticsearch／OpenSearch），並且要先註冊 [`temporal.searchAttributes`](../../README.md#configuration) 裡寫的自訂 Search Attribute。用 Elasticsearch 時，剛啟動的流程可能要過一下才出現在清單裡。
+![Temporal Service 內部：Client、Worker 和 Backstage 後端都只連 Frontend，Frontend 把流程相關的請求轉給 History，把輪詢轉給 Matching。History 把任務放進 Matching；History 和 Matching 寫 Persistence；History 也寫 Visibility，外掛的流程清單查的就是它。內部 Worker 跑 Temporal 自己的系統流程。](images/temporal-service-inside.svg)
+
+由左邊讀起。所有連進來的（Client、CLI、輪詢中的你的 Worker、外掛的後端）都只和 Frontend 說話。Frontend 做 authorization、限流和驗證，再把流程相關的請求轉給 History，把輪詢轉給 Matching。History 管每個執行的狀態；執行分散在固定數量的 history shard 上，shard 數在建立叢集時決定，之後不能改。流程可以往前走時，History 把任務放進 Matching，由 Matching 配對給正在輪詢的 Worker（細節見下面）。內部 Worker 不是你的 Worker，它做的是 Temporal 自己的背景工作。
+
+圖的右邊是後面的兩個儲存：**persistence**（流程狀態和紀錄；Matching 沒人拿的任務也存在這裡）和 **visibility**（清單和搜尋，由 History 寫入）。外掛靠查詢 visibility（橘色虛線）來列出流程，所以需要支援[進階 visibility](https://docs.temporal.io/self-hosted-guide/visibility) 的 Temporal（支援的 SQL 資料庫，或 Elasticsearch／OpenSearch），並且要先註冊 [`temporal.searchAttributes`](../../README.md#configuration) 裡寫的自訂 Search Attribute。用 Elasticsearch 時，剛啟動的流程可能要過一下才出現在清單裡。
 
 ### Task Queue 怎麼運作
 
 Task Queue 不用事先建立；第一次有 Worker 或 Client 用到某個名字，它就存在了。同一個名字底下其實有兩條佇列，一條給 Workflow Task、一條給 Activity Task，Worker 分別輪詢。有 Worker 正在等的話，任務直接交過去；沒有的話就在佇列裡排著，等 Worker 來拿。一個任務只交給一個 Worker。沒有 Worker 在聽時，任務只是排著，流程不會失敗，只是不往前走。外掛把這種情形顯示成：已排進佇列但還沒開始的 Activity 上寫 "Waiting for a worker"。
 
-跑過某個流程的 Worker 會把它的狀態留在記憶體，伺服器之後會優先把這個流程的下一件任務送給同一個 Worker（sticky queue），省掉重播紀錄。細節見 [Task Queues](https://docs.temporal.io/task-queue) 和 [Tasks](https://docs.temporal.io/tasks)。
+![Task Queue 怎麼運作：History 把 Workflow Task 和 Activity Task（1 和 3）排進 Matching 裡同名的兩條佇列。Worker A、B 長輪詢：有 Worker 正在等就直接配對（2 和 4）；沒人等就寫進資料庫排著（backlog）。Worker A 跑過某個流程後，它之後的 Workflow Task 送到 A 專屬的 sticky 佇列（5）。Worker 的回報經 Frontend 回到 History。](images/task-queue.svg)
+
+圖上的編號以下面範例裡的 `order-1001` 為例：
+
+1. Client 啟動流程，History 在 `orders` 的 Workflow Task 佇列排第一個 Workflow Task。
+2. 正在長輪詢這條佇列的 Worker，如果正在等，就立刻拿到任務（sync match：任務不存進資料庫）。沒人在等，任務就存進資料庫排著（backlog），等 Worker 來輪詢。
+3. Worker 執行流程程式碼，回報指令，例如「排 `sendEmail`」（圖上方橫跨的線，經 Frontend）。History 把它們記成事件，並在 Activity Task 佇列放一個 Activity Task。
+4. 任何一個輪詢這條佇列的 Worker 都可以拿走它。同一條佇列上的兩個 Worker 分攤工作；一個任務只給一個 Worker。
+5. 跑過某個流程的 Worker 會把它的狀態留在記憶體，伺服器之後會優先把這個流程的下一個 Workflow Task，經由只有它在輪詢的 "sticky" 佇列送給同一個 Worker，省掉重播紀錄。那個 Worker 如果沒有及時來拿，任務就退回一般佇列，任何 Worker 都可以拿。Activity Task 不使用 sticky 佇列。
+
+每條佇列內部會切成幾個分區（partition）來分散負載，不用你設定，但可能影響任務交出去的先後順序。細節見 [Task Queues](https://docs.temporal.io/task-queue) 和 [Tasks](https://docs.temporal.io/tasks)。
 
 ## 核心概念
 
@@ -72,11 +86,19 @@ Task Queue 不用事先建立；第一次有 Worker 或 Client 用到某個名�
 
 一個重試過的 Activity 在圖上是一個方塊。在時間軸上，淺色長條涵蓋在佇列裡等待、失敗的嘗試和重試間隔，實心長條是最後執行的那一次嘗試。
 
+![一個 Activity（sendEmail）的時間軸：在 Task Queue 排隊，第 1 次嘗試失敗，Server 等 1 秒，第 2 次嘗試失敗，Server 等 2 秒，第 3 次嘗試成功；接著 Server 為 5 分鐘的 Timer 計時，Worker 什麼都不用做。](images/activity-retries.svg)
+
+把每一列看成「現在任務在誰手上」。上面一列，任務在 Task Queue 等；中間一列，Worker 執行一次嘗試。嘗試失敗後，等重試間隔的是 Server 而不是 Worker，等完再把任務重新放回佇列；這段等待和 Timer 期間，Worker 都不佔任何東西。圖上的間隔來自下面範例的重試策略（預設值：初始間隔 1 秒、倍數 2）。為了讓 Activity 和 Timer 排在同一條時間軸上，圖裡是 Activity 之後才睡；下面的範例則是先睡再寄信。事件紀錄只留最後一次嘗試（見[一次執行在事件紀錄裡的樣子](#一次執行在事件紀錄裡的樣子)），所以外掛能顯示 `×3` 和 "2 retries"，但看不到每一次嘗試。
+
 ### 紀錄
 
 - **Event History。** 一個 Run 的所有事件，依序編號，只會往後加。它是 Temporal 判斷流程狀態的唯一依據：Worker 重新啟動時，就是重播這份紀錄把流程狀態算回來。流程圖、時間軸和 **Steps** 表都是從它算出來的。畫面：**Events** 分頁。
 
 ### 和執行中的流程溝通
+
+![和執行中的流程溝通：Client 或外掛對執行中的 order-1001 Run 1 送 Signal、Update、Query、Cancel 或 Terminate，除了 Query 以外都會寫進 Event History。Run 1 可以用 Continue-As-New 接成 Run 2，也可以啟動 Child Workflow。Search Attributes 和 Memo 掛在執行上。輸入、輸出和訊息的參數依序經過 Data Converter、選用的 Codec 和 External Storage，才進到 Event History。](images/talking-to-a-workflow.svg)
+
+圖的左半是這一節：藍綠色箭頭會寫進事件紀錄，虛線的 Query 不會（被 validator 拒絕的 Update 也不會）。右半是下一節；最下面一排和 Search Attributes 方塊屬於「找流程、帶資料」：Payload 先經過 Data Converter，再經過選用的 Codec，再經過 External Storage，最後才進到事件紀錄，所以用了加密的 Codec 時，放進 S3 的內容已經是加密過的。
 
 - **Signal。** 從外面丟一個訊息進流程，不等回覆。流程在 handler 裡接住並改變狀態，會記進事件紀錄。畫面：**Signal…** 按鈕；流程圖上的 Signal 步驟。
 - **Query。** 讀流程目前的狀態，不改任何東西，也不記進事件紀錄。流程結束後也能查，只要有 Worker 在線。畫面：**Query…** 按鈕。

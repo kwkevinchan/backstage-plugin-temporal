@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 392" width="860" height="392" role="img" aria-label="Inside the Temporal Service: Clients, Workers and the Backstage backend connect only to the Frontend. The Frontend forwards workflow requests to History and polls to Matching. History records the event history and timers and puts tasks on Matching; History and Matching write to Persistence. History also feeds Visibility, which the Frontend queries for workflow lists and searches. An internal Worker runs Temporal's own system workflows."><style>
+:root{--bg:#f6f8fa;--surface:#ffffff;--ink:#1f2933;--muted:#52606d;--line:#9aa5b1;--acc:#0b6e7f;--acc-soft:#dcf1f4;--ours:#b0440d;--ours-soft:#fbe9dd;--fail:#b42318;--fail-soft:#fde8e6;--q:#e9edf1}
+@media (prefers-color-scheme:dark){:root{--bg:#10151a;--surface:#1d2630;--ink:#e6ecf1;--muted:#a3b0bd;--line:#566574;--acc:#5cc6d4;--acc-soft:#12343b;--ours:#f2965d;--ours-soft:#3f2616;--fail:#f28b82;--fail-soft:#40201e;--q:#26313c}}
+text{font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.bg{fill:var(--bg)}
+.box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+.acc{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.6}
+.ours{fill:var(--ours-soft);stroke:var(--ours);stroke-width:1.5;stroke-dasharray:6 4}
+.dash{stroke-dasharray:5 4}
+.q{fill:var(--q);stroke:var(--line);stroke-width:1.2}
+.bfail{fill:var(--fail-soft);stroke:var(--fail);stroke-width:1.5}
+.bok{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.5}
+.bwait{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-dasharray:5 4}
+.grid{stroke:var(--line);stroke-width:1}
+.ln{stroke:var(--ink);stroke-width:1.7;fill:none}
+.la{stroke:var(--acc);stroke-width:2;fill:none}
+.lo{stroke:var(--ours);stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.lm{stroke:var(--muted);stroke-width:1.7;fill:none;stroke-dasharray:4 4}
+.mn{fill:var(--ink)}.ma{fill:var(--acc)}.mo{fill:var(--ours)}.mm{fill:var(--muted)}
+.h{fill:var(--ink);font-size:15px;font-weight:700}
+.t{fill:var(--ink);font-size:13.5px;font-weight:600}
+.s{fill:var(--muted);font-size:12.5px}
+.sa{fill:var(--acc);font-size:12.5px;font-weight:600}
+.so{fill:var(--ours);font-size:12.5px;font-weight:600}
+.sf{fill:var(--fail);font-size:12.5px;font-weight:600}
+.c{text-anchor:middle}
+.badge{fill:var(--acc);stroke:none}.bn{fill:var(--bg);font-size:12px;font-weight:700;text-anchor:middle}
+</style><defs>
+<marker id="mn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mn"/></marker>
+<marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ma"/></marker>
+<marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mo"/></marker>
+<marker id="mm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mm"/></marker>
+</defs><rect class="bg" x="0" y="0" width="860" height="392"/><path d="M100 74 L100 30 L760 30 L760 76" class="lo" marker-end="url(#mo)"/><text x="116" y="22" class="so">The plugin's workflow lists (through the Frontend) query this store</text><rect x="14" y="74" width="176" height="132" rx="6" class="box"/><text x="28" y="98" class="h">Who connects</text><text x="28" y="120" class="s">Clients and the CLI</text><text x="28" y="138" class="s">Your Workers (polling)</text><text x="28" y="174" class="so">Backstage plugin</text><text x="28" y="192" class="so">backend (a Client)</text><rect x="210" y="58" width="430" height="278" rx="8" class="acc"/><text x="226" y="82" class="h">Temporal Service: four roles</text><path d="M190 130 L228 130" class="ln" marker-end="url(#mn)"/><rect x="230" y="96" width="180" height="98" rx="6" class="box"/><text x="242" y="118" class="t">Frontend</text><text x="242" y="138" class="s">The only gRPC entry point.</text><text x="242" y="155" class="s">Authorization, rate limits,</text><text x="242" y="172" class="s">validation, routing.</text><rect x="450" y="96" width="170" height="98" rx="6" class="box"/><text x="462" y="118" class="t">History</text><text x="462" y="138" class="s">State and event history</text><text x="462" y="155" class="s">of every execution;</text><text x="462" y="172" class="s">timers and timeouts.</text><rect x="230" y="228" width="180" height="98" rx="6" class="box"/><text x="242" y="250" class="t">Worker (internal)</text><text x="242" y="270" class="s">Temporal's own system</text><text x="242" y="287" class="s">workflows and background</text><text x="242" y="304" class="s">jobs. Not your Worker.</text><rect x="450" y="228" width="170" height="98" rx="6" class="box"/><text x="462" y="250" class="t">Matching</text><text x="462" y="270" class="s">Task Queues: pairs tasks</text><text x="462" y="287" class="s">with the Workers that</text><text x="462" y="304" class="s">are polling.</text><path d="M410 128 L448 128" class="ln" marker-end="url(#mn)"/><path d="M410 176 L448 252" class="ln" marker-end="url(#mn)"/><path d="M535 194 L535 226" class="la" marker-end="url(#ma)"/><text x="545" y="214" class="sa">enqueues tasks</text><rect x="670" y="76" width="176" height="110" rx="6" class="box"/><text x="682" y="98" class="h">Visibility</text><text x="682" y="118" class="s">Elasticsearch/OpenSearch</text><text x="682" y="135" class="s">or a SQL database.</text><text x="682" y="152" class="s">Fed by History. Lists and</text><text x="682" y="169" class="s">Search Attribute queries.</text><rect x="670" y="214" width="176" height="122" rx="6" class="box"/><text x="682" y="236" class="h">Persistence</text><text x="682" y="256" class="s">PostgreSQL, MySQL or</text><text x="682" y="273" class="s">Cassandra. Event histories,</text><text x="682" y="290" class="s">execution state, queued</text><text x="682" y="307" class="s">tasks. (Dev server: SQLite)</text><path d="M620 134 L668 134" class="ln" marker-end="url(#mn)"/><path d="M620 172 L668 228" class="ln" marker-end="url(#mn)"/><path d="M620 290 L668 290" class="ln" marker-end="url(#mn)"/><text x="14" y="372" class="s">Not drawn: the Web UI and the admin tools. temporal server start-dev runs all four roles in one process.</text></svg>
