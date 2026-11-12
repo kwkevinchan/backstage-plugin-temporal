@@ -23,10 +23,7 @@ import {
 import { NotAllowedError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import {
-  TemporalAccessService,
-  temporalAccessServiceRef,
-} from '../node/alpha';
+import { TemporalAccessService, temporalAccessServiceRef } from '../node/alpha';
 import Router from 'express-promise-router';
 import request from 'supertest';
 import temporalBackend from '../index';

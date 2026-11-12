@@ -15,10 +15,7 @@
  */
 
 import { useState } from 'react';
-import type {
-  WorkflowGraphNode,
-  WorkflowRef,
-} from '../common';
+import type { WorkflowGraphNode, WorkflowRef } from '../common';
 import {
   Button,
   Flex,

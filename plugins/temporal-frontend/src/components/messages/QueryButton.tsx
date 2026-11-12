@@ -16,10 +16,7 @@
 
 import { useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import {
-  temporalWorkflowQueryPermission,
-  WorkflowDetail,
-} from '../../common';
+import { temporalWorkflowQueryPermission, WorkflowDetail } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import {
   MessageDialog,

@@ -16,10 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import type {
-  WorkflowProgressResponse,
-  WorkflowSummary,
-} from '../common';
+import type { WorkflowProgressResponse, WorkflowSummary } from '../common';
 import { temporalApiRef } from '../extensions';
 import { Skeleton } from '@backstage/ui';
 import { deadlineText } from './format';

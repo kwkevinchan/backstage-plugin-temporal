@@ -48,7 +48,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAIRS = [
-  ['plugins/temporal-backend/src/common', 'plugins/temporal-frontend/src/common'],
+  [
+    'plugins/temporal-backend/src/common',
+    'plugins/temporal-frontend/src/common',
+  ],
   [
     'plugins/temporal-backend-module-zigflow/src/common',
     'plugins/temporal-module-zigflow/src/common',

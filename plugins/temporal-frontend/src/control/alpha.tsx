@@ -34,10 +34,7 @@ import {
   TemporalScheduleActionBlueprint,
   TemporalWorkflowListActionBlueprint,
 } from '../extensions/blueprints';
-import {
-  isTemporalWorkflowEntity,
-  WorkflowDetail,
-} from '../common';
+import { isTemporalWorkflowEntity, WorkflowDetail } from '../common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
 import type { TemporalControlActionButtonOptions } from './ControlActionButton';
 
@@ -73,8 +70,7 @@ export const temporalWorkflowControlsAction =
   TemporalWorkflowActionBlueprint.make({
     name: 'controls',
     params: {
-      loader: () =>
-        import('./WorkflowControls').then(m => m.WorkflowControls),
+      loader: () => import('./WorkflowControls').then(m => m.WorkflowControls),
     },
   });
 
@@ -88,8 +84,7 @@ export const temporalStartWorkflowListAction =
   TemporalWorkflowListActionBlueprint.make({
     name: 'start',
     params: {
-      loader: () =>
-        import('./StartWorkflow').then(m => m.StartWorkflowButton),
+      loader: () => import('./StartWorkflow').then(m => m.StartWorkflowButton),
       filter: ({ entity }) => !entity || isTemporalWorkflowEntity(entity),
     },
   });
@@ -103,8 +98,7 @@ export const temporalScheduleControlsAction =
   TemporalScheduleActionBlueprint.make({
     name: 'controls',
     params: {
-      loader: () =>
-        import('./ScheduleControls').then(m => m.ScheduleControls),
+      loader: () => import('./ScheduleControls').then(m => m.ScheduleControls),
     },
   });
 

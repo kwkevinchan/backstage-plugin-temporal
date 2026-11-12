@@ -26,10 +26,7 @@ import {
   TemporalControlAction,
   temporalControlExtensionPoint,
 } from './node/alpha';
-import {
-  TemporalService,
-  temporalServiceRef,
-} from './node';
+import { TemporalService, temporalServiceRef } from './node';
 import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './alpha';
@@ -786,13 +783,11 @@ describe('with temporal.control.enabled: false', () => {
     { scheduleId: 'nightly', workflowType: 'orderWorkflow', taskQueue: 'o' },
   ];
   const routesThatChange: [string, string, object][] = [
-    ...controlRoutes.map(
-      ([name, path, body]): [string, string, object] => [
-        name,
-        path.startsWith(wf) ? `${path}${withEntity}` : path,
-        body,
-      ],
-    ),
+    ...controlRoutes.map(([name, path, body]): [string, string, object] => [
+      name,
+      path.startsWith(wf) ? `${path}${withEntity}` : path,
+      body,
+    ]),
     [
       'start from the Workflows page',
       '/api/temporal/workflows',

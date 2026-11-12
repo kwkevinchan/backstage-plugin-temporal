@@ -23,10 +23,7 @@ import {
   parseTemporalWorkflowResourceRef,
   temporalPermissions,
 } from './common';
-import {
-  temporalExtensionPoint,
-  TemporalWorkflowEnricher,
-} from './node';
+import { temporalExtensionPoint, TemporalWorkflowEnricher } from './node';
 import { temporalServiceRef } from './node';
 import {
   TemporalControlAction,

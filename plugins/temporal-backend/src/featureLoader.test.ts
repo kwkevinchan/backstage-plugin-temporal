@@ -117,7 +117,9 @@ async function waitForWorkflowEntity(
   let res: request.Response | undefined;
   for (let i = 0; i < 20; i++) {
     res = await request(server)
-      .get('/api/catalog/entities/by-name/temporalworkflow/default/order-workflow')
+      .get(
+        '/api/catalog/entities/by-name/temporalworkflow/default/order-workflow',
+      )
       .set('Authorization', mockCredentials.service.header());
     if (res.status === 200) break;
     await new Promise(r => setTimeout(r, 500));

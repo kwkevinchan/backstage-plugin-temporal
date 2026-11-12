@@ -15,11 +15,7 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import {
-  LLM_RECORD_KEY,
-  LLM_TOOL_RESULT_KEY,
-  parseLlmMarker,
-} from '../common';
+import { LLM_RECORD_KEY, LLM_TOOL_RESULT_KEY, parseLlmMarker } from '../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmMessage,

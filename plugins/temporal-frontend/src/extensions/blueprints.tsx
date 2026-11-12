@@ -21,10 +21,7 @@ import {
   createExtensionDataRef,
   ExtensionBoundary,
 } from '@backstage/frontend-plugin-api';
-import type {
-  TemporalSchedule,
-  WorkflowDetail,
-} from '../common';
+import type { TemporalSchedule, WorkflowDetail } from '../common';
 import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowExtensionProps,

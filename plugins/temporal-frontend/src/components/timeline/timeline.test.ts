@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import type {
-  WorkflowGraphNode,
-  WorkflowGraphResponse,
-} from '../../common';
+import type { WorkflowGraphNode, WorkflowGraphResponse } from '../../common';
 import {
   loopGraphResponse,
   timelineNodes as nodes,

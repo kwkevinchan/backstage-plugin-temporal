@@ -17,10 +17,7 @@
 import { memo } from 'react';
 import { Handle, NodeProps, Position, Node } from '@xyflow/react';
 import { RiRepeatLine } from '@remixicon/react';
-import type {
-  WorkflowLoopGroup,
-  WorkflowLoopRound,
-} from '../../common';
+import type { WorkflowLoopGroup, WorkflowLoopRound } from '../../common';
 import type { LoopBox } from './loops';
 import {
   decisionText,

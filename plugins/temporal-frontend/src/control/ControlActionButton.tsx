@@ -204,8 +204,10 @@ function ControlActionButtonContent(
 /**
  * A button that runs a custom action of the backend. Renders nothing when `temporal.control.enabled` is false.
  */
-export function ControlActionButton(props: TemporalWorkflowExtensionProps & {
+export function ControlActionButton(
+  props: TemporalWorkflowExtensionProps & {
     action: TemporalControlActionButtonOptions;
-  }) {
+  },
+) {
   return useControlEnabled() ? <ControlActionButtonContent {...props} /> : null;
 }

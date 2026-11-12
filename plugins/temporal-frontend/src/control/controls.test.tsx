@@ -734,15 +734,17 @@ describe('with temporal.control.enabled: false', () => {
     ],
     [
       'the schedule buttons',
-      <ScheduleControls schedule={schedule} entity={entity} reload={jest.fn()} />,
+      <ScheduleControls
+        schedule={schedule}
+        entity={entity}
+        reload={jest.fn()}
+      />,
     ],
   ])('shows no buttons for %s', async (_name, element) => {
     const { api, temporal } = await renderAll(element, disabled.control);
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(temporal.getWorkflowHandlers).not.toHaveBeenCalled();
-    expect(Object.values(api).some(fn => fn.mock.calls.length > 0)).toBe(
-      false,
-    );
+    expect(Object.values(api).some(fn => fn.mock.calls.length > 0)).toBe(false);
   });
 
   it('shows them when enabled is true', async () => {
@@ -760,4 +762,3 @@ describe('with temporal.control.enabled: false', () => {
     ).toBeInTheDocument();
   });
 });
-

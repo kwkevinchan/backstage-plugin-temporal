@@ -19,10 +19,7 @@ import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { createServiceFactory } from '@backstage/backend-plugin-api';
-import {
-  temporalAccessServiceRef,
-  TemporalAccessService,
-} from './node/alpha';
+import { temporalAccessServiceRef, TemporalAccessService } from './node/alpha';
 import { temporalExtensionPoint } from './node';
 import { Readable } from 'node:stream';
 import request from 'supertest';

@@ -63,9 +63,7 @@ const routes = (
     </Route>
     <Route
       path="/temporal"
-      element={
-        <TemporalPage workflowActions={temporalWorkflowActions} />
-      }
+      element={<TemporalPage workflowActions={temporalWorkflowActions} />}
     />
     <Route path="/settings" element={<UserSettingsPage />} />
   </FlatRoutes>

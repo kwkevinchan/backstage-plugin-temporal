@@ -28,10 +28,7 @@ import type {
   TemporalScheduleActionDef,
   TemporalWorkflowListActionDef,
 } from '../extensions';
-import {
-  isTemporalWorkflowEntity,
-  WorkflowDetail,
-} from '../common';
+import { isTemporalWorkflowEntity, WorkflowDetail } from '../common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
 import {
   ControlActionButton,

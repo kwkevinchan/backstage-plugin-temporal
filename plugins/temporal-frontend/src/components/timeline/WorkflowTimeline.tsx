@@ -24,10 +24,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type {
-  WorkflowGraphResponse,
-  WorkflowStatus,
-} from '../../common';
+import type { WorkflowGraphResponse, WorkflowStatus } from '../../common';
 import { Button, Flex, Text } from '@backstage/ui';
 import {
   RiArrowDownSLine,

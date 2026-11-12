@@ -16,11 +16,7 @@
 
 import type { ComponentType } from 'react';
 import type { Entity } from '@backstage/catalog-model';
-import type {
-  TemporalSchedule,
-  WorkflowDetail,
-  WorkflowRef,
-} from '../common';
+import type { TemporalSchedule, WorkflowDetail, WorkflowRef } from '../common';
 
 /**
  * Props of components shown on the workflow details page.

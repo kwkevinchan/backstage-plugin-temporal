@@ -87,4 +87,3 @@ describe('the operations in the plugin (new frontend system)', () => {
     expect(temporalPlugin.getExtension(id as any)).toBeDefined();
   });
 });
-

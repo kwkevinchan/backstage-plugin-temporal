@@ -16,10 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import type {
-  WorkflowHistoryEvent,
-  WorkflowRef,
-} from '../common';
+import type { WorkflowHistoryEvent, WorkflowRef } from '../common';
 import { temporalApiRef } from '../extensions';
 import {
   Button,

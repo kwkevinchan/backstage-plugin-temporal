@@ -15,10 +15,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type {
-  WorkflowNodeStatus,
-  WorkflowStatus,
-} from '../common';
+import type { WorkflowNodeStatus, WorkflowStatus } from '../common';
 import {
   RiCheckboxCircleFill,
   RiCloseCircleFill,
