@@ -332,15 +332,13 @@ export class WorkflowCommands {
     scheduleId: string,
   ): Promise<ScheduleTarget> {
     const client = await this.temporal.getClient({ namespace });
-    const description = await client.schedule
-      .getHandle(scheduleId)
-      .describe()
-      .catch(error => {
-        if (isScheduleNotFound(error)) {
-          throw new NotFoundError(`No schedule ${scheduleId}`);
-        }
-        return mapCommandError(error);
-      });
+    const handle = client.schedule.getHandle(scheduleId);
+    const description = await handle.describe().catch(error => {
+      if (isScheduleNotFound(error)) {
+        throw new NotFoundError(`No schedule ${scheduleId}`);
+      }
+      return mapCommandError(error);
+    });
     return {
       namespace,
       scheduleId,

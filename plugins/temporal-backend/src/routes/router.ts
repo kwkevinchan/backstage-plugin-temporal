@@ -291,10 +291,7 @@ export async function createRouter(
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
   router.get(workflowSubpaths('handlers'), async (req, res) => {
-    const { workflow, context, credentials } = await loadWorkflow(
-      req,
-      'read',
-    );
+    const { workflow, context, credentials } = await loadWorkflow(req, 'read');
     const [reported, entity] = await Promise.all([
       queries.handlers(workflow),
       workflowEntityOf(workflow, context, credentials),
