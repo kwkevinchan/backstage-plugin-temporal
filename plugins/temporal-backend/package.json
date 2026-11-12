@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-backend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Unofficial Backstage backend plugin for Temporal workflows: the read API, queries and permission checks",
   "license": "Apache-2.0",
   "keywords": [

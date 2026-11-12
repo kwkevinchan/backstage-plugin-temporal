@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-catalog-backend-module-temporal",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Catalog module with the TemporalWorkflow kind for the unofficial Backstage Temporal plugin",
   "license": "Apache-2.0",
   "keywords": [

@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-module-zigflow",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Module of the unofficial Backstage Temporal plugin with the Definition tab for workflows written in the Serverless Workflow DSL and run by Zigflow",
   "license": "Apache-2.0",
   "keywords": [
@@ -59,6 +59,7 @@
     "@backstage/core-compat-api": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/filter-predicates": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/types": "backstage:^",

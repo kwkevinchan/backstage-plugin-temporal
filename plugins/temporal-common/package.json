@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-common",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Unofficial Backstage plugin for Temporal: types, permissions, API paths and the TemporalWorkflow entity, shared by the frontend and backend packages",
   "license": "Apache-2.0",
   "keywords": [

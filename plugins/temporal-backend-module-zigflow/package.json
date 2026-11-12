@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Module of the unofficial Backstage Temporal backend plugin that serves the Serverless Workflow (Zigflow) definitions of TemporalWorkflow entities",
   "license": "Apache-2.0",
   "keywords": [

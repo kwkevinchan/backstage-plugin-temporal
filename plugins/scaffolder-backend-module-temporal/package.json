@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Scaffolder actions for the unofficial Backstage Temporal plugin: start a workflow, wait for it, signal or update it",
   "license": "Apache-2.0",
   "keywords": [

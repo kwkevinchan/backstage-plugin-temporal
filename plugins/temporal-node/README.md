@@ -60,5 +60,7 @@ The permissions and types are in
 
 ## Versions
 
-The `Client` handed to modules comes from `@temporalio/client` (1.24). A new
-major version of `@temporalio/client` is a new major version of this package.
+The `Client` handed to modules comes from `@temporalio/client` (`~1.24.0`). While
+this package is `0.x`, a new minor version of `@temporalio/client` is a new
+minor version of this package; from `1.0.0`, a new major version of the client
+is a new major version of this package.

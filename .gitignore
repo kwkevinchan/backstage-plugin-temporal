@@ -55,3 +55,6 @@ e2e-test-results/
 
 # Cache
 .cache/
+
+# Packed tarballs
+*.tgz

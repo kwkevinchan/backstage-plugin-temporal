@@ -1,7 +1,8 @@
 # Contributing
 
-Thanks for your interest. The project is pre-alpha, so please open an issue to
-discuss larger changes before sending a pull request.
+Thanks for your interest. The project is early (`0.x`: the API may still
+change before `1.0.0`), so please open an issue to discuss larger changes
+before sending a pull request.
 
 ## Workflow
 
@@ -22,28 +23,38 @@ discuss larger changes before sending a pull request.
 ## Releasing
 
 Releases are cut by the maintainer from `main`, with
-[changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`.
+[changesets](https://github.com/changesets/changesets). The first release is
+`0.1.0` for every published package.
 
-1. `yarn changeset version`: bumps the versions (the first-release
-   changesets are `minor`), updates the internal dependency ranges and
-   writes the changelogs. Then `yarn install` (not `--immutable`: the
-   workspace versions are in `yarn.lock`). Review and commit both in a pull
-   request.
+1. `yarn changeset version`: bumps the versions and writes the changelogs.
+   The internal dependencies stay `workspace:^` (Yarn replaces them when it
+   packs). Then `yarn install --immutable`: `yarn.lock` records workspaces
+   as `0.0.0-use.local`, so it should not change. Review and commit the
+   result in a pull request.
 2. On the merged `main`: `yarn install --immutable`, then
    `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
 3. Check what each package will contain:
    `yarn workspace <package> pack --dry-run` lists the files: `dist/`, its
-   `README.md`, `LICENSE` and, where it has one, `config.d.ts`. Then
-   `yarn workspace <package> pack` and look at the `package.json` inside the
-   tarball: `main`/`types` (and `exports`) point at `dist/`, and the
-   `workspace:^` ranges are replaced by version ranges.
-4. Publish with Yarn, which replaces the `workspace:` ranges (plain
-   `npm publish` does not). Yarn does not read `~/.npmrc`: log in with
-   `yarn npm login` (or set `npmAuthToken` in `~/.yarnrc.yml`), then run
+   `README.md`, `LICENSE`, `CHANGELOG.md` and, where it has one,
+   `config.schema.json`. Then `yarn workspace <package> pack` (it leaves a
+   `package.tgz`, which git ignores) and look at the `package.json` inside
+   the tarball: `main`/`types` (and `exports`) point at `dist/`, and the
+   `workspace:^` and `backstage:^` ranges are replaced by version ranges.
+4. Publish with Yarn, never with `yarn changeset publish`: that command runs
+   `npm publish`, which replaces neither `workspace:^` nor `backstage:^`
+   (the Yarn Backstage plugin does it when Yarn packs), so the published
+   packages could not be installed, and an npm version cannot be reused.
+   Yarn does not read `~/.npmrc`: log in with `yarn npm login` (or set
+   `npmAuthToken` in `~/.yarnrc.yml`) and check the account and registry with
+   `yarn npm whoami`. Then run
    `yarn workspaces foreach --all --no-private --topological npm publish --access public --tolerate-republish`
    (with two-factor authentication, add `--otp <code>` after
-   `npm publish`), then `yarn changeset tag` and `git push --follow-tags`.
+   `npm publish`). If the code expires part-way and later packages fail, run
+   the same command again with a new code: `--tolerate-republish` skips the
+   versions that are already published.
+5. Check that all published packages are on npm:
+   `npm view <package>@<version> version` for each of them. Then
+   `yarn changeset tag` and `git push --follow-tags`.
 
 Private packages (`"private": true`) are not published. At the moment that
 is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI

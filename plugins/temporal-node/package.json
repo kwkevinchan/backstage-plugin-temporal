@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-node",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Unofficial Backstage plugin for Temporal: the Temporal client service and extension points for backend modules",
   "license": "Apache-2.0",
   "keywords": [

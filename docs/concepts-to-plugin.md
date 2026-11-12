@@ -215,9 +215,9 @@ series of activities. When workers add markers with the experimental
 `@kwkevinchan/temporal-workflow-kit` (not published yet), the plugin can fold a
 loop into one box with a frame per round, add a **Loops** tab, and draw a model
 call with its tool calls and a panel for its prompt, output and token usage. These
-views are behind `temporal.experimental.aiWorkflows: true`, are not part of the
-first release, will move to a separate package and carry no compatibility
-promise. See [Loops](../README.md#loops) and [LLM steps](../README.md#llm-steps).
+views are behind `temporal.experimental.aiWorkflows: true`, are included in the
+published packages but off by default, carry no compatibility promise and will
+move to a separate package. See [Loops](../README.md#loops) and [LLM steps](../README.md#llm-steps).
 
 ## What the plugin does not do
 

@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Unofficial Backstage frontend plugin for Temporal workflows, with the extension points and blueprints for workflow actions, list actions and sections",
   "license": "Apache-2.0",
   "keywords": [
@@ -67,6 +67,7 @@
     "@backstage/core-components": "backstage:^",
     "@backstage/core-plugin-api": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/filter-predicates": "backstage:^",
     "@backstage/frontend-plugin-api": "backstage:^",
     "@backstage/plugin-catalog-react": "backstage:^",
     "@backstage/plugin-permission-common": "backstage:^",
