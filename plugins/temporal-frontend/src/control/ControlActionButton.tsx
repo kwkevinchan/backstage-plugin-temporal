@@ -31,12 +31,12 @@ import {
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   controlError,
-  ErrorAlert,
-  JsonView,
-  tp,
   useControlPermission,
   WithReason,
-} from '../ui';
+} from '../components/messages/shared';
+import { ErrorAlert } from '../components/feedback';
+import { JsonView } from '../components/PayloadView';
+import { tp } from '../components/styles';
 import type { WorkflowDetail } from '../common';
 import { useTemporalControlApi } from './api';
 import { useControlEnabled } from './config';

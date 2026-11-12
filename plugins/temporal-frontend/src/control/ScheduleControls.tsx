@@ -17,7 +17,7 @@
 import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import type { TemporalScheduleActionProps } from '../extensions';
-import { PermissionButton } from '../ui';
+import { PermissionButton } from '../components/messages/MessageDialog';
 import {
   temporalWorkflowStartPermission,
   TemporalScheduleOperation,

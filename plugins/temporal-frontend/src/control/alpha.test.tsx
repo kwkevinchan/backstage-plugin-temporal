@@ -120,36 +120,47 @@ describe('the operations on the pages (new frontend system)', () => {
 
   it.each([
     ['shows Rerun', {}, true],
-    ['shows no operations with temporal.control.enabled false', { enabled: false }, false],
-  ])('%s on the entity tab and the Workflows page', async (_name, control, shown) => {
-    for (const id of ['entity-content:temporal', 'page:temporal']) {
-      const element = createExtensionTester(
-        temporalPlugin.getExtension(id as 'page:temporal'),
-      ).get(coreExtensionData.reactElement);
-      const { unmount } = renderInTestApp(
-        <EntityProvider entity={entity}>{element}</EntityProvider>,
-        {
-          apis: [
-            [temporalApiRef, mockTemporalApi()],
-            [temporalWorkflowExtensionsApiRef, workflowExtensions()],
-            [temporalControlApiRef, {} as TemporalControlApi],
-            [permissionApiRef, mockApis.permission()],
-          ],
-          config: { temporal: { control } },
-          initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
-        },
-      );
-      expect(
-        await screen.findByTestId('workflow-summary', {}, { timeout: 10_000 }),
-      ).toHaveTextContent('Failed');
-      if (shown) {
+    [
+      'shows no operations with temporal.control.enabled false',
+      { enabled: false },
+      false,
+    ],
+  ])(
+    '%s on the entity tab and the Workflows page',
+    async (_name, control, shown) => {
+      for (const id of ['entity-content:temporal', 'page:temporal']) {
+        const element = createExtensionTester(
+          temporalPlugin.getExtension(id as 'page:temporal'),
+        ).get(coreExtensionData.reactElement);
+        const { unmount } = renderInTestApp(
+          <EntityProvider entity={entity}>{element}</EntityProvider>,
+          {
+            apis: [
+              [temporalApiRef, mockTemporalApi()],
+              [temporalWorkflowExtensionsApiRef, workflowExtensions()],
+              [temporalControlApiRef, {} as TemporalControlApi],
+              [permissionApiRef, mockApis.permission()],
+            ],
+            config: { temporal: { control } },
+            initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
+          },
+        );
         expect(
-          await screen.findByRole('button', { name: 'Rerun' }),
-        ).toBeInTheDocument();
-      } else {
-        expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+          await screen.findByTestId(
+            'workflow-summary',
+            {},
+            { timeout: 10_000 },
+          ),
+        ).toHaveTextContent('Failed');
+        if (shown) {
+          expect(
+            await screen.findByRole('button', { name: 'Rerun' }),
+          ).toBeInTheDocument();
+        } else {
+          expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+        }
+        unmount();
       }
-      unmount();
-    }
-  });
+    },
+  );
 });

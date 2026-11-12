@@ -22,9 +22,9 @@ import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   handlerExampleArgs,
   JsonMessageArgsField,
-  MessageArgsFieldProps,
-  tp,
-} from '../ui';
+  type MessageArgsFieldProps,
+} from '../components/messages/MessageDialog';
+import { tp } from '../components/styles';
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

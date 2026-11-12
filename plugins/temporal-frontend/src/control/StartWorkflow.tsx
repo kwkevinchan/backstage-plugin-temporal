@@ -31,12 +31,12 @@ import { RiPlayLine } from '@remixicon/react';
 import type { TemporalWorkflowListActionProps } from '../extensions';
 import {
   controlError,
-  ErrorAlert,
   JsonArgsField,
   parseArgs,
   useControlPermission,
   WithReason,
-} from '../ui';
+} from '../components/messages/shared';
+import { ErrorAlert } from '../components/feedback';
 import {
   getTemporalWorkflowExampleArgs,
   isValidTaskQueueName,

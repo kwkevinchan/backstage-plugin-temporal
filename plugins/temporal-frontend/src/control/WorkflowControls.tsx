@@ -29,14 +29,14 @@ import {
   TextField,
 } from '@backstage/ui';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
+import { controlError } from '../components/messages/shared';
+import { ErrorAlert } from '../components/feedback';
 import {
-  controlError,
-  ErrorAlert,
   MessageDialog,
-  MessageDialogText,
+  type MessageDialogText,
   PermissionButton,
   useWorkflowHandlers,
-} from '../ui';
+} from '../components/messages/MessageDialog';
 import { SchemaArgsField } from './SchemaArgsField';
 import {
   temporalWorkflowCancelPermission,
