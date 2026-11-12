@@ -97,20 +97,16 @@ export interface ScheduleTarget {
   overlap?: ScheduleOverlapPolicy;
 }
 
-const JSON_ENCODING = Buffer.from('json/plain');
-type Payload = TemporalJsonPayload;
-
+/** Keyword search attributes: JSON payloads with the `Keyword` type. */
 function keywordAttributes(
   values: Record<string, string>,
-): Record<string, Payload> {
-  const indexedFields: Record<string, Payload> = {};
+): Record<string, TemporalJsonPayload> {
+  const indexedFields: Record<string, TemporalJsonPayload> = {};
   for (const [name, value] of Object.entries(values)) {
+    const [payload] = encodeJsonPayloads([value]).payloads;
     indexedFields[name] = {
-      metadata: {
-        encoding: JSON_ENCODING,
-        type: Buffer.from('Keyword'),
-      },
-      data: Buffer.from(JSON.stringify(value)),
+      metadata: { ...payload.metadata, type: Buffer.from('Keyword') },
+      data: payload.data,
     };
   }
   return indexedFields;
