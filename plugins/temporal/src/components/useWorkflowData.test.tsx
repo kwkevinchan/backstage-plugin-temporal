@@ -21,6 +21,7 @@ import type {
   PendingActivity,
   WorkflowDetail,
   WorkflowGraphResponse,
+  WorkflowRef,
 } from '@kwkevinchan/backstage-plugin-temporal-common';
 import { temporalApiRef } from '../extensions';
 import { failedWorkflow, graphResponse, mockTemporalApi } from '../testData';
@@ -315,5 +316,460 @@ describe('useWorkflowData', () => {
     expect(api.getWorkflow).toHaveBeenCalledTimes(2);
     await tick();
     expect(api.getWorkflow).toHaveBeenCalledTimes(3);
+  });
+
+  describe('when the page moves to another workflow while a load runs', () => {
+    type Call<T> = {
+      ref: WorkflowRef;
+      answered: boolean;
+      resolve(value: T): void;
+      reject(error: Error): void;
+    };
+
+    /**
+     * An api whose requests stay open until the test answers them, so the
+     * test decides which response arrives first.
+     */
+    function controlledApi() {
+      const api = mockTemporalApi();
+      const workflowCalls: Call<WorkflowDetail>[] = [];
+      const graphCalls: Call<WorkflowGraphResponse>[] = [];
+      const track = <T,>(
+        calls: Call<T>[],
+        r: WorkflowRef,
+        resolve: (value: T) => void,
+        reject: (error: Error) => void,
+      ) => {
+        const call: Call<T> = {
+          ref: r,
+          answered: false,
+          resolve: value => {
+            call.answered = true;
+            resolve(value);
+          },
+          reject: error => {
+            call.answered = true;
+            reject(error);
+          },
+        };
+        calls.push(call);
+      };
+      api.getWorkflow.mockImplementation(
+        r =>
+          new Promise((resolve, reject) =>
+            track(workflowCalls, r, resolve, reject),
+          ),
+      );
+      api.getWorkflowGraph.mockImplementation(
+        r =>
+          new Promise((resolve, reject) =>
+            track(graphCalls, r, resolve, reject),
+          ),
+      );
+      // The newest request for the run that has not been answered.
+      const open = <T,>(calls: Call<T>[], runId: string) =>
+        [...calls].reverse().find(c => !c.answered && c.ref.runId === runId);
+      const need = <T,>(calls: Call<T>[], runId: string) => {
+        const call = open(calls, runId);
+        if (!call) throw new Error(`no open request for ${runId}`);
+        return call;
+      };
+      return {
+        api,
+        workflowCalls,
+        graphCalls,
+        workflowOf: (runId: string) => need(workflowCalls, runId),
+        graphOf: (runId: string) => need(graphCalls, runId),
+        /** For requests a load that was superseded may not have sent. */
+        graphOfIfAsked: (runId: string) => open(graphCalls, runId),
+      };
+    }
+
+    function render(
+      api: ReturnType<typeof mockTemporalApi>,
+      first: WorkflowRef,
+    ) {
+      return renderHook(
+        (props: { r: WorkflowRef }) =>
+          useWorkflowData(props.r, undefined, true),
+        {
+          initialProps: { r: first },
+          wrapper: ({ children }: { children: ReactNode }) => (
+            <TestApiProvider apis={[[temporalApiRef, api]]}>
+              {children}
+            </TestApiProvider>
+          ),
+        },
+      );
+    }
+
+    async function answer(fn: () => void) {
+      await act(async () => {
+        fn();
+      });
+      await settle();
+    }
+
+    const detail = (r: WorkflowRef, extra: Partial<WorkflowDetail> = {}) =>
+      ({
+        ...running,
+        workflowId: r.workflowId,
+        runId: r.runId as string,
+        ...extra,
+      } as WorkflowDetail);
+    const graphFor = (name: string) =>
+      ({ ...graphResponse, name } as unknown as WorkflowGraphResponse);
+
+    // A run of another workflow, and the next run of the same workflow
+    // (Continue-As-New): both count as another page.
+    const targets: [string, WorkflowRef][] = [
+      ['another run of the same workflow', { ...ref, runId: 'run-3' }],
+      ['another workflow', { ...ref, workflowId: 'order-9', runId: 'run-9' }],
+    ];
+
+    describe.each(targets)('moving to %s', (_name, next) => {
+      it('shows the new workflow when the old one arrives after it', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+
+        await answer(() =>
+          c.workflowOf(next.runId as string).resolve(detail(next)),
+        );
+        await answer(() =>
+          c.graphOf(next.runId as string).resolve(graphFor('next')),
+        );
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        await answer(() => c.graphOfIfAsked('run-2')?.resolve(graphFor('old')));
+
+        expect(result.current.workflow?.runId).toBe(next.runId);
+        expect(result.current.workflow?.workflowId).toBe(next.workflowId);
+        expect(result.current.graph).toEqual(graphFor('next'));
+        expect(result.current.loading).toBe(false);
+      });
+
+      it('shows the graph of the new workflow when the old one arrives after it', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        // The old workflow arrived, its graph is still on its way.
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        rerender({ r: next });
+        await settle();
+
+        await answer(() =>
+          c.workflowOf(next.runId as string).resolve(detail(next)),
+        );
+        await answer(() =>
+          c.graphOf(next.runId as string).resolve(graphFor('next')),
+        );
+        await answer(() => c.graphOf('run-2').resolve(graphFor('old')));
+
+        expect(result.current.workflow?.runId).toBe(next.runId);
+        expect(result.current.graph).toEqual(graphFor('next'));
+        expect(result.current.graphError).toBeUndefined();
+      });
+
+      it('does not show the error of the old workflow on the new one', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+
+        await answer(() =>
+          c.workflowOf(next.runId as string).resolve(detail(next)),
+        );
+        await answer(() =>
+          c.graphOf(next.runId as string).resolve(graphFor('next')),
+        );
+        await answer(() =>
+          c.workflowOf('run-2').reject(new Error('old failed')),
+        );
+
+        expect(result.current.error).toBeUndefined();
+        expect(result.current.workflow?.runId).toBe(next.runId);
+        expect(result.current.graph).toEqual(graphFor('next'));
+      });
+
+      it('does not show the graph error of the old workflow on the new one', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        rerender({ r: next });
+        await settle();
+
+        await answer(() =>
+          c.workflowOf(next.runId as string).resolve(detail(next)),
+        );
+        await answer(() =>
+          c.graphOf(next.runId as string).resolve(graphFor('next')),
+        );
+        await answer(() =>
+          c.graphOf('run-2').reject(new Error('old graph failed')),
+        );
+
+        expect(result.current.graphError).toBeUndefined();
+        expect(result.current.graph).toEqual(graphFor('next'));
+      });
+
+      it('keeps loading until the new workflow arrives, whatever the old one does', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+        expect(result.current.loading).toBe(true);
+
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        expect(result.current.loading).toBe(true);
+        expect(result.current.workflow).toBeUndefined();
+        await answer(() => c.graphOfIfAsked('run-2')?.resolve(graphFor('old')));
+        expect(result.current.loading).toBe(true);
+        expect(result.current.workflow).toBeUndefined();
+        expect(result.current.graph).toBeUndefined();
+
+        await answer(() =>
+          c.workflowOf(next.runId as string).resolve(detail(next)),
+        );
+        await answer(() =>
+          c.graphOf(next.runId as string).resolve(graphFor('next')),
+        );
+        expect(result.current.loading).toBe(false);
+        expect(result.current.workflow?.runId).toBe(next.runId);
+      });
+
+      it('keeps loading when the old workflow fails first', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+
+        await answer(() =>
+          c.workflowOf('run-2').reject(new Error('old failed')),
+        );
+        expect(result.current.loading).toBe(true);
+        expect(result.current.error).toBeUndefined();
+      });
+
+      it('does not let the graph of the old workflow into the graph cache', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        await answer(() => c.graphOf('run-2').resolve(graphFor('old')));
+
+        // An automatic reload of the old workflow finds a new event and is
+        // still waiting for its graph when the page moves on.
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+        });
+        await answer(() =>
+          c.workflowOf('run-2').resolve(detail(ref, { historyLength: 20 })),
+        );
+        rerender({ r: next });
+        await settle();
+
+        const nextRun = next.runId as string;
+        await answer(() =>
+          c.workflowOf(nextRun).resolve(detail(next, { historyLength: 20 })),
+        );
+        await answer(() => c.graphOf(nextRun).resolve(graphFor('next')));
+        await answer(() => c.graphOf('run-2').resolve(graphFor('old')));
+        expect(result.current.graph).toEqual(graphFor('next'));
+
+        // The next automatic reload sees nothing new on the new workflow:
+        // it keeps the graph that was loaded for it, and asks for no other.
+        const graphRequests = c.graphCalls.length;
+        const workflowRequests = c.workflowCalls.length;
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+        });
+        expect(c.workflowCalls.length).toBe(workflowRequests + 1);
+        await answer(() =>
+          c.workflowOf(nextRun).resolve(detail(next, { historyLength: 20 })),
+        );
+        expect(c.graphCalls.length).toBe(graphRequests);
+        expect(result.current.graph).toEqual(graphFor('next'));
+      });
+
+      it('asks for no graph for an old workflow that arrives after the move', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+        const nextRun = next.runId as string;
+
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        expect(c.graphCalls).toHaveLength(0);
+        expect(result.current.loading).toBe(true);
+
+        await answer(() => c.workflowOf(nextRun).resolve(detail(next)));
+        await answer(() => c.graphOf(nextRun).resolve(graphFor('next')));
+        expect(c.graphCalls.map(g => g.ref.runId)).toEqual([nextRun]);
+        expect(result.current.loading).toBe(false);
+        expect(result.current.refreshing).toBe(false);
+      });
+
+      it('starts automatic reloads of the new workflow while a load of the old one is open', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        rerender({ r: next });
+        await settle();
+        const nextRun = next.runId as string;
+        await answer(() => c.workflowOf(nextRun).resolve(detail(next)));
+        await answer(() => c.graphOf(nextRun).resolve(graphFor('next')));
+        const requests = c.workflowCalls.length;
+
+        // The load of the old workflow never ends; it must not hold back
+        // the automatic reloads of the page that is shown.
+        await act(async () => {
+          await jest.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+        });
+        expect(c.workflowCalls.length).toBe(requests + 1);
+        expect(c.workflowCalls[requests].ref.runId).toBe(nextRun);
+        expect(result.current.workflow?.runId).toBe(nextRun);
+      });
+
+      it('drops a manual reload of the old workflow that arrives after the move', async () => {
+        const c = controlledApi();
+        const { result, rerender } = render(c.api, ref);
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        await answer(() => c.graphOf('run-2').resolve(graphFor('old')));
+
+        act(() => result.current.reload());
+        await settle();
+        rerender({ r: next });
+        await settle();
+        const nextRun = next.runId as string;
+        await answer(() => c.workflowOf(nextRun).resolve(detail(next)));
+        await answer(() => c.graphOf(nextRun).resolve(graphFor('next')));
+
+        await answer(() => c.workflowOf('run-2').resolve(detail(ref)));
+        await answer(() => c.graphOfIfAsked('run-2')?.resolve(graphFor('old')));
+        expect(result.current.workflow?.runId).toBe(nextRun);
+        expect(result.current.graph).toEqual(graphFor('next'));
+        expect(result.current.refreshing).toBe(false);
+      });
+    });
+  });
+
+  describe('when a newer load of the same workflow overtakes an older one', () => {
+    // The Refresh button is not locked by an automatic reload, so a press
+    // can come while one is open. Two presses cannot overlap (the button
+    // locks) and an automatic reload does not start while another load runs.
+    async function startOverlap(autoWorkflow?: WorkflowDetail) {
+      const calls: {
+        resolve(v: WorkflowDetail): void;
+        reject(e: Error): void;
+      }[] = [];
+      const graphs: {
+        resolve(v: WorkflowGraphResponse): void;
+        reject(e: Error): void;
+      }[] = [];
+      const api = mockTemporalApi();
+      api.getWorkflow.mockImplementation(
+        () => new Promise((resolve, reject) => calls.push({ resolve, reject })),
+      );
+      api.getWorkflowGraph.mockImplementation(
+        () =>
+          new Promise((resolve, reject) => graphs.push({ resolve, reject })),
+      );
+      const hook = renderHook(() => useWorkflowData(ref, undefined, true), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <TestApiProvider apis={[[temporalApiRef, api]]}>
+            {children}
+          </TestApiProvider>
+        ),
+      });
+      const resolveAt = async (fn: () => void) => {
+        await act(async () => {
+          fn();
+        });
+        await settle();
+      };
+      const first = { ...running, historyLength: 12 };
+      await resolveAt(() => calls[0].resolve(first));
+      await resolveAt(() =>
+        graphs[0].resolve({ ...graphResponse, name: 'first' } as never),
+      );
+      // An automatic reload is open when Refresh is pressed.
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(AUTO_REFRESH_MS);
+      });
+      // Its workflow may have arrived, and its graph be on the way.
+      if (autoWorkflow) await resolveAt(() => calls[1].resolve(autoWorkflow));
+      act(() => hook.result.current.reload());
+      await settle();
+      expect(calls).toHaveLength(3);
+      return { ...hook, api, calls, graphs, resolveAt };
+    }
+
+    const refreshed = { ...running, historyLength: 30 };
+    const graphOf = (name: string) =>
+      ({ ...graphResponse, name } as unknown as WorkflowGraphResponse);
+
+    it('keeps the workflow and graph of Refresh when the older automatic reload arrives after it', async () => {
+      const { result, calls, graphs, resolveAt } = await startOverlap();
+      await resolveAt(() => calls[2].resolve(refreshed));
+      await resolveAt(() => graphs[1].resolve(graphOf('refresh')));
+      expect(result.current.workflow?.historyLength).toBe(30);
+      expect(result.current.refreshing).toBe(false);
+
+      await resolveAt(() =>
+        calls[1].resolve({ ...running, historyLength: 20 }),
+      );
+      expect(graphs).toHaveLength(2);
+      expect(result.current.workflow?.historyLength).toBe(30);
+      expect(result.current.graph).toEqual(graphOf('refresh'));
+      expect(result.current.refreshing).toBe(false);
+    });
+
+    it('keeps the graph of Refresh when the graph of the older automatic reload arrives after it', async () => {
+      const { result, calls, graphs, resolveAt } = await startOverlap({
+        ...running,
+        historyLength: 20,
+      });
+      // The automatic reload found a new event and asked for a graph.
+      expect(graphs).toHaveLength(2);
+      await resolveAt(() => calls[2].resolve(refreshed));
+      await resolveAt(() => graphs[2].resolve(graphOf('refresh')));
+
+      await resolveAt(() => graphs[1].resolve(graphOf('automatic')));
+      expect(result.current.workflow?.historyLength).toBe(30);
+      expect(result.current.graph).toEqual(graphOf('refresh'));
+    });
+
+    it('does not show the error of the older automatic reload after Refresh succeeded', async () => {
+      const { result, calls, graphs, resolveAt } = await startOverlap();
+      await resolveAt(() => calls[2].resolve(refreshed));
+      await resolveAt(() => graphs[1].resolve(graphOf('refresh')));
+
+      await resolveAt(() => calls[1].reject(new Error('automatic failed')));
+      expect(result.current.error).toBeUndefined();
+      expect(result.current.workflow?.historyLength).toBe(30);
+      expect(result.current.refreshing).toBe(false);
+    });
+
+    it('does not show the graph error of the older automatic reload after Refresh succeeded', async () => {
+      const { result, calls, graphs, resolveAt } = await startOverlap({
+        ...running,
+        historyLength: 20,
+      });
+      expect(graphs).toHaveLength(2);
+      await resolveAt(() => calls[2].resolve(refreshed));
+      await resolveAt(() => graphs[2].resolve(graphOf('refresh')));
+
+      await resolveAt(() => graphs[1].reject(new Error('graph failed')));
+      expect(result.current.graphError).toBeUndefined();
+      expect(result.current.graph).toEqual(graphOf('refresh'));
+    });
+
+    it('does not send a graph request for the older automatic reload after Refresh arrived', async () => {
+      const { calls, graphs, resolveAt } = await startOverlap();
+      await resolveAt(() => calls[2].resolve(refreshed));
+      await resolveAt(() => graphs[1].resolve(graphOf('refresh')));
+      await resolveAt(() =>
+        calls[1].resolve({ ...running, historyLength: 20 }),
+      );
+      expect(graphs).toHaveLength(2);
+    });
   });
 });

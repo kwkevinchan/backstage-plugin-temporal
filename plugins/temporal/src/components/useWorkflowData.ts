@@ -125,6 +125,8 @@ export function useWorkflowData(
       setState(s => ({ ...s, refreshing: true }));
       try {
         const workflow = await temporalApi.getWorkflow(ref, { entityRef });
+        // Superseded while waiting: the graph would be requested for nothing.
+        if (current !== generation.current) return;
         const key = graphKey(ref, workflow);
         let graph: WorkflowGraphResponse | undefined;
         let graphError: Error | undefined;
