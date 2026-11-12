@@ -67,5 +67,9 @@ describe('legacy entity tab', () => {
   it('shows no operations when temporal.control.enabled is false', async () => {
     await renderDetails({ enabled: false });
     expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+    // Query is not one of the operations.
+    expect(
+      await screen.findByRole('button', { name: 'Query…' }),
+    ).toBeInTheDocument();
   });
 });

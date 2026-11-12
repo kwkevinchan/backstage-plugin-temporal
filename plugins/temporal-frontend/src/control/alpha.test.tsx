@@ -35,6 +35,7 @@ import { entity, mockTemporalApi } from '../testData';
 import { TemporalControlApi, temporalControlApiRef } from './api';
 import type { Entity } from '@backstage/catalog-model';
 import {
+  TemporalWorkflowActionBlueprint,
   temporalWorkflowActionDataRef,
   temporalWorkflowListActionDataRef,
 } from '../extensions/blueprints';
@@ -107,6 +108,21 @@ describe('the operations in the plugin (new frontend system)', () => {
 });
 
 describe('the operations on the pages (new frontend system)', () => {
+  /**
+   * An action that shows once the module of the operation buttons has
+   * loaded: the buttons are lazy, so a check that they are absent must
+   * wait for it.
+   */
+  const probeAction = TemporalWorkflowActionBlueprint.make({
+    name: 'probe',
+    params: {
+      loader: async () => {
+        await import('./WorkflowControls');
+        return () => <span>probe</span>;
+      },
+    },
+  });
+
   /** The shared extensions API of the plugin, with its control extensions. */
   function workflowExtensions(): TemporalWorkflowExtensionsApi {
     const factory = createExtensionTester(
@@ -114,6 +130,7 @@ describe('the operations on the pages (new frontend system)', () => {
     )
       .add(temporalWorkflowControlsAction)
       .add(temporalStartWorkflowListAction)
+      .add(probeAction)
       .get(ApiBlueprint.dataRefs.factory);
     return factory.factory({}) as TemporalWorkflowExtensionsApi;
   }
@@ -155,7 +172,12 @@ describe('the operations on the pages (new frontend system)', () => {
 
   it('shows no operations with temporal.control.enabled false', async () => {
     await eachPage({ enabled: false }, async () => {
+      expect(await screen.findByText('probe')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+      // Query is not one of the operations.
+      expect(
+        screen.getByRole('button', { name: 'Query…' }),
+      ).toBeInTheDocument();
     });
   });
 });
