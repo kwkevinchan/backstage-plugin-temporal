@@ -218,22 +218,33 @@ jobs:
 
       # The hosted runner sometimes cannot resolve the Ubuntu mirrors for
       # minutes at a time (apt: "Temporary failure resolving"), which fails
-      # the apt part of this step with exit code 100. A later attempt usually
-      # resolves them again, so the step is tried at most MAX_ATTEMPTS times.
-      # Each attempt is capped at ATTEMPT_MINUTES, because a failing attempt
-      # can otherwise spend 10+ minutes in apt's own timeouts. If every
-      # attempt fails the step fails. Worst case: 3 * 6 min + 15 s + 30 s of
-      # waiting = 18 min 45 s, under the step timeout.
+      # the system packages part of this step with exit code 100. A later
+      # attempt usually resolves them again, so both parts are tried together
+      # at most MAX_ATTEMPTS times. `install --with-deps` is run as its two
+      # halves: install-deps (apt, needs root) and install (browser download).
+      # timeout runs as root for the apt half, because a timeout started as a
+      # normal user cannot signal the apt-get that sudo starts and would leave
+      # it holding the dpkg lock. Each half is capped (DEPS_MINUTES,
+      # BROWSER_MINUTES), since a failing attempt can otherwise spend 10+
+      # minutes in apt's own timeouts. After a failed attempt, dpkg is
+      # finished off in case apt was stopped half-way. If every attempt fails
+      # the step fails. Worst case: 3 * (5 + 2 min + 30 s kill grace) + 15 s +
+      # 30 s of waiting = 23 min 15 s, under the step timeout.
       - name: Install Playwright browser
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: |
           MAX_ATTEMPTS=3
-          ATTEMPT_MINUTES=6
+          DEPS_MINUTES=5
+          BROWSER_MINUTES=2
           for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            if timeout "${ATTEMPT_MINUTES}m" npx playwright install --with-deps chromium; then
+            if sudo env "PATH=$PATH" timeout --kill-after=30s "${DEPS_MINUTES}m" \
+                npx playwright install-deps chromium &&
+              timeout --kill-after=30s "${BROWSER_MINUTES}m" \
+                npx playwright install chromium; then
               exit 0
             fi
             echo "Playwright browser install failed (attempt $attempt of $MAX_ATTEMPTS)"
+            sudo dpkg --configure -a || true
             if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
               sleep $((attempt * 15))
             fi
