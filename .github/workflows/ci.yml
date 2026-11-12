@@ -226,10 +226,12 @@ jobs:
       # normal user cannot signal the apt-get that sudo starts and would leave
       # it holding the dpkg lock. Each half is capped (DEPS_MINUTES,
       # BROWSER_MINUTES), since a failing attempt can otherwise spend 10+
-      # minutes in apt's own timeouts. After a failed attempt, dpkg is
-      # finished off in case apt was stopped half-way. If every attempt fails
-      # the step fails. Worst case: 3 * (5 + 2 min + 30 s kill grace) + 15 s +
-      # 30 s of waiting = 23 min 15 s, under the step timeout.
+      # minutes in apt's own timeouts. Before each retry, after the wait, dpkg
+      # is finished off in case apt was stopped half-way; the wait lets a dpkg
+      # that timeout cannot signal (it runs in its own session) exit first.
+      # If every attempt fails the step fails. Worst case: 3 * (5 + 2 min +
+      # 30 s kill grace) + 15 s + 30 s of waiting = 23 min 15 s, under the
+      # step timeout.
       - name: Install Playwright browser
         timeout-minutes: 25
         run: |
@@ -237,16 +239,16 @@ jobs:
           DEPS_MINUTES=5
           BROWSER_MINUTES=2
           for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
-            if sudo env "PATH=$PATH" timeout --kill-after=30s "${DEPS_MINUTES}m" \
+            if sudo env "PATH=$PATH" CI=true timeout --kill-after=30s "${DEPS_MINUTES}m" \
                 npx playwright install-deps chromium &&
               timeout --kill-after=30s "${BROWSER_MINUTES}m" \
                 npx playwright install chromium; then
               exit 0
             fi
             echo "Playwright browser install failed (attempt $attempt of $MAX_ATTEMPTS)"
-            sudo dpkg --configure -a || true
             if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
               sleep $((attempt * 15))
+              sudo dpkg --configure -a || true
             fi
           done
           exit 1
