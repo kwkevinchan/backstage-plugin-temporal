@@ -94,7 +94,8 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
    attributes, and starts the workflow. It answers `201` with the workflow ID.
    Temporal puts a task on the task queue and a Worker runs the workflow.
 2. **Wait.** The `temporal:workflow:wait` step polls `GET …/workflows/:workflowId`
-   (every `intervalSeconds`, default 5) until the Bool search attribute named in
+   (at once, then after `intervalSeconds`, default 5 seconds, with each pause
+   doubling up to `maxIntervalSeconds`, default 30) until the Bool search attribute named in
    `untilSearchAttribute` is true. The workflow set it when it reached the point
    where it needs a decision, so the template finishes with a link to the workflow.
 3. **Decision.** Someone sends an update: from the **Update…** dialog on the details
