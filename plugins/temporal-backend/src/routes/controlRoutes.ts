@@ -52,10 +52,8 @@ import {
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
-import {
-  WorkflowCommands,
-  mapControlError,
-} from '../services/WorkflowCommands';
+import { mapCommandError } from '../repositories/TemporalReadRepository';
+import { WorkflowCommands } from '../services/WorkflowCommands';
 import {
   EntityWorkflowSources,
   readEntityWorkflowFilter,
@@ -500,7 +498,7 @@ export function createControlRouter(
         if ((error as Error)?.name === 'ScheduleNotFoundError') {
           throw new NotFoundError(`No schedule ${scheduleId}`);
         }
-        return mapControlError(error);
+        return mapCommandError(error);
       });
       const action = {
         workflowType: description.action.workflowType,
@@ -540,7 +538,7 @@ export function createControlRouter(
               await handle.trigger(description.policies?.overlap);
             }
           } catch (error) {
-            mapControlError(error);
+            mapCommandError(error);
           }
         },
       );

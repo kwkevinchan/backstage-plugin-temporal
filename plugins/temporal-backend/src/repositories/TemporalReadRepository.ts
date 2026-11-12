@@ -25,6 +25,7 @@ import type { TemporalService } from '../node';
 
 /** gRPC status codes used to map Temporal errors to HTTP errors. */
 const GRPC_INVALID_ARGUMENT = 3;
+const GRPC_ALREADY_EXISTS = 6;
 const GRPC_PERMISSION_DENIED = 7;
 const GRPC_UNAUTHENTICATED = 16;
 const GRPC_DEADLINE_EXCEEDED = 4;
@@ -96,6 +97,17 @@ function mapQueryError(error: unknown): never {
     throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
   }
   return mapTemporalError(error);
+}
+
+/**
+ * Like the errors of a query, for the operations that change workflows and
+ * schedules (`WorkflowCommands`): a workflow ID that is taken is a conflict
+ * too.
+ */
+export function mapCommandError(error: unknown): never {
+  const { code, message } = grpcErrorOf(error);
+  if (code === GRPC_ALREADY_EXISTS) throw new ConflictError(message);
+  return mapQueryError(error);
 }
 
 /** The protobuf JSON of a Temporal response message. */

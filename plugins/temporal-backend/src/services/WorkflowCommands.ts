@@ -17,7 +17,6 @@
 import { randomUUID } from 'node:crypto';
 import { Config } from '@backstage/config';
 import {
-  ConflictError,
   InputError,
   NotFoundError,
   ServiceUnavailableError,
@@ -34,6 +33,7 @@ import {
   encodeJsonPayloads,
   TemporalJsonPayload,
 } from '../node/alpha';
+import { mapCommandError } from '../repositories/TemporalReadRepository';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -49,50 +49,6 @@ export function readControlOptions(config: Config): ControlOptions {
     allowedSignals: control?.getOptionalStringArray('allowedSignals') ?? [],
     allowedUpdates: control?.getOptionalStringArray('allowedUpdates') ?? [],
   };
-}
-
-/** gRPC status codes of Temporal errors handled here. */
-const GRPC_DEADLINE_EXCEEDED = 4;
-const GRPC_PERMISSION_DENIED = 7;
-const GRPC_UNAUTHENTICATED = 16;
-const GRPC_ALREADY_EXISTS = 6;
-const GRPC_FAILED_PRECONDITION = 9;
-const GRPC_INVALID_ARGUMENT = 3;
-const GRPC_NOT_FOUND = 5;
-const GRPC_UNAVAILABLE = 14;
-
-/**
- * Rethrows a Temporal error as the Backstage error of its HTTP status. The
- * raw service calls throw the gRPC error itself; the schedule client wraps
- * it in a `ServiceError` with the gRPC error as `cause`.
- */
-export function mapControlError(error: unknown): never {
-  const message = (error as Error)?.message ?? String(error);
-  const name = (error as Error)?.name;
-  if (name === 'ScheduleNotFoundError' || name === 'NamespaceNotFoundError') {
-    throw new NotFoundError(message);
-  }
-  const cause = (error as { cause?: { code?: unknown; details?: unknown } })
-    ?.cause;
-  const code = (error as { code?: unknown })?.code ?? cause?.code;
-  if (code === GRPC_ALREADY_EXISTS || code === GRPC_FAILED_PRECONDITION) {
-    throw new ConflictError(message);
-  }
-  if (code === GRPC_DEADLINE_EXCEEDED) {
-    throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
-  }
-  if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);
-  if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
-  if (code === GRPC_UNAVAILABLE) {
-    throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
-  }
-  if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
-    // The backend's own credentials, not the user's: a server-side problem.
-    throw new ServiceUnavailableError(
-      `Temporal refused the credentials of the backend: ${message}`,
-    );
-  }
-  throw error;
 }
 
 /** The message of a Temporal failure, with its causes. */
@@ -192,7 +148,7 @@ export class WorkflowCommands {
         identity,
         requestId: randomUUID(),
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async update(
@@ -219,7 +175,7 @@ export class WorkflowCommands {
           input: { name, args: encodeJsonPayloads(args) },
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
@@ -230,7 +186,7 @@ export class WorkflowCommands {
           identity,
           waitPolicy,
         })
-        .catch(mapControlError);
+        .catch(mapCommandError);
     }
     const outcome = response?.outcome;
     if (!outcome) {
@@ -251,7 +207,7 @@ export class WorkflowCommands {
         identity,
         requestId: randomUUID(),
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async terminate(
@@ -267,7 +223,7 @@ export class WorkflowCommands {
         reason,
         identity,
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async start(options: StartOptions): Promise<WorkflowStartResponse> {
@@ -287,7 +243,7 @@ export class WorkflowCommands {
           indexedFields: keywordAttributes(options.searchAttributes),
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     return {
       namespace: options.namespace,
       workflowId,
@@ -316,7 +272,7 @@ export class WorkflowCommands {
         execution: { workflowId: workflow.workflowId, runId: workflow.runId },
         maximumPageSize: 1,
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     const started =
       history.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
     if (!started) {
@@ -351,7 +307,7 @@ export class WorkflowCommands {
           },
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     return {
       namespace: workflow.namespace,
       workflowId,
