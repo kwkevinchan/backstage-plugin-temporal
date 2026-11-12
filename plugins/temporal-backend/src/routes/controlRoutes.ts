@@ -57,13 +57,13 @@ import {
   WorkflowCommands,
   mapControlError,
 } from '../services/WorkflowCommands';
+import { readEntityWorkflowFilter } from '../services/EntityWorkflowSources';
+import { matchesSource } from '../services/query';
 import {
   entityRefFromParams,
-  entityWorkflowSource,
-  matchesSource,
   parseEntityRefParam,
   workflowRefFromParams,
-} from './controlParams';
+} from './params';
 
 /** A workflow loaded with the read checks of the access service. */
 interface LoadedWorkflow {
@@ -492,7 +492,7 @@ export function createControlRouter(
         credentials,
       );
       const start = parseStart(req);
-      const annotations = entityWorkflowSource(context.entity);
+      const annotations = readEntityWorkflowFilter(context.entity);
       const workflowType =
         start.workflowType ??
         (annotations.workflowTypes.length === 1
@@ -558,7 +558,7 @@ export function createControlRouter(
       const entityRef = parseEntityRefParam(req.query.entityRef);
       // The permission first: the schedule is only read for callers that
       // may start workflows, so its existence is not told to others.
-      let sources: ReturnType<typeof entityWorkflowSource>[] | undefined;
+      let sources: ReturnType<typeof readEntityWorkflowFilter>[] | undefined;
       if (entityRef) {
         const context = await access.loadEntity(
           entityRef,
@@ -574,7 +574,7 @@ export function createControlRouter(
         // its workflow list.
         const defaultNamespace = options.temporal.getDefaultNamespace();
         sources = [context.entity, ...context.relatedWorkflowEntities]
-          .map(entityWorkflowSource)
+          .map(readEntityWorkflowFilter)
           .filter(
             source => (source.namespace ?? defaultNamespace) === namespace,
           );

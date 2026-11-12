@@ -36,7 +36,7 @@ import {
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
-} from './__testUtils__/fakes';
+} from './testUtils';
 import { temporalPlugin } from './plugin';
 
 const json = (value: unknown) => ({
