@@ -25,7 +25,7 @@ import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
   temporalExtensionPoint,
   TemporalWorkflowEnricher,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+} from './node';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';

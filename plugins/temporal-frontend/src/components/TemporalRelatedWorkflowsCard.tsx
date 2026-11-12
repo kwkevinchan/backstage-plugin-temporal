@@ -22,7 +22,7 @@ import {
   useEntity,
   useRelatedEntities,
 } from '@backstage/plugin-catalog-react';
-import { TEMPORAL_WORKFLOW_KIND } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { TEMPORAL_WORKFLOW_KIND } from '../common';
 import {
   Cell,
   Column,

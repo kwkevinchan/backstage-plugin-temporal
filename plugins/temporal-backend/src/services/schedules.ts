@@ -18,7 +18,7 @@ import type {
   CalendarSpecDescription,
   ScheduleSummary,
 } from '@temporalio/client';
-import type { TemporalSchedule } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { TemporalSchedule } from '../common';
 
 /** Recent actions and next times kept per schedule. */
 const MAX_RECENT_ACTIONS = 5;

@@ -28,7 +28,7 @@ import {
   Flex,
   Text,
 } from '@backstage/ui';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
+import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   controlError,
   ErrorAlert,
@@ -36,9 +36,10 @@ import {
   tp,
   useControlPermission,
   WithReason,
-} from '@kwkevinchan/backstage-plugin-temporal/ui';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
-import { useTemporalControlApi } from '../api';
+} from '../ui';
+import type { WorkflowDetail } from '../common';
+import { useTemporalControlApi } from './api';
+import { useControlEnabled } from './config';
 
 /**
  * A button on the workflow details page that runs a custom action of the
@@ -92,7 +93,7 @@ function PermissionGate(props: {
  * A button that runs a custom action of the backend and shows its result.
  * With `confirm`, it asks first.
  */
-export function ControlActionButton(
+function ControlActionButtonContent(
   props: TemporalWorkflowExtensionProps & {
     action: TemporalControlActionButtonOptions;
   },
@@ -198,4 +199,13 @@ export function ControlActionButton(
       )}
     </>
   );
+}
+
+/**
+ * A button that runs a custom action of the backend. Renders nothing when `temporal.control.enabled` is false.
+ */
+export function ControlActionButton(props: TemporalWorkflowExtensionProps & {
+    action: TemporalControlActionButtonOptions;
+  }) {
+  return useControlEnabled() ? <ControlActionButtonContent {...props} /> : null;
 }

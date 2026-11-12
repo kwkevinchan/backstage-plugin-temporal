@@ -20,7 +20,7 @@ import { RiRepeatLine } from '@remixicon/react';
 import type {
   WorkflowLoopGroup,
   WorkflowLoopRound,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import type { LoopBox } from './loops';
 import {
   decisionText,

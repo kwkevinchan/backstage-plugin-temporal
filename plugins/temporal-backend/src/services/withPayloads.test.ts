@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { WorkflowRef } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { WorkflowRef } from '../common';
 import { WorkflowQueries } from './WorkflowQueries';
 
 function setup() {

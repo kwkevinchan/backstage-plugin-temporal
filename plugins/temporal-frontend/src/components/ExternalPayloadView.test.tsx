@@ -16,7 +16,7 @@
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TestApiProvider } from '@backstage/test-utils';
-import type { ExternalPayload } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { ExternalPayload } from '../common';
 import { temporalApiRef, TemporalWorkflowProvider } from '../extensions';
 import { formatBytes } from './ExternalPayloadView';
 import { PayloadView } from './PayloadView';

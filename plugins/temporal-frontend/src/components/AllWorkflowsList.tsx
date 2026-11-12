@@ -20,7 +20,7 @@ import {
   isValidWorkflowIdPrefix,
   isValidWorkflowTypeName,
   WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { TemporalWorkflowListActionDef, temporalApiRef } from '../extensions';
 import { Button, Flex, Text, TextField } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';

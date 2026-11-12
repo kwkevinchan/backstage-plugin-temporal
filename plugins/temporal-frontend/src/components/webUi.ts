@@ -19,7 +19,7 @@ import {
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 
 /** `temporal.webUi.baseUrl` without a trailing slash, when it is set. */
 export function useTemporalWebUiBaseUrl(): string | undefined {

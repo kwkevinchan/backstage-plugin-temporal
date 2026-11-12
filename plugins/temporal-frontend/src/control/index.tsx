@@ -14,15 +14,9 @@
  * limitations under the License.
  */
 
-/**
- * Operations that change Temporal workflows for the unofficial Backstage
- * Temporal plugin: start, signal, update, cancel, terminate, rerun and
- * buttons for custom backend actions. This entry point is for the legacy
- * frontend system and has the API; the new frontend system installs
- * `./alpha`.
- *
- * @packageDocumentation
- */
+// The operations that change workflows for the legacy frontend system:
+// start, signal, update, cancel, terminate, rerun and buttons for custom
+// backend actions. The new frontend system gets them from `./alpha.tsx`.
 
 import {
   createApiFactory,
@@ -33,30 +27,25 @@ import type {
   TemporalWorkflowActionDef,
   TemporalScheduleActionDef,
   TemporalWorkflowListActionDef,
-} from '@kwkevinchan/backstage-plugin-temporal';
+} from '../extensions';
 import {
   isTemporalWorkflowEntity,
   WorkflowDetail,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
 import {
   ControlActionButton,
   TemporalControlActionButtonOptions,
-} from './components/ControlActionButton';
-import { ScheduleControls } from './components/ScheduleControls';
-import { StartWorkflowButton } from './components/StartWorkflow';
-import { WorkflowControls } from './components/WorkflowControls';
+} from './ControlActionButton';
+import { ScheduleControls } from './ScheduleControls';
+import { StartWorkflowButton } from './StartWorkflow';
+import { WorkflowControls } from './WorkflowControls';
 
 export { TemporalControlClient, temporalControlApiRef } from './api';
 export type { TemporalControlApi } from './api';
-export type { TemporalControlActionButtonOptions } from './components/ControlActionButton';
+export type { TemporalControlActionButtonOptions } from './ControlActionButton';
 
-/**
- * Factory of {@link TemporalControlApi} for the `apis` of a legacy app.
- * Optional: without a registered API the buttons use the default client.
- *
- * @public
- */
+/** Factory of {@link TemporalControlApi}, in the APIs of the legacy plugin. */
 export const temporalControlApiFactory = createApiFactory({
   api: temporalControlApiRef,
   deps: { discoveryApi: discoveryApiRef, fetchApi: fetchApiRef },
@@ -64,23 +53,12 @@ export const temporalControlApiFactory = createApiFactory({
     new TemporalControlClient({ discoveryApi, fetchApi }),
 });
 
-/**
- * Signal, Update, Cancel, Terminate and Rerun, for the `workflowActions`
- * prop of `EntityTemporalContent` and `TemporalPage` (legacy frontend
- * system).
- *
- * @public
- */
+/** Signal, Update, Cancel, Terminate and Rerun on the details page. */
 export const temporalControlWorkflowActions: TemporalWorkflowActionDef[] = [
   { id: 'temporal-controls', component: WorkflowControls },
 ];
 
-/**
- * "Start workflow", for the `workflowListActions` prop of
- * `EntityTemporalContent` and `TemporalPage` (legacy frontend system).
- *
- * @public
- */
+/** "Start workflow" above the workflow lists. */
 export const temporalControlListActions: TemporalWorkflowListActionDef[] = [
   {
     id: 'temporal-start',
@@ -89,13 +67,7 @@ export const temporalControlListActions: TemporalWorkflowListActionDef[] = [
   },
 ];
 
-/**
- * Pause or resume, and run now, on each schedule (legacy frontend system:
- * the `scheduleActions` prop of `EntityTemporalContent` and
- * `TemporalPage`).
- *
- * @public
- */
+/** Pause or resume, and run now, on each schedule. */
 export const temporalControlScheduleActions: TemporalScheduleActionDef[] = [
   { id: 'temporal-schedule-controls', component: ScheduleControls },
 ];
@@ -119,5 +91,34 @@ export function createTemporalControlActionDef(
     id: id ?? action.actionId,
     component: props => <ControlActionButton {...props} action={action} />,
     filter,
+  };
+}
+
+/**
+ * The props of `EntityTemporalContent` and `TemporalPage` with the
+ * operations that change workflows first in each list of actions. The
+ * buttons render nothing when `temporal.control.enabled` is false.
+ */
+export function withControls<
+  P extends {
+    workflowActions?: TemporalWorkflowActionDef[];
+    workflowListActions?: TemporalWorkflowListActionDef[];
+    scheduleActions?: TemporalScheduleActionDef[];
+  },
+>(props: P): P {
+  return {
+    ...props,
+    workflowActions: [
+      ...temporalControlWorkflowActions,
+      ...(props.workflowActions ?? []),
+    ],
+    workflowListActions: [
+      ...temporalControlListActions,
+      ...(props.workflowListActions ?? []),
+    ],
+    scheduleActions: [
+      ...temporalControlScheduleActions,
+      ...(props.scheduleActions ?? []),
+    ],
   };
 }

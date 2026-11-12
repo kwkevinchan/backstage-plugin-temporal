@@ -22,7 +22,7 @@ import type {
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { temporalApiRef } from '../extensions';
 import { failedWorkflow, graphResponse, mockTemporalApi } from '../testData';
 import {

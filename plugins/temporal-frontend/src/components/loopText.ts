@@ -17,7 +17,7 @@
 import type {
   WorkflowLoopGroup,
   WorkflowLoopStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type { Tone } from './WorkflowStatusLabel';
 
 const LOOP_STATUS_LABELS: Record<WorkflowLoopStatus, string> = {

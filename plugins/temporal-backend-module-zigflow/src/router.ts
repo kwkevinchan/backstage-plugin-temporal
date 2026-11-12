@@ -27,7 +27,7 @@ import {
   getTemporalWorkflowDefinitionSpec,
   isTemporalWorkflowEntity,
   temporalWorkflowReadPermission,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { DefinitionReader } from './service/definition';

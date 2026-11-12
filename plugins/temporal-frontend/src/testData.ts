@@ -28,7 +28,7 @@ import type {
   WorkflowLoopsResponse,
   TemporalSchedule,
   TemporalScheduleListResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from './common';
 import type { TemporalApi } from './extensions';
 
 export const entity: Entity = {

@@ -51,14 +51,14 @@ import {
   WorkflowDetail,
   WorkflowRef,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import {
   TemporalAccessibleWorkflow,
   TemporalAccessService,
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
   TemporalWorkflowQuery,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 import { inQuery, isValidEntityRefValue } from '../services/query';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';

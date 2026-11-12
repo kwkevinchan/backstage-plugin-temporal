@@ -16,10 +16,10 @@
 
 /**
  * Building blocks of the Temporal plugin pages for companion packages of
- * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`
- * and `-module-control`: the workflow graph canvas and its layout, node
- * status helpers, panels, the dialogs and fields of workflow operations and
- * the class names of the plugin styles. An app does not need them.
+ * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`:
+ * the workflow graph canvas and its layout, node status helpers, panels, the
+ * dialogs and fields of workflow operations and the class names of the
+ * plugin styles. An app does not need them.
  *
  * Alpha: there is no compatibility promise between versions. The companion
  * packages are released with the same version as this plugin and use the

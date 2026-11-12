@@ -18,7 +18,7 @@ import { useState } from 'react';
 import type {
   WorkflowGraphNode,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import {
   Button,
   Flex,

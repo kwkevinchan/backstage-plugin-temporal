@@ -25,7 +25,7 @@ import {
   WorkflowLoopsResponse,
   ExternalPayload,
   WorkflowLlmCallResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type { JsonObject } from '@backstage/types';
 import { decodePayloads } from './convert';
 import { buildWorkflowGraph } from './graph';

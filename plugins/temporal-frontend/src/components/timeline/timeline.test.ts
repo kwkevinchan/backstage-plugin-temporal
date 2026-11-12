@@ -17,7 +17,7 @@
 import type {
   WorkflowGraphNode,
   WorkflowGraphResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import {
   loopGraphResponse,
   timelineNodes as nodes,

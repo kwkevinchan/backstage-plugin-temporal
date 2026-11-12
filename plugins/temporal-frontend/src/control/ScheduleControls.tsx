@@ -16,13 +16,14 @@
 
 import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import type { TemporalScheduleActionProps } from '@kwkevinchan/backstage-plugin-temporal';
-import { PermissionButton } from '@kwkevinchan/backstage-plugin-temporal/ui';
+import type { TemporalScheduleActionProps } from '../extensions';
+import { PermissionButton } from '../ui';
 import {
   temporalWorkflowStartPermission,
   TemporalScheduleOperation,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { useTemporalControlApi } from '../api';
+} from '../common';
+import { useTemporalControlApi } from './api';
+import { useControlEnabled } from './config';
 import { ConfirmDialog } from './WorkflowControls';
 
 const TEXT: Record<
@@ -55,7 +56,7 @@ const TEXT: Record<
  * "Pause" or "Resume", and "Run now", on a schedule. They need
  * `temporal.workflow.start`.
  */
-export function ScheduleControls(props: TemporalScheduleActionProps) {
+function ScheduleControlsContent(props: TemporalScheduleActionProps) {
   const { schedule, entity, reload } = props;
   const api = useTemporalControlApi();
   const [open, setOpen] = useState<TemporalScheduleOperation>();
@@ -100,4 +101,11 @@ export function ScheduleControls(props: TemporalScheduleActionProps) {
       )}
     </>
   );
+}
+
+/**
+ * "Pause" or "Resume", and "Run now", on a schedule. Renders nothing when `temporal.control.enabled` is false.
+ */
+export function ScheduleControls(props: TemporalScheduleActionProps) {
+  return useControlEnabled() ? <ScheduleControlsContent {...props} /> : null;
 }

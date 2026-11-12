@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { WorkflowHandler } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowHandler } from '../common';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import {
   Button,
@@ -28,7 +28,7 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
+import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   controlError,
   ErrorAlert,
@@ -36,7 +36,7 @@ import {
   MessageDialogText,
   PermissionButton,
   useWorkflowHandlers,
-} from '@kwkevinchan/backstage-plugin-temporal/ui';
+} from '../ui';
 import { SchemaArgsField } from './SchemaArgsField';
 import {
   temporalWorkflowCancelPermission,
@@ -44,9 +44,9 @@ import {
   temporalWorkflowSignalPermission,
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { useTemporalControlApi } from '../api';
-import { useControlConfig } from './config';
+} from '../common';
+import { useTemporalControlApi } from './api';
+import { useControlConfig, useControlEnabled } from './config';
 
 type MessageKind = 'signal' | 'update';
 type Open = MessageKind | 'cancel' | 'terminate' | 'rerun' | undefined;
@@ -138,7 +138,7 @@ export function ConfirmDialog(props: {
  * closed. Each button is disabled when the user does not have its
  * permission on the workflow's entity.
  */
-export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
+function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
   const { workflow, entity, reload } = props;
   const api = useTemporalControlApi();
   const navigate = useNavigate();
@@ -280,4 +280,11 @@ export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
       )}
     </>
   );
+}
+
+/**
+ * The operations on a workflow in the action bar of the details page. Renders nothing when `temporal.control.enabled` is false.
+ */
+export function WorkflowControls(props: TemporalWorkflowExtensionProps) {
+  return useControlEnabled() ? <WorkflowControlsContent {...props} /> : null;
 }

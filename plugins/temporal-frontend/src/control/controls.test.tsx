@@ -29,12 +29,12 @@ import {
   renderInTestApp,
   TestApiProvider,
 } from '@backstage/test-utils';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { temporalApiRef } from '../extensions';
+import type { WorkflowDetail } from '../common';
 import { TemporalControlApi, temporalControlApiRef } from './api';
-import { StartWorkflowButton } from './components/StartWorkflow';
-import { WorkflowControls } from './components/WorkflowControls';
-import { ScheduleControls } from './components/ScheduleControls';
+import { StartWorkflowButton } from './StartWorkflow';
+import { WorkflowControls } from './WorkflowControls';
+import { ScheduleControls } from './ScheduleControls';
 import { createTemporalControlActionDef } from './index';
 
 // usePermission caches results across tests; this one answers from `denied`.

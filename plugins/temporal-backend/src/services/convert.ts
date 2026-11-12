@@ -26,7 +26,7 @@ import {
   WorkflowStatus,
   WorkflowSummary,
   parseLlmMarker,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { linkLlmSteps, summarizeLlmCall } from './llm';
 import {
   EXTERNAL_PAYLOAD,

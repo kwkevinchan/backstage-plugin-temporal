@@ -19,7 +19,7 @@ import { useApi } from '@backstage/core-plugin-api';
 import type {
   WorkflowProgressResponse,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { temporalApiRef } from '../extensions';
 import { Skeleton } from '@backstage/ui';
 import { deadlineText } from './format';

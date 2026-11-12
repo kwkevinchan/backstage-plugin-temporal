@@ -30,7 +30,7 @@ import {
   Text,
 } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
-import type { TemporalSchedule } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { TemporalSchedule } from '../common';
 import {
   temporalApiRef,
   TemporalScheduleActionDef,

@@ -19,7 +19,7 @@ import {
   LLM_RECORD_KEY,
   LLM_TOOL_RESULT_KEY,
   parseLlmMarker,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmMessage,
@@ -30,7 +30,7 @@ import type {
   WorkflowLlmUsage,
   WorkflowNodeStatus,
   WorkflowToolLink,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 
 /*
  * Records of model calls. A model call activity (activity ID `llm/...`)

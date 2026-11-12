@@ -20,7 +20,7 @@ import type {
   TemporalSchedule,
   WorkflowDetail,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 
 /**
  * Props of components shown on the workflow details page.

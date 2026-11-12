@@ -27,7 +27,7 @@ import {
 import type {
   WorkflowGraphResponse,
   WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { Button, Flex, Text } from '@backstage/ui';
 import {
   RiArrowDownSLine,

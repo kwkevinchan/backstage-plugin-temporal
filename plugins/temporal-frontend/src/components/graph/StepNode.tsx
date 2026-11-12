@@ -19,7 +19,7 @@ import { Handle, NodeProps, Position, Node } from '@xyflow/react';
 import type {
   WorkflowGraphNode,
   WorkflowNodeKind,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import {
   RiArrowRightCircleLine,
   RiBookmarkLine,

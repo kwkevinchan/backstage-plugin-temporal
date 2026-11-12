@@ -18,6 +18,7 @@ import { configApiRef, useApi } from '@backstage/core-plugin-api';
 
 /** `temporal.control` settings read by the frontend. */
 export interface ControlConfig {
+  enabled: boolean;
   allowedSignals: string[];
   allowedUpdates: string[];
 }
@@ -26,7 +27,16 @@ export function useControlConfig(): ControlConfig {
   const config = useApi(configApiRef);
   const control = config.getOptionalConfig('temporal.control');
   return {
+    enabled: control?.getOptionalBoolean('enabled') ?? true,
     allowedSignals: control?.getOptionalStringArray('allowedSignals') ?? [],
     allowedUpdates: control?.getOptionalStringArray('allowedUpdates') ?? [],
   };
+}
+
+/**
+ * False when `temporal.control.enabled` is false: the backend then serves
+ * no routes that change workflows, so their buttons are not shown.
+ */
+export function useControlEnabled(): boolean {
+  return useControlConfig().enabled;
 }

@@ -43,14 +43,14 @@ import {
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+} from '../common';
+import { TemporalService } from '../node';
 import {
   TemporalAccessService,
   TemporalControlAction,
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {

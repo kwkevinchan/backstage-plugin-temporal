@@ -38,13 +38,13 @@ import {
   buildScheduleOperationPath,
   TemporalScheduleNoteRequest,
   TemporalScheduleOperation,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 
 /**
- * Client of the routes of the Temporal backend control module
- * (`@kwkevinchan/backstage-plugin-temporal-backend-module-control`): the
- * operations that change workflows. `entityRef` is the entity the workflow
- * is shown for; the backend checks the permission on it.
+ * Client of the routes of the Temporal backend plugin that change
+ * workflows, served unless `temporal.control.enabled` is false. `entityRef`
+ * is the entity the workflow is shown for; the backend checks the
+ * permission on it.
  *
  * @public
  */

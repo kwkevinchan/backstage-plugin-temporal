@@ -20,8 +20,8 @@ import {
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { temporalWorkflowPermissionResourceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../common';
+import { temporalWorkflowPermissionResourceRef } from '../node/alpha';
 import { z } from 'zod';
 import { inQuery, isValidEntityRefValue } from '../services/query';
 

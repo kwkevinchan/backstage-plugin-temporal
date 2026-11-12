@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { PendingActivity } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { PendingActivity } from '../common';
 import {
   Cell,
   Column,

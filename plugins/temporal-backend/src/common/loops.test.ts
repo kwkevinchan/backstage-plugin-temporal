@@ -24,7 +24,7 @@ import { parseLoopMarker } from './loops';
  */
 const EXAMPLES: [string, ReturnType<typeof parseLoopMarker>][] = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../test-fixtures/loop-markers.json'),
+    resolve(__dirname, '../../../../test-fixtures/loop-markers.json'),
     'utf8',
   ),
 ).examples.map((e: { text: string; marker: unknown }) => [

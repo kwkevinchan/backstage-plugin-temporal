@@ -25,7 +25,7 @@ import {
   getEntityRelations,
   useEntity,
 } from '@backstage/plugin-catalog-react';
-import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { isTemporalWorkflowEntity } from '../common';
 import { RiExternalLinkLine } from '@remixicon/react';
 import { PanelCard } from './PanelCard';
 import { DefinitionList } from './StepDrawer';

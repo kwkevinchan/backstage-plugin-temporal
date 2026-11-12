@@ -28,7 +28,7 @@ import {
   TextField,
 } from '@backstage/ui';
 import { RiPlayLine } from '@remixicon/react';
-import type { TemporalWorkflowListActionProps } from '@kwkevinchan/backstage-plugin-temporal';
+import type { TemporalWorkflowListActionProps } from '../extensions';
 import {
   controlError,
   ErrorAlert,
@@ -36,7 +36,7 @@ import {
   parseArgs,
   useControlPermission,
   WithReason,
-} from '@kwkevinchan/backstage-plugin-temporal/ui';
+} from '../ui';
 import {
   getTemporalWorkflowExampleArgs,
   isValidTaskQueueName,
@@ -44,8 +44,9 @@ import {
   getTemporalWorkflowSource,
   temporalWorkflowStartPermission,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { useTemporalControlApi } from '../api';
+} from '../common';
+import { useTemporalControlApi } from './api';
+import { useControlEnabled } from './config';
 
 function specOf(entity: Entity | undefined) {
   if (!entity) return undefined;
@@ -167,7 +168,7 @@ function StartWorkflowDialog(props: {
  * asked for. Opens the new workflow once it has started. A list action:
  * the list of a `TemporalWorkflow` entity and the Workflows page show it.
  */
-export function StartWorkflowButton(props: TemporalWorkflowListActionProps) {
+function StartWorkflowButtonContent(props: TemporalWorkflowListActionProps) {
   const { entity } = props;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -206,4 +207,11 @@ export function StartWorkflowButton(props: TemporalWorkflowListActionProps) {
       )}
     </>
   );
+}
+
+/**
+ * "Start workflow" above a workflow list. Renders nothing when `temporal.control.enabled` is false.
+ */
+export function StartWorkflowButton(props: TemporalWorkflowListActionProps) {
+  return useControlEnabled() ? <StartWorkflowButtonContent {...props} /> : null;
 }

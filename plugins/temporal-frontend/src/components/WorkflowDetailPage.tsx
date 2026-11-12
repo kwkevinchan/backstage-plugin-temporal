@@ -24,7 +24,7 @@ import type {
   WorkflowGraphResponse,
   WorkflowRef,
   WorkflowRunChain,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import {
   TemporalWorkflowActionDef,
   TemporalWorkflowProvider,

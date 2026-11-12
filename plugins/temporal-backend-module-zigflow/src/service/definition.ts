@@ -31,7 +31,7 @@ import type { Config } from '@backstage/config';
 import { ScmIntegrations } from '@backstage/integration';
 import type { JsonObject } from '@backstage/types';
 import { isMap, isSeq, LineCounter, parseDocument } from 'yaml';
-import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import {
   findSymbolLines,
   sourceLanguageOf,

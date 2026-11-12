@@ -15,15 +15,21 @@
  */
 
 /**
- * Alpha API of the Temporal backend plugin.
+ * Alpha API of the Temporal backend plugin: for backend modules, the access
+ * service the plugin and its modules share (`temporalAccessServiceRef`), the
+ * control extension point (`temporalControlExtensionPoint`) and the JSON
+ * payload helpers; for permission policies, the conditions of the
+ * `temporal-workflow` resource type; and the default factory of the access
+ * service. This entry point does not load the plugin itself.
  *
  * @packageDocumentation
  */
 
 import { createConditionExports } from '@backstage/plugin-permission-node';
-import { temporalWorkflowPermissionResourceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { temporalWorkflowPermissionResourceRef } from './node/alpha';
 import { temporalWorkflowPermissionRules } from './access/rules';
 
+export * from './node/alpha';
 export { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 export { temporalWorkflowPermissionRules };
 

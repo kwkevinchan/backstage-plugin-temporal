@@ -14,12 +14,5 @@
  * limitations under the License.
  */
 
-/**
- * Catalog backend module with the `TemporalWorkflow` kind of the unofficial
- * Backstage Temporal plugin.
- *
- * @packageDocumentation
- */
-
-export { catalogModuleTemporalWorkflowKind as default } from './module';
+export { catalogModuleTemporalWorkflowKind } from './module';
 export { TemporalWorkflowEntityProcessor } from './TemporalWorkflowEntityProcessor';

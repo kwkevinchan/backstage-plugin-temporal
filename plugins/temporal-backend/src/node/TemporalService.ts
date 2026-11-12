@@ -26,7 +26,7 @@ import {
   buildWorkflowPath,
   isValidNamespaceName,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { Client, Connection } from '@temporalio/client';
 
 /**

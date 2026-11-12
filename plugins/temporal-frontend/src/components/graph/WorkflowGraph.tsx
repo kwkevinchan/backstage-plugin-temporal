@@ -19,7 +19,7 @@ import { Edge, ReactFlowProvider } from '@xyflow/react';
 import type {
   WorkflowGraphEdge,
   WorkflowGraphResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { Button, Flex, Switch, Text } from '@backstage/ui';
 import { isMarkerStep, isOpenStep } from '../steps';
 import {

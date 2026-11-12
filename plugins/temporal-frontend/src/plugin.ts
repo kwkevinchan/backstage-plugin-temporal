@@ -24,6 +24,7 @@ import {
 } from '@backstage/core-plugin-api';
 import { temporalApiRef } from './extensions';
 import { TemporalClient } from './api';
+import { temporalControlApiFactory } from './control';
 import { entityContentRouteRef, rootRouteRef } from './routes';
 
 /**
@@ -40,6 +41,7 @@ export const temporalPlugin = createPlugin({
       factory: ({ discoveryApi, fetchApi }) =>
         new TemporalClient({ discoveryApi, fetchApi }),
     }),
+    temporalControlApiFactory,
   ],
   routes: {
     root: rootRouteRef,
@@ -48,8 +50,10 @@ export const temporalPlugin = createPlugin({
 });
 
 /**
- * Entity tab with the entity's Temporal workflows and the workflow details.
- * Pass `workflowActions` and `workflowSections` to extend the details page.
+ * Entity tab with the entity's Temporal workflows and the workflow details,
+ * with the operations that change workflows (unless
+ * `temporal.control.enabled` is false). Pass `workflowActions` and
+ * `workflowSections` to extend the details page.
  *
  * @public
  */
@@ -58,7 +62,7 @@ export const EntityTemporalContent = temporalPlugin.provide(
     name: 'EntityTemporalContent',
     component: () =>
       import('./components/EntityTemporalContent').then(
-        m => m.EntityTemporalContentPage,
+        m => m.LegacyEntityTemporalContentPage,
       ),
     mountPoint: entityContentRouteRef,
   }),
@@ -66,8 +70,10 @@ export const EntityTemporalContent = temporalPlugin.provide(
 
 /**
  * Workflows page: every workflow of the default namespace, with filters,
- * and the workflow details. Needs the `temporal.workflow.list` permission.
- * Mount it on `/temporal` and add a sidebar item.
+ * and the workflow details, with the operations that change workflows
+ * (unless `temporal.control.enabled` is false). Needs the
+ * `temporal.workflow.list` permission. Mount it on `/temporal` and add a
+ * sidebar item.
  *
  * @public
  */

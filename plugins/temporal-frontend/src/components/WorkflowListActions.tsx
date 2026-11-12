@@ -17,7 +17,7 @@
 import { useMemo } from 'react';
 import type { Entity } from '@backstage/catalog-model';
 import { useApiHolder } from '@backstage/core-plugin-api';
-import type { WorkflowRef } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowRef } from '../common';
 import {
   TemporalWorkflowListActionDef,
   temporalWorkflowExtensionsApiRef,

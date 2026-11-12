@@ -16,8 +16,10 @@
 
 /**
  * Entry point for the new frontend system: the plugin (default export), its
- * extensions, and the blueprints for workflow actions and sections that
- * other plugins and app modules add.
+ * extensions (including the operations that change workflows, shown unless
+ * `temporal.control.enabled` is false), and the blueprints for workflow
+ * actions, sections and buttons of custom backend actions that other plugins
+ * and app modules add.
  *
  * @packageDocumentation
  */
@@ -44,7 +46,7 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from './common';
 import { temporalApiRef, temporalWorkflowExtensionsApiRef } from './extensions';
 import {
   temporalWorkflowActionDataRef,
@@ -54,6 +56,20 @@ import {
 } from './extensions/blueprints';
 import { TemporalClient } from './api';
 import { entityContentRouteRef, rootRouteRef } from './routes';
+import {
+  temporalControlApi,
+  temporalScheduleControlsAction,
+  temporalStartWorkflowListAction,
+  temporalWorkflowControlsAction,
+} from './control/alpha';
+
+export {
+  TemporalControlActionBlueprint,
+  temporalControlApi,
+  temporalScheduleControlsAction,
+  temporalStartWorkflowListAction,
+  temporalWorkflowControlsAction,
+} from './control/alpha';
 
 export {
   TemporalWorkflowActionBlueprint,
@@ -197,7 +213,8 @@ export const temporalRelatedWorkflowsCard = EntityCardBlueprint.make({
 });
 
 /**
- * The Temporal plugin for the new frontend system.
+ * The Temporal plugin for the new frontend system, with the operations that
+ * change workflows.
  *
  * @alpha
  */
@@ -210,6 +227,10 @@ export default createFrontendPlugin({
     temporalEntityContent,
     temporalWorkflowSummaryCard,
     temporalRelatedWorkflowsCard,
+    temporalControlApi,
+    temporalWorkflowControlsAction,
+    temporalStartWorkflowListAction,
+    temporalScheduleControlsAction,
   ],
   routes: convertLegacyRouteRefs({
     root: rootRouteRef,

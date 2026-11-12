@@ -17,7 +17,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import type { WorkflowDetail } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowDetail } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import { failedWorkflow, mockTemporalApi } from '../../testData';
 import { QueryButton } from './QueryButton';

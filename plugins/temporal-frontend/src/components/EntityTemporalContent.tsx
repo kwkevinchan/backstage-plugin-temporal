@@ -23,7 +23,7 @@ import {
   isTemporalWorkflowEntity,
   TEMPORAL_TASK_QUEUE_ANNOTATION,
   TEMPORAL_WORKFLOW_TYPE_ANNOTATION,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type {
   TemporalWorkflowActionDef,
   TemporalScheduleActionDef,
@@ -37,6 +37,7 @@ import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';
 import { TemporalWorkflowSummaryCard } from './TemporalWorkflowSummaryCard';
 import { EntityWorkflowDetailPage } from './WorkflowDetailPage';
 import { WorkflowList } from './WorkflowList';
+import { withControls } from '../control';
 
 /**
  * Props of {@link EntityTemporalContent}.
@@ -144,4 +145,14 @@ export function EntityTemporalContentPage(props: EntityTemporalContentProps) {
       />
     </Routes>
   );
+}
+
+/**
+ * The entity tab of the legacy frontend system: with the operations that
+ * change workflows, which the new frontend system adds as extensions.
+ */
+export function LegacyEntityTemporalContentPage(
+  props: EntityTemporalContentProps,
+) {
+  return <EntityTemporalContentPage {...withControls(props)} />;
 }

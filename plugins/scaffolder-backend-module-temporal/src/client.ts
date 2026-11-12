@@ -33,7 +33,7 @@ import {
   WorkflowStartResponse,
   WorkflowStepsResponse,
   WORKFLOWS_PATH,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 
 /**
  * Calls the routes of the Temporal backend plugin on behalf of the user who

@@ -21,7 +21,7 @@ import type {
   WorkflowLoopRound,
   WorkflowNodeStatus,
   WorkflowStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { isMarkerStep, isOpenStep } from '../steps';
 import { statusTone, Tone } from '../WorkflowStatusLabel';
 

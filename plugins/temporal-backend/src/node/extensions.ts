@@ -19,7 +19,7 @@ import {
   createExtensionPoint,
 } from '@backstage/backend-plugin-api';
 import type { Entity } from '@backstage/catalog-model';
-import type { WorkflowSummary } from '@kwkevinchan/backstage-plugin-temporal-common';
+import type { WorkflowSummary } from '../common';
 
 /**
  * Context passed to a {@link TemporalWorkflowEnricher}.

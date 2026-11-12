@@ -26,7 +26,7 @@ import {
   PermissionCondition,
 } from '@backstage/plugin-permission-common';
 import { createPermissionRule } from '@backstage/plugin-permission-node';
-import { temporalWorkflowPermissionResourceRef } from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+import { temporalWorkflowPermissionResourceRef } from '../node/alpha';
 import request from 'supertest';
 import { temporalPlugin } from '../plugin';
 import {

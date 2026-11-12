@@ -28,9 +28,9 @@ jobs:
       - name: Boundary scanner self test
         run: node scripts/check-boundaries.test.mjs
 
-      # The Zigflow frontend module's copy of the definition types must match
-      # the backend module's original (see scripts/sync-common.mjs).
-      - name: Zigflow definitions copy
+      # The frontend copies of the shared definitions must match the backend
+      # originals (see scripts/sync-common.mjs).
+      - name: Shared definitions copies
         run: node scripts/sync-common.mjs --check
 
       - name: Scan tracked files

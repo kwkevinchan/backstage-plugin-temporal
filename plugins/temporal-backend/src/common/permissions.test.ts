@@ -26,7 +26,7 @@ import { temporalPermissions } from './permissions';
  */
 const expected = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../test-fixtures/permissions.json'),
+    resolve(__dirname, '../../../../test-fixtures/permissions.json'),
     'utf8',
   ),
 ).permissions;

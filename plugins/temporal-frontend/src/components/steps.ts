@@ -17,7 +17,7 @@
 import type {
   WorkflowGraphNode,
   WorkflowNodeKind,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { deadlineText, formatDuration } from './format';
 
 const KIND_LABELS: Record<WorkflowNodeKind, string> = {

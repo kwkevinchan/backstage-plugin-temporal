@@ -19,7 +19,7 @@ import type {
   WorkflowGraphNode,
   WorkflowLoopGroup,
   WorkflowLoopRound,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 
 /**
  * How one loop is shown: collapsed into one box, or expanded with every

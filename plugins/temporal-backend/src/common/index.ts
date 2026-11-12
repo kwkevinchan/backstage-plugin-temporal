@@ -15,8 +15,10 @@
  */
 
 /**
- * Shared types, permissions and annotation constants of the unofficial
- * Backstage Temporal plugin.
+ * Definitions shared by the frontend, the backend and their modules: the
+ * permissions, the API types and paths, the annotation constants and the
+ * `TemporalWorkflow` entity. Permission policies import the permissions
+ * from here.
  *
  * @packageDocumentation
  */

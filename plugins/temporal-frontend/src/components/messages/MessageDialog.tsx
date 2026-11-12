@@ -24,7 +24,7 @@ import {
   WorkflowHandler,
   WorkflowHandlersResponse,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import {
   Alert,
   Button,

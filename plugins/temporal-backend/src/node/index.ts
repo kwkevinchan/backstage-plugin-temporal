@@ -15,8 +15,9 @@
  */
 
 /**
- * Node library of the unofficial Backstage Temporal plugin: the shared
- * Temporal client service and the extension point for backend modules.
+ * For backend modules and other backend plugins: the shared Temporal
+ * connection service (`temporalServiceRef`) and the extension point for
+ * workflow enrichers. This entry point does not load the plugin itself.
  *
  * @packageDocumentation
  */

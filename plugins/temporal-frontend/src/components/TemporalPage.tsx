@@ -28,6 +28,7 @@ import type {
 } from '../extensions';
 import { SchedulesCard } from './SchedulesCard';
 import { tp } from './styles';
+import { withControls } from '../control';
 
 /**
  * Props of {@link TemporalPage}.
@@ -84,13 +85,17 @@ export function TemporalPageInContainer(props: TemporalPageProps) {
   );
 }
 
-/** Workflows page with its own header, for the legacy frontend system. */
+/**
+ * Workflows page with its own header, for the legacy frontend system: with
+ * the operations that change workflows, which the new frontend system adds
+ * as extensions.
+ */
 export function TemporalPageWithHeader(props: TemporalPageProps) {
   return (
     <Page themeId="tool">
       <Header title="Workflows" subtitle="Temporal workflow executions" />
       <Content>
-        <TemporalPageContent {...props} />
+        <TemporalPageContent {...withControls(props)} />
       </Content>
     </Page>
   );

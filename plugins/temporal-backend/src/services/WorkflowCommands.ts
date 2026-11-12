@@ -27,13 +27,13 @@ import type {
   WorkflowDetail,
   WorkflowRef,
   WorkflowStartResponse,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
-import { TemporalService } from '@kwkevinchan/backstage-plugin-temporal-node';
+} from '../common';
+import { TemporalService } from '../node';
 import {
   decodeJsonPayloads,
   encodeJsonPayloads,
   TemporalJsonPayload,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from '../node/alpha';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {

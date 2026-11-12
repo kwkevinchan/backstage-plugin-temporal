@@ -19,11 +19,10 @@
  * frontend system). The new frontend system uses the `./alpha` entry point,
  * which also has the blueprints for workflow actions and sections.
  *
- * The package also exports the frontend extension points (the API ref, the
+ * The package also exports the frontend extension points (the API refs, the
  * workflow context and the props of actions, list actions and sections) and
  * the conditions for entity pages. The permissions, annotations and response
- * types of the backend API are in
- * `@kwkevinchan/backstage-plugin-temporal-common`.
+ * types of the backend API are in `./common`.
  *
  * @packageDocumentation
  */
@@ -42,11 +41,20 @@ export type {
   TemporalWorkflowStatsCardProps,
 } from './components';
 export { TemporalClient } from './api';
+export {
+  createTemporalControlActionDef,
+  TemporalControlClient,
+  temporalControlApiRef,
+} from './control';
+export type {
+  TemporalControlActionButtonOptions,
+  TemporalControlApi,
+} from './control';
 export * from './extensions';
-// Conditions for the EntitySwitch of a legacy entity page; the rest of
-// -common is imported from that package.
+// Conditions for the EntitySwitch of a legacy entity page; the rest of the
+// shared definitions is imported from `./common`.
 export {
   getDependsOnTemporalWorkflowRefs,
   isTemporalAvailable,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from './common';

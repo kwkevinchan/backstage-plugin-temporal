@@ -17,7 +17,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import { TemporalWorkflowPicker } from './components/TemporalWorkflowPicker';
 
 const workflow = (workflowId: string) => ({

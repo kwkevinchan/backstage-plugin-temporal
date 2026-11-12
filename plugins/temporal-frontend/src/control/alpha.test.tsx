@@ -19,7 +19,7 @@ import type { Entity } from '@backstage/catalog-model';
 import {
   temporalWorkflowActionDataRef,
   temporalWorkflowListActionDataRef,
-} from '@kwkevinchan/backstage-plugin-temporal/alpha';
+} from '../extensions/blueprints';
 import {
   TemporalControlActionBlueprint,
   temporalStartWorkflowListAction,

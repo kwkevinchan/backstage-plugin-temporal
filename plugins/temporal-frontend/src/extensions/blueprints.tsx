@@ -24,7 +24,7 @@ import {
 import type {
   TemporalSchedule,
   WorkflowDetail,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import type {
   TemporalWorkflowActionDef,
   TemporalWorkflowExtensionProps,
@@ -119,8 +119,7 @@ function lazyComponent<P extends object>(
  * ```
  *
  * A button that runs a custom action of the backend comes from
- * `TemporalControlActionBlueprint` of
- * `@kwkevinchan/backstage-plugin-temporal-module-control`.
+ * `TemporalControlActionBlueprint`.
  *
  * @alpha
  */

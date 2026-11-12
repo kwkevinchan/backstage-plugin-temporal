@@ -24,6 +24,32 @@ export interface Config {
        */
       defaultNamespace?: string;
     };
+    /**
+     * The operations that change workflows. The backend reads the same
+     * settings and checks them again.
+     */
+    control?: {
+      /**
+       * Show the buttons that change workflows (Signal, Update, Cancel,
+       * Terminate, Rerun, custom actions, Start workflow, and Pause, Resume
+       * and Run now on schedules). Defaults to true. Set it to false
+       * together with the backend, which then serves none of those routes.
+       * @visibility frontend
+       */
+      enabled?: boolean;
+      /**
+       * Signal names offered in the Signal dialog. Empty or absent allows
+       * every name.
+       * @visibility frontend
+       */
+      allowedSignals?: string[];
+      /**
+       * Update names offered in the Update dialog. Empty or absent allows
+       * every name.
+       * @visibility frontend
+       */
+      allowedUpdates?: string[];
+    };
     /** Temporal Web UI, used for "Open in Temporal UI" links. */
     webUi?: {
       /**

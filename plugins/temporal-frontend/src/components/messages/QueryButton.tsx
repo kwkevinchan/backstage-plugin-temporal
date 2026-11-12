@@ -19,7 +19,7 @@ import { useApi } from '@backstage/core-plugin-api';
 import {
   temporalWorkflowQueryPermission,
   WorkflowDetail,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { temporalApiRef } from '../../extensions';
 import {
   MessageDialog,

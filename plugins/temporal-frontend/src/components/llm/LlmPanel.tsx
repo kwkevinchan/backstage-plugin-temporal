@@ -17,7 +17,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
-import { LLM_TOOL_RESULT_KEY } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { LLM_TOOL_RESULT_KEY } from '../../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmCallResponse,
@@ -27,7 +27,7 @@ import type {
   WorkflowLlmToolCallRef,
   WorkflowNodeStatus,
   WorkflowRef,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../../common';
 import { temporalApiRef } from '../../extensions';
 import { Button, Flex, Switch, Text } from '@backstage/ui';
 import {

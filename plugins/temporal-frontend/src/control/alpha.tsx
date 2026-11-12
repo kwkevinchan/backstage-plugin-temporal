@@ -14,40 +14,35 @@
  * limitations under the License.
  */
 
-/**
- * Entry point for the new frontend system: the module (default export) with
- * the operations that change workflows, and the blueprint of buttons that
- * run custom backend actions.
- *
- * @packageDocumentation
- */
+// The extensions of the operations that change workflows, for the new
+// frontend system, and the blueprint of buttons that run custom backend
+// actions. `../alpha` adds them to the plugin and exports them.
 
 import { lazy, Suspense } from 'react';
 import {
   ApiBlueprint,
   createExtensionBlueprint,
-  createFrontendModule,
   discoveryApiRef,
   ExtensionBoundary,
   fetchApiRef,
 } from '@backstage/frontend-plugin-api';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
+import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
   temporalWorkflowActionDataRef,
   TemporalWorkflowActionBlueprint,
   TemporalScheduleActionBlueprint,
   TemporalWorkflowListActionBlueprint,
-} from '@kwkevinchan/backstage-plugin-temporal/alpha';
+} from '../extensions/blueprints';
 import {
   isTemporalWorkflowEntity,
   WorkflowDetail,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { TemporalControlClient, temporalControlApiRef } from './api';
-import type { TemporalControlActionButtonOptions } from './components/ControlActionButton';
+import type { TemporalControlActionButtonOptions } from './ControlActionButton';
 
 const LazyControlActionButton = lazy(() =>
-  import('./components/ControlActionButton').then(m => ({
+  import('./ControlActionButton').then(m => ({
     default: m.ControlActionButton,
   })),
 );
@@ -79,7 +74,7 @@ export const temporalWorkflowControlsAction =
     name: 'controls',
     params: {
       loader: () =>
-        import('./components/WorkflowControls').then(m => m.WorkflowControls),
+        import('./WorkflowControls').then(m => m.WorkflowControls),
     },
   });
 
@@ -94,7 +89,7 @@ export const temporalStartWorkflowListAction =
     name: 'start',
     params: {
       loader: () =>
-        import('./components/StartWorkflow').then(m => m.StartWorkflowButton),
+        import('./StartWorkflow').then(m => m.StartWorkflowButton),
       filter: ({ entity }) => !entity || isTemporalWorkflowEntity(entity),
     },
   });
@@ -109,7 +104,7 @@ export const temporalScheduleControlsAction =
     name: 'controls',
     params: {
       loader: () =>
-        import('./components/ScheduleControls').then(m => m.ScheduleControls),
+        import('./ScheduleControls').then(m => m.ScheduleControls),
     },
   });
 
@@ -156,21 +151,4 @@ export const TemporalControlActionBlueprint = createExtensionBlueprint({
       filter,
     });
   },
-});
-
-/**
- * The control module of the Temporal plugin for the new frontend system:
- * the operations that change workflows. Needs the backend control module,
- * `@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
- *
- * @alpha
- */
-export default createFrontendModule({
-  pluginId: 'temporal',
-  extensions: [
-    temporalControlApi,
-    temporalWorkflowControlsAction,
-    temporalStartWorkflowListAction,
-    temporalScheduleControlsAction,
-  ],
 });

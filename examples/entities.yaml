@@ -25,7 +25,7 @@ spec:
   owner: guests
   system: examples
 ---
-# TemporalWorkflow entities (kind from the catalog module). Their runs are
+# TemporalWorkflow entities (a kind of the Temporal backend plugin). Their runs are
 # the executions that match the workflow type and task queue.
 apiVersion: temporal.io/v1alpha1
 kind: TemporalWorkflow

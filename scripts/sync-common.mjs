@@ -16,22 +16,23 @@
  */
 
 /**
- * Keeps the frontend copy of the Zigflow definition types in step with the
- * backend module.
+ * Keeps the frontend copies of the shared definitions in step with the
+ * backend originals.
  *
  * Backstage does not let a frontend plugin import a backend plugin (or the
- * other way round). The core plugin shares its types through
- * `@kwkevinchan/backstage-plugin-temporal-common`; the Zigflow modules are
- * small enough that a copied file is simpler than another package. The
- * backend module has the original; the frontend module has a copy with a
- * note after the license header. Tests (`*.test.ts`) stay in the backend.
- * The pair:
+ * other way round), and the frontend and the backend each ship as one
+ * package. So the definitions both sides need (permissions, API types and
+ * paths, annotations, the `TemporalWorkflow` entity) live in the backend
+ * package, and the frontend package has a copy of each file with a note
+ * after the license header. Tests (`*.test.ts`) stay in the backend. The
+ * pairs:
  *
+ *   plugins/temporal-backend/src/common → plugins/temporal-frontend/src/common
  *   plugins/temporal-backend-module-zigflow/src/common → plugins/temporal-module-zigflow/src/common
  *
  * Usage:
- *   node scripts/sync-common.mjs           # write the frontend copy
- *   node scripts/sync-common.mjs --check   # fail when the copy differs (CI)
+ *   node scripts/sync-common.mjs           # write the frontend copies
+ *   node scripts/sync-common.mjs --check   # fail when a copy differs (CI)
  */
 
 import {
@@ -47,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAIRS = [
+  ['plugins/temporal-backend/src/common', 'plugins/temporal-frontend/src/common'],
   [
     'plugins/temporal-backend-module-zigflow/src/common',
     'plugins/temporal-module-zigflow/src/common',

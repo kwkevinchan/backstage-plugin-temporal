@@ -21,18 +21,18 @@ import {
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-common';
+import { temporalWorkflowUpdatePermission } from './common';
 import {
   TemporalControlAction,
   temporalControlExtensionPoint,
-} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
+} from './node/alpha';
 import {
   TemporalService,
   temporalServiceRef,
-} from '@kwkevinchan/backstage-plugin-temporal-node';
+} from './node';
 import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import request from 'supertest';
-import { temporalAccessServiceFactory } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
+import { temporalAccessServiceFactory } from './alpha';
 import {
   createFakeWorkflowService,
   executionInfo,
@@ -40,7 +40,7 @@ import {
   ordersEntity,
   otherEntity,
 } from './__testUtils__/fakes';
-import temporalModuleControl from './index';
+import { temporalPlugin } from './plugin';
 
 const json = (value: unknown) => ({
   metadata: { encoding: Buffer.from('json/plain') },
@@ -199,9 +199,8 @@ async function start(options?: {
     getWebUiUrl: () => undefined,
   };
   const features: any[] = [
-    // The test backend adds an empty temporal plugin for the module.
     temporalAccessServiceFactory,
-    temporalModuleControl,
+    temporalPlugin,
     catalogServiceMock.factory({
       entities: [ordersEntity, otherEntity, orderWorkflowEntity],
     }),

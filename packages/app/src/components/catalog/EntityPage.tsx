@@ -41,19 +41,14 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
   TemporalWorkflowActionDef,
-} from '@kwkevinchan/backstage-plugin-temporal';
-import {
   createTemporalControlActionDef,
-  temporalControlListActions,
-  temporalControlScheduleActions,
-  temporalControlWorkflowActions,
-} from '@kwkevinchan/backstage-plugin-temporal-module-control';
+} from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-temporal-module-zigflow';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 
+// Signal, Update, Cancel, Terminate, Rerun, Start workflow and the schedule
+// buttons come with the plugin; these are added after them.
 export const temporalWorkflowActions: TemporalWorkflowActionDef[] = [
-  // Signal, update, cancel, terminate and rerun, from the control module.
-  ...temporalControlWorkflowActions,
   { id: 'copy-workflow-id', component: CopyWorkflowIdAction },
   // Runs the example backend action (packages/backend/src/escalateAction.ts).
   createTemporalControlActionDef({
@@ -116,11 +111,7 @@ const temporalRoute = (
     title="Temporal"
     if={isTemporalAvailable}
   >
-    <EntityTemporalContent
-      workflowActions={temporalWorkflowActions}
-      workflowListActions={temporalControlListActions}
-      scheduleActions={temporalControlScheduleActions}
-    />
+    <EntityTemporalContent workflowActions={temporalWorkflowActions} />
   </EntityLayout.Route>
 );
 

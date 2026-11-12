@@ -27,7 +27,7 @@ import {
   getTemporalWorkflowSource,
   WorkflowRef,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 import { Request } from 'express';
 
 // Parsing and validation of request parameters.

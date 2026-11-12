@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-/**
- * Alpha API of the Temporal node library: the access service that the
- * Temporal backend plugin and its modules share.
- *
- * @packageDocumentation
- */
+// The alpha API for backend modules, exported from `./alpha`: the access
+// service that the plugin and its modules share, and the control extension
+// point.
 
 import {
   BackstageCredentials,
@@ -36,7 +33,7 @@ import {
   WorkflowDetail,
   WorkflowRef,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-common';
+} from '../common';
 
 /**
  * What a permission rule of the `temporal-workflow` resource type turns
@@ -197,7 +194,8 @@ export interface TemporalAccessService {
 
 /**
  * The access service of the Temporal backend plugin (plugin scope). The
- * default factory comes with `@kwkevinchan/backstage-plugin-temporal-backend`.
+ * default export of the package installs its default factory
+ * (`temporalAccessServiceFactory`).
  *
  * @alpha
  */
@@ -223,7 +221,7 @@ export interface TemporalControlActionContext {
   workflow: WorkflowDetail;
   credentials: BackstageCredentials;
   /**
-   * The client the control module changes workflows with (today the shared
+   * The client the plugin changes workflows with (today the shared
    * connection of `temporalServiceRef`). It reaches every workflow of the
    * namespace, but the permission was only checked for `workflow`: an action
    * that changes other workflows must check those itself.
@@ -253,9 +251,8 @@ export interface TemporalControlAction {
 }
 
 /**
- * Extension point of the control module
- * (`@kwkevinchan/backstage-plugin-temporal-backend-module-control`): custom
- * workflow actions, served as `POST .../actions/:actionId`.
+ * Extension point for custom workflow actions, served as
+ * `POST .../actions/:actionId`.
  *
  * @alpha
  */
@@ -264,8 +261,9 @@ export interface TemporalControlExtensionPoint {
 }
 
 /**
- * Extension point of the control module. Available when the control module
- * is installed.
+ * Extension point for custom workflow actions. The plugin always registers
+ * it; when `temporal.control.enabled` is false, the actions added are
+ * ignored with a warning and their routes are not served.
  *
  * @alpha
  */

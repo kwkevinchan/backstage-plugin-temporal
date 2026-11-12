@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { tp as coreClassNames } from '@kwkevinchan/backstage-plugin-temporal/ui';
+import { tp as coreClassNames } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import styles from './zigflow.module.css';
 
 /**
