@@ -5342,6 +5342,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow"
   dependencies:
+    "@backstage/backend-defaults": "backstage:^"
     "@backstage/backend-plugin-api": "backstage:^"
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
