@@ -23,7 +23,11 @@ discuss larger changes before sending a pull request.
 
 Releases are cut by the maintainer from `main`, with
 [changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`.
+takes every published package from `0.0.0` to `0.1.0`: the six packages
+`@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal-frontend`,
+`-temporal-backend-module-zigflow`, `-temporal-module-zigflow`,
+`-scaffolder-backend-module-temporal` and `-scaffolder-module-temporal`
+(all under `@kwkevinchan/backstage-plugin-`).
 
 1. `yarn changeset version`: bumps the versions (the first-release
    changesets are `minor`), updates the internal dependency ranges and
@@ -49,19 +53,41 @@ Private packages (`"private": true`) are not published. At the moment that
 is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI
 views (`temporal.experimental.aiWorkflows`) and will be released with them.
 
+## Package layers
+
+The plugin is one backend and one frontend package; the other four are
+modules that build on the package of their side:
+
+| Package                              | Depends on (of this repository) |
+| ------------------------------------ | ------------------------------- |
+| `temporal-backend`                   | nothing                         |
+| `temporal-frontend`                  | nothing                         |
+| `temporal-backend-module-zigflow`    | `temporal-backend`              |
+| `scaffolder-backend-module-temporal` | `temporal-backend`              |
+| `temporal-module-zigflow`            | `temporal-frontend`             |
+| `scaffolder-module-temporal`         | `temporal-frontend`             |
+
+`yarn constraints` (`yarn.config.cjs`) checks these directions: frontend
+packages never depend on backend packages or Node-only packages, the two
+core packages depend on no other workspace, a module only on the core of
+its side, and no published package on a private one.
+
 ## Shared definitions
 
 The permissions, types, annotation constants, API paths and the
-`TemporalWorkflow` entity schema live in `plugins/temporal-common`
-(`@kwkevinchan/backstage-plugin-temporal-common`). Backstage does not let a
-frontend plugin import a backend plugin, so both import this package; its
-tests check the permissions against `test-fixtures/permissions.json`.
+`TemporalWorkflow` entity schema live in
+`plugins/temporal-backend/src/common` (exported as
+`@kwkevinchan/backstage-plugin-temporal-backend/common`). Backstage does not
+let a frontend plugin import a backend plugin, so the frontend package has a
+copy in `plugins/temporal-frontend/src/common` (exported as
+`@kwkevinchan/backstage-plugin-temporal-frontend/common`). Edit the backend
+files and run `yarn sync:common`; the `pre-commit` hook and CI fail when the
+copy is out of date. The tests stay with the backend files; they check the
+permissions against `test-fixtures/permissions.json`.
 
-The Zigflow modules share one file by copying instead:
+The Zigflow modules share one file in the same way:
 `plugins/temporal-backend-module-zigflow/src/common` is the original,
-`plugins/temporal-module-zigflow/src/common` the copy. Edit the backend file
-and run `yarn sync:common`; the `pre-commit` hook and CI fail when the copy is
-out of date.
+`plugins/temporal-module-zigflow/src/common` the copy.
 
 The backend reads the loop markers and LLM records with its own code; the
 workflow kit writes them. Both are tested against
@@ -77,15 +103,18 @@ want protobufjs 7).
 
 ## Backend layout
 
-`plugins/temporal-backend/src` has four folders; a request goes down them in
-order:
+`plugins/temporal-backend/src` has four folders a request goes down in
+order, and three for the other parts of the package:
 
-| Folder          | Holds                                                                            | In clean-architecture terms |
-| --------------- | -------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Express handlers: parse and validate the request, call access and services       | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups            | Authorization               |
-| `services/`     | The four query classes below and the conversions from Temporal data to API types | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)                | Gateways                    |
+| Folder          | Holds                                                                                                                       | In clean-architecture terms |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates) | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups                                                       | Authorization               |
+| `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                             | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)                                                           | Gateways                    |
+| `common/`       | The shared definitions (`./common`)                                                                                         | Model                       |
+| `node/`         | `temporalServiceRef`, the extension points and the access service interface (`./node`, `./alpha`)                           | Ports for modules           |
+| `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                         |                             |
 
 The query classes in `services/` each cover one kind of read:
 
@@ -94,23 +123,22 @@ The query classes in `services/` each cover one kind of read:
 | `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks     |
 | `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list   |
 | `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and handlers |
-| `AiWorkflowQueries`     | The experimental AI views: loops and model call records                                                   |
+| `AiWorkflowQueries`     | The experimental AI views: loops and model call records (`services/ai/`)                                  |
 
 `EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
 `WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
 class that uses it. The access service uses `EntityWorkflowSources` and
-`WorkflowQueries`; the router uses all four.
+`WorkflowQueries`; the router uses all four. The experimental AI views are
+in `services/ai/` (backend) and `components/ai/` (frontend).
 
-The API types (the model) are in `plugins/temporal-common`, and the shared
-Temporal client and extension point in `plugins/temporal-node`. The classes
-are plain; there are no repository interfaces or DI container inside the
-plugin. `plugin.ts` creates them and wires them together.
+The classes are plain; there are no repository interfaces or DI container
+inside the plugin. `plugin.ts` creates them and wires them together, and
+mounts the routes that change workflows (`createControlRouter`) unless
+`temporal.control.enabled` is false. `WorkflowCommands` calls Temporal
+directly until a separate write connection needs a gateway of its own.
 
-The one interface is `TemporalAccessService` in `plugins/temporal-node/src/alpha.ts`:
-the contract between the plugin and its modules (`temporalAccessServiceRef`).
-The control module (`plugins/temporal-backend-module-control/src`) has
-`routes/` and `services/` only; `WorkflowCommands` calls Temporal directly
-until a separate write connection needs a gateway of its own.
+The one interface is `TemporalAccessService` in `src/node/alpha.ts`: the
+contract between the plugin and its modules (`temporalAccessServiceRef`).
 
 ## Git hooks and boundary checks
 

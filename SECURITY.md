@@ -26,6 +26,14 @@ their modules), and `@kwkevinchan/temporal-workflow-kit`, which is
 experimental and not published yet. The development packages in `packages/` are
 examples and are not published.
 
+Before you report: the operations that change workflows are on by default
+(`temporal.control.enabled`). Without a permission policy (the allow-all
+policy), every signed-in user may start, cancel and terminate workflows, and
+`temporal.control.allowedSignals` and `allowedUpdates` only limit the names
+of signals and updates. That is the documented default, not a
+vulnerability; restrict the operations with a permission policy or turn
+them off with `temporal.control.enabled: false`.
+
 Problems in Temporal, Backstage or other dependencies should be reported to
 those projects. See the [security notes](README.md#security) in the README
 for how to run the plugin safely.
