@@ -17,6 +17,7 @@
 import {
   decodePageToken,
   decodePayload,
+  decodeSearchAttributes,
   encodePageToken,
   toHistoryEvent,
   toWorkflowDetail,
@@ -291,5 +292,58 @@ describe('page tokens', () => {
     expect(Array.from(decodePageToken(token)!)).toEqual([1, 2, 3]);
     expect(encodePageToken(new Uint8Array())).toBeUndefined();
     expect(() => decodePageToken('not a token!')).toThrow();
+  });
+});
+
+describe('search attributes and memo', () => {
+  // Temporal sends both maps in no fixed order.
+  const shuffled = {
+    Zone: jsonPayload('eu'),
+    ApprovalPending: jsonPayload(true),
+    BackstageEntityRef: jsonPayload('component:default/orders'),
+    approvalNote: jsonPayload('soon'),
+  };
+  const sortedKeys = [
+    'ApprovalPending',
+    'BackstageEntityRef',
+    'Zone',
+    'approvalNote',
+  ];
+
+  it('decodes the search attributes by key', () => {
+    const decoded = decodeSearchAttributes({ indexedFields: shuffled });
+    expect(Object.keys(decoded)).toEqual(sortedKeys);
+    expect(decoded.ApprovalPending).toBe(true);
+  });
+
+  it('gives the search attributes and the memo of a detail by key', () => {
+    const detail = toWorkflowDetail(
+      {
+        workflowExecutionInfo: {
+          execution: { workflowId: 'wf-1', runId: 'r-1' },
+          type: { name: 'orderWorkflow' },
+          status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+          searchAttributes: { indexedFields: shuffled },
+          memo: { fields: shuffled },
+        },
+      },
+      { namespace: 'default' },
+    );
+    expect(Object.keys(detail.searchAttributes!)).toEqual(sortedKeys);
+    expect(Object.keys(detail.memo!)).toEqual(sortedKeys);
+  });
+
+  it('gives the payload maps of a history event by key', () => {
+    const event = toHistoryEvent({
+      eventId: '1',
+      eventType: 'EVENT_TYPE_UPSERT_WORKFLOW_SEARCH_ATTRIBUTES',
+      upsertWorkflowSearchAttributesEventAttributes: {
+        searchAttributes: { indexedFields: shuffled },
+      },
+    });
+    const attributes = event.attributes as any;
+    expect(Object.keys(attributes.searchAttributes.indexedFields)).toEqual(
+      sortedKeys,
+    );
   });
 });
