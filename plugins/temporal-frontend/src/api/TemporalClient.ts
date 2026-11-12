@@ -54,6 +54,34 @@ function queryString(params: Record<string, string | number | undefined>) {
   return text ? `?${text}` : '';
 }
 
+/** The error when the backend has no route under `/api/temporal`. */
+export const BACKEND_MISSING_MESSAGE =
+  'The Backstage backend does not serve the Temporal plugin: install @kwkevinchan/backstage-plugin-temporal-backend in the backend (or check that this app reaches the backend that runs it)';
+
+/**
+ * The error of a response that is not ok. A 404 without a Backstage error
+ * body (`{ error }`) means the route does not exist: the backend plugin is
+ * not installed. The plugin's own 404s (an unknown workflow or entity) have
+ * an error body and stay a `ResponseError`.
+ */
+async function responseError(response: Response): Promise<Error> {
+  if (response.status === 404) {
+    let errorBody = false;
+    try {
+      const body = JSON.parse(await response.clone().text());
+      errorBody = typeof body?.error?.name === 'string';
+    } catch {
+      // not JSON: no error body
+    }
+    if (!errorBody) {
+      return Object.assign(new Error(BACKEND_MISSING_MESSAGE), {
+        statusCode: 404,
+      });
+    }
+  }
+  return ResponseError.fromResponse(response);
+}
+
 /**
  * Default implementation of `TemporalApi`, calling the backend plugin.
  *
@@ -72,7 +100,7 @@ export class TemporalClient implements TemporalApi {
     const baseUrl = await this.discoveryApi.getBaseUrl('temporal');
     const response = await this.fetchApi.fetch(`${baseUrl}${path}`);
     if (!response.ok) {
-      throw await ResponseError.fromResponse(response);
+      throw await responseError(response);
     }
     return (await response.json()) as T;
   }
@@ -85,7 +113,7 @@ export class TemporalClient implements TemporalApi {
       body: JSON.stringify(body ?? {}),
     });
     if (!response.ok) {
-      throw await ResponseError.fromResponse(response);
+      throw await responseError(response);
     }
     return (await response.json()) as T;
   }
@@ -251,7 +279,7 @@ export class TemporalClient implements TemporalApi {
       })}`,
     );
     if (!response.ok) {
-      throw await ResponseError.fromResponse(response);
+      throw await responseError(response);
     }
     return response.blob();
   }

@@ -35,6 +35,16 @@ import { TemporalPageContent } from './TemporalPage';
  */
 const discoveryApi = { getBaseUrl: async () => 'http://backend/api/temporal' };
 const missingPlugin = async () => new Response('', { status: 404 });
+/** The plugin's own 404, with an error body. */
+const notFound = async () =>
+  new Response(
+    JSON.stringify({
+      error: { name: 'NotFoundError', message: 'No such entity' },
+    }),
+    { status: 404, headers: { 'Content-Type': 'application/json' } },
+  );
+const missingMessage =
+  /does not serve the Temporal plugin: install @kwkevinchan\/backstage-plugin-temporal-backend/;
 const unreachable = async () => {
   throw new TypeError('Failed to fetch');
 };
@@ -55,8 +65,9 @@ function render(element: JSX.Element, fetch: () => Promise<Response>) {
 
 describe('without the Temporal backend plugin', () => {
   it.each([
-    ['404', missingPlugin, /404/],
+    ['no plugin', missingPlugin, missingMessage],
     ['unreachable', unreachable, /Failed to fetch/],
+    ["the plugin's 404", notFound, /^Request failed with 404/],
   ])(
     'shows the error on the entity tab (%s)',
     async (_name, fetch, message) => {
@@ -67,8 +78,9 @@ describe('without the Temporal backend plugin', () => {
   );
 
   it.each([
-    ['404', missingPlugin, /404/],
+    ['no plugin', missingPlugin, missingMessage],
     ['unreachable', unreachable, /Failed to fetch/],
+    ["the plugin's 404", notFound, /^Request failed with 404/],
   ])(
     'shows the error on the Workflows page (%s)',
     async (_name, fetch, message) => {
