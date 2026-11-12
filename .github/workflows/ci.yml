@@ -216,8 +216,29 @@ jobs:
           done
           cat worker.log
 
+      # The hosted runner sometimes cannot resolve the Ubuntu mirrors for
+      # minutes at a time (apt: "Temporary failure resolving"), which fails
+      # the apt part of this step with exit code 100. A later attempt usually
+      # resolves them again, so the step is tried at most MAX_ATTEMPTS times.
+      # Each attempt is capped at ATTEMPT_MINUTES, because a failing attempt
+      # can otherwise spend 10+ minutes in apt's own timeouts. If every
+      # attempt fails the step fails. Worst case: 3 * 6 min + 15 s + 30 s of
+      # waiting = 18 min 45 s, under the step timeout.
       - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 20
+        run: |
+          MAX_ATTEMPTS=3
+          ATTEMPT_MINUTES=6
+          for attempt in $(seq 1 "$MAX_ATTEMPTS"); do
+            if timeout "${ATTEMPT_MINUTES}m" npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright browser install failed (attempt $attempt of $MAX_ATTEMPTS)"
+            if [ "$attempt" -lt "$MAX_ATTEMPTS" ]; then
+              sleep $((attempt * 15))
+            fi
+          done
+          exit 1
 
       - name: Smoke test
         run: yarn test:e2e
