@@ -26,15 +26,23 @@ import {
   coreServices,
   createBackendModule,
   createBackendPlugin,
+  createServiceFactory,
 } from '@backstage/backend-plugin-api';
-import { mockServices } from '@backstage/backend-test-utils';
+import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
+import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
+import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import request from 'supertest';
 import * as grpc from '@grpc/grpc-js';
 import { createServer } from 'node:net';
 import Router from 'express-promise-router';
 import { temporalWorkflowUpdatePermission } from './common';
 import { temporalControlExtensionPoint } from './alpha';
 import { temporalExtensionPoint, temporalServiceRef } from './node';
-import temporalBackend from './index';
+import temporalBackend, { temporalPlugin } from './index';
+import {
+  temporalAccessServiceFactory,
+  temporalAccessServiceRef,
+} from './alpha';
 import {
   createFakeWorkflowService,
   fakeTemporalServiceFactory,
@@ -201,6 +209,50 @@ describe('a real backend without the catalog plugin', () => {
       expect((await fetch(`${base}/api/temporal/workflows`)).status).toBe(401);
       // No catalog plugin, so no catalog routes.
       expect((await fetch(`${base}/api/catalog/entities`)).status).toBe(404);
+    } finally {
+      await backend.stop();
+    }
+  });
+});
+
+describe('the plugin added with the named exports', () => {
+  const features = () => [
+    temporalPlugin,
+    catalogServiceMock.factory({ entities: [] }),
+    fakeTemporalServiceFactory(createFakeWorkflowService()),
+    mockServices.permissions.factory({ result: AuthorizeResult.ALLOW }),
+  ];
+
+  it('starts with temporalAccessServiceFactory', async () => {
+    const backend = await startTestBackend({
+      features: [...features(), temporalAccessServiceFactory],
+    });
+    try {
+      await request(backend.server).get('/api/temporal/workflows').expect(200);
+    } finally {
+      await backend.stop();
+    }
+  });
+
+  it('uses an access factory the backend adds instead', async () => {
+    const authorizeWorkflowList = jest.fn(async () => {
+      throw Object.assign(new Error('custom rules'), {
+        name: 'NotAllowedError',
+      });
+    });
+    const backend = await startTestBackend({
+      features: [
+        ...features(),
+        createServiceFactory({
+          service: temporalAccessServiceRef,
+          deps: {},
+          factory: () => ({ authorizeWorkflowList } as any),
+        }),
+      ],
+    });
+    try {
+      await request(backend.server).get('/api/temporal/workflows').expect(403);
+      expect(authorizeWorkflowList).toHaveBeenCalled();
     } finally {
       await backend.stop();
     }
