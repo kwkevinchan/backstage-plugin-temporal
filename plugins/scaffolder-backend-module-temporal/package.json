@@ -50,6 +50,7 @@
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",
     "@backstage/cli": "backstage:^",
+    "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-scaffolder-node-test-utils": "backstage:^"
   },
   "files": [
