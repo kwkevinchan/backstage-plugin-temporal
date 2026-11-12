@@ -257,8 +257,9 @@ development backend allows everything; see
 3. **Large payloads (optional, needs Docker).** Temporal can store large payloads
    in S3 and keep only a reference in the history. This needs a different
    configuration for the backend and the worker, so restart them. The README's
-   [Development section](../README.md#development) starts only the backend with the
-   extra config file; here the app and the backend are restarted together:
+   [Development section](../README.md#development) lists the same commands in one
+   block; here they are numbered, with the order that matters (stop, set the
+   variables, RustFS, app and backend, worker):
 
    1. Stop what is running: the worker from step 1.5 (Ctrl+C) and `yarn start`
       (Ctrl+C; this stops the frontend and the backend). Keep the Temporal

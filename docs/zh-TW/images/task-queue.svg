@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 440" width="800" height="440" role="img" aria-label="Task Queue 怎麼運作：History 服務把 Workflow Task 和 Activity Task（步驟 1 和 3）排進 Matching 服務裡同名 orders 的兩條佇列。Worker A、Worker B 長輪詢：有 Worker 正在等就直接配對（步驟 2 和 4）；沒人等就寫進資料庫排著。Worker A 跑過某個流程之後，它之後的 Workflow Task 送到 A 專屬的 sticky 佇列（步驟 5）。Worker 的回報經 Frontend 回到 History。"><style>
+:root{--bg:#f6f8fa;--surface:#ffffff;--ink:#1f2933;--muted:#52606d;--line:#9aa5b1;--acc:#0b6e7f;--acc-soft:#dcf1f4;--ours:#b0440d;--ours-soft:#fbe9dd;--fail:#b42318;--fail-soft:#fde8e6;--q:#e9edf1}
+@media (prefers-color-scheme:dark){:root{--bg:#10151a;--surface:#1d2630;--ink:#e6ecf1;--muted:#a3b0bd;--line:#566574;--acc:#5cc6d4;--acc-soft:#12343b;--ours:#f2965d;--ours-soft:#3f2616;--fail:#f28b82;--fail-soft:#40201e;--q:#26313c}}
+text{font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.bg{fill:var(--bg)}
+.box{fill:var(--surface);stroke:var(--ink);stroke-width:1.5}
+.acc{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.6}
+.ours{fill:var(--ours-soft);stroke:var(--ours);stroke-width:1.5;stroke-dasharray:6 4}
+.dash{stroke-dasharray:5 4}
+.q{fill:var(--q);stroke:var(--line);stroke-width:1.2}
+.bfail{fill:var(--fail-soft);stroke:var(--fail);stroke-width:1.5}
+.bok{fill:var(--acc-soft);stroke:var(--acc);stroke-width:1.5}
+.bwait{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-dasharray:5 4}
+.grid{stroke:var(--line);stroke-width:1}
+.ln{stroke:var(--ink);stroke-width:1.7;fill:none}
+.la{stroke:var(--acc);stroke-width:2;fill:none}
+.lo{stroke:var(--ours);stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.lm{stroke:var(--muted);stroke-width:1.7;fill:none;stroke-dasharray:4 4}
+.mn{fill:var(--ink)}.ma{fill:var(--acc)}.mo{fill:var(--ours)}.mm{fill:var(--muted)}
+.h{fill:var(--ink);font-size:15px;font-weight:700}
+.t{fill:var(--ink);font-size:13.5px;font-weight:600}
+.s{fill:var(--muted);font-size:12.5px}
+.sa{fill:var(--acc);font-size:12.5px;font-weight:600}
+.so{fill:var(--ours);font-size:12.5px;font-weight:600}
+.sf{fill:var(--fail);font-size:12.5px;font-weight:600}
+.c{text-anchor:middle}
+.badge{fill:var(--acc);stroke:none}.bn{fill:var(--bg);font-size:12px;font-weight:700;text-anchor:middle}
+</style><defs>
+<marker id="mn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mn"/></marker>
+<marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ma"/></marker>
+<marker id="mo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mo"/></marker>
+<marker id="mm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="mm"/></marker>
+</defs><rect class="bg" x="0" y="0" width="800" height="440"/><rect x="20" y="78" width="150" height="170" rx="6" class="box"/><text x="34" y="104" class="h">History</text><text x="34" y="126" class="s">記錄事件、</text><text x="34" y="144" class="s">決定下一個任務。</text><rect x="210" y="56" width="330" height="296" rx="8" class="acc"/><text x="226" y="80" class="h">Matching：Task Queue「orders」</text><rect x="230" y="92" width="290" height="64" rx="6" class="box"/><text x="244" y="115" class="t">Workflow Task 佇列</text><text x="244" y="137" class="s">跑流程程式碼的任務</text><rect x="230" y="176" width="290" height="64" rx="6" class="box"/><text x="244" y="199" class="t">Activity Task 佇列</text><text x="244" y="221" class="s">跑 Activity 的任務</text><rect x="230" y="260" width="290" height="74" rx="6" class="box dash"/><text x="244" y="283" class="t">Sticky 佇列（只給 Worker A）</text><text x="244" y="303" class="s">A 沒有及時來拿，任務就</text><text x="244" y="320" class="s">退回一般佇列。</text><rect x="590" y="82" width="190" height="96" rx="6" class="box"/><text x="604" y="108" class="h">Worker A</text><text x="604" y="130" class="s">輪詢 Workflow Task</text><text x="604" y="148" class="s">和 Activity Task</text><rect x="590" y="204" width="190" height="96" rx="6" class="box"/><text x="604" y="230" class="h">Worker B</text><text x="604" y="252" class="s">聽同一個佇列；任務</text><text x="604" y="270" class="s">只會給其中一個 Worker</text><rect x="230" y="388" width="290" height="44" rx="6" class="box"/><text x="244" y="407" class="t">Persistence</text><text x="244" y="424" class="s">沒人在等的任務留在這裡（backlog）</text><path d="M375 352 L375 386" class="ln" marker-end="url(#mn)"/><path d="M170 124 L228 124" class="ln" marker-end="url(#mn)"/><circle cx="199" cy="108" r="10" class="badge"/><text x="199" y="112.2" class="bn">1</text><path d="M520 122 L588 122" class="la" marker-end="url(#ma)"/><circle cx="554" cy="106" r="10" class="badge"/><text x="554" y="110.2" class="bn">2</text><path d="M170 208 L228 208" class="ln" marker-end="url(#mn)"/><circle cx="199" cy="192" r="10" class="badge"/><text x="199" y="196.2" class="bn">3</text><path d="M520 214 L588 240" class="la" marker-end="url(#ma)"/><circle cx="546" cy="206" r="10" class="badge"/><text x="546" y="210.2" class="bn">4</text><path d="M522 296 L588 168" class="la dash" marker-end="url(#ma)"/><circle cx="558" cy="278" r="10" class="badge"/><text x="558" y="282.2" class="bn">5</text><path d="M685 82 L685 36 L95 36 L95 76" class="ln" marker-end="url(#mn)"/><text x="240" y="28" class="s">Worker 回報指令和結果（經 Frontend 回到 History）</text></svg>

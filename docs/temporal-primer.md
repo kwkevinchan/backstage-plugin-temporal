@@ -80,9 +80,22 @@ SQLite, which is what the development setup of this repository uses. See
 [self-hosted guide](https://docs.temporal.io/self-hosted-guide) for production
 deployments.
 
-Two stores sit behind it: **persistence** (workflow state and history) and
-**visibility** (lists and search). The plugin lists workflows by querying
-visibility, so it needs a Temporal server with
+![Inside the Temporal Service: Clients, Workers and the Backstage backend connect only to the Frontend, which passes workflow requests to History and polls to Matching. History puts tasks on Matching; History and Matching write to Persistence; History also feeds Visibility, which the plugin's workflow lists query. An internal Worker runs Temporal's own system workflows.](images/temporal-service-inside.svg)
+
+Read it from the left. Everything that connects (Clients, the CLI, your
+Workers when they poll, the plugin's backend) talks to the Frontend only. The
+Frontend does authorization, rate limiting and validation, then routes a
+request about a workflow to History and a poll to Matching. History owns each
+execution's state; executions are spread over a fixed number of history
+shards, which is chosen when the cluster is created and cannot be changed
+afterwards. When a workflow can progress, History enqueues a task on
+Matching, which pairs it with a polling Worker (details below). The internal
+Worker is not yours: it runs Temporal's own background work.
+
+Two stores sit behind it (the right side of the figure): **persistence** (workflow state and history; Matching keeps the
+tasks nobody has picked up here too) and **visibility** (lists and search,
+fed by History). The plugin lists workflows by querying
+visibility (the orange dashed line), so it needs a Temporal server with
 [advanced visibility](https://docs.temporal.io/self-hosted-guide/visibility)
 (a SQL database that supports it, or Elasticsearch/OpenSearch), and the custom
 search attributes named in
@@ -101,9 +114,28 @@ tasks wait and the workflow does not fail; it just does not advance. The
 plugin shows this as "Waiting for a worker" on an activity that is scheduled
 but not started.
 
-Workers that have run a workflow keep its state in memory, and the service
-prefers to send that workflow's next task to the same Worker (a "sticky"
-queue), which avoids replaying the history. See
+![How a Task Queue works: History puts Workflow Tasks and Activity Tasks (1 and 3) on two queues of the same name in Matching. Workers A and B long-poll them: a waiting Worker gets a task directly (2 and 4); with no Worker waiting, the task is stored in the database as backlog. After Worker A has run a workflow, its later Workflow Tasks go to a sticky queue for Worker A (5). Workers report back through the Frontend to History.](images/task-queue.svg)
+
+The numbers follow `order-1001` from the example below:
+
+1. A Client starts the workflow, and History schedules its first Workflow Task
+   on the Workflow Task queue of `orders`.
+2. A Worker that is long-polling that queue gets the task at once if it is
+   waiting (a "sync match"; nothing is written). If nobody is waiting, the task
+   is stored in the database as backlog until a Worker polls.
+3. The Worker runs the workflow code and reports commands such as "schedule
+   `sendEmail`" (the line across the top, through the Frontend). History
+   records them as events and puts an Activity Task on the Activity Task queue.
+4. Any Worker polling that queue can take it. Two Workers on one queue share
+   the work; one task goes to one Worker.
+5. A Worker that has run a workflow keeps its state in memory, and the service
+   prefers to send that workflow's next Workflow Task to the same Worker through
+   a "sticky" queue that only it polls, which avoids replaying the history. If
+   that Worker does not take the task in time, it goes back to the normal queue
+   for any Worker. Activity Tasks do not use sticky queues.
+
+Each queue is split into partitions to spread the load; that is invisible to
+you. See
 [Task Queues](https://docs.temporal.io/task-queue) and
 [Tasks](https://docs.temporal.io/tasks).
 
@@ -177,6 +209,19 @@ A retried activity shows as one box. In the timeline its light bar covers the ti
 in the queue, the failed attempts and the retry backoff, and its solid bar the
 attempt that ran last.
 
+![The timeline of one Activity, sendEmail: it waits in the Task Queue, attempt 1 fails, the Server waits 1 second, attempt 2 fails, the Server waits 2 seconds, attempt 3 succeeds; then the Server keeps a 5 minute Timer while the Worker does nothing.](images/activity-retries.svg)
+
+Read the rows as who holds the task. In the top row it waits in the Task Queue;
+in the middle row a Worker runs one attempt. When an attempt fails, the
+Server, not the Worker, waits for the retry interval and then puts the task on
+the queue again; during that wait and during a Timer the Worker holds nothing.
+The intervals are those of the retry policy of the example below (the
+defaults: initial interval 1 s, backoff coefficient 2). To get an Activity and
+a Timer on one timeline the figure sleeps after the Activity; the example below
+sleeps before it. The history keeps only the last attempt (see
+[what an execution looks like](#what-an-execution-looks-like-in-the-event-history)),
+which is why the plugin can show `×3` and "2 retries" but not each attempt.
+
 ### The record
 
 - **Event History.** Every event of a Run, numbered in order, only ever
@@ -185,6 +230,16 @@ attempt that ran last.
   table are all computed from it. Screen: **Events** tab.
 
 ### Talking to a running workflow
+
+![Talking to a running workflow: a Client or the plugin sends a Signal, Update, Query, Cancel or Terminate to the running order-1001 Run 1; all but the Query are recorded in the Event History. Run 1 can continue as new into Run 2 and start a Child Workflow. Search Attributes and Memo are attached to the execution. Inputs, outputs and message arguments pass through the Data Converter, an optional Codec and External Storage before they reach the Event History.](images/talking-to-a-workflow.svg)
+
+The left half of the figure is this section: teal arrows are recorded in the
+history, the dashed Query is not (and an Update that a validator rejects is
+not either). The right half is the next section, and the bottom row and the
+Search Attributes box belong to "Finding workflows and carrying data": a
+Payload passes through the Data Converter, then the optional Codec, then
+External Storage, and only then reaches the history, so with a Codec that
+encrypts, what lands in S3 is already encrypted.
 
 - **Signal.** A message sent into a workflow without waiting for an answer. The
   workflow receives it in a handler and changes its state. It is recorded in
