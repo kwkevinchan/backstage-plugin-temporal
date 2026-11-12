@@ -19,7 +19,6 @@ import {
   BackstageCredentials,
   HttpAuthService,
 } from '@backstage/backend-plugin-api';
-import { parseEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import {
   ConflictError,
   InputError,
@@ -27,20 +26,20 @@ import {
   NotFoundError,
 } from '@backstage/errors';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
-import type { JsonObject, JsonValue } from '@backstage/types';
+import type { JsonValue } from '@backstage/types';
 import {
   isValidControlActionId,
   TemporalScheduleOperation,
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
-  MAX_CONTROL_NAME_LENGTH,
   temporalWorkflowCancelPermission,
   temporalWorkflowRerunPermission,
   temporalWorkflowSignalPermission,
   temporalWorkflowStartPermission,
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
+  TemporalAnnotations,
   WorkflowDetail,
   WorkflowRef,
 } from '../common';
@@ -48,77 +47,50 @@ import { TemporalService } from '../node';
 import {
   TemporalAccessService,
   TemporalControlAction,
-  TemporalEntityContext,
   TemporalWorkflowAccessLevel,
 } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
+import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import {
   WorkflowCommands,
   mapControlError,
 } from '../services/WorkflowCommands';
-import { readEntityWorkflowFilter } from '../services/EntityWorkflowSources';
+import {
+  EntityWorkflowSources,
+  readEntityWorkflowFilter,
+} from '../services/EntityWorkflowSources';
 import { matchesSource } from '../services/query';
 import {
   entityRefFromParams,
+  parseArgs,
   parseEntityRefParam,
-  workflowRefFromParams,
+  parseMessageBody,
+  requestBody,
 } from './params';
-
-/** A workflow loaded with the read checks of the access service. */
-interface LoadedWorkflow {
-  credentials: BackstageCredentials;
-  ref: WorkflowRef;
-  context?: TemporalEntityContext;
-  workflow: WorkflowDetail;
-}
+import {
+  audited,
+  authorizeOnWorkflow,
+  LoadedWorkflow,
+  loadRequestWorkflow,
+  workflowMeta,
+  workflowSubpaths,
+} from './shared';
 
 export interface ControlRouterOptions {
   httpAuth: HttpAuthService;
   access: TemporalAccessService;
   auditor: AuditorService;
   temporal: TemporalService;
+  sources: EntityWorkflowSources;
   commands: WorkflowCommands;
   actions: TemporalControlAction[];
 }
-
-const workflowPaths = [
-  '/namespaces/:namespace/workflows/:workflowId',
-  '/namespaces/:namespace/workflows/:workflowId/runs/:runId',
-];
 
 /** Longest terminate reason. */
 const MAX_REASON_LENGTH = 1000;
 /** Longest workflow ID. */
 const MAX_WORKFLOW_ID_LENGTH = 1000;
-
-function body(req: Request): Record<string, unknown> {
-  const value = req.body;
-  if (value === undefined || value === null) return {};
-  if (typeof value !== 'object' || Array.isArray(value)) {
-    throw new InputError('The request body must be a JSON object');
-  }
-  return value;
-}
-
-function parseName(value: unknown): string {
-  if (
-    typeof value !== 'string' ||
-    !value.trim() ||
-    value.length > MAX_CONTROL_NAME_LENGTH
-  ) {
-    throw new InputError('name is required');
-  }
-  return value.trim();
-}
-
-function parseArgs(value: unknown): JsonValue[] | undefined {
-  if (value === undefined || value === null) return undefined;
-  if (!Array.isArray(value)) {
-    throw new InputError('args must be an array of arguments');
-  }
-  return value as JsonValue[];
-}
 
 function optionalText(
   value: unknown,
@@ -178,15 +150,6 @@ function assertRunning(workflow: WorkflowDetail) {
   }
 }
 
-function normalizedRef(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    return stringifyEntityRef(parseEntityRef(value));
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * Routes that change workflows (start, signal, update, cancel, terminate,
  * rerun, custom actions), served under `/api/temporal` next to the plugin's
@@ -196,87 +159,35 @@ function normalizedRef(value: string | undefined): string | undefined {
 export function createControlRouter(
   options: ControlRouterOptions,
 ): express.Router {
-  const { httpAuth, access, auditor, commands } = options;
+  const { httpAuth, access, auditor, sources, commands } = options;
   const router = Router();
   router.use(express.json());
 
-  /** The workflow of the request's path, with the read checks. */
-  async function loadWorkflow(
+  /** The workflow of the request's path, with the access checks of `level`. */
+  const loadWorkflow = (
     req: Request,
     level: TemporalWorkflowAccessLevel,
-  ): Promise<LoadedWorkflow> {
-    const credentials = await httpAuth.credentials(req);
-    const ref = workflowRefFromParams(req);
-    const loaded = await access.loadWorkflow(ref, {
-      entityRef: parseEntityRefParam(req.query.entityRef),
-      level,
-      credentials,
-    });
-    return { credentials, ref, ...loaded };
-  }
+  ): Promise<LoadedWorkflow> =>
+    loadRequestWorkflow({ httpAuth, access }, req, level);
 
   /**
-   * Checks a control permission on the workflow's entity: the entity of the
-   * request, else the entity in the workflow's search attribute. A workflow
-   * without an entity is only allowed when the policy allows the permission
-   * for every entity (an unconditional ALLOW).
+   * Checks a control permission on the workflow's entity. A bad entity
+   * reference in the workflow's search attribute counts as no entity: the
+   * permission must then be allowed for every entity. (The query route
+   * answers 400 for it instead.)
    */
-  async function authorizeControl(
+  const authorizeControl = (
     permission: ResourcePermission<'catalog-entity'>,
-    loaded: Pick<LoadedWorkflow, 'credentials' | 'context' | 'workflow'>,
-  ): Promise<string | undefined> {
-    const entityRef =
-      loaded.context?.entityRef ?? normalizedRef(loaded.workflow.entityRef);
-    return authorizeOn(permission, entityRef, loaded.credentials);
-  }
+    loaded: LoadedWorkflow,
+  ): Promise<string | undefined> =>
+    authorizeOnWorkflow(access, permission, loaded, canonicalEntityRef);
 
-  async function authorizeOn(
-    permission: ResourcePermission<'catalog-entity'>,
-    entityRef: string | undefined,
-    credentials: BackstageCredentials,
-  ): Promise<string | undefined> {
-    await access.authorizeOn(permission, entityRef, credentials);
-    return entityRef;
-  }
-
-  /** Records an operation with the auditor and runs it. */
-  async function audited<T>(
-    req: Request,
-    eventId: string,
-    meta: JsonObject,
-    severityLevel: 'low' | 'medium' | 'high',
-    run: () => Promise<T>,
-  ): Promise<T> {
-    const event = await auditor.createEvent({
-      eventId,
-      severityLevel,
-      request: req,
-      meta,
-    });
-    try {
-      const result = await run();
-      await event.success();
-      return result;
-    } catch (error) {
-      await event.fail({ error: error as Error });
-      throw error;
+  /** A namespace of the path or the body: a valid name that is allowed. */
+  function checkNamespace(namespace: string) {
+    if (!isValidNamespaceName(namespace)) {
+      throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
     }
-  }
-
-  function workflowMeta(
-    workflow: WorkflowDetail,
-    entityRef: string | undefined,
-    extra: JsonObject = {},
-  ): JsonObject {
-    const meta: JsonObject = {
-      namespace: workflow.namespace,
-      workflowId: workflow.workflowId,
-      runId: workflow.runId,
-      workflowType: workflow.workflowType,
-      ...extra,
-    };
-    if (entityRef) meta.entityRef = entityRef;
-    return meta;
+    sources.checkNamespace(namespace);
   }
 
   /** Values of the configured search attributes of a new workflow. */
@@ -292,19 +203,17 @@ export function createControlRouter(
     return values;
   }
 
-  const paths = (suffix: string) => workflowPaths.map(p => `${p}/${suffix}`);
-
-  router.post(paths('signal'), async (req, res) => {
+  router.post(workflowSubpaths('signal'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowSignalPermission,
       loaded,
     );
-    const name = parseName(body(req).name);
-    const args = parseArgs(body(req).args);
+    const { name, args } = parseMessageBody(req);
     commands.checkSignal(name);
     assertRunning(loaded.workflow);
     await audited(
+      auditor,
       req,
       'workflow-signal',
       workflowMeta(loaded.workflow, entityRef, { name }),
@@ -320,17 +229,17 @@ export function createControlRouter(
     res.status(202).json({});
   });
 
-  router.post(paths('update'), async (req, res) => {
+  router.post(workflowSubpaths('update'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowUpdatePermission,
       loaded,
     );
-    const name = parseName(body(req).name);
-    const args = parseArgs(body(req).args);
+    const { name, args } = parseMessageBody(req);
     commands.checkUpdate(name);
     assertRunning(loaded.workflow);
     const result = await audited(
+      auditor,
       req,
       'workflow-update',
       workflowMeta(loaded.workflow, entityRef, { name }),
@@ -346,7 +255,7 @@ export function createControlRouter(
     res.json({ result });
   });
 
-  router.post(paths('cancel'), async (req, res) => {
+  router.post(workflowSubpaths('cancel'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowCancelPermission,
@@ -354,6 +263,7 @@ export function createControlRouter(
     );
     assertRunning(loaded.workflow);
     await audited(
+      auditor,
       req,
       'workflow-cancel',
       workflowMeta(loaded.workflow, entityRef),
@@ -367,17 +277,18 @@ export function createControlRouter(
     res.status(202).json({});
   });
 
-  router.post(paths('terminate'), async (req, res) => {
+  router.post(workflowSubpaths('terminate'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowTerminatePermission,
       loaded,
     );
     const reason =
-      optionalText(body(req).reason, 'reason', MAX_REASON_LENGTH) ??
+      optionalText(requestBody(req).reason, 'reason', MAX_REASON_LENGTH) ??
       'Terminated from Backstage';
     assertRunning(loaded.workflow);
     await audited(
+      auditor,
       req,
       'workflow-terminate',
       workflowMeta(loaded.workflow, entityRef, { reason }),
@@ -392,14 +303,15 @@ export function createControlRouter(
     res.json({});
   });
 
-  router.post(paths('rerun'), async (req, res) => {
+  router.post(workflowSubpaths('rerun'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowRerunPermission,
       loaded,
     );
-    const workflowId = parseWorkflowId(body(req).workflowId);
+    const workflowId = parseWorkflowId(requestBody(req).workflowId);
     const started = await audited(
+      auditor,
       req,
       'workflow-rerun',
       workflowMeta(loaded.workflow, entityRef),
@@ -415,7 +327,7 @@ export function createControlRouter(
     res.status(201).json(started);
   });
 
-  router.post(paths('actions/:actionId'), async (req, res) => {
+  router.post(workflowSubpaths('actions/:actionId'), async (req, res) => {
     const actionId = req.params.actionId;
     const action = isValidControlActionId(actionId)
       ? options.actions.find(a => a.id === actionId)
@@ -448,6 +360,7 @@ export function createControlRouter(
           )?.entity
         : undefined);
     const result = await audited(
+      auditor,
       req,
       'workflow-action',
       workflowMeta(loaded.workflow, entityRef, { actionId }),
@@ -464,7 +377,7 @@ export function createControlRouter(
   });
 
   function parseStart(req: Request) {
-    const b = body(req);
+    const b = requestBody(req);
     const workflowType = optionalText(b.workflowType, 'workflowType', 1000);
     const taskQueue = optionalText(b.taskQueue, 'taskQueue', 1000);
     if (workflowType && !isValidWorkflowTypeName(workflowType)) {
@@ -508,6 +421,7 @@ export function createControlRouter(
         );
       }
       const started = await audited(
+        auditor,
         req,
         'workflow-start',
         {
@@ -542,12 +456,7 @@ export function createControlRouter(
       const credentials = await httpAuth.credentials(req);
       const { namespace, scheduleId } = req.params;
       const operation = req.params.operation as TemporalScheduleOperation;
-      if (
-        !isValidNamespaceName(namespace) ||
-        !options.temporal.isNamespaceAllowed(namespace)
-      ) {
-        throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
-      }
+      checkNamespace(namespace);
       if (!scheduleId || scheduleId.length > 1000) {
         throw new InputError('Invalid schedule ID');
       }
@@ -558,7 +467,7 @@ export function createControlRouter(
       const entityRef = parseEntityRefParam(req.query.entityRef);
       // The permission first: the schedule is only read for callers that
       // may start workflows, so its existence is not told to others.
-      let sources: ReturnType<typeof readEntityWorkflowFilter>[] | undefined;
+      let entitySources: TemporalAnnotations[] | undefined;
       if (entityRef) {
         const context = await access.loadEntity(
           entityRef,
@@ -572,14 +481,14 @@ export function createControlRouter(
         }
         // The entity and the related entities of the same namespace, as for
         // its workflow list.
-        const defaultNamespace = options.temporal.getDefaultNamespace();
-        sources = [context.entity, ...context.relatedWorkflowEntities]
+        const defaultNamespace = sources.defaultNamespace();
+        entitySources = [context.entity, ...context.relatedWorkflowEntities]
           .map(readEntityWorkflowFilter)
           .filter(
             source => (source.namespace ?? defaultNamespace) === namespace,
           );
       } else {
-        await authorizeOn(
+        await access.authorizeOn(
           temporalWorkflowStartPermission,
           undefined,
           credentials,
@@ -597,13 +506,17 @@ export function createControlRouter(
         workflowType: description.action.workflowType,
         taskQueue: description.action.taskQueue,
       };
-      if (sources && !sources.some(source => matchesSource(action, source))) {
+      if (
+        entitySources &&
+        !entitySources.some(source => matchesSource(action, source))
+      ) {
         throw new NotFoundError(
           `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
         );
       }
       const who = principalRef(credentials) ?? 'Backstage';
       await audited(
+        auditor,
         req,
         `schedule-${operation}`,
         {
@@ -640,19 +553,19 @@ export function createControlRouter(
     if (!(await access.canListAll(credentials))) {
       throw new NotAllowedError();
     }
-    await authorizeOn(temporalWorkflowStartPermission, undefined, credentials);
+    await access.authorizeOn(
+      temporalWorkflowStartPermission,
+      undefined,
+      credentials,
+    );
     const start = parseStart(req);
-    const namespace = start.namespace || options.temporal.getDefaultNamespace();
-    if (
-      !isValidNamespaceName(namespace) ||
-      !options.temporal.isNamespaceAllowed(namespace)
-    ) {
-      throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
-    }
+    const namespace = start.namespace || sources.defaultNamespace();
+    checkNamespace(namespace);
     if (!start.workflowType) throw new InputError('workflowType is required');
     if (!start.taskQueue) throw new InputError('taskQueue is required');
     const { workflowType, taskQueue } = start;
     const started = await audited(
+      auditor,
       req,
       'workflow-start',
       {

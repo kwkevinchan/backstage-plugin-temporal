@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-import {
-  CompoundEntityRef,
-  parseEntityRef,
-  stringifyEntityRef,
-} from '@backstage/catalog-model';
+import { CompoundEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import { MAX_CONTROL_NAME_LENGTH, WorkflowRef } from '../common';
+import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { Request } from 'express';
 
 // Parsing and validation of request parameters, shared by the routes.
@@ -58,11 +55,7 @@ export function parseFlag(value: unknown, name: string): boolean {
 export function parseEntityRefParam(value: unknown): string | undefined {
   const raw = optionalString(value, 'entityRef');
   if (!raw) return undefined;
-  try {
-    return stringifyEntityRef(parseEntityRef(raw));
-  } catch {
-    throw new InputError('Invalid entityRef');
-  }
+  return normalizeEntityRef(raw);
 }
 
 export function entityRefFromParams(req: Request): string {
@@ -86,16 +79,30 @@ export function workflowRefFromParams(req: Request): WorkflowRef {
   return { namespace, workflowId, runId: runId || undefined };
 }
 
-/** The `name` and `args` of a message body (`POST .../query`). */
-export function parseMessageBody(req: Request): {
-  name: string;
-  args?: JsonValue[];
-} {
+/** The JSON object of a request body; no body is an empty object. */
+export function requestBody(req: Request): Record<string, unknown> {
   const body = req.body ?? {};
   if (typeof body !== 'object' || Array.isArray(body)) {
     throw new InputError('The request body must be a JSON object');
   }
-  const { name, args } = body as Record<string, unknown>;
+  return body as Record<string, unknown>;
+}
+
+/** The `args` of a message or a start: an array, or undefined. */
+export function parseArgs(value: unknown): JsonValue[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    throw new InputError('args must be an array of arguments');
+  }
+  return value as JsonValue[];
+}
+
+/** The `name` and `args` of a message body (query, signal, update). */
+export function parseMessageBody(req: Request): {
+  name: string;
+  args?: JsonValue[];
+} {
+  const { name, args } = requestBody(req);
   if (
     typeof name !== 'string' ||
     !name.trim() ||
@@ -103,11 +110,5 @@ export function parseMessageBody(req: Request): {
   ) {
     throw new InputError('name is required');
   }
-  if (args !== undefined && args !== null && !Array.isArray(args)) {
-    throw new InputError('args must be an array of arguments');
-  }
-  return {
-    name: name.trim(),
-    args: (args ?? undefined) as JsonValue[] | undefined,
-  };
+  return { name: name.trim(), args: parseArgs(args) };
 }

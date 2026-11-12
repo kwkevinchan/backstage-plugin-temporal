@@ -422,11 +422,18 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   }
 }
 
-/** An entity reference in its canonical form. */
-export function normalizeEntityRef(raw: string): string {
+/** An entity reference in its canonical form, or undefined for a bad one. */
+export function canonicalEntityRef(raw: string): string | undefined {
   try {
     return stringifyEntityRef(parseEntityRef(raw));
   } catch {
-    throw new InputError('Invalid entityRef');
+    return undefined;
   }
+}
+
+/** An entity reference in its canonical form; InputError for a bad one. */
+export function normalizeEntityRef(raw: string): string {
+  const ref = canonicalEntityRef(raw);
+  if (ref === undefined) throw new InputError('Invalid entityRef');
+  return ref;
 }

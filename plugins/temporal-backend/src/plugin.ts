@@ -100,6 +100,7 @@ export const temporalPlugin = createBackendPlugin({
         access,
       }) {
         permissionsRegistry.addPermissions(temporalPermissions);
+        const sources = new EntityWorkflowSources(temporal, logger);
         const controlEnabled =
           config.getOptionalBoolean('temporal.control.enabled') ?? true;
         if (controlEnabled) {
@@ -118,6 +119,7 @@ export const temporalPlugin = createBackendPlugin({
               access,
               auditor,
               temporal,
+              sources,
               commands,
               actions,
             }),
@@ -136,7 +138,6 @@ export const temporalPlugin = createBackendPlugin({
         const aiWorkflows =
           config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
           false;
-        const sources = new EntityWorkflowSources(temporal, logger);
         const queries = new WorkflowQueries(
           temporal,
           enrichers,
