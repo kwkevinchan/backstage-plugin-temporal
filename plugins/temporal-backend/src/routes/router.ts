@@ -218,9 +218,9 @@ export async function createRouter(
       req,
       'read',
     );
-    // Described again by the plugin's queries, which resolve a memo stored
-    // in External Storage; the access service's copy does not.
-    const detail = await queries.describe({ ...ref, runId: workflow.runId });
+    // The access service's copy has no memo from External Storage; the
+    // plugin's queries resolve it from the same describe, not a second one.
+    const detail = await queries.withPayloads(workflow, ref);
     res.json(
       context
         ? await queries.enrichDetail(detail, context, credentials)
