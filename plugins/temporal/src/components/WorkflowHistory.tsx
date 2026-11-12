@@ -38,46 +38,83 @@ import { JsonView } from './PayloadView';
 
 const PAGE_SIZE = 50;
 
-/** Raw event history, loaded one page at a time. */
+interface HistoryState {
+  /** The workflow and entity the state belongs to. */
+  key: string;
+  events: WorkflowHistoryEvent[];
+  nextPageToken?: string;
+  loading: boolean;
+  error?: Error;
+  done: boolean;
+}
+
+function emptyState(key: string): HistoryState {
+  return { key, events: [], loading: true, done: false };
+}
+
+/**
+ * Raw event history, loaded one page at a time. It starts again from the
+ * first page when the workflow or the entity changes, not when the parent
+ * renders with an equal `workflowRef`. A response that is not for the
+ * current workflow and the current load is dropped.
+ */
 export function WorkflowHistory(props: {
   workflowRef: WorkflowRef;
   entityRef?: string;
 }) {
-  const { workflowRef, entityRef } = props;
+  const { namespace, workflowId, runId } = props.workflowRef;
+  const { entityRef } = props;
   const temporalApi = useApi(temporalApiRef);
-  const [events, setEvents] = useState<WorkflowHistoryEvent[]>([]);
-  const [nextPageToken, setNextPageToken] = useState<string | undefined>();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | undefined>();
-  const [done, setDone] = useState(false);
+  const key = JSON.stringify([namespace, workflowId, runId, entityRef]);
+  const [stored, setStored] = useState<HistoryState>(() => emptyState(key));
+  // State of another workflow is not shown while the first page is loading.
+  const { events, nextPageToken, loading, error, done } =
+    stored.key === key ? stored : emptyState(key);
+  // `generation` counts the loads; a response is current only if no load
+  // started since.
+  const [loads] = useState({ generation: 0, pageInFlight: false });
 
   const load = useCallback(
     async (pageToken?: string) => {
-      setLoading(true);
-      setError(undefined);
+      if (pageToken && loads.pageInFlight) return;
+      const mine = ++loads.generation;
+      loads.pageInFlight = true;
+      const update = (change: (prev: HistoryState) => HistoryState) =>
+        setStored(prev => change(prev.key === key ? prev : emptyState(key)));
+      update(prev => ({ ...prev, loading: true, error: undefined }));
       try {
-        const page = await temporalApi.getWorkflowHistory(workflowRef, {
-          entityRef,
-          pageSize: PAGE_SIZE,
-          pageToken,
-        });
-        setEvents(prev =>
-          pageToken ? [...prev, ...page.events] : page.events,
+        const page = await temporalApi.getWorkflowHistory(
+          { namespace, workflowId, runId },
+          { entityRef, pageSize: PAGE_SIZE, pageToken },
         );
-        setNextPageToken(page.nextPageToken);
-        setDone(!page.nextPageToken);
+        if (mine !== loads.generation) return;
+        update(prev => ({
+          ...prev,
+          events: pageToken ? [...prev.events, ...page.events] : page.events,
+          nextPageToken: page.nextPageToken,
+          done: !page.nextPageToken,
+        }));
       } catch (e) {
-        setError(e as Error);
+        if (mine !== loads.generation) return;
+        update(prev => ({ ...prev, error: e as Error }));
       } finally {
-        setLoading(false);
+        if (mine === loads.generation) {
+          loads.pageInFlight = false;
+          update(prev => ({ ...prev, loading: false }));
+        }
       }
     },
-    [temporalApi, workflowRef, entityRef],
+    [temporalApi, loads, namespace, workflowId, runId, entityRef, key],
   );
 
   useEffect(() => {
     load(undefined);
-  }, [load]);
+    return () => {
+      // Drops the responses of loads that are still running.
+      loads.generation++;
+      loads.pageInFlight = false;
+    };
+  }, [load, loads]);
 
   if (error && events.length === 0) {
     return <ErrorAlert error={error} />;

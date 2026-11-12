@@ -99,6 +99,8 @@ export function WorkflowEvents(props: {
   steps: WorkflowGraphNode[];
   workflowRef: WorkflowRef;
   entityRef?: string;
+  /** Changing it loads the raw events again, from the first page. */
+  reloadKey?: number;
   payloadsHidden: boolean;
   onSelect(id: string): void;
 }) {
@@ -150,6 +152,7 @@ export function WorkflowEvents(props: {
         />
       ) : (
         <WorkflowHistory
+          key={props.reloadKey}
           workflowRef={props.workflowRef}
           entityRef={props.entityRef}
         />
