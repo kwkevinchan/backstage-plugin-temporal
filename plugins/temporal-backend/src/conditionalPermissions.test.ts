@@ -31,6 +31,7 @@ import {
   mockCredentials,
   mockServices,
   startTestBackend,
+  TestDatabases,
 } from '@backstage/backend-test-utils';
 import { Entity } from '@backstage/catalog-model';
 import {
@@ -60,6 +61,22 @@ import {
 } from './testUtils';
 
 jest.setTimeout(120_000);
+
+/**
+ * The backends the tests started. They are stopped before the databases are
+ * closed (hooks run in the order they are declared).
+ */
+const backends: Array<{ stop(): Promise<void> }> = [];
+afterAll(async () => {
+  await Promise.all(backends.map(backend => backend.stop()));
+});
+
+/**
+ * The catalog's database. The backend does not close the connection pool of
+ * the default in-memory database when it stops, which leaves its timer
+ * running; `TestDatabases` closes what it creates after the tests.
+ */
+const databases = TestDatabases.create({ ids: ['SQLITE_3'] });
 
 const entities: Entity[] = [
   {
@@ -178,10 +195,12 @@ const entityProviderModule = createBackendModule({
 
 describe('conditional catalog-entity decisions for temporal permissions (R7)', () => {
   it('lets the catalog resolve isEntityOwner for temporal routes', async () => {
-    const { server } = await startTestBackend({
+    const knex = await databases.init('SQLITE_3');
+    const backend = await startTestBackend({
       features: [
         temporalPlugin,
         temporalAccessServiceFactory,
+        mockServices.database.factory({ knex }),
         catalogBackend,
         entityProviderModule,
         permissionBackend,
@@ -196,6 +215,8 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
         }),
       ],
     });
+    const { server } = backend;
+    backends.push(backend);
 
     // Wait until the catalog has processed the entity (relations included).
     let lastCatalogResponse = '';
@@ -272,7 +293,7 @@ const workflowPolicyModule = createBackendModule({
 describe('conditional temporal-workflow decisions from a policy', () => {
   it('uses the rules of the plugin through the permission backend', async () => {
     const workflowService = createFakeWorkflowService();
-    const { server } = await startTestBackend({
+    const backend = await startTestBackend({
       features: [
         temporalPlugin,
         temporalAccessServiceFactory,
@@ -288,6 +309,8 @@ describe('conditional temporal-workflow decisions from a policy', () => {
         }),
       ],
     });
+    const { server } = backend;
+    backends.push(backend);
 
     const metadata = await request(server)
       .get('/api/temporal/.well-known/backstage/permissions/metadata')
