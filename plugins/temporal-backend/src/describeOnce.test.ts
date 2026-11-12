@@ -18,6 +18,11 @@ import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import { createServiceFactory } from '@backstage/backend-plugin-api';
+import {
+  temporalAccessServiceRef,
+  TemporalAccessService,
+} from '@kwkevinchan/backstage-plugin-temporal-node/alpha';
 import { temporalExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-node';
 import { Readable } from 'node:stream';
 import request from 'supertest';
@@ -29,23 +34,26 @@ import {
   executionInfo,
   fakeTemporalServiceFactory,
   ordersEntity,
+  otherEntity,
 } from './testUtils';
 
 /** Objects of the mocked S3 service, by key. */
 const mockObjects = new Map<string, Buffer>();
+/** The requests of the mocked S3 client. */
+const mockSend = jest.fn(async (command: any) => {
+  const data = mockObjects.get(command.input.Key);
+  if (!data) throw new Error('NoSuchKey');
+  const stream = Readable.from([data]) as any;
+  stream.transformToByteArray = async () => new Uint8Array(data);
+  return { Body: stream, ContentLength: data.length };
+});
 
 jest.mock('@aws-sdk/client-s3', () => {
   const actual = jest.requireActual('@aws-sdk/client-s3');
   return {
     ...actual,
     S3Client: jest.fn().mockImplementation(() => ({
-      send: async (command: any) => {
-        const data = mockObjects.get(command.input.Key);
-        if (!data) throw new Error('NoSuchKey');
-        const stream = Readable.from([data]) as any;
-        stream.transformToByteArray = async () => new Uint8Array(data);
-        return { Body: stream, ContentLength: data.length };
-      },
+      send: (command: any) => mockSend(command),
     })),
   };
 });
@@ -63,7 +71,12 @@ beforeAll(async () => {
   memoField = stored.payload;
 });
 
-async function start(options: { permission?: AuthorizeResult } = {}) {
+async function start(
+  options: {
+    permission?: AuthorizeResult;
+    access?: Partial<TemporalAccessService>;
+  } = {},
+) {
   const workflowService = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
     async (req: any) =>
@@ -73,6 +86,10 @@ async function start(options: { permission?: AuthorizeResult } = {}) {
             workflowId: req.execution.workflowId,
             status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
           }),
+          execution: {
+            workflowId: req.execution.workflowId,
+            runId: req.execution.runId ?? `${req.execution.workflowId}-run`,
+          },
           memo: { fields: { customer: structuredClone(memoField) } },
         },
         pendingActivities: [],
@@ -104,11 +121,20 @@ async function start(options: { permission?: AuthorizeResult } = {}) {
   const { server } = await startTestBackend({
     features: [
       temporalPlugin,
-      temporalAccessServiceFactory,
-      catalogServiceMock.factory({ entities: [ordersEntity] }),
+      ...(options.access ? [] : [temporalAccessServiceFactory]),
+      catalogServiceMock.factory({ entities: [ordersEntity, otherEntity] }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
       enricher,
+      ...(options.access
+        ? [
+            createServiceFactory({
+              service: temporalAccessServiceRef,
+              deps: {},
+              factory: () => options.access as TemporalAccessService,
+            }),
+          ]
+        : []),
       mockServices.rootConfig.factory({
         data: {
           temporal: {
@@ -129,6 +155,8 @@ async function start(options: { permission?: AuthorizeResult } = {}) {
 }
 
 describe('opening one workflow', () => {
+  beforeEach(() => mockSend.mockClear());
+
   const path = '/api/temporal/namespaces/default/workflows/wf-1';
 
   it('describes it once for an entity, with the memo from S3 and the enrichers', async () => {
@@ -154,11 +182,55 @@ describe('opening one workflow', () => {
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
   });
 
-  it('does not read S3 or describe again when the access is denied', async () => {
+  it('does not describe or read S3 when the permission on the entity is denied', async () => {
     const { server, workflowService } = await start({
       permission: AuthorizeResult.DENY,
     });
     await request(server).get(`${path}?entityRef=${ref}`).expect(403);
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("answers 404 without reading S3 when the workflow is not the entity's", async () => {
+    const { server, workflowService } = await start();
+    await request(server)
+      .get(`${path}?entityRef=component:default/billing`)
+      .expect(404);
+    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('answers 403 without reading S3 when the list permission is denied and no entity is linked', async () => {
+    const { server, workflowService } = await start({
+      permission: AuthorizeResult.DENY,
+    });
+    await request(server).get(path).expect(403);
+    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('describes the authorized run when another access service returns its own copy', async () => {
+    const { server, workflowService } = await start({
+      access: {
+        loadWorkflow: async () => ({
+          workflow: {
+            workflowId: 'wf-1',
+            runId: 'run-authorized',
+            namespace: 'default',
+            workflowType: 'orderWorkflow',
+            taskQueue: 'orders',
+            status: 'Running',
+          } as any,
+        }),
+      },
+    });
+    const res = await request(server).get(path);
+    expect(res.status).toBe(200);
+    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
+    expect(
+      workflowService.describeWorkflowExecution.mock.calls[0][0].execution,
+    ).toMatchObject({ workflowId: 'wf-1', runId: 'run-authorized' });
+    expect(res.body.runId).toBe('run-authorized');
+    expect(res.body.memo).toEqual({ customer: { plan: 'gold' } });
   });
 });

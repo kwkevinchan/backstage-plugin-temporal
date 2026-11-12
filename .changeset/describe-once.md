@@ -2,4 +2,4 @@
 '@kwkevinchan/backstage-plugin-temporal-backend': patch
 ---
 
-Opening a workflow's detail page makes one query to Temporal instead of two.
+Opening a workflow's detail page describes the workflow once instead of twice.

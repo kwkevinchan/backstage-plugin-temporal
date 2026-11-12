@@ -128,10 +128,8 @@ export function llmResultPayloads(events: unknown[]): unknown[] {
 }
 
 /** What `WorkflowQueries.describe` read, by the detail it returned. */
-const described = new WeakMap<
-  WorkflowDetail,
-  { json: any; closeEvent?: any }
->();
+type Described = { json: any; closeEvent?: any };
+const described = new WeakMap<WorkflowDetail, Described>();
 
 /**
  * The read use cases of the plugin for one workflow: details, membership of
@@ -215,26 +213,42 @@ export class WorkflowQueries {
         ...this.convertOptions(ref.namespace),
         closeEvent,
       });
-      described.set(closed, { json, closeEvent });
+      this.remember(closed, { json, closeEvent });
       return closed;
     }
-    described.set(detail, { json });
+    this.remember(detail, { json });
     return detail;
   }
 
   /**
+   * Keeps the response only on an instance without a payload store (the
+   * access service's), the one whose detail `withPayloads` completes.
+   */
+  private remember(detail: WorkflowDetail, read: Described) {
+    if (!this.payloads.configured) described.set(detail, read);
+  }
+
+  /**
    * The detail of a workflow that `describe` returned, with the memo
-   * resolved by this instance's `PayloadStore`. It reuses what that
-   * `describe` read from Temporal, so no second request is made; a workflow
-   * that did not come from `describe` (another access service) is
-   * described here.
+   * resolved by this instance's `PayloadStore`. `ref` is the reference the
+   * workflow was loaded with. It reuses what that `describe` read from
+   * Temporal, so no second request is made; a workflow that did not come
+   * from `describe` (another access service), or that is not the one `ref`
+   * names, is described here, pinned to the run of `workflow`.
    */
   async withPayloads(
     workflow: WorkflowDetail,
     ref: WorkflowRef,
   ): Promise<WorkflowDetail> {
     const read = described.get(workflow);
-    if (!read) return this.describe({ ...ref, runId: workflow.runId });
+    if (
+      !read ||
+      workflow.workflowId !== ref.workflowId ||
+      workflow.namespace !== ref.namespace ||
+      (ref.runId && workflow.runId !== ref.runId)
+    ) {
+      return this.describe({ ...ref, runId: workflow.runId });
+    }
     await this.payloads.resolve(read.json.workflowExecutionInfo?.memo);
     return toWorkflowDetail(read.json, {
       ...this.convertOptions(ref.namespace),
