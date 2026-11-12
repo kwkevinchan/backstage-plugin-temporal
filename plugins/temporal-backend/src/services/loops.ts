@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { addLlmUsage } from '../../common';
+import { addLlmUsage } from '../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmUsage,
@@ -26,8 +26,8 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
-} from '../../common';
-import { dropUndefined } from '../convert';
+} from '../common';
+import { dropUndefined } from './convert';
 
 /*
  * Loops of a run, from the loop markers of its steps and the loop state in

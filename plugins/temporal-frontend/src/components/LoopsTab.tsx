@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import { addLlmUsage } from '../../common';
+import { addLlmUsage } from '../common';
 import type {
   WorkflowDetail,
   WorkflowGraphResponse,
@@ -25,8 +25,8 @@ import type {
   WorkflowLoopRound,
   WorkflowLoopsResponse,
   WorkflowRef,
-} from '../../common';
-import { temporalApiRef } from '../../extensions';
+} from '../common';
+import { temporalApiRef } from '../extensions';
 import {
   Alert,
   Cell,
@@ -39,19 +39,19 @@ import {
   TableRoot,
   Text,
 } from '@backstage/ui';
-import { ErrorAlert, Loading } from '../feedback';
-import { formatDuration } from '../format';
+import { ErrorAlert, Loading } from './feedback';
+import { formatDuration } from './format';
 import {
   decisionText,
   loopStatusLabel,
   loopTone,
   roundLabel,
 } from './loopText';
-import { StatusIcon, WorkflowStatusLabel } from '../WorkflowStatusLabel';
+import { StatusIcon, WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { RiSparkling2Line, RiToolsLine } from '@remixicon/react';
-import { tokensText } from './llmText';
-import { RunHelp } from '../RunHelp';
-import { tp } from '../styles';
+import { tokensText } from './llm/llmText';
+import { RunHelp } from './RunHelp';
+import { tp } from './styles';
 
 /**
  * Loads the loops of a workflow across its continue-as-new runs, again

@@ -27,7 +27,7 @@ import {
 import { WorkflowGraph } from '../graph/WorkflowGraph';
 import { layoutSteps, stepSize, visibleSteps } from '../graph/layout';
 import { StepDrawer } from '../StepDrawer';
-import { LoopsTab } from './LoopsTab';
+import { LoopsTab } from '../LoopsTab';
 import { formatCallDuration, formatTokens, llmStatsText } from './llmText';
 
 const node = (id: string) => llmGraphResponse.nodes.find(n => n.id === id)!;

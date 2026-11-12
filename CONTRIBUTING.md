@@ -123,13 +123,13 @@ The query classes in `services/` each cover one kind of read:
 | `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks     |
 | `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list   |
 | `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and handlers |
-| `AiWorkflowQueries`     | The experimental AI views: loops and model call records (`services/ai/`)                                  |
+| `AiWorkflowQueries`     | The experimental AI views: loops and model call records                                                   |
 
 `EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
 `WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
 class that uses it. The access service uses `EntityWorkflowSources` and
-`WorkflowQueries`; the router uses all four. The experimental AI views are
-in `services/ai/` (backend) and `components/ai/` (frontend).
+`WorkflowQueries`; the router uses all four. The parsing and the views of the experimental LLM records are in
+`services/llm/` (backend) and `components/llm/` (frontend).
 
 The classes are plain; there are no repository interfaces or DI container
 inside the plugin. `plugin.ts` creates them and wires them together, and

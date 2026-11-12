@@ -55,7 +55,7 @@
 | `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
 | `repositories/` | `TemporalReadRepository`（呼叫 Temporal）和 `PayloadStore`（S3）。                                                                                | Gateways                   |
 
-Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上；`WorkflowCommands` 直接呼叫 Temporal。實驗性的 AI 畫面放在 `services/ai/`。
+Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上；`WorkflowCommands` 直接呼叫 Temporal。實驗性的 LLM 紀錄解析放在 `services/llm/`。
 
 授權服務位在 routes 和 services 之間，但它也會用到查詢 service（要讀過流程才能決定誰能看）。在查詢 service 之中，`EntityWorkflowSources` 被另外三個用，`WorkflowQueries` 被 `WorkflowListQueries` 和 `AiWorkflowQueries` 用；沒有任何一個依賴到用到它的類別。
 
@@ -96,7 +96,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 - **下載走後端，不發 presigned URL。** presigned URL 在到期前，拿到的人都能用，繞過 Backstage 的權限檢查。代價是資料要經過後端，並有大小上限（[Large payloads](../../README.md#large-payloads-external-storage)）。
 - **一般的類別，不事先做抽象。** 沒有 repository interface，也沒有容器：各層就是資料夾，由 `plugin.ts` 把物件互相傳進去。
 - **SDK 的 major 就是外掛的 major。** 後端用 `@temporalio/client` 1.x；它出新的 major，外掛的套件就出新的 major（[Compatibility](../../README.md#compatibility)）。
-- **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器；AI 畫面在開關後面（程式放在 `components/ai/` 和 `services/ai/`，之後會搬到自己的套件），它在 Worker 端的 kit 也不發佈。
+- **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器；AI 畫面在開關後面（LLM 的畫面放在 `components/llm/` 和 `services/llm/`，之後會搬到自己的套件），它在 Worker 端的 kit 也不發佈。
 - **Worker 寫入的格式，兩邊都有測試。** workflow kit 寫入迴圈標記和 LLM 紀錄，後端用自己的程式碼讀回；兩邊都用共用的 fixture（`test-fixtures/`）測試。
 
 回到[文件索引](README.md)。

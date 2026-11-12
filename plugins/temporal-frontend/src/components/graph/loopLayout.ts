@@ -21,7 +21,7 @@ import {
   NODE_WIDTH,
   NodeSize,
   StepLayout,
-} from '../graph/layout';
+} from './layout';
 
 /*
  * Layout of an expanded loop: a header box (the loop, with its collapse

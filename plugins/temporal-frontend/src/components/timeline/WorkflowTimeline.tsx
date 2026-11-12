@@ -33,7 +33,7 @@ import {
   RiToolsLine,
 } from '@remixicon/react';
 import { formatTime } from '../format';
-import { decisionText, roundLabel } from '../ai/loopText';
+import { decisionText, roundLabel } from '../loopText';
 import { kindLabel } from '../steps';
 import { statusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';

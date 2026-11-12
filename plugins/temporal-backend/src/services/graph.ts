@@ -49,8 +49,8 @@ import {
   localActivityResult,
   summarizeLlmCall,
   toolMarkerOf,
-} from './ai/llm';
-import { buildLoopGroups, readLoopMarker } from './ai/loops';
+} from './llm/llm';
+import { buildLoopGroups, readLoopMarker } from './loops';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows

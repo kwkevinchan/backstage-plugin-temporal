@@ -27,7 +27,7 @@ import {
   roundBadge,
   roundLabel,
   roundsText,
-} from './loopText';
+} from '../loopText';
 import { statusLabel, statusTone } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
 

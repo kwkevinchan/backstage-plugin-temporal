@@ -103,7 +103,7 @@ there is no repository interface and no dependency-injection container inside
 the plugin. The routes that change workflows are their own router
 (`routes/controlRoutes.ts`), mounted by `plugin.ts` unless
 `temporal.control.enabled` is false; `WorkflowCommands` calls Temporal
-directly. The experimental AI views are in `services/ai/`.
+directly. The parsing of the experimental LLM records is in `services/llm/`.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query
@@ -190,8 +190,8 @@ false` removes the routes that change workflows (404, not 403) and their
   ([Compatibility](../README.md#compatibility)).
 - **Optional packages stay out of apps that do not need them.** The Zigflow tab is
   two packages, so apps without Zigflow carry no YAML editor; the AI views are
-  behind a flag (their code is in `components/ai/` and `services/ai/`, to
-  move to a package of their own) and their worker-side kit is not
+  behind a flag (the LLM views are in `components/llm/` and `services/llm/`,
+  to move to a package of their own) and their worker-side kit is not
   published.
 - **Formats written by workers are tested on both sides.** The workflow kit writes
   the loop markers and LLM records, and the backend reads them with its own code;

@@ -25,14 +25,14 @@ import {
   WorkflowLoopsResponse,
   ExternalPayload,
   WorkflowLlmCallResponse,
-} from '../../common';
+} from '../common';
 import type { JsonObject } from '@backstage/types';
-import { decodePayloads } from '../convert';
-import { buildWorkflowGraph } from '../graph';
-import { llmRecordOf, normalizeLlmRecord } from './llm';
+import { decodePayloads } from './convert';
+import { buildWorkflowGraph } from './graph';
+import { llmRecordOf, normalizeLlmRecord } from './llm/llm';
 import { readLoopState } from './loops';
-import { TemporalReadRepository } from '../../repositories/TemporalReadRepository';
-import { MAX_STEP_EVENTS, WorkflowQueries } from '../WorkflowQueries';
+import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
 
 /** Most continue-as-new runs read for the loops of a workflow. */
 export const MAX_LOOP_RUNS = 20;

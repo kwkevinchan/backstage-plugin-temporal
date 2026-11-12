@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { buildWorkflowGraph, BuildGraphOptions } from '../graph';
+import { buildWorkflowGraph, BuildGraphOptions } from './graph';
 import { readLoopState } from './loops';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
