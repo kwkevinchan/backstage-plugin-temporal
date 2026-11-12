@@ -63,7 +63,7 @@ import {
   matchesSource,
   parseEntityRefParam,
   workflowRefFromParams,
-} from './params';
+} from './controlParams';
 
 /** A workflow loaded with the read checks of the access service. */
 interface LoadedWorkflow {

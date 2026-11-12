@@ -21,7 +21,8 @@ import {
   catalogProcessingExtensionPoint,
   CatalogProcessorResult,
 } from '@backstage/plugin-catalog-node';
-import catalogModuleTemporalWorkflowKind, {
+import {
+  catalogModuleTemporalWorkflowKind,
   TemporalWorkflowEntityProcessor,
 } from './index';
 
