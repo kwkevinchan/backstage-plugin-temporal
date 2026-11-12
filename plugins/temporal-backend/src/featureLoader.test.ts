@@ -17,10 +17,14 @@
 /*
  * The default export of the package, added with one `backend.add()` next to
  * the real catalog backend: the read routes, the routes that change
- * workflows and the `TemporalWorkflow` kind are all there, and the routes
- * that change workflows go away with `temporal.control.enabled: false`.
+ * workflows and the `TemporalWorkflow` kind are all there, the routes that
+ * change workflows go away with `temporal.control.enabled: false`, and an
+ * access service factory of the backend's own replaces the default one.
  */
-import { createBackendModule } from '@backstage/backend-plugin-api';
+import {
+  createBackendModule,
+  createServiceFactory,
+} from '@backstage/backend-plugin-api';
 import {
   mockCredentials,
   mockServices,
@@ -28,11 +32,13 @@ import {
   TestDatabases,
 } from '@backstage/backend-test-utils';
 import { Entity } from '@backstage/catalog-model';
+import { NotAllowedError } from '@backstage/errors';
 import catalogBackend from '@backstage/plugin-catalog-backend';
 import { catalogProcessingExtensionPoint } from '@backstage/plugin-catalog-node';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import request from 'supertest';
 import temporalBackend from './index';
+import { temporalAccessServiceRef } from './node/alpha';
 import {
   createFakeWorkflowService,
   fakeTemporalServiceFactory,
@@ -83,7 +89,7 @@ const entityProviderModule = createBackendModule({
   },
 });
 
-async function start(control?: object) {
+async function start(control?: object, extraFeatures: any[] = []) {
   const knex = await databases.init('SQLITE_3');
   const backend = await startTestBackend({
     features: [
@@ -104,6 +110,7 @@ async function start(control?: object) {
           temporal: control ? { control } : {},
         },
       }),
+      ...extraFeatures,
     ],
   });
   backends.push(backend);
@@ -171,5 +178,25 @@ describe('the default export of the package', () => {
 
     const entity = await waitForWorkflowEntity(server);
     expect(entity.status).toBe(200);
+  });
+
+  it('uses an access service factory of the backend instead of the default one', async () => {
+    const authorizeWorkflowList = jest.fn(async () => {
+      throw new NotAllowedError('custom rules');
+    });
+    const server = await start(undefined, [
+      createServiceFactory({
+        service: temporalAccessServiceRef,
+        deps: {},
+        factory: () => ({ authorizeWorkflowList } as any),
+      }),
+    ]);
+
+    // The default factory allows the list (every permission is allowed
+    // here); the backend's own factory refuses it.
+    const list = await request(server).get('/api/temporal/workflows');
+    expect(list.status).toBe(403);
+    expect(list.body.error.message).toBe('custom rules');
+    expect(authorizeWorkflowList).toHaveBeenCalled();
   });
 });
