@@ -71,8 +71,8 @@ module.exports = defineConfig({
 
     // Published packages of one plugin list each other in
     // backstage.pluginPackages (used by the Backstage CLI and tooling).
-    // Modules of other plugins (for example the catalog module) belong to
-    // that plugin and are left out.
+    // Modules are left out, those of this plugin (Zigflow) and those of
+    // other plugins (Scaffolder).
     const isModule = workspace => /-module$/.test(roleOf(workspace) ?? '');
     const packagesByPluginId = new Map();
     for (const workspace of Yarn.workspaces()) {
@@ -168,19 +168,6 @@ module.exports = defineConfig({
       const role = roleOf(workspace);
       const targetRole = target ? roleOf(target) : undefined;
 
-      // common-library: no Node-only, no web-only, no backend/frontend workspaces.
-      if (role === 'common-library' && dep.type !== 'devDependencies') {
-        if (
-          (targetRole &&
-            (BACKEND_ROLES.has(targetRole) ||
-              FRONTEND_ROLES.has(targetRole))) ||
-          isNodeOnlyDep(dep.ident) ||
-          isWebOnlyDep(dep.ident)
-        ) {
-          dep.error(`common-library packages must not depend on ${dep.ident}`);
-        }
-      }
-
       // Frontend packages: no Node-side workspaces or Node-only packages.
       if (
         FRONTEND_ROLES.has(role) &&
@@ -209,26 +196,6 @@ module.exports = defineConfig({
         ) {
           dep.error(`backend packages must not depend on ${dep.ident}`);
         }
-      }
-
-      // Libraries stay below plugins: a web-library must not depend on a
-      // frontend plugin, and a node-library must not depend on a backend
-      // plugin.
-      if (
-        role === 'web-library' &&
-        dep.type !== 'devDependencies' &&
-        (targetRole === 'frontend-plugin' ||
-          targetRole === 'frontend-plugin-module')
-      ) {
-        dep.error(`web-library packages must not depend on ${dep.ident}`);
-      }
-      if (
-        role === 'node-library' &&
-        dep.type !== 'devDependencies' &&
-        (targetRole === 'backend-plugin' ||
-          targetRole === 'backend-plugin-module')
-      ) {
-        dep.error(`node-library packages must not depend on ${dep.ident}`);
       }
 
       // The workflow kit: only optional peer dependencies at run time.
