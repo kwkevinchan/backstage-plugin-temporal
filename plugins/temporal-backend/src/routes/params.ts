@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { CompoundEntityRef, stringifyEntityRef } from '@backstage/catalog-model';
+import {
+  CompoundEntityRef,
+  stringifyEntityRef,
+} from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import { MAX_CONTROL_NAME_LENGTH, WorkflowRef } from '../common';
