@@ -45,7 +45,7 @@
 橘色箭頭是經過 control 模組的操作，青綠色是讀取，紫色是你自己的程式（Worker 和它送出的東西），黑色是 Backstage 和 Temporal 自己的動作，虛線是回應。時間由上往下。
 
 1. **啟動。** 使用者送出範本。範本的 `temporal:workflow:start` 步驟**以該使用者的身分**呼叫外掛後端。外掛檢查實體的 start 權限，確認流程類型和 Task Queue 是這個實體自己的，開一筆稽核事件，設定 `entityRef` 和 `initiator` Search Attribute，然後啟動流程，回 `201` 和 workflow ID。Temporal 把工作放進 Task Queue，由 Worker 執行流程。
-2. **等待。** `temporal:workflow:wait` 步驟輪詢 `GET …/workflows/:workflowId`（每 `intervalSeconds` 秒，預設 5 秒），直到 `untilSearchAttribute` 指定的 Bool Search Attribute 變成 true。流程走到需要決定的地方就會設定它，這時範本就能結束，並附上流程的連結。
+2. **等待。** `temporal:workflow:wait` 步驟輪詢 `GET …/workflows/:workflowId`（先隔 `intervalSeconds` 秒，預設 5 秒，之後間隔逐次加倍，最多 `maxIntervalSeconds` 秒，預設 30 秒），直到 `untilSearchAttribute` 指定的 Bool Search Attribute 變成 true。流程走到需要決定的地方就會設定它，這時範本就能結束，並附上流程的連結。
 3. **決定。** 有人送出 Update：從詳細頁的 **Update…** 對話框，或用另一個範本，其 `temporal:workflow:signal` 步驟設 `kind: update`。外掛通過授權檢查，檢查 update 權限，核對名稱是否在 `temporal.control.allowedUpdates` 內，開稽核事件，再帶著使用者的身分送出 Update。流程的 validator 檢查它，handler 記下決定，結果（或 validator 的錯誤）回到使用者。
 4. **收尾。** 流程繼續執行、清掉屬性並結束。頁面再用圖一的路徑讀取它。
 

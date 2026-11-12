@@ -254,7 +254,19 @@ export function createTemporalWorkflowWaitAction(
             .min(1)
             .max(300)
             .optional()
-            .describe('How often to look; 5 seconds by default'),
+            .describe(
+              'The pause before the second look, 5 seconds by default. The pause doubles after each look, up to maxIntervalSeconds',
+            ),
+        maxIntervalSeconds: z =>
+          z
+            .number()
+            .int()
+            .min(1)
+            .max(300)
+            .optional()
+            .describe(
+              'The longest pause between two looks; 30 seconds by default. Set it equal to intervalSeconds to look at a fixed interval. A larger intervalSeconds wins: the pauses never get shorter than it',
+            ),
         failIfNotCompleted: z =>
           z
             .boolean()
@@ -291,7 +303,14 @@ export function createTemporalWorkflowWaitAction(
       }
       const credentials = await ctx.getInitiatorCredentials();
       const timeoutMs = (input.timeoutSeconds ?? 600) * 1000;
-      const intervalMs = (input.intervalSeconds ?? 5) * 1000;
+      // Whole milliseconds: the pause doubles up to the cap. An
+      // intervalSeconds above the cap is a fixed interval.
+      const firstPauseMs = (input.intervalSeconds ?? 5) * 1000;
+      const maxPauseMs = Math.max(
+        firstPauseMs,
+        (input.maxIntervalSeconds ?? 30) * 1000,
+      );
+      let pauseMs = firstPauseMs;
       const deadline = Date.now() + timeoutMs;
       for (;;) {
         const workflow = await options.client.describe(
@@ -348,7 +367,8 @@ export function createTemporalWorkflowWaitAction(
           );
         }
         // The last look is at the deadline.
-        await sleep(Math.min(intervalMs, left), ctx.signal);
+        await sleep(Math.min(pauseMs, left), ctx.signal);
+        pauseMs = Math.min(pauseMs * 2, maxPauseMs);
       }
     },
   });
