@@ -70,9 +70,10 @@ workflow definition.
   Backstage permission framework and is recorded with the auditor (see
   [Permissions](#permissions)).
 
-**Experimental, off by default.** Views of AI workflows are not part of the
-published packages and will move to a separate package. Turn them on with
-`temporal.experimental.aiWorkflows: true` (no compatibility promise):
+**Experimental, off by default.** The published packages include views of AI
+workflows; they are off unless you set `temporal.experimental.aiWorkflows: true`,
+carry no compatibility promise and will move to a separate package. The
+worker-side kit that writes their markers is not published yet:
 
 - **Loops of AI workflows.** Rounds of generate, check and revise loops are
   grouped into one box in the graph (expanded: one frame per round), one
@@ -140,12 +141,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                      |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                            |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                          |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; the packages depend on `~1.24.0`. While they are `0.x`, a new minor of the client is a new minor of the packages that use it; from `1.0.0`, a new major of the client is a new major. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -592,8 +593,8 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
-  # Optional: views that are not part of the published packages, see Loops and
-  # LLM steps.
+  # Optional: experimental views (off by default, no compatibility promise), see
+  # Loops and LLM steps.
   experimental:
     aiWorkflows: false
 ```

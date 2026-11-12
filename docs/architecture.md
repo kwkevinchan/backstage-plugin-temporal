@@ -147,8 +147,10 @@ These are decisions the code relies on, with their reasons.
 - **Plain classes, no abstraction in advance.** No repository interfaces and no
   container: the layers are folders, and `plugin.ts` passes the objects to each
   other.
-- **The SDK's major is the plugin's major.** The backend uses `@temporalio/client`
-  1.x; a new major of it is a new major of the plugin packages
+- **The SDK's version drives the plugin's version.** The backend uses
+  `@temporalio/client` `~1.24.0`; while the packages are `0.x`, a new minor of
+  it is a new minor of the plugin packages, and from `1.0.0` a new major of it
+  is a new major
   ([Compatibility](../README.md#compatibility)).
 - **Optional packages stay out of apps that do not need them.** The Zigflow tab is
   two packages, so apps without Zigflow carry no YAML editor; the AI views are

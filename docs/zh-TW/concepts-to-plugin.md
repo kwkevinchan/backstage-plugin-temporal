@@ -154,7 +154,7 @@ control 模組加上 Start、Signal、Update、Cancel、Terminate、Rerun，以�
 
 ### AI 流程（實驗性，預設關閉）
 
-迴圈（產生、檢查、修改）和 LLM agent 在 Temporal 裡只是一長串 Activity。當 Worker 用實驗性的 `@kwkevinchan/temporal-workflow-kit`（尚未發佈）加上標記後，外掛可以把迴圈收成一個方塊、一輪一框，加上 **Loops** 分頁，並把一次模型呼叫畫成方塊、工具掛在旁邊，還有顯示 prompt、輸出和 token 用量的面板。這些畫面在 `temporal.experimental.aiWorkflows: true` 後面，不在已發佈的套件裡，之後會移到獨立套件，也不承諾相容性。見 [Loops](../../README.md#loops) 和 [LLM steps](../../README.md#llm-steps)。
+迴圈（產生、檢查、修改）和 LLM agent 在 Temporal 裡只是一長串 Activity。當 Worker 用實驗性的 `@kwkevinchan/temporal-workflow-kit`（尚未發佈）加上標記後，外掛可以把迴圈收成一個方塊、一輪一框，加上 **Loops** 分頁，並把一次模型呼叫畫成方塊、工具掛在旁邊，還有顯示 prompt、輸出和 token 用量的面板。這些畫面在 `temporal.experimental.aiWorkflows: true` 後面，已包含在發佈的套件裡但預設關閉，不承諾相容性，之後會移到獨立套件。見 [Loops](../../README.md#loops) 和 [LLM steps](../../README.md#llm-steps)。
 
 ## 外掛不做的事
 

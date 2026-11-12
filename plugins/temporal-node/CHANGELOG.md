@@ -10,8 +10,10 @@
   `./alpha` entry point has `temporalAccessServiceRef` (the access checks of the
   plugin, plugin-scoped and replaceable), `temporalWorkflowPermissionResourceRef`,
   `temporalControlExtensionPoint` (custom control actions) and the JSON
-  payload helpers `encodeJsonPayloads` and `decodeJsonPayloads`. A new major of
-  `@temporalio/client` is a new major of this package. The connection can use TLS (`temporal.connection.tls`).
+  payload helpers `encodeJsonPayloads` and `decodeJsonPayloads`. The package
+  depends on `@temporalio/client` `~1.24.0`; while it is `0.x`, a new minor of
+  the client is a new minor of this package. The connection can use TLS
+  (`temporal.connection.tls`).
 
 ### Patch Changes
 

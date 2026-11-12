@@ -23,10 +23,8 @@
     graph canvas and its layout, status helpers, panels, the dialogs of
     workflow operations, the style class names) for companion packages such as
     `@kwkevinchan/backstage-plugin-temporal-module-zigflow` and `-module-control`.
-  - Workflow lists keep their filters, page and page size in the URL, so the
-    browser's back button and the "All workflows" link return to the same
-    page. Paging and filtering replace the history entry instead of adding
-    one.
+  - Workflow lists keep their filters, page and page size in the URL, so a
+    list can be bookmarked and the browser's back button returns to it.
   - `TemporalApi.listEntityWorkflows` and `listWorkflows` take a
     `searchAttribute` option: only workflows whose Bool search attribute of
     that name is true.
@@ -47,29 +45,18 @@
   - The step graph of the details page can go full screen with its step
     panel (the page goes full screen; Esc leaves). Zooming is with the
     graph's controls: zoom in, zoom out and fit the whole graph.
-  - Step boxes have a pale background by kind (activity, timer, signal and
-    update, child workflow, local activity), mixed from the theme tokens; the
-    status keeps the left bar and the border.
-  - A step titled by the summary the workflow gave it (Temporal user
-    metadata, e.g. the `summary` activity option), with the activity type
-    below it. Workflow lists in the order of the Temporal UI: status, the
-    workflow ID (link), the workflow type (link to its entity).
+  - Step boxes are tinted by kind (activity, timer, signal and update, child
+    workflow, local activity) and show the status. A step is titled by the
+    summary the workflow gave it (Temporal user metadata, e.g. the `summary`
+    activity option), with the activity type below it. Workflow lists
+    use the column order of the Temporal UI: status, workflow ID, workflow
+    type (linked to its entity).
+  - Refresh buttons (the workflow page, the workflow lists, the recent runs
+    card) send one request per press, however often they are pressed. A
+    running workflow's page reloads itself every ten seconds, and pauses
+    while its browser tab is in the background.
 
 ### Patch Changes
-
-- 234d30b: Fewer requests from the Refresh buttons and the workflow page.
-
-  - The Refresh buttons (the workflow page, the workflow lists, the recent
-    runs card) are locked after a press until the reload has ended and at
-    least a second has passed, so pressing one again and again sends one
-    request.
-  - The workflow page reloads a running workflow every ten seconds, not at
-    all while its tab is in the background (it reloads when the tab is shown
-    again). An automatic reload does not start while another reload is
-    running. It fetches the step graph when the run changed (new events,
-    another status or run, or a change in its pending activities) and at
-    least once a minute; a heartbeat alone does not count as a change. The
-    backend reads the whole history of a run for a graph.
 
 - Updated dependencies [14a8792]
   - @kwkevinchan/backstage-plugin-temporal-common@0.1.0

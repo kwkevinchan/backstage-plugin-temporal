@@ -12,6 +12,8 @@
   actions with `temporalControlExtensionPoint`
   (`@kwkevinchan/backstage-plugin-temporal-node/alpha`). Without this module
   the plugin only reads.
+
+  It also pauses, resumes and triggers Temporal schedules:
   `POST /namespaces/:namespace/schedules/:scheduleId/pause|unpause|trigger`
   with `temporal.workflow.start` on the entity whose workflow types the
   schedule starts, or without conditions without one.

@@ -44,9 +44,6 @@
 
 ### Patch Changes
 
-- 5c768f8: Internal restructuring: the backend's workflow query service is split into
-  four smaller classes. No behaviour change: routes, responses and the
-  package's public API are unchanged.
 - Updated dependencies [14a8792]
 - Updated dependencies [97ea3de]
   - @kwkevinchan/backstage-plugin-temporal-common@0.1.0
