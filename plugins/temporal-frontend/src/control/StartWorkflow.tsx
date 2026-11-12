@@ -45,7 +45,8 @@ import {
   temporalWorkflowStartPermission,
   WorkflowRef,
 } from '../common';
-import { useTemporalControlApi } from './api';
+import { useApi } from '@backstage/core-plugin-api';
+import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 
 function specOf(entity: Entity | undefined) {
@@ -63,7 +64,7 @@ function StartWorkflowDialog(props: {
   onStarted(ref: Required<WorkflowRef>): void;
 }) {
   const { entity } = props;
-  const api = useTemporalControlApi();
+  const api = useApi(temporalControlApiRef);
   const spec = specOf(entity);
   const example = entity ? getTemporalWorkflowExampleArgs(entity) : undefined;
   const [workflowId, setWorkflowId] = useState('');

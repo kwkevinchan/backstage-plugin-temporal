@@ -45,7 +45,8 @@ import {
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
 } from '../common';
-import { useTemporalControlApi } from './api';
+import { useApi } from '@backstage/core-plugin-api';
+import { temporalControlApiRef } from './api';
 import { useControlConfig, useControlEnabled } from './config';
 
 type MessageKind = 'signal' | 'update';
@@ -140,7 +141,7 @@ export function ConfirmDialog(props: {
  */
 function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
   const { workflow, entity, reload } = props;
-  const api = useTemporalControlApi();
+  const api = useApi(temporalControlApiRef);
   const navigate = useNavigate();
   const config = useControlConfig();
   const [open, setOpen] = useState<Open>();

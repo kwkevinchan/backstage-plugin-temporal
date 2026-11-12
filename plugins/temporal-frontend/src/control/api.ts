@@ -15,14 +15,10 @@
  */
 
 import { parseEntityRef } from '@backstage/catalog-model';
-import { useMemo } from 'react';
 import {
   createApiRef,
   DiscoveryApi,
-  discoveryApiRef,
   FetchApi,
-  fetchApiRef,
-  useApiHolder,
 } from '@backstage/core-plugin-api';
 import { ResponseError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
@@ -261,26 +257,4 @@ export class TemporalControlClient implements TemporalControlApi {
       request,
     );
   }
-}
-
-/**
- * The registered {@link TemporalControlApi}, or a {@link TemporalControlClient}
- * when the app has none: a legacy app that did not add
- * `temporalControlApiFactory` to its APIs still gets working buttons instead
- * of a details page that fails.
- */
-export function useTemporalControlApi(): TemporalControlApi {
-  const apis = useApiHolder();
-  return useMemo(() => {
-    const registered = apis.get(temporalControlApiRef);
-    if (registered) return registered;
-    const discoveryApi = apis.get(discoveryApiRef);
-    const fetchApi = apis.get(fetchApiRef);
-    if (!discoveryApi || !fetchApi) {
-      throw new Error(
-        'The Temporal control module needs the discovery and fetch APIs',
-      );
-    }
-    return new TemporalControlClient({ discoveryApi, fetchApi });
-  }, [apis]);
 }

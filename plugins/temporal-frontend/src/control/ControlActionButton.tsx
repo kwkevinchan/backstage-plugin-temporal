@@ -38,7 +38,8 @@ import { ErrorAlert } from '../components/feedback';
 import { JsonView } from '../components/PayloadView';
 import { tp } from '../components/styles';
 import type { WorkflowDetail } from '../common';
-import { useTemporalControlApi } from './api';
+import { useApi } from '@backstage/core-plugin-api';
+import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 
 /**
@@ -100,7 +101,7 @@ function ControlActionButtonContent(
 ) {
   const { action, workflow, entity } = props;
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
-  const api = useTemporalControlApi();
+  const api = useApi(temporalControlApiRef);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();

@@ -18,12 +18,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
 import type { Entity } from '@backstage/catalog-model';
-import {
-  configApiRef,
-  discoveryApiRef,
-  fetchApiRef,
-  identityApiRef,
-} from '@backstage/core-plugin-api';
+import { configApiRef, identityApiRef } from '@backstage/core-plugin-api';
 import {
   mockApis,
   renderInTestApp,
@@ -31,7 +26,11 @@ import {
 } from '@backstage/test-utils';
 import { temporalApiRef } from '../extensions';
 import type { WorkflowDetail } from '../common';
-import { TemporalControlApi, temporalControlApiRef } from './api';
+import {
+  TemporalControlApi,
+  TemporalControlClient,
+  temporalControlApiRef,
+} from './api';
 import { StartWorkflowButton } from './StartWorkflow';
 import { WorkflowControls } from './WorkflowControls';
 import { ScheduleControls } from './ScheduleControls';
@@ -465,15 +464,20 @@ describe('WorkflowControls', () => {
   });
 });
 
-describe('without a registered control API', () => {
-  it('calls the backend with its own client (legacy apps)', async () => {
+describe('the default client', () => {
+  it('calls the backend', async () => {
     const fetch = jest.fn(async () => new Response('{}', { status: 200 }));
     denied = [];
     renderInTestApp(
       <TestApiProvider
         apis={[
-          [discoveryApiRef, mockApis.discovery()],
-          [fetchApiRef, { fetch }],
+          [
+            temporalControlApiRef,
+            new TemporalControlClient({
+              discoveryApi: mockApis.discovery(),
+              fetchApi: { fetch },
+            }),
+          ],
           [configApiRef, mockApis.config()],
           [temporalApiRef, {} as any],
         ]}

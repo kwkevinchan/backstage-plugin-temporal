@@ -22,7 +22,8 @@ import {
   temporalWorkflowStartPermission,
   TemporalScheduleOperation,
 } from '../common';
-import { useTemporalControlApi } from './api';
+import { useApi } from '@backstage/core-plugin-api';
+import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 import { ConfirmDialog } from './WorkflowControls';
 
@@ -58,7 +59,7 @@ const TEXT: Record<
  */
 function ScheduleControlsContent(props: TemporalScheduleActionProps) {
   const { schedule, entity, reload } = props;
-  const api = useTemporalControlApi();
+  const api = useApi(temporalControlApiRef);
   const [open, setOpen] = useState<TemporalScheduleOperation>();
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   const operations: TemporalScheduleOperation[] = [
