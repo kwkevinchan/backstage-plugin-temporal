@@ -70,7 +70,7 @@ export interface TemporalScheduleListResponse {
 }
 
 /**
- * Operations on a schedule (control module).
+ * Operations on a schedule (the control routes).
  *
  * @public
  */
