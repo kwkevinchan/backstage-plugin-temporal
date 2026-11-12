@@ -237,15 +237,15 @@ describe('temporal:workflow:wait polling interval', () => {
         ? { ...running, status: 'Completed' }
         : running;
     });
-    const result = createTemporalWorkflowWaitAction(options).handler(
-      context({ workflowId: 'w', ...input }, extra),
-    );
+    const ctx = context({ workflowId: 'w', ...input }, extra);
+    const warn = jest.spyOn(ctx.logger, 'warn');
+    const result = createTemporalWorkflowWaitAction(options).handler(ctx);
     const settled = result.then(
       () => 'done',
       e => e as Error,
     );
     await jest.advanceTimersByTimeAsync(4000 * 1000);
-    return { times, outcome: await settled, client };
+    return { times, outcome: await settled, client, warn };
   }
 
   const gaps = (times: number[]) => times.slice(1).map((t, i) => t - times[i]);
@@ -339,6 +339,63 @@ describe('temporal:workflow:wait polling interval', () => {
   it('cuts the last pause at the deadline', async () => {
     const { times } = await run({ timeoutSeconds: 50 });
     expect(times).toEqual([0, 5, 15, 35, 50]);
+  });
+
+  it('fails at once when a look throws, without a retry', async () => {
+    const { client, options } = setup();
+    client.describe.mockRejectedValueOnce(new Error('500'));
+    const ctx = context({ workflowId: 'w' });
+    const timersBefore = jest.getTimerCount();
+    await expect(
+      createTemporalWorkflowWaitAction(options).handler(ctx),
+    ).rejects.toThrow('500');
+    expect(client.describe).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(timersBefore);
+  });
+
+  it('fails at once when a later look throws, without a retry', async () => {
+    const { client, options } = setup();
+    client.describe
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce(running)
+      .mockRejectedValueOnce(new Error('500'));
+    const result = createTemporalWorkflowWaitAction(options).handler(
+      context({ workflowId: 'w' }),
+    );
+    const settled = result.then(
+      () => 'done',
+      e => e as Error,
+    );
+    await jest.advanceTimersByTimeAsync(1000 * 1000);
+    expect(((await settled) as Error).message).toBe('500');
+    expect(client.describe).toHaveBeenCalledTimes(3);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('warns once when maxIntervalSeconds is smaller than intervalSeconds', async () => {
+    const { warn } = (await run({
+      timeoutSeconds: 100,
+      intervalSeconds: 20,
+      maxIntervalSeconds: 10,
+    })) as any;
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('maxIntervalSeconds (10)'),
+    );
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('intervalSeconds (20)'),
+    );
+  });
+
+  it('does not warn without a maxIntervalSeconds or when it is not smaller', async () => {
+    const a = (await run({ timeoutSeconds: 100, intervalSeconds: 60 })) as any;
+    const b = (await run({
+      timeoutSeconds: 100,
+      intervalSeconds: 5,
+      maxIntervalSeconds: 5,
+    })) as any;
+    expect(a.warn).not.toHaveBeenCalled();
+    expect(b.warn).not.toHaveBeenCalled();
   });
 
   it('stops at once when the task is cancelled', async () => {

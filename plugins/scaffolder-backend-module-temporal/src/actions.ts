@@ -311,6 +311,18 @@ export function createTemporalWorkflowWaitAction(
         (input.maxIntervalSeconds ?? 30) * 1000,
       );
       let pauseMs = firstPauseMs;
+      if (
+        input.maxIntervalSeconds !== undefined &&
+        input.maxIntervalSeconds < (input.intervalSeconds ?? 5)
+      ) {
+        ctx.logger.warn(
+          `maxIntervalSeconds (${
+            input.maxIntervalSeconds
+          }) is smaller than intervalSeconds (${
+            input.intervalSeconds ?? 5
+          }); looking every ${input.intervalSeconds ?? 5} seconds`,
+        );
+      }
       const deadline = Date.now() + timeoutMs;
       for (;;) {
         const workflow = await options.client.describe(
