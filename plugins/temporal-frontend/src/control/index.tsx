@@ -18,6 +18,7 @@
 // start, signal, update, cancel, terminate, rerun and buttons for custom
 // backend actions. The new frontend system gets them from `./alpha.tsx`.
 
+import { useMemo } from 'react';
 import {
   createApiFactory,
   discoveryApiRef,
@@ -37,6 +38,7 @@ import {
 import { ScheduleControls } from './ScheduleControls';
 import { StartWorkflowButton } from './StartWorkflow';
 import { WorkflowControls } from './WorkflowControls';
+import { useControlEnabled } from './config';
 
 export { TemporalControlClient, temporalControlApiRef } from './api';
 export type { TemporalControlApi } from './api';
@@ -118,4 +120,30 @@ export function withControls<
       ...(props.scheduleActions ?? []),
     ],
   };
+}
+
+/**
+ * IDs of the schedule actions of the operations: the legacy definition
+ * above and the extension `temporal-schedule-action:temporal/controls` of
+ * the new frontend system.
+ */
+const SCHEDULE_CONTROL_IDS = new Set([
+  'temporal-schedule-controls',
+  'temporal-schedule-action:temporal/controls',
+]);
+
+/**
+ * The schedule actions to show: without those of the operations when
+ * `temporal.control.enabled` is false, so that a list with no other action
+ * has no column for them.
+ */
+export function useShownScheduleActions(
+  actions: TemporalScheduleActionDef[],
+): TemporalScheduleActionDef[] {
+  const enabled = useControlEnabled();
+  return useMemo(
+    () =>
+      enabled ? actions : actions.filter(a => !SCHEDULE_CONTROL_IDS.has(a.id)),
+    [enabled, actions],
+  );
 }

@@ -40,6 +40,7 @@ import { ErrorAlert } from './feedback';
 import { formatTime } from './format';
 import { PanelCard } from './PanelCard';
 import { workflowLink } from './WorkflowRunsTable';
+import { useShownScheduleActions } from '../control';
 
 type ColumnDef = {
   id: string;
@@ -81,7 +82,7 @@ export function SchedulesCard(props: {
       entityRef ? api.listEntitySchedules(entityRef) : api.listSchedules(),
     [api, entityRef],
   );
-  const actions = useScheduleActions(props.actions);
+  const actions = useShownScheduleActions(useScheduleActions(props.actions));
 
   const status = error as
     | { statusCode?: number; response?: { status?: number } }

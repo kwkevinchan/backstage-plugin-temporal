@@ -15,7 +15,12 @@
  */
 
 import { screen, within } from '@testing-library/react';
-import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
+import { configApiRef } from '@backstage/core-plugin-api';
+import {
+  mockApis,
+  renderInTestApp,
+  TestApiProvider,
+} from '@backstage/test-utils';
 import type { Entity } from '@backstage/catalog-model';
 import {
   temporalApiRef,
@@ -121,4 +126,61 @@ describe('SchedulesCard', () => {
     await new Promise(r => setTimeout(r, 0));
     expect(screen.queryByTestId('temporal-schedules')).toBeNull();
   });
+});
+
+describe('SchedulesCard with the schedule buttons of the operations', () => {
+  const operations = (id: string) => ({
+    id,
+    component: () => <button type="button">Pause</button>,
+  });
+
+  /** Legacy: the `actions` prop. New system: the shared extensions API. */
+  async function renderWith(system: 'legacy' | 'new', control: object) {
+    const action = operations(
+      system === 'legacy'
+        ? 'temporal-schedule-controls'
+        : 'temporal-schedule-action:temporal/controls',
+    );
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, mockTemporalApi()],
+          [
+            temporalWorkflowExtensionsApiRef,
+            {
+              getActions: () => [],
+              getSections: () => [],
+              getListActions: () => [],
+              getScheduleActions: () => (system === 'new' ? [action] : []),
+            },
+          ],
+          [configApiRef, mockApis.config({ data: { temporal: { control } } })],
+        ]}
+      >
+        <SchedulesCard actions={system === 'legacy' ? [action] : undefined} />
+      </TestApiProvider>,
+    );
+    return within(await screen.findByTestId('temporal-schedules'));
+  }
+
+  it.each(['legacy', 'new'] as const)(
+    'shows the Actions column with them (%s frontend system)',
+    async system => {
+      const card = await renderWith(system, {});
+      expect(
+        await card.findByRole('columnheader', { name: 'Actions' }),
+      ).toBeInTheDocument();
+      expect(card.getAllByRole('button', { name: 'Pause' }).length).toBe(2);
+    },
+  );
+
+  it.each(['legacy', 'new'] as const)(
+    'has no Actions column with temporal.control.enabled false (%s frontend system)',
+    async system => {
+      const card = await renderWith(system, { enabled: false });
+      expect(await card.findByText('nightly-orders')).toBeInTheDocument();
+      expect(card.queryByRole('columnheader', { name: 'Actions' })).toBeNull();
+      expect(card.queryByRole('button', { name: 'Pause' })).toBeNull();
+    },
+  );
 });
