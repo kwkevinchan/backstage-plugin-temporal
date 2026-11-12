@@ -690,7 +690,7 @@ describe('with temporal.control.enabled: false', () => {
 
   /** Renders the element after a marker and waits for the marker. */
   async function renderAll(element: JSX.Element, control: object) {
-    const result = render(
+    const { api, temporal } = render(
       <>
         <p>rendered</p>
         {element}
@@ -698,7 +698,7 @@ describe('with temporal.control.enabled: false', () => {
       { control },
     );
     expect(await screen.findByText('rendered')).toBeInTheDocument();
-    return result;
+    return { api, temporal };
   }
 
   it.each([
@@ -744,7 +744,7 @@ describe('with temporal.control.enabled: false', () => {
     const { api, temporal } = await renderAll(element, disabled.control);
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(temporal.getWorkflowHandlers).not.toHaveBeenCalled();
-    expect(Object.values(api).some(fn => fn.mock.calls.length > 0)).toBe(false);
+    for (const fn of Object.values(api)) expect(fn).not.toHaveBeenCalled();
   });
 
   it('shows them when enabled is true', async () => {
