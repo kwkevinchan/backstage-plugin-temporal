@@ -28,6 +28,11 @@ backend.add(
 );
 ```
 
+It is a module of the Temporal backend plugin: without that plugin in the
+same backend, the backend skips the module and the route does not exist.
+Without this module, the Definition tab says that the backend serves no
+workflow definitions.
+
 The entity, the reading rules and the configuration
 (`temporal.definitions`) are described in the
 [README of the frontend package](../temporal-module-zigflow/README.md).

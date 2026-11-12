@@ -1,4 +1,4 @@
-# @kwkevinchan/backstage-plugin-temporal
+# @kwkevinchan/backstage-plugin-temporal-frontend
 
 Unofficial Backstage frontend plugin for [Temporal](https://temporal.io).
 
@@ -17,25 +17,35 @@ Experimental and off by default (backend config
 `temporal.experimental.aiWorkflows`; it will move to a separate package, no
 compatibility promise): the loops of AI workflows and the LLM steps of agent
 workflows. The buttons that start, signal, update, cancel, terminate and
-rerun workflows, and pause, resume and run schedules, are in
-[`@kwkevinchan/backstage-plugin-temporal-module-control`](../temporal-module-control/README.md).
+rerun workflows, run custom backend actions, and pause, resume and run
+schedules come with the plugin; they show nothing when
+`temporal.control.enabled` is false (the backend then serves none of those
+routes).
 
 ## Installation
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
 ```
 
 It needs the backend plugin
-[`@kwkevinchan/backstage-plugin-temporal-backend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/README.md).
+[`@kwkevinchan/backstage-plugin-temporal-backend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/README.md):
+without it the pages show the error of each request (for example
+`Request failed with 404 Not Found`). This package does not depend on the
+backend package; it carries its own copy of the shared definitions in
+`./common`.
 See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal#readme) for the setup of both frontend systems and
 the configuration.
 
 ## API
 
-New frontend system (`@kwkevinchan/backstage-plugin-temporal/alpha`): the
-default export is the plugin, with the entity content, the Workflows page,
-the entity cards and the APIs.
+New frontend system (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`):
+the default export is the plugin, with the entity content, the Workflows
+page, the entity cards, the APIs and the buttons of the operations
+(`api:temporal/control`, `temporal-workflow-action:temporal/controls`,
+`temporal-workflow-list-action:temporal/start` and
+`temporal-schedule-action:temporal/controls`, which can be disabled in
+`app.extensions` like any other extension).
 
 Legacy frontend system:
 
@@ -49,6 +59,12 @@ Legacy frontend system:
 | `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                  |
 | `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                            |
 | `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).              |
+| `TemporalControlClient`, `temporalControlApiRef`                                      | Client of the operations (`TemporalControlApi`).        |
+| `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.             |
+
+`EntityTemporalContent` and `TemporalPage` show the buttons of the
+operations first; the `workflowActions`, `workflowListActions` and
+`scheduleActions` props add yours after them.
 
 ## Extension points
 
@@ -56,10 +72,9 @@ Plugins and app modules that add buttons or tabs to the workflow page, or
 that call the Temporal backend from their own components, use these exports.
 
 - `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
-  workflow reads, queries and handler names. The operations that change
-  workflows are in the client of the control module
-  (`temporalControlApiRef` of
-  `@kwkevinchan/backstage-plugin-temporal-module-control`).
+  workflow reads, queries and handler names. `temporalControlApiRef`,
+  `TemporalControlApi`: the operations that change workflows and custom
+  backend actions.
 - `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`,
   `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`: actions,
   tabs, list actions and schedule actions for the legacy frontend system
@@ -71,15 +86,17 @@ that call the Temporal backend from their own components, use these exports.
   sections.
 - `./alpha`: `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
-  and `TemporalWorkflowSectionBlueprint` for the new frontend system.
+  and `TemporalWorkflowSectionBlueprint` for the new frontend system, and
+  `TemporalControlActionBlueprint` for a button of a custom backend action.
 - `TemporalWorkflowListActionProps`, `TemporalScheduleActionProps`,
   `TemporalWorkflowExtensionProps`: props of the components of actions, list
   actions, schedule actions and sections.
 
 The permissions, the annotation constants and the response types of the
 backend API (`WorkflowDetail`, `WorkflowSummary` and the others) are in
-[`@kwkevinchan/backstage-plugin-temporal-common`](../temporal-common/README.md);
-import them from there.
+`./common` (`@kwkevinchan/backstage-plugin-temporal-frontend/common`). `./ui`
+has building blocks of the pages for companion packages such as the Zigflow
+module (alpha, no compatibility promise).
 
 Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
 frontend plugin with another `pluginId` imports this package. Add the

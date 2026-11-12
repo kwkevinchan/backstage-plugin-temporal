@@ -20,8 +20,11 @@ backend.add(
 The actions call the routes of the Temporal backend plugin **as the user who
 runs the template**, so its permission checks, audit records and search
 attributes (`entityRef`, `initiator`) apply as when the user uses the pages.
-Starting, signals and updates need the control module
-(`@kwkevinchan/backstage-plugin-temporal-backend-module-control`). A task
+The Temporal backend plugin can run in another backend; the actions reach
+it through the discovery service. Starting, signals and updates need its
+operations: when `temporal.control.enabled` is false there, `start` and
+`signal` fail with a message that names that key, and `wait` keeps working.
+A task
 started with service credentials (not by a user) runs as that service, and
 permission policies usually allow services everything. The user's token
 lasts about an hour from when the task is created, so `wait` is limited to

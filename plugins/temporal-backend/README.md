@@ -4,11 +4,37 @@ Unofficial Backstage backend plugin for [Temporal](https://temporal.io).
 
 ## Purpose
 
-Serves an API under `/api/temporal` that reads workflows, their history,
-graph, schedules and large payloads, checked with the permission framework.
-The frontend plugin `@kwkevinchan/backstage-plugin-temporal` uses it. The
-operations that change workflows and schedules are in
-`@kwkevinchan/backstage-plugin-temporal-backend-module-control`.
+The core of the plugin, for the Backstage backend:
+
+- an API under `/api/temporal` that reads workflows, their history, graph,
+  schedules and large payloads, and operates them (start, signal, update,
+  query, cancel, terminate, rerun, custom actions, and pause, resume and run
+  now on schedules), each checked with the permission framework and the
+  operations recorded with the auditor;
+- the `TemporalWorkflow` catalog kind;
+- for other backend code: the shared Temporal client, the extension points
+  for modules, and the permissions and types.
+
+The frontend plugin
+[`@kwkevinchan/backstage-plugin-temporal-frontend`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-frontend)
+uses the API and does not work without this package; this package works
+without the frontend.
+
+> **Security.** The operations that change workflows are on by default.
+> Without a permission policy (the allow-all policy), every signed-in user
+> may start, cancel and terminate workflows. `temporal.control.allowedSignals`
+> and `allowedUpdates` only limit the names of signals and updates; they do
+> not stop cancel or terminate. Restrict the operations with a permission
+> policy, or turn them off:
+>
+> ```yaml
+> temporal:
+>   control:
+>     enabled: false
+> ```
+>
+> See [Permissions](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#permissions)
+> and [Workflow controls](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#workflow-controls).
 
 ## Installation
 
@@ -21,7 +47,9 @@ backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
 ```
 
 It needs the catalog and the permission framework, and
-`temporal.connection` in the app config. Payloads that workers store in S3
+`temporal.connection` in the app config. Allow the kind in the catalog
+rules to use `TemporalWorkflow` entities. In a backend without the catalog
+plugin the catalog module is skipped. Payloads that workers store in S3
 with Temporal External Storage are shown when `temporal.externalStorage.s3`
 is configured; allow `blob:` in `backend.csp.img-src` for their image
 thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
@@ -34,23 +62,18 @@ worker package).
 
 ## Exports
 
-The default export installs the plugin and the default factory of its
-access service (`temporalAccessServiceRef` in `-node/alpha`). Modules
-import:
+| Entry point | Exports                                                                                                                                                                                                                                                                                                                            |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`         | Default: a feature loader with the plugin, the default factory of its access service and the catalog module. Named: `temporalPlugin`, `catalogModuleTemporalWorkflowKind`, `TemporalWorkflowEntityProcessor`, to add them one by one.                                                                                              |
+| `./node`    | `temporalServiceRef`: a root-scoped service with one shared Temporal connection (`temporal.connection`: address, namespaces, `tls`, `auth` with `none` or `bearer`; only `@temporalio/client` is used), with `DefaultTemporalService` and `readTemporalServiceOptions`. `temporalExtensionPoint`: `addWorkflowEnricher()`.         |
+| `./alpha`   | `temporalAccessServiceRef` (the access checks of the plugin) and `temporalAccessServiceFactory`, `temporalControlExtensionPoint` (custom actions), `temporalWorkflowPermissionResourceRef`, `temporalWorkflowConditions` and `createTemporalWorkflowConditionalDecision` for policies, `encodeJsonPayloads`, `decodeJsonPayloads`. |
+| `./common`  | The permissions (`temporalPermissions`, `temporalWorkflowReadPermission` and the others) for permission policies, the annotation constants, the `TemporalWorkflow` kind (schema and type guards) and the types and paths of the API.                                                                                               |
 
-- `@kwkevinchan/backstage-plugin-temporal-node`: `temporalServiceRef`, a
-  root-scoped service with one shared Temporal connection, configured under
-  `temporal.connection` (address, namespaces, `tls`, `auth` with `none` or
-  `bearer`; only `@temporalio/client` is used), and `temporalExtensionPoint`:
-  `addWorkflowEnricher()` adds data to workflow summaries. Custom workflow
-  actions come with the control module.
-- `@kwkevinchan/backstage-plugin-temporal-common`: the permissions
-  (`temporalPermissions`, `temporalWorkflowReadPermission` and the others)
-  for permission policies, the annotation constants, the `TemporalWorkflow`
-  kind (schema and type guards) and the response types of the API.
-
-See [Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending)
-in the repository README for an example.
+`./node`, `./alpha` and `./common` do not load the plugin itself. A module
+that imports this package gets a warning from the Backstage lint rule
+`@backstage/no-mixed-plugin-imports`; it does not fail the lint. See
+[Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending)
+in the repository README for examples.
 
 ## API
 
@@ -72,8 +95,8 @@ in the repository README for an example.
 | GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
 | POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read              |
 
-With the control module
-([`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control)):
+The routes that change workflows, unless `temporal.control.enabled` is
+false:
 
 | Method | Path                                                        | Permission                       |
 | ------ | ----------------------------------------------------------- | -------------------------------- |
@@ -85,6 +108,9 @@ With the control module
 | POST   | `.../workflows/:workflowId[/runs/:runId]/terminate`         | `temporal.workflow.terminate`    |
 | POST   | `.../workflows/:workflowId[/runs/:runId]/rerun`             | `temporal.workflow.rerun`        |
 | POST   | `.../workflows/:workflowId[/runs/:runId]/actions/:actionId` | the action's permission          |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/pause`        | `temporal.workflow.start`        |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/unpause`      | `temporal.workflow.start`        |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/trigger`      | `temporal.workflow.start`        |
 
 Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
@@ -103,9 +129,11 @@ rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 start and rerun answer the new `{ namespace, workflowId, runId }`. Signal,
 update, cancel and terminate answer 409 when the workflow is not running.
 The routes that change workflows (signal, update, cancel, terminate, rerun,
-start, custom actions) come from the control module,
-[`@kwkevinchan/backstage-plugin-temporal-backend-module-control`](../temporal-backend-module-control);
-without it they do not exist (404). Query and `GET .../handlers` (the
-signals, updates and queries a running workflow defines) stay in this
-plugin: a query needs `temporal.workflow.query`, the handler list only the
-read permission.
+start, custom actions and the schedule operations) do not exist when
+`temporal.control.enabled` is false (404). Query and `GET .../handlers` (the
+signals, updates and queries a running workflow defines) are always served:
+a query needs `temporal.workflow.query`, the handler list only the read
+permission. The schedule operations take `?entityRef=` (the schedule must
+start one of the entity's workflow types) or, without it, need the
+permission without conditions; pause and unpause take an optional body
+`{ "note": "..." }`.
