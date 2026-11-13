@@ -30,6 +30,7 @@ import {
   entity,
   failedWorkflow,
   loopGraphResponse,
+  loopsResponse,
   mockTemporalApi,
 } from '../testData';
 
@@ -258,6 +259,45 @@ describe('loops on the workflow page', () => {
       'data-focused',
       'true',
     );
+  });
+
+  it('colors the steps of a round like the steps of the graph', async () => {
+    const api = loopApi();
+    const [loop] = loopsResponse.loops!;
+    const statuses = [
+      'Terminated',
+      'Rejected',
+      'Retrying',
+      'Canceled',
+    ] as const;
+    api.getWorkflowLoops.mockResolvedValue({
+      ...loopsResponse,
+      loops: [
+        {
+          ...loop,
+          rounds: loop.rounds.map(r => ({
+            ...r,
+            steps: statuses.map((status, i) => ({
+              ...r.steps[0],
+              nodeId: `s-${r.iteration}-${i}`,
+              name: `step-${status}`,
+              status,
+            })),
+          })),
+        },
+      ],
+    });
+    await render(api, '/namespaces/default/workflows/draft-1/runs/run-2');
+    await userEvent.click(await screen.findByRole('tab', { name: 'Loops' }));
+    const table = await screen.findByTestId('loop-table-draft-review');
+    const tone = (status: string) =>
+      within(table)
+        .getAllByTitle(`step-${status}: ${status}`)[0]
+        .className.match(/tp-tone-\w+/)?.[0];
+    expect(tone('Terminated')).toBe('tp-tone-warning');
+    expect(tone('Rejected')).toBe('tp-tone-danger');
+    expect(tone('Retrying')).toBe('tp-tone-warning');
+    expect(tone('Canceled')).toBe('tp-tone-neutral');
   });
 
   it('opens the round named in the link', async () => {

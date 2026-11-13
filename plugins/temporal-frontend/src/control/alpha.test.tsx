@@ -32,7 +32,6 @@ import {
   temporalWorkflowExtensionsApiRef,
 } from '../extensions';
 import { entity, mockTemporalApi } from '../testData';
-import { TemporalControlApi, temporalControlApiRef } from './api';
 import type { Entity } from '@backstage/catalog-model';
 import {
   TemporalWorkflowActionBlueprint,
@@ -99,7 +98,6 @@ describe('operations (new frontend system)', () => {
 
 describe('the operations in the plugin (new frontend system)', () => {
   it.each([
-    'api:temporal/control',
     'temporal-workflow-action:temporal/controls',
     'temporal-workflow-list-action:temporal/start',
     'temporal-schedule-action:temporal/controls',
@@ -148,7 +146,6 @@ describe('the operations on the pages (new frontend system)', () => {
           apis: [
             [temporalApiRef, mockTemporalApi()],
             [temporalWorkflowExtensionsApiRef, workflowExtensions()],
-            [temporalControlApiRef, {} as TemporalControlApi],
             [permissionApiRef, mockApis.permission()],
           ],
           config: { temporal: { control } },

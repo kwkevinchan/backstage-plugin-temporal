@@ -23,15 +23,15 @@ import {
   handlerExampleArgs,
   JsonMessageArgsField,
   type MessageArgsFieldProps,
-} from '../components/messages/MessageDialog';
-import { tp } from '../components/styles';
+} from './MessageDialog';
+import { tp } from '../styles';
 
 function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
- * The arguments field of the signal and update dialogs: a form for a
+ * The arguments field of the signal, update and query dialogs: a form for a
  * handler with an input schema (from `spec.messages`), the JSON field
  * otherwise. The form gives the handler's one argument.
  */

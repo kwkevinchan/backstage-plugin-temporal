@@ -714,7 +714,7 @@ export function WorkflowDetailPage(
                 <Tab id="details">Details</Tab>
                 {sections.map(s => (
                   <Tab key={s.id} id={`section-${s.id}`}>
-                    {s.title ?? s.id}
+                    {s.title}
                   </Tab>
                 ))}
               </TabList>

@@ -9,8 +9,9 @@ that the backend does not serve the Temporal plugin and name that package.
 
 - An entity tab with the workflows of an entity (annotations, the
   `TemporalWorkflow` kind and `spec.dependsOn`), a Workflows page
-  (`/temporal`), and cards for `TemporalWorkflow` entities: summary, recent
-  run statistics and related workflows.
+  (`/temporal`), and cards for `TemporalWorkflow` entities: summary and
+  related workflows. The entity tab shows the recent run statistics of the
+  entity.
 - Workflow details around a step graph (React Flow with the dagre layout),
   a panel for the selected step, and tabs for the steps, a timeline, the
   events and the details. The graph can go full screen with its step panel.
@@ -23,10 +24,13 @@ that the backend does not serve the Temporal plugin and name that package.
   `createTemporalControlActionDef()` for the legacy system). Signals and
   updates described in `spec.messages` with an `inputSchema` get a form.
   The buttons come with the plugin in both frontend systems and show
-  nothing when `temporal.control.enabled` is false. `temporalControlApiRef`
-  is the client of those operations.
+  nothing when `temporal.control.enabled` is false. `TemporalApi`
+  (`temporalApiRef`) has these operations besides the reads, with one
+  client.
 - Query on every workflow (`temporal.workflow.query`), with the names the
   workflow defines and the description and example from `spec.messages`.
+  A query with an `inputSchema` there gets the same form as a signal or an
+  update, any other query a JSON field.
 - Schedules: a card on the Workflows page and on the Temporal tab of an
   entity, with when they run, their next and last runs and whether they are
   paused.
@@ -37,7 +41,8 @@ that the backend does not serve the Temporal plugin and name that package.
 - Extension points for other plugins and app modules: `temporalApiRef`,
   `useTemporalWorkflow`, `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
-  and `TemporalWorkflowSectionBlueprint` (`./alpha`), and the
+  and `TemporalWorkflowSectionBlueprint` (`./alpha`, next to the plugin
+  as its default export; a section needs a `title` for its tab), and the
   `workflowActions`, `workflowListActions`, `scheduleActions` and
   `workflowSections` props for the legacy system. `./common` has the
   permissions, the API types and the annotation constants; `./ui` (alpha)

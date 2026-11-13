@@ -47,7 +47,11 @@ import {
   loopTone,
   roundLabel,
 } from './loopText';
-import { StatusIcon, WorkflowStatusLabel } from './WorkflowStatusLabel';
+import {
+  StatusIcon,
+  statusTone,
+  WorkflowStatusLabel,
+} from './WorkflowStatusLabel';
 import { RiSparkling2Line, RiToolsLine } from '@remixicon/react';
 import { tokensText } from './llm/llmText';
 import { RunHelp } from './RunHelp';
@@ -103,7 +107,7 @@ function StepsCell(props: { round: WorkflowLoopRound }) {
       {steps.map(step => (
         <span
           key={step.nodeId}
-          className={tp('tp-loop-step', `tp-tone-${toneOf(step.status)}`)}
+          className={tp('tp-loop-step', `tp-tone-${statusTone(step.status)}`)}
           title={`${step.name}: ${step.status}${
             step.usage ? ` · ${tokensText(step.usage)}` : ''
           }`}
@@ -131,20 +135,6 @@ function StepsCell(props: { round: WorkflowLoopRound }) {
       ))}
     </span>
   );
-}
-
-function toneOf(status: WorkflowLoopRound['status']) {
-  switch (status) {
-    case 'Completed':
-      return 'success';
-    case 'Failed':
-    case 'TimedOut':
-      return 'danger';
-    case 'Running':
-      return 'info';
-    default:
-      return 'neutral';
-  }
 }
 
 function LoopTable(props: {

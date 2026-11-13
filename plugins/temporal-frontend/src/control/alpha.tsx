@@ -18,12 +18,7 @@
 // frontend system, and the blueprint of buttons that run custom backend
 // actions. `../alpha` adds them to the plugin and exports them.
 
-import {
-  ApiBlueprint,
-  createExtensionBlueprint,
-  discoveryApiRef,
-  fetchApiRef,
-} from '@backstage/frontend-plugin-api';
+import { createExtensionBlueprint } from '@backstage/frontend-plugin-api';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   lazyComponent,
@@ -34,24 +29,7 @@ import {
   TemporalWorkflowListActionBlueprint,
 } from '../extensions/blueprints';
 import { isTemporalWorkflowEntity, WorkflowDetail } from '../common';
-import { TemporalControlClient, temporalControlApiRef } from './api';
 import type { TemporalControlActionButtonOptions } from './ControlActionButton';
-
-/**
- * The client of the control routes (`api:temporal/control`).
- *
- * @alpha
- */
-export const temporalControlApi = ApiBlueprint.make({
-  name: 'control',
-  params: defineParams =>
-    defineParams({
-      api: temporalControlApiRef,
-      deps: { discoveryApi: discoveryApiRef, fetchApi: fetchApiRef },
-      factory: ({ discoveryApi, fetchApi }) =>
-        new TemporalControlClient({ discoveryApi, fetchApi }),
-    }),
-});
 
 /**
  * Signal, Update, Cancel and Terminate (running workflows) and Rerun

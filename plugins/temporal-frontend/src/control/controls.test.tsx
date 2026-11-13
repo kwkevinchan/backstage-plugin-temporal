@@ -31,11 +31,7 @@ import {
   mockTemporalApi,
   workflowEntity,
 } from '../testData';
-import {
-  TemporalControlApi,
-  TemporalControlClient,
-  temporalControlApiRef,
-} from './api';
+import { TemporalClient } from '../api';
 import { StartWorkflowButton } from './StartWorkflow';
 import { WorkflowControls } from './WorkflowControls';
 import { ScheduleControls } from './ScheduleControls';
@@ -57,27 +53,6 @@ const ref = {
   runId: running.runId,
 };
 const entityRef = 'component:default/orders';
-function mockControlApi(): jest.Mocked<TemporalControlApi> {
-  return {
-    signalWorkflow: jest.fn().mockResolvedValue(undefined),
-    updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
-    cancelWorkflow: jest.fn().mockResolvedValue(undefined),
-    terminateWorkflow: jest.fn().mockResolvedValue(undefined),
-    rerunWorkflow: jest.fn().mockResolvedValue({
-      namespace: 'default',
-      workflowId: 'order-1-rerun-abc',
-      runId: 'run-new',
-    }),
-    startWorkflow: jest.fn().mockResolvedValue({
-      namespace: 'default',
-      workflowId: 'started-1',
-      runId: 'run-started',
-    }),
-    runWorkflowAction: jest.fn().mockResolvedValue({ result: { ok: true } }),
-    runScheduleOperation: jest.fn().mockResolvedValue(undefined),
-  };
-}
-
 function Opened() {
   const { workflowId } = useParams();
   return <p>Opened {workflowId}</p>;
@@ -87,8 +62,7 @@ function render(
   element: JSX.Element,
   options?: { deny?: string[]; control?: object; handlers?: object },
 ) {
-  const api = mockControlApi();
-  const temporal = {
+  const api = {
     ...mockTemporalApi(),
     getWorkflowHandlers: jest.fn().mockResolvedValue(
       options?.handlers ?? {
@@ -101,12 +75,10 @@ function render(
   denied = options?.deny ?? [];
   return {
     api,
-    temporal,
     ...renderInTestApp(
       <TestApiProvider
         apis={[
-          [temporalControlApiRef, api],
-          [temporalApiRef, temporal],
+          [temporalApiRef, api],
           [
             identityApiRef,
             mockApis.identity({ userEntityRef: 'user:default/alice' }),
@@ -450,14 +422,13 @@ describe('the default client', () => {
       <TestApiProvider
         apis={[
           [
-            temporalControlApiRef,
-            new TemporalControlClient({
+            temporalApiRef,
+            new TemporalClient({
               discoveryApi: mockApis.discovery(),
               fetchApi: { fetch },
             }),
           ],
           [configApiRef, mockApis.config()],
-          [temporalApiRef, {} as any],
         ]}
       >
         <WorkflowControls
@@ -672,7 +643,7 @@ describe('with temporal.control.enabled: false', () => {
 
   /** Renders the element after a marker and waits for the marker. */
   async function renderAll(element: JSX.Element, control: object) {
-    const { api, temporal } = render(
+    const { api } = render(
       <>
         <p>rendered</p>
         {element}
@@ -680,7 +651,7 @@ describe('with temporal.control.enabled: false', () => {
       { control },
     );
     expect(await screen.findByText('rendered')).toBeInTheDocument();
-    return { api, temporal };
+    return { api };
   }
 
   it.each([
@@ -723,9 +694,8 @@ describe('with temporal.control.enabled: false', () => {
       />,
     ],
   ])('shows no buttons for %s', async (_name, element) => {
-    const { api, temporal } = await renderAll(element, disabled.control);
+    const { api } = await renderAll(element, disabled.control);
     expect(screen.queryAllByRole('button')).toEqual([]);
-    for (const fn of Object.values(temporal)) expect(fn).not.toHaveBeenCalled();
     for (const fn of Object.values(api)) expect(fn).not.toHaveBeenCalled();
   });
 

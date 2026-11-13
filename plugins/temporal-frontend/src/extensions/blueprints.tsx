@@ -219,12 +219,18 @@ export const TemporalWorkflowSectionBlueprint = createExtensionBlueprint({
   dataRefs: { section: temporalWorkflowSectionDataRef },
   *factory(
     params: {
-      title?: string;
+      /** Tab label. */
+      title: string;
       loader: Loader<TemporalWorkflowExtensionProps>;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },
   ) {
+    if (!params.title) {
+      throw new Error(
+        `The workflow section ${node.spec.id} needs a title for its tab`,
+      );
+    }
     yield temporalWorkflowSectionDataRef({
       id: node.spec.id,
       title: params.title,

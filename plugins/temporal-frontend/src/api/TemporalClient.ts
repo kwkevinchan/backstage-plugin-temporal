@@ -41,7 +41,12 @@ import {
   WorkflowRef,
   WorkflowStatsResponse,
   WorkflowStatus,
-  WorkflowStepsResponse,
+  WorkflowStartRequest,
+  WorkflowStartResponse,
+  buildWorkflowActionPath,
+  buildScheduleOperationPath,
+  TemporalScheduleNoteRequest,
+  TemporalScheduleOperation,
 } from '../common';
 import type { TemporalApi } from '../extensions';
 
@@ -211,17 +216,6 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
-  getWorkflowSteps(
-    ref: WorkflowRef,
-    options?: { entityRef?: string },
-  ): Promise<WorkflowStepsResponse> {
-    return this.get(
-      `${buildWorkflowPath(ref)}/steps${queryString({
-        entityRef: options?.entityRef,
-      })}`,
-    );
-  }
-
   getWorkflowGraph(
     ref: WorkflowRef,
     options?: { entityRef?: string },
@@ -303,6 +297,102 @@ export class TemporalClient implements TemporalApi {
     return this.get(
       buildWorkflowHandlersPath(ref) +
         queryString({ entityRef: options?.entityRef }),
+    );
+  }
+
+  startWorkflow(
+    request: WorkflowStartRequest,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowStartResponse> {
+    return this.post(
+      options?.entityRef
+        ? buildEntityWorkflowsPath(parseEntityRef(options.entityRef))
+        : WORKFLOWS_PATH,
+      request,
+    );
+  }
+
+  async signalWorkflow(
+    ref: WorkflowRef,
+    request: { name: string; args?: JsonValue[] },
+    options?: { entityRef?: string },
+  ): Promise<void> {
+    await this.post(
+      buildWorkflowOperationPath(ref, 'signal') +
+        queryString({ entityRef: options?.entityRef }),
+      request,
+    );
+  }
+
+  updateWorkflow(
+    ref: WorkflowRef,
+    request: { name: string; args?: JsonValue[] },
+    options?: { entityRef?: string },
+  ): Promise<WorkflowMessageResponse> {
+    return this.post(
+      buildWorkflowOperationPath(ref, 'update') +
+        queryString({ entityRef: options?.entityRef }),
+      request,
+    );
+  }
+
+  async cancelWorkflow(
+    ref: WorkflowRef,
+    options?: { entityRef?: string },
+  ): Promise<void> {
+    await this.post(
+      buildWorkflowOperationPath(ref, 'cancel') +
+        queryString({ entityRef: options?.entityRef }),
+    );
+  }
+
+  async terminateWorkflow(
+    ref: WorkflowRef,
+    request: { reason?: string },
+    options?: { entityRef?: string },
+  ): Promise<void> {
+    await this.post(
+      buildWorkflowOperationPath(ref, 'terminate') +
+        queryString({ entityRef: options?.entityRef }),
+      request,
+    );
+  }
+
+  rerunWorkflow(
+    ref: WorkflowRef,
+    request?: { workflowId?: string },
+    options?: { entityRef?: string },
+  ): Promise<WorkflowStartResponse> {
+    return this.post(
+      buildWorkflowOperationPath(ref, 'rerun') +
+        queryString({ entityRef: options?.entityRef }),
+      request,
+    );
+  }
+
+  runWorkflowAction(
+    ref: WorkflowRef,
+    actionId: string,
+    body?: JsonValue,
+    options?: { entityRef?: string },
+  ): Promise<WorkflowMessageResponse> {
+    return this.post(
+      buildWorkflowActionPath(ref, actionId) +
+        queryString({ entityRef: options?.entityRef }),
+      body,
+    );
+  }
+
+  async runScheduleOperation(
+    ref: { namespace: string; scheduleId: string },
+    operation: TemporalScheduleOperation,
+    request?: TemporalScheduleNoteRequest,
+    options?: { entityRef?: string },
+  ): Promise<void> {
+    await this.post(
+      buildScheduleOperationPath(ref, operation) +
+        queryString({ entityRef: options?.entityRef }),
+      request,
     );
   }
 }

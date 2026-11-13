@@ -316,8 +316,7 @@ const temporalWorkflowPage = (
 
 `EntityTemporalRelatedWorkflowsCard` lists the workflow entities of a
 component (use it with
-`if={e => getDependsOnTemporalWorkflowRefs(e).length > 0}`), and
-`EntityTemporalWorkflowStatsCard` shows the recent run statistics on its own.
+`if={e => getDependsOnTemporalWorkflowRefs(e).length > 0}`).
 
 The Workflows page (`App.tsx` and the sidebar in `Root.tsx`):
 
@@ -997,9 +996,9 @@ validator.
 
 A `TemporalWorkflow` entity can describe the signals, updates and queries of
 its workflow in `spec.messages`. The dialogs then show the description,
-fill the arguments with the example and, for a signal or update with an
-`inputSchema` (JSON Schema of its one argument), show a form instead of the
-JSON field (with `@rjsf/core`, as in the Scaffolder). `userField` names a
+fill the arguments with the example and, for a signal, update or query with
+an `inputSchema` (JSON Schema of its one argument), show a form instead of
+the JSON field (with `@rjsf/core`, as in the Scaffolder). `userField` names a
 property of the argument that is filled with the signed-in user's entity
 reference and cannot be changed in the form; the workflow should still check
 it, since a request can be sent without the form. Handlers the entity
@@ -1140,8 +1139,7 @@ and let the user pick a workflow with the `TemporalWorkflowPicker` field of
 [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal).
 The actions run as the user who runs the template, through the plugin's own
 routes, so the same permissions and audit records apply. Other plugins can
-do the same from the frontend with `temporalApiRef` and
-`temporalControlApiRef`.
+do the same from the frontend with `temporalApiRef`.
 
 ## Extending
 
@@ -1167,6 +1165,36 @@ entity tab and of the Workflows page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
 `scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`.
+
+To change one of the plugin's own extensions, such as the Workflows page,
+take it from the plugin with `getExtension()` and install the plugin with
+`withOverrides()`. The plugin does not export its extensions by name; the IDs
+are `page:temporal`, `entity-content:temporal`,
+`entity-card:temporal/workflow-summary`,
+`entity-card:temporal/related-workflows`, `api:temporal`,
+`api:temporal/workflow-extensions`,
+`temporal-workflow-action:temporal/controls`,
+`temporal-workflow-list-action:temporal/start` and
+`temporal-schedule-action:temporal/controls`.
+
+```ts
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+
+export default createApp({
+  features: [
+    temporalPlugin.withOverrides({
+      extensions: [
+        temporalPlugin
+          .getExtension('page:temporal')
+          .override({ params: { path: '/pipelines', title: 'Pipelines' } }),
+      ],
+    }),
+  ],
+});
+```
+
+`api:temporal` is overridden the same way, with your own implementation of
+`TemporalApi`. To remove an extension, disable it in `app.extensions`.
 
 Backend modules that serve their own routes under `/api/temporal` use the
 plugin's access checks through `temporalAccessServiceRef`
@@ -1224,9 +1252,8 @@ TemporalControlActionBlueprint.make({
 Legacy system: add
 `createTemporalControlActionDef({ actionId: 'escalate', label: 'Escalate' })`
 of `@kwkevinchan/backstage-plugin-temporal-frontend` to `workflowActions`. Custom components can call the
-actions and the operations with `temporalControlApiRef`
-(`runWorkflowAction`, `signalWorkflow`, …), and the reads and queries with
-`temporalApiRef`.
+actions, the operations and the reads with `temporalApiRef`
+(`runWorkflowAction`, `signalWorkflow`, `getWorkflow`, …).
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
 
 The other backend code that only needs Temporal uses the shared connection
@@ -1256,7 +1283,7 @@ warning; it does not fail the lint.
 | Permissions, API types and paths, annotations (backend code)   | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
 | Permissions, API types and paths, annotations (frontend code)  | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
 | `TemporalControlActionBlueprint`                               | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
-| `temporalControlApiRef`, `createTemporalControlActionDef`      | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
+| `createTemporalControlActionDef`                               | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
 
 ## Security
 

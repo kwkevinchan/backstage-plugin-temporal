@@ -19,18 +19,12 @@
 // backend actions. The new frontend system gets them from `./alpha.tsx`.
 
 import { useMemo } from 'react';
-import {
-  createApiFactory,
-  discoveryApiRef,
-  fetchApiRef,
-} from '@backstage/core-plugin-api';
 import type {
   TemporalWorkflowActionDef,
   TemporalScheduleActionDef,
   TemporalWorkflowListActionDef,
 } from '../extensions';
 import { isTemporalWorkflowEntity, WorkflowDetail } from '../common';
-import { TemporalControlClient, temporalControlApiRef } from './api';
 import {
   ControlActionButton,
   TemporalControlActionButtonOptions,
@@ -40,17 +34,7 @@ import { StartWorkflowButton } from './StartWorkflow';
 import { WorkflowControls } from './WorkflowControls';
 import { useControlEnabled } from './config';
 
-export { TemporalControlClient, temporalControlApiRef } from './api';
-export type { TemporalControlApi } from './api';
 export type { TemporalControlActionButtonOptions } from './ControlActionButton';
-
-/** Factory of {@link TemporalControlApi}, in the APIs of the legacy plugin. */
-export const temporalControlApiFactory = createApiFactory({
-  api: temporalControlApiRef,
-  deps: { discoveryApi: discoveryApiRef, fetchApi: fetchApiRef },
-  factory: ({ discoveryApi, fetchApi }) =>
-    new TemporalControlClient({ discoveryApi, fetchApi }),
-});
 
 /** Signal, Update, Cancel, Terminate and Rerun on the details page. */
 export const temporalControlWorkflowActions: TemporalWorkflowActionDef[] = [

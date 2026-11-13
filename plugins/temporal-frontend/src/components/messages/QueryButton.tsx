@@ -24,11 +24,14 @@ import {
   refOf,
   useWorkflowHandlers,
 } from './MessageDialog';
+import { SchemaArgsField } from './SchemaArgsField';
 
 /**
  * "Query…" in the action bar of the details page: runs a query on the
  * workflow and shows its result. Needs `temporal.workflow.query`; the
- * names come from the workflow's handlers when its worker tells them.
+ * names come from the workflow's handlers when its worker tells them. A
+ * query with an input schema (`spec.messages`) gets a form for its
+ * argument, any other query a JSON field.
  */
 export function QueryButton(props: {
   workflow: WorkflowDetail;
@@ -60,6 +63,7 @@ export function QueryButton(props: {
           }}
           handlers={handlers?.queries ?? []}
           allowsCustomValue
+          argsField={SchemaArgsField}
           send={request => api.queryWorkflow(ref, request, { entityRef })}
           onClose={() => setOpen(false)}
         />

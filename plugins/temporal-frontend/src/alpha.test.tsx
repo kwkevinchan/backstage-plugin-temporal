@@ -58,6 +58,56 @@ describe('temporal (new frontend system)', () => {
     expect(tester.get(coreExtensionData.icon)).toBeTruthy();
   });
 
+  it('lets an app override an extension of the plugin by its ID', () => {
+    // The extensions are not exported by name: the app takes them from the
+    // plugin and installs the plugin with the override (see the README).
+    const overridden = temporalPlugin.withOverrides({
+      extensions: [
+        temporalPlugin
+          .getExtension('page:temporal')
+          .override({ params: { path: '/pipelines', title: 'Pipelines' } }),
+      ],
+    });
+    expect(overridden.id).toBe('temporal');
+    const page = createExtensionTester(
+      overridden.getExtension('page:temporal'),
+    );
+    expect(page.get(coreExtensionData.routePath)).toBe('/pipelines');
+    expect(page.get(coreExtensionData.title)).toBe('Pipelines');
+    // The other extensions stay as they are.
+    const original = createExtensionTester(
+      overridden.getExtension('entity-content:temporal'),
+    );
+    expect(original.get(coreExtensionData.routePath)).toBe('temporal');
+    // The plugin itself is not changed.
+    expect(
+      createExtensionTester(temporalPlugin.getExtension('page:temporal')).get(
+        coreExtensionData.routePath,
+      ),
+    ).toBe('/temporal');
+  });
+
+  it('lets an app replace the client of the plugin', () => {
+    const client = mockTemporalApi();
+    const overridden = temporalPlugin.withOverrides({
+      extensions: [
+        temporalPlugin.getExtension('api:temporal').override({
+          params: defineParams =>
+            defineParams({
+              api: temporalApiRef,
+              deps: {},
+              factory: () => client,
+            }),
+        }),
+      ],
+    });
+    const factory = createExtensionTester(
+      overridden.getExtension('api:temporal'),
+    ).get(ApiBlueprint.dataRefs.factory);
+    expect(factory.api.id).toBe(temporalApiRef.id);
+    expect(factory.factory({})).toBe(client);
+  });
+
   it('shows the workflow summary card on TemporalWorkflow entities only', () => {
     const card = createExtensionTester(
       temporalPlugin.getExtension('entity-card:temporal/workflow-summary'),
