@@ -16,7 +16,8 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { parseActivityLoopMarker, parseLlmMarker } from '../../common';
+import { parseLlmMarker } from '../../common';
+import { parseActivityLoopMarker } from '../loops';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
 import { normalizeLlmRecord, summarizeLlmCall } from './llm';

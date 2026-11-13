@@ -27,6 +27,8 @@ import {
   executionInfo,
   fakeTemporalServiceFactory,
   fakeScheduleClient,
+  checkoutEntity,
+  orderWorkflowEntity,
   ordersEntity,
   otherEntity,
   scheduleSummary,
@@ -103,6 +105,8 @@ const ticketWorkflowEntity: Entity = {
 
 async function start(options?: {
   deny?: string[];
+  /** Permission names that get a conditional decision. */
+  conditional?: string[];
   entities?: Entity[];
   client?: unknown;
   /** The name of the entity reference search attribute. */
@@ -119,7 +123,16 @@ async function start(options?: {
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests => requests.map(decide)) as any,
     authorizeConditional: jest.fn(async requests =>
-      requests.map(decide),
+      requests.map((r: any) =>
+        options?.conditional?.includes(r.permission.name)
+          ? {
+              result: AuthorizeResult.CONDITIONAL,
+              pluginId: 'catalog',
+              resourceType: 'catalog-entity',
+              conditions: { rule: 'IS_ENTITY_OWNER', params: { claims: [] } },
+            }
+          : decide(r),
+      ),
     ) as any,
   });
   const auditor = mockServices.auditor.mock();
@@ -182,10 +195,12 @@ describe('query routes of the core plugin', () => {
   });
 
   it('treats an entity search attribute that is not a reference as no entity for a query', async () => {
-    const withBadAttribute = async (deny?: string[]) => {
+    const withBadAttribute = async (
+      options: { deny?: string[]; conditional?: string[] } = {},
+    ) => {
       const started = await start({
         entityRefAttribute: 'BackstageEntityRef',
-        deny,
+        ...options,
       });
       started.workflowService.describeWorkflowExecution.mockImplementation(
         async (req: any) => ({
@@ -221,12 +236,23 @@ describe('query routes of the core plugin', () => {
       ([reqs]) => reqs.map((r: any) => r.permission.name),
     );
     expect(names).toContain('temporal.workflow.query');
-    const denied = await withBadAttribute(['temporal.workflow.query']);
+    const denied = await withBadAttribute({
+      deny: ['temporal.workflow.query'],
+    });
     const refused = await request(denied.server)
       .post(`${wf}/query`)
       .send({ name: 'state' });
     expect(refused.status).toBe(403);
     expect(denied.workflowService.queryWorkflow).not.toHaveBeenCalled();
+    // A conditional decision does not allow it for every entity either.
+    const conditional = await withBadAttribute({
+      conditional: ['temporal.workflow.query'],
+    });
+    const conditionalRes = await request(conditional.server)
+      .post(`${wf}/query`)
+      .send({ name: 'state' });
+    expect(conditionalRes.status).toBe(403);
+    expect(conditional.workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
   it('lists the handlers with the read permission only', async () => {
@@ -334,6 +360,33 @@ describe('query routes of the core plugin', () => {
         )
       ).status,
     ).toBe(403);
+  });
+
+  it('operates the schedules its list shows, including those of a related workflow entity with a task queue', async () => {
+    const client = fakeScheduleClient(
+      [
+        scheduleSummary('nightly', 'orderWorkflow'),
+        scheduleSummary('weekly', 'reportWorkflow'),
+      ],
+      'orders',
+    );
+    const { server } = await start({
+      client,
+      entities: [checkoutEntity, orderWorkflowEntity],
+    });
+    const listed = await request(server).get(
+      '/api/temporal/entities/component/default/checkout/schedules',
+    );
+    expect(listed.body.items.map((s: any) => s.scheduleId)).toEqual([
+      'nightly',
+    ]);
+    const operate = (id: string) =>
+      request(server).post(
+        `/api/temporal/namespaces/default/schedules/${id}/pause?entityRef=component:default/checkout`,
+      );
+    expect((await operate('nightly')).status).toBe(202);
+    expect(client.handles.get('nightly')!.pause).toHaveBeenCalled();
+    expect((await operate('weekly')).status).toBe(404);
   });
 
   it('lists no schedules for an entity that has only a task queue', async () => {

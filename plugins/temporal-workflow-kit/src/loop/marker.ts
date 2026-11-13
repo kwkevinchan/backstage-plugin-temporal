@@ -54,8 +54,26 @@ export interface LoopMarker {
   occurrence?: number;
 }
 
-const MARKER_PATTERN =
+const CHILD_PATTERN =
   /(?:^|\/)loop\/([^/]+)\/([1-9]\d*)\/([^/]+)(?:\/([1-9]\d*))?$/;
+
+const ACTIVITY_PATTERN =
+  /^(?:llm\/[^/]+\/|tool\/[^/]+\/[^/]+\/)?loop\/([^/]+)\/([1-9]\d*)\/([^/]+)(?:\/([1-9]\d*))?$/;
+
+function readMarker(match: RegExpExecArray | null): LoopMarker | undefined {
+  if (!match) return undefined;
+  try {
+    const marker: LoopMarker = {
+      loop: decodeURIComponent(match[1]),
+      iteration: Number(match[2]),
+      step: decodeURIComponent(match[3]),
+    };
+    if (match[4]) marker.occurrence = Number(match[4]);
+    return marker;
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * The marker text `loop/<loop>/<iteration>/<step>[/<occurrence>]`. Loop and
@@ -82,24 +100,24 @@ export function formatLoopMarker(marker: LoopMarker): string {
 }
 
 /**
- * Reads a loop marker from an activity ID (`loop/...`) or a child workflow
- * ID that ends with one (`<anything>/loop/...`). Returns undefined for any
- * other text.
+ * Reads a loop marker from the end of a child workflow ID
+ * (`<anything>/loop/...`). Returns undefined for any other text. An activity
+ * ID is read with {@link parseActivityLoopMarker}.
  *
  * @public
  */
 export function parseLoopMarker(text: string): LoopMarker | undefined {
-  const match = MARKER_PATTERN.exec(text);
-  if (!match) return undefined;
-  try {
-    const marker: LoopMarker = {
-      loop: decodeURIComponent(match[1]),
-      iteration: Number(match[2]),
-      step: decodeURIComponent(match[3]),
-    };
-    if (match[4]) marker.occurrence = Number(match[4]);
-    return marker;
-  } catch {
-    return undefined;
-  }
+  return readMarker(CHILD_PATTERN.exec(text));
+}
+
+/**
+ * Reads a loop marker from an activity ID: the marker is the whole ID
+ * (`loop/...`), or the whole rest after `llm/<call>/` or
+ * `tool/<call>/<toolCallId>/`. An ID that only ends with a marker is not in
+ * a loop.
+ *
+ * @public
+ */
+export function parseActivityLoopMarker(text: string): LoopMarker | undefined {
+  return readMarker(ACTIVITY_PATTERN.exec(text));
 }

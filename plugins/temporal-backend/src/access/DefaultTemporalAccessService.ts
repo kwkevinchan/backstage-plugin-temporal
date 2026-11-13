@@ -339,12 +339,16 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       }
       // Otherwise the workflow's entity reference search attribute decides
       // which entity the permission is checked on.
-      if (!workflow.entityRef) {
+      // A search attribute that is not an entity reference counts as none.
+      const linked = workflow.entityRef
+        ? canonicalEntityRef(workflow.entityRef)
+        : undefined;
+      if (!linked) {
         throw new NotAllowedError(
           'The workflow is not linked to a catalog entity; pass entityRef',
         );
       }
-      entityRef = normalizeEntityRef(workflow.entityRef);
+      entityRef = linked;
     }
     const context = await this.loadEntity(entityRef, permission, credentials);
     workflow ??= await this.queries.describe(ref);

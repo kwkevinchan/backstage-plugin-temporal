@@ -26,6 +26,7 @@
 
 export {
   formatLoopMarker,
+  parseActivityLoopMarker,
   parseLoopMarker,
   LOOP_MARKER_MEMO_KEY,
   LOOP_MARKER_PREFIX,

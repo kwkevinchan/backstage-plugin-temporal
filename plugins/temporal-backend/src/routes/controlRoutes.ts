@@ -38,7 +38,6 @@ import {
   temporalWorkflowStartPermission,
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
-  TemporalAnnotations,
   WorkflowDetail,
   WorkflowRef,
 } from '../common';
@@ -463,7 +462,9 @@ export function createControlRouter(
       const entityRef = parseEntityRefParam(req.query.entityRef);
       // The permission first: the schedule is only read for callers that
       // may start workflows, so its existence is not told to others.
-      let entitySources: TemporalAnnotations[] | undefined;
+      let entitySources:
+        | { taskQueue?: string; workflowTypes: string[] }[]
+        | undefined;
       if (entityRef) {
         const context = await access.loadEntity(
           entityRef,
@@ -475,15 +476,10 @@ export function createControlRouter(
             `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
           );
         }
-        // The entity and the related entities of the same namespace. The
-        // schedule must belong to one of them, by the rule of the entity's
-        // schedule list (scheduleBelongsToSources).
-        const defaultNamespace = sources.defaultNamespace();
-        entitySources = [context.entity, ...context.relatedWorkflowEntities]
-          .map(readEntityWorkflowFilter)
-          .filter(
-            source => (source.namespace ?? defaultNamespace) === namespace,
-          );
+        // The sources of the entity and of its related entities, the same
+        // list as the entity's schedule list; the schedule must belong to one
+        // of them (scheduleBelongsToSources).
+        entitySources = sources.workflowSourcesOf(context);
       } else {
         await access.authorizeOn(
           temporalWorkflowStartPermission,

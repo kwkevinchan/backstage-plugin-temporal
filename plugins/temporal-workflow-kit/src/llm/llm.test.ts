@@ -16,7 +16,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { parseLoopMarker } from '../loop';
+import { parseActivityLoopMarker } from '../loop';
 import {
   anthropicMessages,
   createLlmRecord,
@@ -57,7 +57,7 @@ describe('LLM markers', () => {
       .filter(m => m.loop)
       .map((m: any): [string, any] => [m.text, m.loop]),
   )('reads the loop marker after %s', (text, loop) => {
-    expect(parseLoopMarker(text)).toEqual(loop);
+    expect(parseActivityLoopMarker(text)).toEqual(loop);
   });
 
   it.each(

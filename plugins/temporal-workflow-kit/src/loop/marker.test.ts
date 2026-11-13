@@ -16,29 +16,50 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { formatLoopMarker, parseLoopMarker } from './marker';
+import {
+  formatLoopMarker,
+  parseActivityLoopMarker,
+  parseLoopMarker,
+} from './marker';
 
 /**
  * Shared examples of the marker format; the backend of the Backstage plugin
  * is tested against the same file.
  */
-const EXAMPLES: [string, ReturnType<typeof parseLoopMarker>][] = JSON.parse(
+type Example = {
+  text: string;
+  applies: 'activity' | 'child' | 'both';
+  marker: ReturnType<typeof parseLoopMarker> | null;
+};
+const ALL: Example[] = JSON.parse(
   readFileSync(
     resolve(__dirname, '../../../../test-fixtures/loop-markers.json'),
     'utf8',
   ),
-).examples.map((e: { text: string; marker: unknown }) => [
-  e.text,
-  e.marker ?? undefined,
-]);
+).examples;
+const examplesOf = (kind: 'activity' | 'child'): [string, any][] =>
+  ALL.filter(e => e.applies === kind || e.applies === 'both').map(e => [
+    e.text,
+    e.marker ?? undefined,
+  ]);
 
 describe('loop markers', () => {
-  it.each(EXAMPLES)('parses %s', (text, marker) => {
-    expect(parseLoopMarker(text)).toEqual(marker);
-  });
+  it.each(examplesOf('child'))(
+    'parses the child workflow ID %s',
+    (text, marker) => {
+      expect(parseLoopMarker(text)).toEqual(marker);
+    },
+  );
+
+  it.each(examplesOf('activity'))(
+    'parses the activity ID %s',
+    (text, marker) => {
+      expect(parseActivityLoopMarker(text)).toEqual(marker);
+    },
+  );
 
   it('formats markers that parse back', () => {
-    for (const [text, marker] of EXAMPLES) {
+    for (const [text, marker] of examplesOf('activity')) {
       if (!marker || !text.startsWith('loop/')) continue;
       expect(formatLoopMarker(marker)).toBe(text);
     }

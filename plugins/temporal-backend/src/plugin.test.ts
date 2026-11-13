@@ -375,6 +375,49 @@ describe('temporal backend plugin', () => {
       .expect(403);
   });
 
+  it('answers 403, as for a workflow without the attribute, when the entity reference search attribute is not a reference', async () => {
+    const b64 = (s: string) => Buffer.from(s).toString('base64');
+    const describeWith = (attribute?: unknown) => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockResolvedValue({
+        workflowExecutionInfo: {
+          ...executionInfo({
+            workflowId: 'wf-sa',
+            taskQueue: 'other',
+            type: 'x',
+          }),
+          searchAttributes: {
+            indexedFields:
+              attribute === undefined
+                ? {}
+                : {
+                    BackstageEntityRef: {
+                      metadata: { encoding: b64('json/plain') },
+                      data: b64(JSON.stringify(attribute)),
+                    },
+                  },
+          },
+        } as any,
+        pendingActivities: [],
+      });
+      return workflowService;
+    };
+    const statusOf = async (attribute?: unknown) => {
+      const { server } = await start({
+        workflowService: describeWith(attribute),
+        entityRefAttribute: 'BackstageEntityRef',
+        deny: ['temporal.workflow.list'],
+      });
+      return (
+        await request(server).get(
+          '/api/temporal/namespaces/default/workflows/wf-sa',
+        )
+      ).status;
+    };
+    expect(await statusOf()).toBe(403);
+    expect(await statusOf('not a ref')).toBe(403);
+  });
+
   it('pages through history with the history permission', async () => {
     const { server, workflowService, permissions } = await start();
     const res = await request(server).get(
