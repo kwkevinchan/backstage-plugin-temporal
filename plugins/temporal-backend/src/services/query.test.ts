@@ -24,6 +24,7 @@ import {
   buildNamespaceWorkflowQuery,
   matchingWorkflowEntity,
   parseStatus,
+  scheduleBelongsToSources,
   workflowBelongsToEntity,
 } from './query';
 
@@ -331,5 +332,58 @@ describe('buildNamespaceWorkflowQuery', () => {
     expect(
       buildNamespaceWorkflowQuery({ allRuns: false, status: 'Completed' }),
     ).toBe("ExecutionStatus = 'Completed'");
+  });
+});
+
+describe('scheduleBelongsToSources', () => {
+  const schedule = { workflowType: 'orderWorkflow', taskQueue: 'orders' };
+
+  it('needs a workflow type of a source, on its task queue when it has one', () => {
+    expect(
+      scheduleBelongsToSources(schedule, [
+        { workflowTypes: ['orderWorkflow'] },
+      ]),
+    ).toBe(true);
+    expect(
+      scheduleBelongsToSources(schedule, [
+        { taskQueue: 'orders', workflowTypes: ['orderWorkflow'] },
+      ]),
+    ).toBe(true);
+    expect(
+      scheduleBelongsToSources(schedule, [
+        { taskQueue: 'billing', workflowTypes: ['orderWorkflow'] },
+      ]),
+    ).toBe(false);
+    expect(
+      scheduleBelongsToSources(schedule, [
+        { taskQueue: 'orders', workflowTypes: ['reportWorkflow'] },
+      ]),
+    ).toBe(false);
+  });
+
+  it('is not owned through a task queue alone', () => {
+    expect(
+      scheduleBelongsToSources(schedule, [
+        { taskQueue: 'orders', workflowTypes: [] },
+      ]),
+    ).toBe(false);
+    expect(scheduleBelongsToSources(schedule, [])).toBe(false);
+  });
+
+  it('matches one of several sources, and an unknown task queue only a source without one', () => {
+    const sources = [
+      { taskQueue: 'billing', workflowTypes: ['orderWorkflow'] },
+      { taskQueue: 'orders', workflowTypes: ['orderWorkflow'] },
+    ];
+    expect(scheduleBelongsToSources(schedule, sources)).toBe(true);
+    expect(
+      scheduleBelongsToSources({ workflowType: 'orderWorkflow' }, sources),
+    ).toBe(false);
+    expect(
+      scheduleBelongsToSources({ workflowType: 'orderWorkflow' }, [
+        ...sources,
+        { workflowTypes: ['orderWorkflow'] },
+      ]),
+    ).toBe(true);
   });
 });

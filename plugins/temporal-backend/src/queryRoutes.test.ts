@@ -28,6 +28,7 @@ import {
   fakeTemporalServiceFactory,
   fakeScheduleClient,
   ordersEntity,
+  otherEntity,
   scheduleSummary,
 } from './testUtils';
 
@@ -180,36 +181,52 @@ describe('query routes of the core plugin', () => {
     expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
-  it('answers 400 for a query when the entity search attribute is not a reference', async () => {
-    const { server, workflowService } = await start({
-      entityRefAttribute: 'BackstageEntityRef',
-    });
-    workflowService.describeWorkflowExecution.mockImplementation(
-      async (req: any) => ({
-        workflowExecutionInfo: {
-          ...executionInfo({
-            workflowId: req.execution.workflowId,
-            status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
-          }),
-          searchAttributes: {
-            indexedFields: {
-              // The JSON form of a payload, as the client library decodes it.
-              BackstageEntityRef: {
-                metadata: { encoding: b64('json/plain') },
-                data: b64(JSON.stringify('not a ref')),
+  it('treats an entity search attribute that is not a reference as no entity for a query', async () => {
+    const withBadAttribute = async (deny?: string[]) => {
+      const started = await start({
+        entityRefAttribute: 'BackstageEntityRef',
+        deny,
+      });
+      started.workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => ({
+          workflowExecutionInfo: {
+            ...executionInfo({
+              workflowId: req.execution.workflowId,
+              status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+            }),
+            searchAttributes: {
+              indexedFields: {
+                // The JSON form of a payload, as the client library decodes it.
+                BackstageEntityRef: {
+                  metadata: { encoding: b64('json/plain') },
+                  data: b64(JSON.stringify('not a ref')),
+                },
               },
             },
           },
-        },
-        pendingActivities: [],
-      }),
-    );
-    // From the Workflows page: the list permission, no entityRef.
-    const res = await request(server)
+          pendingActivities: [],
+        }),
+      );
+      return started;
+    };
+    // From the Workflows page: the list permission, no entityRef. With no
+    // entity, temporal.workflow.query must be allowed for every entity.
+    const allowed = await withBadAttribute();
+    const res = await request(allowed.server)
       .post(`${wf}/query`)
       .send({ name: 'state' });
-    expect(res.status).toBe(400);
-    expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(allowed.workflowService.queryWorkflow).toHaveBeenCalled();
+    const names = allowed.permissions.authorizeConditional.mock.calls.flatMap(
+      ([reqs]) => reqs.map((r: any) => r.permission.name),
+    );
+    expect(names).toContain('temporal.workflow.query');
+    const denied = await withBadAttribute(['temporal.workflow.query']);
+    const refused = await request(denied.server)
+      .post(`${wf}/query`)
+      .send({ name: 'state' });
+    expect(refused.status).toBe(403);
+    expect(denied.workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
   it('lists the handlers with the read permission only', async () => {
@@ -317,6 +334,21 @@ describe('query routes of the core plugin', () => {
         )
       ).status,
     ).toBe(403);
+  });
+
+  it('lists no schedules for an entity that has only a task queue', async () => {
+    const { server } = await start({
+      client: fakeScheduleClient(
+        [scheduleSummary('billing-run', 'billingWorkflow')],
+        'billing',
+      ),
+      entities: [otherEntity],
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/billing/schedules',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
   });
 
   it('maps the Temporal errors of the schedule client', async () => {

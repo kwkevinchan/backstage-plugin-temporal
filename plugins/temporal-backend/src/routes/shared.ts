@@ -28,6 +28,7 @@ import {
   TemporalWorkflowAccessLevel,
 } from '../node/alpha';
 import { Request } from 'express';
+import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import { parseEntityRefParam, workflowRefFromParams } from './params';
 
 // What the read routes and the routes that change workflows share: the
@@ -71,21 +72,21 @@ export async function loadRequestWorkflow(
 
 /**
  * Checks a permission on the workflow's entity: the entity it was loaded
- * with, else the entity in its search attribute, read with `entityRefOf`.
- * A workflow without an entity is only allowed when the policy allows the
- * permission for every entity (an unconditional ALLOW). Returns the entity
- * reference the permission was checked on.
+ * with, else the entity in its search attribute. A workflow without an
+ * entity, or whose search attribute is not an entity reference, is only
+ * allowed when the policy allows the permission for every entity (an
+ * unconditional ALLOW). Returns the entity reference the permission was
+ * checked on.
  */
 export async function authorizeOnWorkflow(
   access: TemporalAccessService,
   permission: ResourcePermission<'catalog-entity'>,
   loaded: Pick<LoadedWorkflow, 'credentials' | 'context' | 'workflow'>,
-  entityRefOf: (raw: string) => string | undefined,
 ): Promise<string | undefined> {
   const entityRef =
     loaded.context?.entityRef ??
     (loaded.workflow.entityRef
-      ? entityRefOf(loaded.workflow.entityRef)
+      ? canonicalEntityRef(loaded.workflow.entityRef)
       : undefined);
   await access.authorizeOn(permission, entityRef, loaded.credentials);
   return entityRef;

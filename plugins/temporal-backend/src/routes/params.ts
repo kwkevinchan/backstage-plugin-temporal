@@ -20,11 +20,22 @@ import {
 } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import { MAX_CONTROL_NAME_LENGTH, WorkflowRef } from '../common';
+import type { WorkflowMessageRequest, WorkflowRef } from '../common';
 import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { Request } from 'express';
 
 // Parsing and validation of request parameters, shared by the routes.
+
+/** Longest signal, update or query name accepted. */
+const MAX_CONTROL_NAME_LENGTH = 200;
+
+/**
+ * True for a valid custom action ID: letters, digits, `.`, `_` and `-`,
+ * starting with a letter.
+ */
+export function isValidControlActionId(id: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9._-]{0,99}$/.test(id);
+}
 
 export function parsePageSize(
   value: unknown,
@@ -101,10 +112,7 @@ export function parseArgs(value: unknown): JsonValue[] | undefined {
 }
 
 /** The `name` and `args` of a message body (query, signal, update). */
-export function parseMessageBody(req: Request): {
-  name: string;
-  args?: JsonValue[];
-} {
+export function parseMessageBody(req: Request): WorkflowMessageRequest {
   const { name, args } = requestBody(req);
   if (
     typeof name !== 'string' ||

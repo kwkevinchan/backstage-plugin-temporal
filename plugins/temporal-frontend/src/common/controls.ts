@@ -58,25 +58,6 @@ export interface WorkflowMessageResponse {
 }
 
 /**
- * Body of `POST .../terminate`.
- *
- * @public
- */
-export interface WorkflowTerminateRequest {
-  reason?: string;
-}
-
-/**
- * Body of `POST .../rerun`. Without `workflowId`, a new one is made from the
- * workflow ID of the run.
- *
- * @public
- */
-export interface WorkflowRerunRequest {
-  workflowId?: string;
-}
-
-/**
  * Body of `POST /entities/:kind/:namespace/:name/workflows` (start a workflow
  * of an entity) and `POST /workflows` (start a workflow from the Workflows
  * page). For an entity, the workflow type and task queue default to the
@@ -168,21 +149,4 @@ export interface WorkflowHandlersResponse {
   signals: WorkflowHandler[];
   updates: WorkflowHandler[];
   queries: WorkflowHandler[];
-}
-
-/**
- * Longest signal, update or query name the backend accepts.
- *
- * @public
- */
-export const MAX_CONTROL_NAME_LENGTH = 200;
-
-/**
- * True for a valid custom action ID: letters, digits, `.`, `_` and `-`,
- * starting with a letter.
- *
- * @public
- */
-export function isValidControlActionId(id: string): boolean {
-  return /^[A-Za-z][A-Za-z0-9._-]{0,99}$/.test(id);
 }

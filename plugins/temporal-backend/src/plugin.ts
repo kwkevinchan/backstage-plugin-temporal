@@ -19,7 +19,6 @@ import {
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
 import {
-  isValidControlActionId,
   parseTemporalWorkflowResourceRef,
   temporalPermissions,
 } from './common';
@@ -31,6 +30,7 @@ import {
   temporalControlExtensionPoint,
   temporalWorkflowPermissionResourceRef,
 } from './node/alpha';
+import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';

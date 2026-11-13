@@ -215,6 +215,24 @@ export function matchesSource(
 }
 
 /**
+ * True when a schedule belongs to an entity: it starts a workflow type of
+ * one of the entity's sources and, when that source has a task queue, on
+ * that queue. A source with only a task queue owns no schedule. An unknown
+ * task queue matches only the sources without one. The schedule list and
+ * the authorization of pause, unpause and trigger both use this rule.
+ */
+export function scheduleBelongsToSources(
+  schedule: { workflowType: string; taskQueue?: string },
+  sources: { taskQueue?: string; workflowTypes: string[] }[],
+): boolean {
+  return sources.some(
+    source =>
+      source.workflowTypes.includes(schedule.workflowType) &&
+      (!source.taskQueue || source.taskQueue === schedule.taskQueue),
+  );
+}
+
+/**
  * The related TemporalWorkflow entity that a workflow matches, by its spec
  * or by the entity reference search attribute.
  */

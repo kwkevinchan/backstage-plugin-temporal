@@ -137,6 +137,26 @@ describe('buildWorkflowGraph', () => {
     ).toBeUndefined();
   });
 
+  it('marks an activity as in a loop only by an ID that starts with loop/', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const inLoop = h.schedule('charge', 'loop/retry/2/charge');
+    h.started(inLoop);
+    h.completed(inLoop, {});
+    const custom = h.schedule('charge', 'tenants/acme/loop/retry/2/charge');
+    h.started(custom);
+    h.completed(custom, {});
+    const graph = buildWorkflowGraph(h.events, options());
+    const byStep = (id: string) => graph.nodes.find(n => n.stepId === id)!;
+    expect(byStep('loop/retry/2/charge').loop).toEqual({
+      loop: 'retry',
+      iteration: 2,
+      step: 'charge',
+    });
+    expect(byStep('tenants/acme/loop/retry/2/charge').loop).toBeUndefined();
+  });
+
   it('links sequential activities in event order', () => {
     const h = history();
     h.start();

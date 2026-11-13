@@ -49,7 +49,6 @@ import {
   WorkflowQueries,
 } from '../services/WorkflowQueries';
 import { parseStatus } from '../services/query';
-import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { sendStoredPayload } from './download';
 import {
   entityRefFromParams,
@@ -346,14 +345,10 @@ export async function createRouter(
   router.post(workflowSubpaths('query'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const { name, args } = parseMessageBody(req);
-    // A bad entity reference in the workflow's search attribute is a bad
-    // request here (400); the routes that change workflows treat it as no
-    // entity.
     const entityRef = await authorizeOnWorkflow(
       access,
       temporalWorkflowQueryPermission,
       loaded,
-      normalizeEntityRef,
     );
     const result = await audited(
       auditor,
