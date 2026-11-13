@@ -93,7 +93,7 @@ and the classes are described in
 
 | Layer           | Responsibility                                                                                                                                                  | In clean-architecture terms |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Parse and validate the request, call access and services. No decisions.                                                                                         | Controllers                 |
+| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                  | Controllers                 |
 | `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                          | Authorization               |
 | `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
 | `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3).                                                                                              | Gateways                    |

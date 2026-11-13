@@ -17,13 +17,14 @@
 import { randomUUID } from 'node:crypto';
 import { Config } from '@backstage/config';
 import {
-  ConflictError,
   InputError,
   NotFoundError,
   ServiceUnavailableError,
 } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
+import type { ScheduleOverlapPolicy } from '@temporalio/client';
 import type {
+  TemporalScheduleOperation,
   WorkflowDetail,
   WorkflowRef,
   WorkflowStartResponse,
@@ -34,6 +35,10 @@ import {
   encodeJsonPayloads,
   TemporalJsonPayload,
 } from '../node/alpha';
+import {
+  isScheduleNotFound,
+  mapCommandError,
+} from '../repositories/TemporalReadRepository';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -49,50 +54,6 @@ export function readControlOptions(config: Config): ControlOptions {
     allowedSignals: control?.getOptionalStringArray('allowedSignals') ?? [],
     allowedUpdates: control?.getOptionalStringArray('allowedUpdates') ?? [],
   };
-}
-
-/** gRPC status codes of Temporal errors handled here. */
-const GRPC_DEADLINE_EXCEEDED = 4;
-const GRPC_PERMISSION_DENIED = 7;
-const GRPC_UNAUTHENTICATED = 16;
-const GRPC_ALREADY_EXISTS = 6;
-const GRPC_FAILED_PRECONDITION = 9;
-const GRPC_INVALID_ARGUMENT = 3;
-const GRPC_NOT_FOUND = 5;
-const GRPC_UNAVAILABLE = 14;
-
-/**
- * Rethrows a Temporal error as the Backstage error of its HTTP status. The
- * raw service calls throw the gRPC error itself; the schedule client wraps
- * it in a `ServiceError` with the gRPC error as `cause`.
- */
-export function mapControlError(error: unknown): never {
-  const message = (error as Error)?.message ?? String(error);
-  const name = (error as Error)?.name;
-  if (name === 'ScheduleNotFoundError' || name === 'NamespaceNotFoundError') {
-    throw new NotFoundError(message);
-  }
-  const cause = (error as { cause?: { code?: unknown; details?: unknown } })
-    ?.cause;
-  const code = (error as { code?: unknown })?.code ?? cause?.code;
-  if (code === GRPC_ALREADY_EXISTS || code === GRPC_FAILED_PRECONDITION) {
-    throw new ConflictError(message);
-  }
-  if (code === GRPC_DEADLINE_EXCEEDED) {
-    throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
-  }
-  if (code === GRPC_NOT_FOUND) throw new NotFoundError(message);
-  if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
-  if (code === GRPC_UNAVAILABLE) {
-    throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
-  }
-  if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
-    // The backend's own credentials, not the user's: a server-side problem.
-    throw new ServiceUnavailableError(
-      `Temporal refused the credentials of the backend: ${message}`,
-    );
-  }
-  throw error;
 }
 
 /** The message of a Temporal failure, with its causes. */
@@ -127,20 +88,25 @@ export interface StartOptions {
   identity: string;
 }
 
-const JSON_ENCODING = Buffer.from('json/plain');
-type Payload = TemporalJsonPayload;
+/** A schedule to operate: what it starts, and its overlap policy. */
+export interface ScheduleTarget {
+  namespace: string;
+  scheduleId: string;
+  workflowType: string;
+  taskQueue: string;
+  overlap?: ScheduleOverlapPolicy;
+}
 
+/** Keyword search attributes: JSON payloads with the `Keyword` type. */
 function keywordAttributes(
   values: Record<string, string>,
-): Record<string, Payload> {
-  const indexedFields: Record<string, Payload> = {};
+): Record<string, TemporalJsonPayload> {
+  const indexedFields: Record<string, TemporalJsonPayload> = {};
   for (const [name, value] of Object.entries(values)) {
+    const [payload] = encodeJsonPayloads([value]).payloads;
     indexedFields[name] = {
-      metadata: {
-        encoding: JSON_ENCODING,
-        type: Buffer.from('Keyword'),
-      },
-      data: Buffer.from(JSON.stringify(value)),
+      metadata: { ...payload.metadata, type: Buffer.from('Keyword') },
+      data: payload.data,
     };
   }
   return indexedFields;
@@ -148,8 +114,9 @@ function keywordAttributes(
 
 /**
  * The operations that change workflows in Temporal: signal, update, cancel,
- * terminate, start and rerun. Permission checks are done by the routes,
- * through the access service of the plugin.
+ * terminate, start and rerun, and pause, unpause and trigger of schedules.
+ * Permission checks are done by the routes, through the access service of
+ * the plugin.
  */
 export class WorkflowCommands {
   constructor(
@@ -192,7 +159,7 @@ export class WorkflowCommands {
         identity,
         requestId: randomUUID(),
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async update(
@@ -219,7 +186,7 @@ export class WorkflowCommands {
           input: { name, args: encodeJsonPayloads(args) },
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
@@ -230,7 +197,7 @@ export class WorkflowCommands {
           identity,
           waitPolicy,
         })
-        .catch(mapControlError);
+        .catch(mapCommandError);
     }
     const outcome = response?.outcome;
     if (!outcome) {
@@ -251,7 +218,7 @@ export class WorkflowCommands {
         identity,
         requestId: randomUUID(),
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async terminate(
@@ -267,7 +234,7 @@ export class WorkflowCommands {
         reason,
         identity,
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
   }
 
   async start(options: StartOptions): Promise<WorkflowStartResponse> {
@@ -287,7 +254,7 @@ export class WorkflowCommands {
           indexedFields: keywordAttributes(options.searchAttributes),
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     return {
       namespace: options.namespace,
       workflowId,
@@ -316,7 +283,7 @@ export class WorkflowCommands {
         execution: { workflowId: workflow.workflowId, runId: workflow.runId },
         maximumPageSize: 1,
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     const started =
       history.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
     if (!started) {
@@ -351,11 +318,64 @@ export class WorkflowCommands {
           },
         },
       })
-      .catch(mapControlError);
+      .catch(mapCommandError);
     return {
       namespace: workflow.namespace,
       workflowId,
       runId: response.runId ?? '',
     };
+  }
+
+  /** A schedule, read from Temporal for an operation on it. */
+  async describeSchedule(
+    namespace: string,
+    scheduleId: string,
+  ): Promise<ScheduleTarget> {
+    const client = await this.temporal.getClient({ namespace });
+    const handle = client.schedule.getHandle(scheduleId);
+    const description = await handle.describe().catch(error => {
+      if (isScheduleNotFound(error)) {
+        throw new NotFoundError(`No schedule ${scheduleId}`);
+      }
+      return mapCommandError(error);
+    });
+    return {
+      namespace,
+      scheduleId,
+      workflowType: description.action.workflowType,
+      taskQueue: description.action.taskQueue,
+      overlap: description.policies?.overlap,
+    };
+  }
+
+  /**
+   * Pauses, unpauses or triggers a schedule. A pause or an unpause keeps
+   * `note`, or a note that names `requestedBy`. A trigger uses the
+   * schedule's own overlap policy (the SDK's default is to allow every
+   * overlap).
+   */
+  async operateSchedule(
+    schedule: ScheduleTarget,
+    operation: TemporalScheduleOperation,
+    options: { note?: string; requestedBy: string },
+  ): Promise<void> {
+    const client = await this.temporal.getClient({
+      namespace: schedule.namespace,
+    });
+    const handle = client.schedule.getHandle(schedule.scheduleId);
+    const { note, requestedBy } = options;
+    try {
+      if (operation === 'pause') {
+        await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
+      } else if (operation === 'unpause') {
+        await handle.unpause(
+          note ?? `Resumed from Backstage by ${requestedBy}`,
+        );
+      } else {
+        await handle.trigger(schedule.overlap);
+      }
+    } catch (error) {
+      mapCommandError(error);
+    }
   }
 }

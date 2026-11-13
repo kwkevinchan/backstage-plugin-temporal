@@ -50,6 +50,10 @@ export const scaffolderTemporalModule = createBackendModule({
         const options = {
           client: new TemporalPluginClient(discovery, auth),
           appBaseUrl: config.getString('app.baseUrl'),
+          // As the Temporal backend plugin reads it.
+          defaultNamespace:
+            config.getOptionalString('temporal.connection.defaultNamespace') ??
+            'default',
         };
         scaffolder.addActions(
           createTemporalWorkflowStartAction(options),

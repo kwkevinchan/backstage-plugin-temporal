@@ -173,7 +173,23 @@ function decodePlainPayload(payload: Json): JsonObject {
   return raw;
 }
 
-/** Converts protobuf JSON into display JSON: payloads, times, durations. */
+/** Orders the entries of a map by key, in code unit order. */
+function byKey([a]: [string, unknown], [b]: [string, unknown]): number {
+  if (a < b) return -1;
+  return a > b ? 1 : 0;
+}
+
+/**
+ * The maps of payloads in Temporal messages: search attributes
+ * (`indexedFields`), memo and header (`fields`). Temporal sends them in no
+ * fixed order; the responses give them by key.
+ */
+const PAYLOAD_MAP_KEYS = new Set(['indexedFields', 'fields']);
+
+/**
+ * Converts protobuf JSON into display JSON: payloads, times, durations.
+ * The maps of payloads are ordered by key.
+ */
 export function toDisplayJson(value: Json, key = ''): JsonValue {
   if (value === null || value === undefined) return null;
   if (Array.isArray(value)) return value.map(v => toDisplayJson(v, key));
@@ -184,21 +200,29 @@ export function toDisplayJson(value: Json, key = ''): JsonValue {
       ? toIsoTime(value) ?? null
       : toDuration(value);
   }
+  const entries = Object.entries(value);
+  if (PAYLOAD_MAP_KEYS.has(key)) entries.sort(byKey);
   const out: JsonObject = {};
-  for (const [k, v] of Object.entries(value)) {
+  for (const [k, v] of entries) {
     out[k] = toDisplayJson(v, k);
+  }
+  return out;
+}
+
+/** The plain values of a map of payloads (search attributes, memo), by key. */
+function decodePayloadMap(fields: Json): JsonObject {
+  const out: JsonObject = {};
+  const entries = Object.entries(fields ?? {}).sort(byKey);
+  for (const [name, payload] of entries) {
+    const decoded = decodePayload(payload);
+    out[name] = 'value' in decoded ? decoded.value : decoded;
   }
   return out;
 }
 
 /** Decodes the indexed fields of search attributes into plain values. */
 export function decodeSearchAttributes(raw: Json): JsonObject {
-  const out: JsonObject = {};
-  for (const [name, payload] of Object.entries(raw?.indexedFields ?? {})) {
-    const decoded = decodePayload(payload);
-    out[name] = 'value' in decoded ? decoded.value : decoded;
-  }
-  return out;
+  return decodePayloadMap(raw?.indexedFields);
 }
 
 function firstString(value: JsonValue | undefined): string | undefined {
@@ -362,11 +386,7 @@ export function toWorkflowDetail(
 ): WorkflowDetail {
   const info = describe.workflowExecutionInfo ?? {};
   const summary = toWorkflowSummary(info, options);
-  const memo: JsonObject = {};
-  for (const [k, payload] of Object.entries(info.memo?.fields ?? {})) {
-    const decoded = decodePayload(payload);
-    memo[k] = 'value' in decoded ? decoded.value : decoded;
-  }
+  const memo = decodePayloadMap(info.memo?.fields);
   const parent = info.parentExecution?.workflowId
     ? dropUndefined({
         workflowId: info.parentExecution.workflowId as string,

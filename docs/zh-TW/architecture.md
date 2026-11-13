@@ -50,7 +50,7 @@
 
 | 層              | 職責                                                                                                                                              | 用 clean architecture 的詞 |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `routes/`       | 解析並驗證請求，呼叫 access 和 services。不做決定。                                                                                               | Controllers                |
+| `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                 | Controllers                |
 | `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                         | Authorization              |
 | `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
 | `repositories/` | `TemporalReadRepository`（呼叫 Temporal）和 `PayloadStore`（S3）。                                                                                | Gateways                   |

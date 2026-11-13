@@ -19,7 +19,7 @@ import {
   ScheduleNotFoundError,
   ServiceError,
 } from '@temporalio/client';
-import { mapTemporalError } from './TemporalReadRepository';
+import { mapCommandError, mapTemporalError } from './TemporalReadRepository';
 
 const grpc = (code: number) =>
   Object.assign(new Error(`code ${code}`), { code });
@@ -66,5 +66,46 @@ describe('mapTemporalError', () => {
   it('keeps other errors', () => {
     const error = grpc(13);
     expect(() => mapTemporalError(error)).toThrow(error);
+  });
+});
+
+describe('mapCommandError', () => {
+  it.each([
+    // A workflow ID that is taken, or a workflow that is not running.
+    [6, 'ConflictError'],
+    [9, 'ConflictError'],
+    [4, 'ServiceUnavailableError'],
+    [5, 'NotFoundError'],
+    [3, 'InputError'],
+    [14, 'ServiceUnavailableError'],
+    [7, 'ServiceUnavailableError'],
+    [16, 'ServiceUnavailableError'],
+  ])('maps gRPC code %i to %s', (code, name) => {
+    expect(() => mapCommandError(grpc(code))).toThrow(
+      expect.objectContaining({ name }),
+    );
+  });
+
+  it('reads the gRPC error that the schedule client wraps', () => {
+    const wrapped = new ServiceError('Failed to pause schedule', {
+      cause: Object.assign(new Error('code 9'), {
+        code: 9,
+        details: 'already paused',
+      }),
+    });
+    expect(() => mapCommandError(wrapped)).toThrow(
+      expect.objectContaining({
+        name: 'ConflictError',
+        message: 'Failed to pause schedule: already paused',
+      }),
+    );
+    expect(() =>
+      mapCommandError(new ScheduleNotFoundError('not found', 'nightly')),
+    ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
+  });
+
+  it('keeps other errors', () => {
+    const error = grpc(13);
+    expect(() => mapCommandError(error)).toThrow(error);
   });
 });
