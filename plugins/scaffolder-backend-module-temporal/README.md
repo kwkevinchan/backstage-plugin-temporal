@@ -47,10 +47,10 @@ lasts about an hour from when the task is created, so `wait` is limited to
 Temporal backend plugin, and `wait` and `signal` use that default: the
 `temporal.connection.defaultNamespace` (`default` when it is not set), read
 from the app-config of the backend that runs the Scaffolder, so it must be
-the same there when the Temporal plugin runs in another backend. Pass the `namespace` output of `start` to `wait` and `signal`
-for a workflow in another namespace. Starting, signals and updates are kept in a
-checkpoint, so a retried task does not start or send them again. Dry runs
-start and send nothing.
+the same there when the Temporal plugin runs in another backend. Pass the
+`namespace` output of `start` to `wait` and `signal` for a workflow in another
+namespace. Starting, signals and updates are kept in a checkpoint, so a retried
+task does not start or send them again. Dry runs start and send nothing.
 
 ## Example
 

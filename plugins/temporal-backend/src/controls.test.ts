@@ -47,7 +47,10 @@ const b64 = (s: string) => Buffer.from(s).toString('base64');
 const decode = (payload: any) =>
   JSON.parse(Buffer.from(payload.data).toString('utf8'));
 
-function createControlWorkflowService(status = 'RUNNING') {
+function createControlWorkflowService(
+  status = 'RUNNING',
+  entityAttribute: string | null = 'component:default/orders',
+) {
   const base = createFakeWorkflowService();
   return {
     ...base,
@@ -58,12 +61,15 @@ function createControlWorkflowService(status = 'RUNNING') {
           status: `WORKFLOW_EXECUTION_STATUS_${status}`,
         }),
         searchAttributes: {
-          indexedFields: {
-            BackstageEntityRef: {
-              metadata: { encoding: b64('json/plain') },
-              data: b64(JSON.stringify('component:default/orders')),
-            },
-          },
+          indexedFields:
+            entityAttribute === null
+              ? {}
+              : {
+                  BackstageEntityRef: {
+                    metadata: { encoding: b64('json/plain') },
+                    data: b64(JSON.stringify(entityAttribute)),
+                  },
+                },
         },
       },
       pendingActivities: [],
@@ -113,6 +119,8 @@ async function start(options?: {
   conditional?: string[];
   control?: object;
   status?: string;
+  /** The entity search attribute of the workflow; null for none. */
+  entityAttribute?: string | null;
   action?: TemporalControlAction;
   /** Schedules of the fake client. */
   schedules?: { scheduleId: string; workflowType: string; taskQueue: string }[];
@@ -120,7 +128,10 @@ async function start(options?: {
   scheduleErrors?: Record<string, unknown>;
   logger?: ReturnType<typeof mockServices.logger.mock>;
 }) {
-  const workflowService = createControlWorkflowService(options?.status);
+  const workflowService = createControlWorkflowService(
+    options?.status,
+    options?.entityAttribute,
+  );
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
       requests.map((r: any) => ({
@@ -514,6 +525,26 @@ describe('workflow controls', () => {
       ],
       expect.anything(),
     );
+  });
+
+  it('signals a workflow without an entity only on an unconditional ALLOW', async () => {
+    const allowed = await start({ entityAttribute: null });
+    const res = await request(allowed.server)
+      .post(`${wf}/signal`)
+      .send({ name: 'addNote', args: ['hi'] });
+    expect(res.status).toBe(202);
+    expect(allowed.workflowService.signalWorkflowExecution).toHaveBeenCalled();
+    const conditional = await start({
+      entityAttribute: null,
+      conditional: ['temporal.workflow.signal'],
+    });
+    const refused = await request(conditional.server)
+      .post(`${wf}/signal`)
+      .send({ name: 'addNote', args: ['hi'] });
+    expect(refused.status).toBe(403);
+    expect(
+      conditional.workflowService.signalWorkflowExecution,
+    ).not.toHaveBeenCalled();
   });
 
   it.each(controlRoutes)(

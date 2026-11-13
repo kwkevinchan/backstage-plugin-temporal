@@ -441,7 +441,6 @@ function GraphToolbar(props: {
   hasMarkers: boolean;
   showMarkers: boolean;
   onShowMarkersChange?(show: boolean): void;
-  selectedId?: string;
   onLoopViewChange(name: string, view: LoopView): void;
 }) {
   const { structure } = props;
@@ -540,7 +539,6 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           hasMarkers={hasMarkers}
           showMarkers={showMarkers}
           onShowMarkersChange={props.onShowMarkersChange}
-          selectedId={props.selectedId}
           onLoopViewChange={changeLoopView}
         />
         <div

@@ -726,6 +726,7 @@ describe('with temporal.control.enabled: false', () => {
     const { api, temporal } = await renderAll(element, disabled.control);
     expect(screen.queryAllByRole('button')).toEqual([]);
     expect(temporal.getWorkflowHandlers).not.toHaveBeenCalled();
+    for (const fn of Object.values(temporal)) expect(fn).not.toHaveBeenCalled();
     for (const fn of Object.values(api)) expect(fn).not.toHaveBeenCalled();
   });
 
