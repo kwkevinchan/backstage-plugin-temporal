@@ -15,6 +15,7 @@
  */
 
 import {
+  ConvertOptions,
   decodePageToken,
   decodePayload,
   decodeSearchAttributes,
@@ -316,21 +317,103 @@ describe('search attributes and memo', () => {
     expect(decoded.ApprovalPending).toBe(true);
   });
 
-  it('gives the search attributes and the memo of a detail by key', () => {
-    const detail = toWorkflowDetail(
+  function detailOf(
+    indexedFields: Record<string, unknown>,
+    options?: Partial<ConvertOptions>,
+  ) {
+    return toWorkflowDetail(
       {
         workflowExecutionInfo: {
           execution: { workflowId: 'wf-1', runId: 'r-1' },
           type: { name: 'orderWorkflow' },
           status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
-          searchAttributes: { indexedFields: shuffled },
+          searchAttributes: { indexedFields },
           memo: { fields: shuffled },
         },
       },
-      { namespace: 'default' },
+      {
+        namespace: 'default',
+        entityRefAttribute: 'BackstageEntityRef',
+        initiatorAttribute: 'BackstageInitiator',
+        ...options,
+      },
     );
+  }
+
+  it('gives the memo of a detail by key', () => {
+    expect(Object.keys(detailOf(shuffled).memo!)).toEqual(sortedKeys);
+  });
+
+  it('puts the entity and initiator attributes of a detail first', () => {
+    const detail = detailOf({
+      ...shuffled,
+      BackstageInitiator: jsonPayload('user:default/me'),
+    });
+    expect(Object.keys(detail.searchAttributes!)).toEqual([
+      'BackstageEntityRef',
+      'BackstageInitiator',
+      'ApprovalPending',
+      'Zone',
+      'approvalNote',
+    ]);
+  });
+
+  it('puts only the one that is present first', () => {
+    const { BackstageEntityRef: _omit, ...withoutEntity } = shuffled;
+    const initiator = detailOf({
+      ...withoutEntity,
+      BackstageInitiator: jsonPayload('user:default/me'),
+    });
+    expect(Object.keys(initiator.searchAttributes!)).toEqual([
+      'BackstageInitiator',
+      'ApprovalPending',
+      'Zone',
+      'approvalNote',
+    ]);
+    const entity = detailOf(shuffled);
+    expect(Object.keys(entity.searchAttributes!)).toEqual([
+      'BackstageEntityRef',
+      'ApprovalPending',
+      'Zone',
+      'approvalNote',
+    ]);
+  });
+
+  it('keeps the order by key when neither is present', () => {
+    const { BackstageEntityRef: _omit, ...others } = shuffled;
+    const detail = detailOf(others);
+    expect(Object.keys(detail.searchAttributes!)).toEqual([
+      'ApprovalPending',
+      'Zone',
+      'approvalNote',
+    ]);
+  });
+
+  it('puts the configured attribute names first', () => {
+    const detail = detailOf(
+      {
+        ...shuffled,
+        TeamRef: jsonPayload('group:default/a'),
+        TeamBy: jsonPayload('user:default/me'),
+      },
+      { entityRefAttribute: 'TeamRef', initiatorAttribute: 'TeamBy' },
+    );
+    expect(Object.keys(detail.searchAttributes!)).toEqual([
+      'TeamRef',
+      'TeamBy',
+      'ApprovalPending',
+      'BackstageEntityRef',
+      'Zone',
+      'approvalNote',
+    ]);
+  });
+
+  it('puts no attribute first when no names are configured', () => {
+    const detail = detailOf(shuffled, {
+      entityRefAttribute: undefined,
+      initiatorAttribute: undefined,
+    });
     expect(Object.keys(detail.searchAttributes!)).toEqual(sortedKeys);
-    expect(Object.keys(detail.memo!)).toEqual(sortedKeys);
   });
 
   it('gives the payload maps of a history event by key', () => {

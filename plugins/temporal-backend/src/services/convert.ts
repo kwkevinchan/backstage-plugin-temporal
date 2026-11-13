@@ -225,6 +225,22 @@ export function decodeSearchAttributes(raw: Json): JsonObject {
   return decodePayloadMap(raw?.indexedFields);
 }
 
+/**
+ * The search attributes of a detail: the entity and initiator attributes
+ * first (when present), then the others by key.
+ */
+function withOwnAttributesFirst(
+  attributes: JsonObject,
+  options: ConvertOptions,
+): JsonObject {
+  const first = [options.entityRefAttribute, options.initiatorAttribute];
+  const out: JsonObject = {};
+  for (const name of first) {
+    if (name && name in attributes) out[name] = attributes[name];
+  }
+  return { ...out, ...attributes };
+}
+
 function firstString(value: JsonValue | undefined): string | undefined {
   if (typeof value === 'string') return value;
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -398,7 +414,10 @@ export function toWorkflowDetail(
     ...summary,
     executionTime: toIsoTime(info.executionTime),
     parent,
-    searchAttributes: decodeSearchAttributes(info.searchAttributes),
+    searchAttributes: withOwnAttributesFirst(
+      decodeSearchAttributes(info.searchAttributes),
+      options,
+    ),
     memo: Object.keys(memo).length > 0 ? memo : undefined,
     failure: failureFromCloseEvent(options.closeEvent),
     pendingActivities: (describe.pendingActivities ?? []).map(
