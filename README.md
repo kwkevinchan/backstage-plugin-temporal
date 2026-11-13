@@ -1193,8 +1193,22 @@ export default createApp({
 });
 ```
 
-`api:temporal` is overridden the same way, with your own implementation of
-`TemporalApi`. To remove an extension, disable it in `app.extensions`.
+`api:temporal` takes its parameters as a callback, so give it your own
+implementation of `TemporalApi` like this (a plain object, as for the page,
+makes the app fail at startup):
+
+```ts
+temporalPlugin.getExtension('api:temporal').override({
+  params: defineParams =>
+    defineParams({
+      api: temporalApiRef,
+      deps: {},
+      factory: () => myClient,
+    }),
+});
+```
+
+To remove an extension, disable it in `app.extensions`.
 
 Backend modules that serve their own routes under `/api/temporal` use the
 plugin's access checks through `temporalAccessServiceRef`

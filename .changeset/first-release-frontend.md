@@ -10,8 +10,8 @@ that the backend does not serve the Temporal plugin and name that package.
 - An entity tab with the workflows of an entity (annotations, the
   `TemporalWorkflow` kind and `spec.dependsOn`), a Workflows page
   (`/temporal`), and cards for `TemporalWorkflow` entities: summary and
-  related workflows. The entity tab shows the recent run statistics of the
-  entity.
+  related workflows. The tab of a `TemporalWorkflow` entity shows the
+  recent run statistics.
 - Workflow details around a step graph (React Flow with the dagre layout),
   a panel for the selected step, and tabs for the steps, a timeline, the
   events and the details. The graph can go full screen with its step panel.
@@ -26,7 +26,9 @@ that the backend does not serve the Temporal plugin and name that package.
   The buttons come with the plugin in both frontend systems and show
   nothing when `temporal.control.enabled` is false. `TemporalApi`
   (`temporalApiRef`) has these operations besides the reads, with one
-  client.
+  client. An operation that finds no route says that
+  `temporal.control.enabled` may be false in the backend, or the backend
+  plugin missing.
 - Query on every workflow (`temporal.workflow.query`), with the names the
   workflow defines and the description and example from `spec.messages`.
   A query with an `inputSchema` there gets the same form as a signal or an

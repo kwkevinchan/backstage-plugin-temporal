@@ -15,11 +15,13 @@
  */
 
 /**
- * Entry point for the new frontend system: the plugin (default export), its
- * extensions (including the operations that change workflows, shown unless
- * `temporal.control.enabled` is false), and the blueprints for workflow
- * actions, sections and buttons of custom backend actions that other plugins
- * and app modules add.
+ * Entry point for the new frontend system: the plugin (default export), with
+ * its extensions (including the operations that change workflows, shown
+ * unless `temporal.control.enabled` is false), and the blueprints for
+ * workflow actions, list actions, schedule actions, sections and buttons of
+ * custom backend actions that other plugins and app modules add. The
+ * extensions of the plugin are not exported by name; an app reaches them
+ * with `getExtension()` and `withOverrides()` of the plugin.
  *
  * @packageDocumentation
  */

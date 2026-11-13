@@ -135,8 +135,12 @@ describe('the operations on the pages (new frontend system)', () => {
   }
 
   /** Renders the details page on the entity tab and on the Workflows page. */
-  async function eachPage(control: object, check: () => Promise<void>) {
+  async function eachPage(
+    control: object,
+    check: (api: ReturnType<typeof mockTemporalApi>) => Promise<void>,
+  ) {
     for (const id of ['entity-content:temporal', 'page:temporal']) {
+      const api = mockTemporalApi();
       const element = createExtensionTester(
         temporalPlugin.getExtension(id as 'page:temporal'),
       ).get(coreExtensionData.reactElement);
@@ -144,7 +148,7 @@ describe('the operations on the pages (new frontend system)', () => {
         <EntityProvider entity={entity}>{element}</EntityProvider>,
         {
           apis: [
-            [temporalApiRef, mockTemporalApi()],
+            [temporalApiRef, api],
             [temporalWorkflowExtensionsApiRef, workflowExtensions()],
             [permissionApiRef, mockApis.permission()],
           ],
@@ -155,7 +159,7 @@ describe('the operations on the pages (new frontend system)', () => {
       expect(
         await screen.findByTestId('workflow-summary', {}, { timeout: 10_000 }),
       ).toHaveTextContent('Failed');
-      await check();
+      await check(api);
       unmount();
     }
   }
@@ -183,9 +187,21 @@ describe('the operations on the pages (new frontend system)', () => {
   });
 
   it('shows no operations with temporal.control.enabled false', async () => {
-    await eachPage({ enabled: false }, async () => {
+    await eachPage({ enabled: false }, async api => {
       expect(await screen.findByText('probe')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
+      for (const name of [
+        'startWorkflow',
+        'signalWorkflow',
+        'updateWorkflow',
+        'cancelWorkflow',
+        'terminateWorkflow',
+        'rerunWorkflow',
+        'runWorkflowAction',
+        'runScheduleOperation',
+      ] as const) {
+        expect(api[name]).not.toHaveBeenCalled();
+      }
       // Query is not one of the operations.
       expect(
         screen.getByRole('button', { name: 'Query…' }),

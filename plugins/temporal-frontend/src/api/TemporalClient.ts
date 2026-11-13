@@ -64,12 +64,23 @@ export const BACKEND_MISSING_MESSAGE =
   'The Backstage backend does not serve the Temporal plugin: install @kwkevinchan/backstage-plugin-temporal-backend in the backend (or check that this app reaches the backend that runs it)';
 
 /**
+ * The error when an operation that changes workflows finds no route: the
+ * backend does not serve them with `temporal.control.enabled: false`, and
+ * answers as it does without the plugin.
+ */
+export const OPERATION_NOT_SERVED_MESSAGE =
+  'The Temporal backend does not serve this operation: either temporal.control.enabled is false in the backend, or @kwkevinchan/backstage-plugin-temporal-backend is not installed in it';
+
+/**
  * The error of a response that is not ok. A 404 without a Backstage error
  * body (`{ error }`) means the route does not exist: the backend plugin is
  * not installed. The plugin's own 404s (an unknown workflow or entity) have
  * an error body and stay a `ResponseError`.
  */
-async function responseError(response: Response): Promise<Error> {
+async function responseError(
+  response: Response,
+  operation = false,
+): Promise<Error> {
   if (response.status === 404) {
     let errorBody = false;
     try {
@@ -79,9 +90,14 @@ async function responseError(response: Response): Promise<Error> {
       // not JSON: no error body
     }
     if (!errorBody) {
-      return Object.assign(new Error(BACKEND_MISSING_MESSAGE), {
-        statusCode: 404,
-      });
+      return Object.assign(
+        new Error(
+          operation ? OPERATION_NOT_SERVED_MESSAGE : BACKEND_MISSING_MESSAGE,
+        ),
+        {
+          statusCode: 404,
+        },
+      );
     }
   }
   return ResponseError.fromResponse(response);
@@ -110,7 +126,15 @@ export class TemporalClient implements TemporalApi {
     return (await response.json()) as T;
   }
 
-  private async post<T>(path: string, body?: unknown): Promise<T> {
+  private operate<T>(path: string, body?: unknown): Promise<T> {
+    return this.post(path, body, true);
+  }
+
+  private async post<T>(
+    path: string,
+    body?: unknown,
+    operation = false,
+  ): Promise<T> {
     const baseUrl = await this.discoveryApi.getBaseUrl('temporal');
     const response = await this.fetchApi.fetch(`${baseUrl}${path}`, {
       method: 'POST',
@@ -118,7 +142,7 @@ export class TemporalClient implements TemporalApi {
       body: JSON.stringify(body ?? {}),
     });
     if (!response.ok) {
-      throw await responseError(response);
+      throw await responseError(response, operation);
     }
     return (await response.json()) as T;
   }
@@ -304,7 +328,7 @@ export class TemporalClient implements TemporalApi {
     request: WorkflowStartRequest,
     options?: { entityRef?: string },
   ): Promise<WorkflowStartResponse> {
-    return this.post(
+    return this.operate(
       options?.entityRef
         ? buildEntityWorkflowsPath(parseEntityRef(options.entityRef))
         : WORKFLOWS_PATH,
@@ -317,7 +341,7 @@ export class TemporalClient implements TemporalApi {
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<void> {
-    await this.post(
+    await this.operate(
       buildWorkflowOperationPath(ref, 'signal') +
         queryString({ entityRef: options?.entityRef }),
       request,
@@ -329,7 +353,7 @@ export class TemporalClient implements TemporalApi {
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
-    return this.post(
+    return this.operate(
       buildWorkflowOperationPath(ref, 'update') +
         queryString({ entityRef: options?.entityRef }),
       request,
@@ -340,7 +364,7 @@ export class TemporalClient implements TemporalApi {
     ref: WorkflowRef,
     options?: { entityRef?: string },
   ): Promise<void> {
-    await this.post(
+    await this.operate(
       buildWorkflowOperationPath(ref, 'cancel') +
         queryString({ entityRef: options?.entityRef }),
     );
@@ -351,7 +375,7 @@ export class TemporalClient implements TemporalApi {
     request: { reason?: string },
     options?: { entityRef?: string },
   ): Promise<void> {
-    await this.post(
+    await this.operate(
       buildWorkflowOperationPath(ref, 'terminate') +
         queryString({ entityRef: options?.entityRef }),
       request,
@@ -363,7 +387,7 @@ export class TemporalClient implements TemporalApi {
     request?: { workflowId?: string },
     options?: { entityRef?: string },
   ): Promise<WorkflowStartResponse> {
-    return this.post(
+    return this.operate(
       buildWorkflowOperationPath(ref, 'rerun') +
         queryString({ entityRef: options?.entityRef }),
       request,
@@ -376,7 +400,7 @@ export class TemporalClient implements TemporalApi {
     body?: JsonValue,
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
-    return this.post(
+    return this.operate(
       buildWorkflowActionPath(ref, actionId) +
         queryString({ entityRef: options?.entityRef }),
       body,
@@ -389,7 +413,7 @@ export class TemporalClient implements TemporalApi {
     request?: TemporalScheduleNoteRequest,
     options?: { entityRef?: string },
   ): Promise<void> {
-    await this.post(
+    await this.operate(
       buildScheduleOperationPath(ref, operation) +
         queryString({ entityRef: options?.entityRef }),
       request,

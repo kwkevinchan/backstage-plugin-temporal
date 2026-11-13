@@ -16,7 +16,8 @@
 
 // The extensions of the operations that change workflows, for the new
 // frontend system, and the blueprint of buttons that run custom backend
-// actions. `../alpha` adds them to the plugin and exports them.
+// actions. `../alpha` adds the extensions to the plugin and exports the
+// blueprint.
 
 import { createExtensionBlueprint } from '@backstage/frontend-plugin-api';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
