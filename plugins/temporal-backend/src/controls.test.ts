@@ -547,6 +547,26 @@ describe('workflow controls', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('treats a malformed entity search attribute as no entity when signaling', async () => {
+    const allowed = await start({ entityAttribute: 'not a ref' });
+    const res = await request(allowed.server)
+      .post(`${wf}/signal`)
+      .send({ name: 'addNote', args: ['hi'] });
+    expect(res.status).toBe(202);
+    expect(allowed.workflowService.signalWorkflowExecution).toHaveBeenCalled();
+    const conditional = await start({
+      entityAttribute: 'not a ref',
+      conditional: ['temporal.workflow.signal'],
+    });
+    const refused = await request(conditional.server)
+      .post(`${wf}/signal`)
+      .send({ name: 'addNote', args: ['hi'] });
+    expect(refused.status).toBe(403);
+    expect(
+      conditional.workflowService.signalWorkflowExecution,
+    ).not.toHaveBeenCalled();
+  });
+
   it.each(controlRoutes)(
     'answers 403 for %s when the permission is denied',
     async (operation, path, payload) => {
