@@ -84,7 +84,7 @@ const ATTACH_ID = TEMPORAL_WORKFLOW_EXTENSIONS_API_ID;
 
 type Loader<P> = () => Promise<ComponentType<P>>;
 
-function lazyComponent<P extends object>(
+export function lazyComponent<P extends object>(
   node: Parameters<typeof ExtensionBoundary>[0]['node'],
   loader: Loader<P>,
 ): ComponentType<P> {

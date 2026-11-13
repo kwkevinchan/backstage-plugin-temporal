@@ -357,10 +357,7 @@ export function useGraphFullscreen(): GraphFullscreen | undefined {
  * graph's own controls (zoom in, zoom out, fit the whole graph); the graph
  * opens at a readable size.
  */
-export function ViewButtons(_props: {
-  layout?: StepLayout;
-  selectedId?: string;
-}) {
+export function ViewButtons() {
   const fullscreen = useGraphFullscreen();
   if (!fullscreen) return null;
   return (

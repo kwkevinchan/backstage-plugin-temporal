@@ -16,18 +16,13 @@
 
 import { useState } from 'react';
 import type { JsonValue } from '@backstage/types';
-import type { ExternalPayload } from '../common';
+import type { DecodedPayload, ExternalPayload } from '../common';
 import { ButtonIcon, Text } from '@backstage/ui';
 import { RiCheckLine, RiFileCopyLine } from '@remixicon/react';
 import { ExternalPayloadView } from './ExternalPayloadView';
 import { tp } from './styles';
 
-type Decoded =
-  | { encoding: string; value: JsonValue; external?: ExternalPayload }
-  | { encoding: string; size: number; undecodable: true }
-  | { encoding: string; external: ExternalPayload };
-
-function isDecoded(value: unknown): value is Decoded {
+function isDecoded(value: unknown): value is DecodedPayload {
   return (
     typeof value === 'object' &&
     value !== null &&

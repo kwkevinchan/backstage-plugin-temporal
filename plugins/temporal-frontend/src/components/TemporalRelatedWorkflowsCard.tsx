@@ -22,7 +22,7 @@ import {
   useEntity,
   useRelatedEntities,
 } from '@backstage/plugin-catalog-react';
-import { TEMPORAL_WORKFLOW_KIND } from '../common';
+import { isTemporalWorkflowEntity, TEMPORAL_WORKFLOW_KIND } from '../common';
 import {
   Cell,
   Column,
@@ -65,10 +65,9 @@ export function TemporalRelatedWorkflowsCard() {
         </TableHeader>
         <TableBody>
           {entities.map(workflow => {
-            const spec = (workflow.spec ?? {}) as {
-              workflowType?: string;
-              taskQueue?: string;
-            };
+            const spec = isTemporalWorkflowEntity(workflow)
+              ? workflow.spec
+              : undefined;
             return (
               <Row
                 key={workflow.metadata.uid ?? workflow.metadata.name}
@@ -78,10 +77,10 @@ export function TemporalRelatedWorkflowsCard() {
                   <EntityRefLink entityRef={workflow} />
                 </Cell>
                 <Cell>
-                  <Text variant="body-small">{spec.workflowType}</Text>
+                  <Text variant="body-small">{spec?.workflowType}</Text>
                 </Cell>
                 <Cell>
-                  <Text variant="body-small">{spec.taskQueue}</Text>
+                  <Text variant="body-small">{spec?.taskQueue}</Text>
                 </Cell>
                 <Cell>
                   <EntityRefLinks

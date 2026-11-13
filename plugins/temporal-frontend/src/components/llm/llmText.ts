@@ -87,8 +87,3 @@ export function modelText(summary: WorkflowLlmSummary): string {
 export function toolName(node: WorkflowGraphNode): string {
   return node.tool?.name ?? node.name;
 }
-
-/** True for model calls and their tool calls. */
-export function isLlmStep(node: WorkflowGraphNode): boolean {
-  return Boolean(node.llm || node.tool);
-}

@@ -45,6 +45,7 @@ import {
   temporalWorkflowControlsAction,
 } from './alpha';
 import temporalPlugin from '../alpha';
+import { SCHEDULE_CONTROL_IDS } from './index';
 
 const workflowEntity: Entity = {
   apiVersion: 'temporal.io/v1alpha1',
@@ -161,6 +162,20 @@ describe('the operations on the pages (new frontend system)', () => {
       unmount();
     }
   }
+
+  it('names the schedule action as the list of operations expects', () => {
+    const factory = createExtensionTester(
+      temporalPlugin.getExtension('api:temporal/workflow-extensions'),
+    )
+      .add(
+        temporalPlugin.getExtension(
+          'temporal-schedule-action:temporal/controls',
+        ),
+      )
+      .get(ApiBlueprint.dataRefs.factory);
+    const api = factory.factory({}) as TemporalWorkflowExtensionsApi;
+    expect(SCHEDULE_CONTROL_IDS.has(api.getScheduleActions()[0].id)).toBe(true);
+  });
 
   it('shows Rerun on the entity tab and the Workflows page', async () => {
     await eachPage({}, async () => {

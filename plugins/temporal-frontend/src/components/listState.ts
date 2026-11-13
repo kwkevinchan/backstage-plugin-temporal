@@ -52,13 +52,6 @@ export interface ListFilters {
   workflowType: string;
 }
 
-export const EMPTY_FILTERS: ListFilters = {
-  status: '',
-  allRuns: false,
-  workflowId: '',
-  workflowType: '',
-};
-
 const TOKENS_KEY = 'temporal.list.tokens:';
 const SEARCH_KEY = 'temporal.list.search:';
 const SCROLL_KEY = 'temporal.list.scroll:';

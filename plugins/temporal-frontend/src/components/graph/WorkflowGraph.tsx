@@ -73,8 +73,6 @@ type FlowNode =
   | RoundFrameFlowNode
   | LoopNoteFlowNode;
 
-export { RELAYOUT_DELAY_MS, useSettledWidth } from './GraphCanvas';
-
 export interface WorkflowGraphProps {
   graph: WorkflowGraphResponse;
   selectedId?: string;
@@ -468,7 +466,7 @@ function GraphToolbar(props: {
           onChange={props.onShowMarkersChange}
         />
       )}
-      <ViewButtons layout={structure.layout} selectedId={props.selectedId} />
+      <ViewButtons />
     </Flex>
   );
 }

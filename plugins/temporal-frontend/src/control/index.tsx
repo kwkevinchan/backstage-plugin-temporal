@@ -125,10 +125,11 @@ export function withControls<
 /**
  * IDs of the schedule actions of the operations: the legacy definition
  * above and the extension `temporal-schedule-action:temporal/controls` of
- * the new frontend system.
+ * the new frontend system (`./alpha.test.tsx` checks the ID against the
+ * extension).
  */
-const SCHEDULE_CONTROL_IDS = new Set([
-  'temporal-schedule-controls',
+export const SCHEDULE_CONTROL_IDS = new Set([
+  ...temporalControlScheduleActions.map(a => a.id),
   'temporal-schedule-action:temporal/controls',
 ]);
 

@@ -17,7 +17,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useResolvedPath, useSearchParams } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { useApiHolder } from '@backstage/core-plugin-api';
 import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
 import type {
   WorkflowDetail,
@@ -29,7 +28,6 @@ import {
   TemporalWorkflowActionDef,
   TemporalWorkflowProvider,
   TemporalWorkflowSectionDef,
-  temporalWorkflowExtensionsApiRef,
 } from '../extensions';
 import {
   Alert,
@@ -68,9 +66,10 @@ import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
 import { WorkflowTimeline } from './timeline/WorkflowTimeline';
 import { useRefreshLock } from './useRefreshLock';
+import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
-import { workflowLink } from './WorkflowList';
+import { workflowLink } from './WorkflowRunsTable';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { tp } from './styles';
 
@@ -91,22 +90,16 @@ export function EntityWorkflowDetailPage(props: WorkflowDetailPageProps) {
  * the shared workflow extensions API (new frontend system).
  */
 function useExtensions(props: WorkflowDetailPageProps) {
-  const apis = useApiHolder();
-  const shared = apis.get(temporalWorkflowExtensionsApiRef);
-  return useMemo(() => {
-    const unique = <T extends { id: string }>(items: T[]) =>
-      items.filter((item, i) => items.findIndex(o => o.id === item.id) === i);
-    return {
-      actions: unique([
-        ...(props.workflowActions ?? []),
-        ...(shared?.getActions() ?? []),
-      ]),
-      sections: unique([
-        ...(props.workflowSections ?? []),
-        ...(shared?.getSections() ?? []),
-      ]),
-    };
-  }, [props.workflowActions, props.workflowSections, shared]);
+  return {
+    actions: useSharedExtensions(
+      sharedExtensions.actions,
+      props.workflowActions,
+    ),
+    sections: useSharedExtensions(
+      sharedExtensions.sections,
+      props.workflowSections,
+    ),
+  };
 }
 
 /**

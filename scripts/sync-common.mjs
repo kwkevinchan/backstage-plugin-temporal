@@ -60,20 +60,20 @@ const PAIRS = [
 const HEADER_END = ' */\n';
 
 /** The frontend copy of one backend file. */
-export function copyOf(name, text, SOURCE = PAIRS[0][0]) {
+function copyOf(name, text, source) {
   const note =
-    `\n// Copy of ${SOURCE}/${name}, written by scripts/sync-common.mjs.\n` +
+    `\n// Copy of ${source}/${name}, written by scripts/sync-common.mjs.\n` +
     '// Edit the backend file and run `yarn sync:common`.\n';
   const end = text.indexOf(HEADER_END);
   if (!text.startsWith('/*') || end < 0) {
-    throw new Error(`${SOURCE}/${name} has no license header`);
+    throw new Error(`${source}/${name} has no license header`);
   }
   const at = end + HEADER_END.length;
   return text.slice(0, at) + note + text.slice(at);
 }
 
-function sourceFiles(SOURCE) {
-  return readdirSync(join(root, SOURCE))
+function sourceFiles(source) {
+  return readdirSync(join(root, source))
     .filter(f => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f))
     .sort();
 }
@@ -93,14 +93,14 @@ function main() {
 }
 
 /** Writes or checks one copy; true when the check found a difference. */
-function syncPair(SOURCE, TARGET, check) {
+function syncPair(source, target, check) {
   const expected = new Map(
-    sourceFiles(SOURCE).map(f => [
+    sourceFiles(source).map(f => [
       f,
-      copyOf(f, readFileSync(join(root, SOURCE, f), 'utf8'), SOURCE),
+      copyOf(f, readFileSync(join(root, source, f), 'utf8'), source),
     ]),
   );
-  const targetDir = join(root, TARGET);
+  const targetDir = join(root, target);
   const present = existsSync(targetDir) ? readdirSync(targetDir).sort() : [];
   const problems = [];
 
@@ -111,27 +111,27 @@ function syncPair(SOURCE, TARGET, check) {
     if (check) {
       problems.push(
         actual === undefined
-          ? `${TARGET}/${name} is missing`
-          : `${TARGET}/${name} differs from ${SOURCE}/${name}`,
+          ? `${target}/${name} is missing`
+          : `${target}/${name} differs from ${source}/${name}`,
       );
     } else {
       mkdirSync(targetDir, { recursive: true });
       writeFileSync(path, text);
-      console.log(`wrote ${TARGET}/${name}`);
+      console.log(`wrote ${target}/${name}`);
     }
   }
   for (const name of present) {
     if (expected.has(name)) continue;
-    if (check) problems.push(`${TARGET}/${name} has no backend original`);
+    if (check) problems.push(`${target}/${name} has no backend original`);
     else {
       rmSync(join(targetDir, name));
-      console.log(`removed ${TARGET}/${name}`);
+      console.log(`removed ${target}/${name}`);
     }
   }
 
   for (const p of problems) console.error(p);
   if (check && problems.length === 0) {
-    console.log(`${TARGET} matches ${SOURCE} (${expected.size} files)`);
+    console.log(`${target} matches ${source} (${expected.size} files)`);
   }
   return problems.length > 0;
 }

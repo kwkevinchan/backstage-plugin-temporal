@@ -14,15 +14,11 @@
  * limitations under the License.
  */
 
-import { useMemo } from 'react';
 import type { Entity } from '@backstage/catalog-model';
-import { useApiHolder } from '@backstage/core-plugin-api';
 import type { WorkflowRef } from '../common';
-import {
-  TemporalWorkflowListActionDef,
-  temporalWorkflowExtensionsApiRef,
-} from '../extensions';
+import type { TemporalWorkflowListActionDef } from '../extensions';
 import { tp } from './styles';
+import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 
 /**
  * The list actions (such as "Start workflow") from the props (legacy
@@ -36,13 +32,10 @@ export function WorkflowListActions(props: {
   workflowHref(ref: WorkflowRef): string;
 }) {
   const { entity, workflowHref } = props;
-  const shared = useApiHolder().get(temporalWorkflowExtensionsApiRef);
-  const actions = useMemo(() => {
-    const all = [...(props.actions ?? []), ...(shared?.getListActions() ?? [])];
-    return all.filter(
-      (action, i) => all.findIndex(o => o.id === action.id) === i,
-    );
-  }, [props.actions, shared]);
+  const actions = useSharedExtensions(
+    sharedExtensions.listActions,
+    props.actions,
+  );
   return (
     <>
       {actions
