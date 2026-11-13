@@ -17,7 +17,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import type { WorkflowDetail } from '../../common';
+import type { WorkflowDetail, WorkflowHandler } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import { failedWorkflow, mockTemporalApi } from '../../testData';
 import { QueryButton } from './QueryButton';
@@ -39,8 +39,15 @@ const ref = {
 };
 const entityRef = 'component:default/orders';
 
-function render(deny: string[] = []) {
+function render(deny: string[] = [], queries?: WorkflowHandler[]) {
   const api = mockTemporalApi();
+  if (queries) {
+    api.getWorkflowHandlers.mockResolvedValue({
+      signals: [],
+      updates: [],
+      queries,
+    });
+  }
   denied = deny;
   renderInTestApp(
     <TestApiProvider apis={[[temporalApiRef, api]]}>
@@ -69,6 +76,55 @@ describe('QueryButton', () => {
       { name: 'notes', args: [] },
       { entityRef },
     );
+  });
+
+  it('shows the form of a query with an input schema and sends its argument', async () => {
+    const api = render(
+      [],
+      [
+        {
+          name: 'findOrder',
+          inputSchema: {
+            type: 'object',
+            required: ['orderId'],
+            properties: { orderId: { type: 'string', title: 'Order ID' } },
+          },
+        },
+      ],
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Query…' }),
+    );
+    expect(await screen.findByTestId('message-form')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('textbox', { name: 'Arguments (JSON)' }),
+    ).toBeNull();
+    const send = screen.getByRole('button', { name: 'Run query' });
+    // The order ID is required.
+    await waitFor(() => expect(send).toBeDisabled());
+    await userEvent.type(
+      screen.getByRole('textbox', { name: /Order ID/ }),
+      'order-7',
+    );
+    await waitFor(() => expect(send).toBeEnabled());
+    await userEvent.click(send);
+    expect(
+      await screen.findByTestId('workflow-query-result'),
+    ).toBeInTheDocument();
+    expect(api.queryWorkflow).toHaveBeenCalledWith(
+      ref,
+      { name: 'findOrder', args: [{ orderId: 'order-7' }] },
+      { entityRef },
+    );
+  });
+
+  it('keeps the JSON field for a query without an input schema', async () => {
+    render([], [{ name: 'notes' }]);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Query…' }),
+    );
+    await screen.findByRole('textbox', { name: 'Arguments (JSON)' });
+    expect(screen.queryByTestId('message-form')).toBeNull();
   });
 
   it('asks for a name when the backend cannot list the handlers', async () => {

@@ -112,9 +112,8 @@ services, `EntityWorkflowSources` is used by the other three, and `WorkflowQueri
 by `WorkflowListQueries` and `AiWorkflowQueries`; none depends on a class that
 uses it.
 
-On the frontend, `TemporalClient` (the default `temporalApiRef`) reads through the
-backend and `TemporalControlClient` (`temporalControlApiRef`) operates. The
-buttons of the operations read `temporal.control.enabled` themselves and
+On the frontend, `TemporalClient` (the default `temporalApiRef`) reads and
+operates through the backend. The buttons of the operations read `temporal.control.enabled` themselves and
 render nothing when it is false, in both frontend systems. The screens use
 `@backstage/ui`.
 
@@ -128,7 +127,7 @@ You can extend the plugin without changing it. The usage and examples are in
 | Add a button to the details page                    | `TemporalWorkflowActionBlueprint` (new frontend system) or `workflowActions` (legacy)                                                                                         | `temporal-frontend/alpha`               |
 | Add a tab to the details page                       | `TemporalWorkflowSectionBlueprint` or `workflowSections`                                                                                                                      | `temporal-frontend/alpha`               |
 | Add a control above the workflow lists              | `TemporalWorkflowListActionBlueprint` or `workflowListActions`                                                                                                                | `temporal-frontend/alpha`               |
-| Call the plugin from another plugin                 | `temporalApiRef`, `temporalControlApiRef`                                                                                                                                     | `temporal-frontend`                     |
+| Call the plugin from another plugin                 | `temporalApiRef`                                                                                                                                                              | `temporal-frontend`                     |
 | Call Temporal from other backend code               | `temporalServiceRef` (`getClient()`)                                                                                                                                          | `temporal-backend/node`                 |
 | Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                |
 | Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)          |

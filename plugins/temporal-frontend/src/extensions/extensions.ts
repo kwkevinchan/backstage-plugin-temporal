@@ -124,8 +124,8 @@ export interface TemporalScheduleActionDef {
  */
 export interface TemporalWorkflowSectionDef {
   id: string;
-  /** Tab label; defaults to the extension ID. */
-  title?: string;
+  /** Tab label. */
+  title: string;
   component: ComponentType<TemporalWorkflowExtensionProps>;
   /** Show the section only when this returns true. */
   filter?: (workflow: WorkflowDetail) => boolean;

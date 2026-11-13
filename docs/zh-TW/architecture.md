@@ -59,7 +59,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 
 授權服務位在 routes 和 services 之間，但它也會用到查詢 service（要讀過流程才能決定誰能看）。在查詢 service 之中，`EntityWorkflowSources` 被另外三個用，`WorkflowQueries` 被 `WorkflowListQueries` 和 `AiWorkflowQueries` 用；沒有任何一個依賴到用到它的類別。
 
-前端方面，`TemporalClient`（預設的 `temporalApiRef`）透過後端讀取，`TemporalControlClient`（`temporalControlApiRef`）負責操作。各操作的按鈕自己讀 `temporal.control.enabled`，是 false 時什麼都不顯示，兩套前端系統都一樣。畫面使用 `@backstage/ui`。
+前端方面，`TemporalClient`（預設的 `temporalApiRef`）透過後端讀取與操作。各操作的按鈕自己讀 `temporal.control.enabled`，是 false 時什麼都不顯示，兩套前端系統都一樣。畫面使用 `@backstage/ui`。
 
 ## 擴充點
 
@@ -70,7 +70,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 | 在詳細頁加按鈕                 | `TemporalWorkflowActionBlueprint`（新前端系統）或 `workflowActions`（舊系統）                                                                      | `temporal-frontend/alpha`                  |
 | 在詳細頁加分頁                 | `TemporalWorkflowSectionBlueprint` 或 `workflowSections`                                                                                           | `temporal-frontend/alpha`                  |
 | 在流程清單上方加控制項         | `TemporalWorkflowListActionBlueprint` 或 `workflowListActions`                                                                                     | `temporal-frontend/alpha`                  |
-| 從別的外掛呼叫這個外掛         | `temporalApiRef`、`temporalControlApiRef`                                                                                                          | `temporal-frontend`                        |
+| 從別的外掛呼叫這個外掛         | `temporalApiRef`                                                                                                                                   | `temporal-frontend`                        |
 | 從其他後端程式呼叫 Temporal    | `temporalServiceRef`（`getClient()`）                                                                                                              | `temporal-backend/node`                    |
 | 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                   |
 | 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）            |

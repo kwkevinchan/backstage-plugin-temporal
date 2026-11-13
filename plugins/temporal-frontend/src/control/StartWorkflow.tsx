@@ -28,6 +28,7 @@ import {
   TextField,
 } from '@backstage/ui';
 import { RiPlayLine } from '@remixicon/react';
+import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowListActionProps } from '../extensions';
 import {
   controlError,
@@ -46,7 +47,6 @@ import {
   WorkflowRef,
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
-import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 
 function specOf(entity: Entity | undefined) {
@@ -64,7 +64,7 @@ function StartWorkflowDialog(props: {
   onStarted(ref: Required<WorkflowRef>): void;
 }) {
   const { entity } = props;
-  const api = useApi(temporalControlApiRef);
+  const api = useApi(temporalApiRef);
   const spec = specOf(entity);
   const example = entity ? getTemporalWorkflowExampleArgs(entity) : undefined;
   const [workflowId, setWorkflowId] = useState('');

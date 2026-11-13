@@ -15,11 +15,13 @@
  */
 
 /**
- * Entry point for the new frontend system: the plugin (default export), its
- * extensions (including the operations that change workflows, shown unless
- * `temporal.control.enabled` is false), and the blueprints for workflow
- * actions, sections and buttons of custom backend actions that other plugins
- * and app modules add.
+ * Entry point for the new frontend system: the plugin (default export), with
+ * its extensions (including the operations that change workflows, shown
+ * unless `temporal.control.enabled` is false), and the blueprints for
+ * workflow actions, list actions, schedule actions, sections and buttons of
+ * custom backend actions that other plugins and app modules add. The
+ * extensions of the plugin are not exported by name; an app reaches them
+ * with `getExtension()` and `withOverrides()` of the plugin.
  *
  * @packageDocumentation
  */
@@ -57,34 +59,21 @@ import {
 import { TemporalClient } from './api';
 import { entityContentRouteRef, rootRouteRef } from './routes';
 import {
-  temporalControlApi,
   temporalScheduleControlsAction,
   temporalStartWorkflowListAction,
   temporalWorkflowControlsAction,
 } from './control/alpha';
 
-export {
-  TemporalControlActionBlueprint,
-  temporalControlApi,
-  temporalScheduleControlsAction,
-  temporalStartWorkflowListAction,
-  temporalWorkflowControlsAction,
-} from './control/alpha';
+export { TemporalControlActionBlueprint } from './control/alpha';
 
 export {
   TemporalWorkflowActionBlueprint,
   TemporalWorkflowListActionBlueprint,
   TemporalScheduleActionBlueprint,
   TemporalWorkflowSectionBlueprint,
-  temporalWorkflowActionDataRef,
-  temporalWorkflowListActionDataRef,
-  temporalScheduleActionDataRef,
-  temporalWorkflowSectionDataRef,
-  TEMPORAL_WORKFLOW_EXTENSIONS_API_ID,
 } from './extensions/blueprints';
 
-/** @alpha */
-export const temporalApi = ApiBlueprint.make({
+const temporalApi = ApiBlueprint.make({
   params: defineParams =>
     defineParams({
       api: temporalApiRef,
@@ -97,14 +86,12 @@ export const temporalApi = ApiBlueprint.make({
 /**
  * Shared mount point of workflow actions, list actions and sections
  * (`api:temporal/workflow-extensions`). Extensions of
- * `TemporalWorkflowActionBlueprint`, `TemporalWorkflowListActionBlueprint`
- * and `TemporalWorkflowSectionBlueprint` attach to its `actions`,
- * `listActions` and `sections` inputs; the entity tab and the Workflows
- * page both show them.
- *
- * @alpha
+ * `TemporalWorkflowActionBlueprint`, `TemporalWorkflowListActionBlueprint`,
+ * `TemporalScheduleActionBlueprint` and `TemporalWorkflowSectionBlueprint`
+ * attach to its inputs; the entity tab and the Workflows page both show
+ * them.
  */
-export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
+const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
   name: 'workflow-extensions',
   inputs: {
     actions: createExtensionInput([temporalWorkflowActionDataRef]),
@@ -143,10 +130,8 @@ export const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
 /**
  * Entity tab. Workflow actions and sections come from
  * {@link temporalWorkflowExtensionsApi}.
- *
- * @alpha
  */
-export const temporalEntityContent = EntityContentBlueprint.make({
+const temporalEntityContent = EntityContentBlueprint.make({
   params: {
     path: 'temporal',
     title: 'Temporal',
@@ -163,10 +148,8 @@ export const temporalEntityContent = EntityContentBlueprint.make({
  * Workflows page on `/temporal`. Its title and icon make the app list it in
  * the sidebar. Workflow actions and sections come from
  * {@link temporalWorkflowExtensionsApi}, as on the entity tab.
- *
- * @alpha
  */
-export const temporalPage = PageBlueprint.make({
+const temporalPage = PageBlueprint.make({
   params: {
     path: '/temporal',
     title: 'Workflows',
@@ -181,10 +164,8 @@ export const temporalPage = PageBlueprint.make({
 
 /**
  * Summary card on the overview of `TemporalWorkflow` entities.
- *
- * @alpha
  */
-export const temporalWorkflowSummaryCard = EntityCardBlueprint.make({
+const temporalWorkflowSummaryCard = EntityCardBlueprint.make({
   name: 'workflow-summary',
   params: {
     filter: isTemporalWorkflowEntity,
@@ -198,10 +179,8 @@ export const temporalWorkflowSummaryCard = EntityCardBlueprint.make({
 /**
  * Card with the `TemporalWorkflow` entities an entity depends on, on the
  * overview of entities that have any.
- *
- * @alpha
  */
-export const temporalRelatedWorkflowsCard = EntityCardBlueprint.make({
+const temporalRelatedWorkflowsCard = EntityCardBlueprint.make({
   name: 'related-workflows',
   params: {
     filter: entity => getDependsOnTemporalWorkflowRefs(entity).length > 0,
@@ -227,7 +206,6 @@ export default createFrontendPlugin({
     temporalEntityContent,
     temporalWorkflowSummaryCard,
     temporalRelatedWorkflowsCard,
-    temporalControlApi,
     temporalWorkflowControlsAction,
     temporalStartWorkflowListAction,
     temporalScheduleControlsAction,

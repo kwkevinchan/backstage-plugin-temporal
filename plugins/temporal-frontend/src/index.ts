@@ -32,24 +32,15 @@ export {
   EntityTemporalContent,
   TemporalPage,
   EntityTemporalWorkflowSummaryCard,
-  EntityTemporalWorkflowStatsCard,
   EntityTemporalRelatedWorkflowsCard,
 } from './plugin';
 export type {
   EntityTemporalContentProps,
   TemporalPageProps,
-  TemporalWorkflowStatsCardProps,
 } from './components';
 export { TemporalClient } from './api';
-export {
-  createTemporalControlActionDef,
-  TemporalControlClient,
-  temporalControlApiRef,
-} from './control';
-export type {
-  TemporalControlActionButtonOptions,
-  TemporalControlApi,
-} from './control';
+export { createTemporalControlActionDef } from './control';
+export type { TemporalControlActionButtonOptions } from './control';
 export * from './extensions';
 // Conditions for the EntitySwitch of a legacy entity page; the rest of the
 // shared definitions is imported from `./common`.

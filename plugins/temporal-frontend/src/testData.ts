@@ -24,7 +24,6 @@ import type {
   WorkflowStatsResponse,
   WorkflowHistoryResponse,
   WorkflowListResponse,
-  WorkflowStepsResponse,
   WorkflowLoopsResponse,
   TemporalSchedule,
   TemporalScheduleListResponse,
@@ -151,29 +150,6 @@ export const historyResponse: WorkflowHistoryResponse = {
       attributes: {
         input: { payloads: [{ encoding: 'json/plain', value: 1 }] },
       },
-    },
-  ],
-};
-
-export const stepsResponse: WorkflowStepsResponse = {
-  input: { encoding: 'json/plain', value: { paymentId: 'pay-1', amount: 42 } },
-  truncated: false,
-  activities: [
-    {
-      activityId: '1',
-      activityType: 'reserveStock',
-      scheduledEventId: '5',
-      status: 'Completed',
-      input: { encoding: 'json/plain', value: { sku: 'BOOK-1' } },
-      result: { encoding: 'json/plain', value: { reserved: true } },
-    },
-    {
-      activityId: '2',
-      activityType: 'chargeCard',
-      scheduledEventId: '11',
-      status: 'Failed',
-      input: { encoding: 'binary/encrypted', size: 64, undecodable: true },
-      failure: { message: 'Card declined', kind: 'ApplicationFailure' },
     },
   ],
 };
@@ -751,7 +727,6 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
-    getWorkflowSteps: jest.fn().mockResolvedValue(stepsResponse),
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
     getWorkflowLoops: jest.fn().mockResolvedValue(loopsResponse),
@@ -765,5 +740,21 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
       updates: [{ name: 'setPriority' }],
       queries: [{ name: 'notes' }],
     }),
+    signalWorkflow: jest.fn().mockResolvedValue(undefined),
+    updateWorkflow: jest.fn().mockResolvedValue({ result: 'ok' }),
+    cancelWorkflow: jest.fn().mockResolvedValue(undefined),
+    terminateWorkflow: jest.fn().mockResolvedValue(undefined),
+    rerunWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'order-1-rerun-abc',
+      runId: 'run-new',
+    }),
+    startWorkflow: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'started-1',
+      runId: 'run-started',
+    }),
+    runWorkflowAction: jest.fn().mockResolvedValue({ result: { ok: true } }),
+    runScheduleOperation: jest.fn().mockResolvedValue(undefined),
   };
 }

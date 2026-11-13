@@ -16,6 +16,7 @@
 
 import { useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
+import { temporalApiRef } from '../extensions';
 import type { TemporalScheduleActionProps } from '../extensions';
 import { PermissionButton } from '../components/messages/MessageDialog';
 import {
@@ -23,7 +24,6 @@ import {
   TemporalScheduleOperation,
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
-import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 import { ConfirmDialog } from './WorkflowControls';
 
@@ -59,7 +59,7 @@ const TEXT: Record<
  */
 function ScheduleControlsContent(props: TemporalScheduleActionProps) {
   const { schedule, entity, reload } = props;
-  const api = useApi(temporalControlApiRef);
+  const api = useApi(temporalApiRef);
   const [open, setOpen] = useState<TemporalScheduleOperation>();
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   const operations: TemporalScheduleOperation[] = [

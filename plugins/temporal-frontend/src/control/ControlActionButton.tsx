@@ -28,6 +28,7 @@ import {
   Flex,
   Text,
 } from '@backstage/ui';
+import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
   controlError,
@@ -39,7 +40,6 @@ import { JsonView } from '../components/PayloadView';
 import { tp } from '../components/styles';
 import type { WorkflowDetail } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
-import { temporalControlApiRef } from './api';
 import { useControlEnabled } from './config';
 
 /**
@@ -101,7 +101,7 @@ function ControlActionButtonContent(
 ) {
   const { action, workflow, entity } = props;
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
-  const api = useApi(temporalControlApiRef);
+  const api = useApi(temporalApiRef);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<Outcome>();

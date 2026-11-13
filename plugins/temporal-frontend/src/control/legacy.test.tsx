@@ -26,7 +26,6 @@ import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { temporalApiRef } from '../extensions';
 import { LegacyEntityTemporalContentPage } from '../components/EntityTemporalContent';
 import { entity, mockTemporalApi } from '../testData';
-import { TemporalControlApi, temporalControlApiRef } from './api';
 
 /*
  * The entity tab of the legacy frontend system brings the operations that
@@ -39,7 +38,6 @@ async function renderDetails(control: object) {
     <TestApiProvider
       apis={[
         [temporalApiRef, api],
-        [temporalControlApiRef, {} as TemporalControlApi],
         [permissionApiRef, mockApis.permission()],
         [configApiRef, mockApis.config({ data: { temporal: { control } } })],
       ]}
@@ -54,6 +52,7 @@ async function renderDetails(control: object) {
   expect(await screen.findByTestId('workflow-summary')).toHaveTextContent(
     'Failed',
   );
+  return api;
 }
 
 describe('legacy entity tab', () => {
@@ -65,11 +64,13 @@ describe('legacy entity tab', () => {
   });
 
   it('shows no operations when temporal.control.enabled is false', async () => {
-    await renderDetails({ enabled: false });
+    const api = await renderDetails({ enabled: false });
     expect(screen.queryByRole('button', { name: 'Rerun' })).toBeNull();
     // Query is not one of the operations.
     expect(
       await screen.findByRole('button', { name: 'Query…' }),
     ).toBeInTheDocument();
+    expect(api.rerunWorkflow).not.toHaveBeenCalled();
+    expect(api.startWorkflow).not.toHaveBeenCalled();
   });
 });

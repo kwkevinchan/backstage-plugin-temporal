@@ -58,6 +58,16 @@ describe('blueprints', () => {
     expect(section.title).toBe('Notes');
   });
 
+  it('rejects a workflow section without a title', () => {
+    const extension = TemporalWorkflowSectionBlueprint.make({
+      name: 'notes',
+      params: { title: '', loader: async () => () => null },
+    });
+    expect(() =>
+      createExtensionTester(extension).get(temporalWorkflowSectionDataRef),
+    ).toThrow(/needs a title/);
+  });
+
   it('outputs a workflow list action', () => {
     const filter = () => true;
     const extension = TemporalWorkflowListActionBlueprint.make({

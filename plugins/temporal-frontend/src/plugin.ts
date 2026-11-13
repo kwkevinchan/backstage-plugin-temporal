@@ -24,7 +24,6 @@ import {
 } from '@backstage/core-plugin-api';
 import { temporalApiRef } from './extensions';
 import { TemporalClient } from './api';
-import { temporalControlApiFactory } from './control';
 import { entityContentRouteRef, rootRouteRef } from './routes';
 
 /**
@@ -41,7 +40,6 @@ export const temporalPlugin = createPlugin({
       factory: ({ discoveryApi, fetchApi }) =>
         new TemporalClient({ discoveryApi, fetchApi }),
     }),
-    temporalControlApiFactory,
   ],
   routes: {
     root: rootRouteRef,
@@ -99,24 +97,6 @@ export const EntityTemporalWorkflowSummaryCard = temporalPlugin.provide(
       lazy: () =>
         import('./components/TemporalWorkflowSummaryCard').then(
           m => m.TemporalWorkflowSummaryCard,
-        ),
-    },
-  }),
-);
-
-/**
- * Card with succeeded, failed and running counts and the mean duration of an
- * entity's most recent runs.
- *
- * @public
- */
-export const EntityTemporalWorkflowStatsCard = temporalPlugin.provide(
-  createComponentExtension({
-    name: 'EntityTemporalWorkflowStatsCard',
-    component: {
-      lazy: () =>
-        import('./components/TemporalWorkflowStatsCard').then(
-          m => m.TemporalWorkflowStatsCard,
         ),
     },
   }),

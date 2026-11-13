@@ -41,13 +41,20 @@ the configuration.
 
 New frontend system (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`):
 the default export is the plugin, with the entity content, the Workflows
-page, the entity cards, the APIs and the buttons of the operations
+page, the entity cards, the API and the buttons of the operations
 (`temporal-workflow-action:temporal/controls`,
 `temporal-workflow-list-action:temporal/start` and
 `temporal-schedule-action:temporal/controls`). To turn the operations off,
-set `temporal.control.enabled: false`; the buttons need the API
-`api:temporal/control`, so do not disable that one. Disable the three button
-extensions in `app.extensions` only to remove individual buttons.
+set `temporal.control.enabled: false`. Disable the three button extensions in
+`app.extensions` only to remove individual buttons. The plugin's extensions
+are not exported by name; to change one, use
+`plugin.getExtension('page:temporal').override(...)` with
+`plugin.withOverrides(...)` (see
+[Extending](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#extending)
+in the repository README). Besides the plugin, `./alpha` exports
+`TemporalWorkflowActionBlueprint`, `TemporalWorkflowListActionBlueprint`,
+`TemporalScheduleActionBlueprint`, `TemporalWorkflowSectionBlueprint` and
+`TemporalControlActionBlueprint`.
 
 Legacy frontend system:
 
@@ -57,11 +64,9 @@ Legacy frontend system:
 | `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.            |
 | `TemporalPage`                                                                        | Workflows page: the workflow executions of a namespace. |
 | `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.      |
-| `EntityTemporalWorkflowStatsCard`                                                     | Recent run statistics of an entity.                     |
 | `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                  |
 | `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                            |
 | `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).              |
-| `TemporalControlClient`, `temporalControlApiRef`                                      | Client of the operations (`TemporalControlApi`).        |
 | `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.             |
 
 `EntityTemporalContent` and `TemporalPage` show the buttons of the
@@ -74,9 +79,8 @@ Plugins and app modules that add buttons or tabs to the workflow page, or
 that call the Temporal backend from their own components, use these exports.
 
 - `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
-  workflow reads, queries and handler names. `temporalControlApiRef`,
-  `TemporalControlApi`: the operations that change workflows and custom
-  backend actions.
+  workflow reads, queries and handler names, the operations that change
+  workflows and custom backend actions.
 - `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`,
   `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`: actions,
   tabs, list actions and schedule actions for the legacy frontend system

@@ -28,6 +28,7 @@ import {
   Text,
   TextField,
 } from '@backstage/ui';
+import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import { controlError } from '../components/messages/shared';
 import { ErrorAlert } from '../components/feedback';
@@ -37,7 +38,7 @@ import {
   PermissionButton,
   useWorkflowHandlers,
 } from '../components/messages/MessageDialog';
-import { SchemaArgsField } from './SchemaArgsField';
+import { SchemaArgsField } from '../components/messages/SchemaArgsField';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowRerunPermission,
@@ -46,7 +47,6 @@ import {
   temporalWorkflowUpdatePermission,
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
-import { temporalControlApiRef } from './api';
 import { useControlConfig, useControlEnabled } from './config';
 
 type MessageKind = 'signal' | 'update';
@@ -141,7 +141,7 @@ export function ConfirmDialog(props: {
  */
 function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
   const { workflow, entity, reload } = props;
-  const api = useApi(temporalControlApiRef);
+  const api = useApi(temporalApiRef);
   const navigate = useNavigate();
   const config = useControlConfig();
   const [open, setOpen] = useState<Open>();
