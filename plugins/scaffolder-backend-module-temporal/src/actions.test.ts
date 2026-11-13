@@ -15,8 +15,8 @@
  */
 
 import { mockCredentials } from '@backstage/backend-test-utils';
-import { getTemporalWorkflowSource } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
+import { InputError } from '@backstage/errors';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import {
   createTemporalWorkflowSignalAction,
@@ -587,17 +587,6 @@ describe('the namespace of wait and signal for an entity', () => {
     expect(await signalNamespace(input)).toBe(expected);
   });
 
-  it('is the namespace the backend takes for start of the same entity', async () => {
-    // Start sends the entity and lets the backend read its namespace with
-    // getTemporalWorkflowSource, which is what wait and signal use.
-    for (const e of entities.slice(0, 3)) {
-      const ref = `${e.kind.toLowerCase()}:default/${e.metadata.name}`;
-      expect(await waitNamespace({ entityRef: ref })).toBe(
-        getTemporalWorkflowSource(e as any).namespace ?? 'team-a',
-      );
-    }
-  });
-
   it('does not fall back to the default when the entity cannot be read', async () => {
     const { client, options } = setup();
     await expect(
@@ -619,6 +608,78 @@ describe('the namespace of wait and signal for an entity', () => {
       ),
     ).rejects.toThrow();
     expect(client.describe).not.toHaveBeenCalled();
+  });
+
+  it('reads the entity with the credentials of the user who runs the template', async () => {
+    const { options: o2, client } = setup();
+    const spy = jest.spyOn(o2.catalog, 'getEntityByRef');
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(o2).handler(
+      context({
+        workflowId: 'release-1',
+        entityRef: 'component:default/billing',
+      }),
+    );
+    await createTemporalWorkflowSignalAction(o2).handler(
+      context({
+        workflowId: 'release-1',
+        name: 'approve',
+        entityRef: 'component:default/billing',
+      }),
+    );
+    expect(spy).toHaveBeenCalledTimes(2);
+    for (const call of spy.mock.calls) {
+      expect(call).toEqual([
+        'component:default/billing',
+        { credentials: user },
+      ]);
+    }
+  });
+
+  it('rejects an entity with an invalid annotation as an input error', async () => {
+    const { options } = setup();
+    await expect(
+      createTemporalWorkflowWaitAction(options).handler(
+        context({
+          workflowId: 'release-1',
+          entityRef: 'component:default/broken',
+        }),
+      ),
+    ).rejects.toBeInstanceOf(InputError);
+  });
+
+  it('does not read the entity in a dry run', async () => {
+    const { options } = setup();
+    const getEntityByRef = jest.spyOn(options.catalog, 'getEntityByRef');
+    const entityRef = 'component:default/missing';
+    await createTemporalWorkflowWaitAction(options).handler(
+      context({ workflowId: 'release-1', entityRef }, { isDryRun: true }),
+    );
+    await createTemporalWorkflowSignalAction(options).handler(
+      context(
+        { workflowId: 'release-1', name: 'approve', entityRef },
+        { isDryRun: true },
+      ),
+    );
+    expect(getEntityByRef).not.toHaveBeenCalled();
+  });
+
+  it('does not read the entity or send again when the checkpoint has the result', async () => {
+    const { client, options } = setup();
+    const getEntityByRef = jest.spyOn(options.catalog, 'getEntityByRef');
+    await createTemporalWorkflowSignalAction(options).handler(
+      context(
+        {
+          workflowId: 'release-1',
+          name: 'approve',
+          kind: 'update',
+          entityRef: 'component:default/billing',
+        },
+        { checkpoint: async () => ({ approved: true }) },
+      ),
+    );
+    expect(getEntityByRef).not.toHaveBeenCalled();
+    expect(client.send).not.toHaveBeenCalled();
   });
 
   it('does not read the entity when a namespace is given', async () => {

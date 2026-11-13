@@ -476,15 +476,16 @@ export function createTemporalWorkflowSignalAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      const ref: WorkflowRef = {
-        namespace: await resolveNamespace(options, input, credentials),
-        workflowId: input.workflowId,
-        ...(input.runId ? { runId: input.runId } : {}),
-      };
-      // A retried task does not send it again; the result is kept.
+      // A retried task does not send it again, nor read the entity again;
+      // the result is kept.
       const result = await ctx.checkpoint<JsonValue>({
         key: `temporal.${kind}.${ctx.step?.id ?? input.name}`,
         fn: async () => {
+          const ref: WorkflowRef = {
+            namespace: await resolveNamespace(options, input, credentials),
+            workflowId: input.workflowId,
+            ...(input.runId ? { runId: input.runId } : {}),
+          };
           const response = await options.client.send(
             kind,
             ref,
