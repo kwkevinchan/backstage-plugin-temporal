@@ -725,7 +725,7 @@ describe('with temporal.control.enabled: false', () => {
   ])('shows no buttons for %s', async (_name, element) => {
     const { api, temporal } = await renderAll(element, disabled.control);
     expect(screen.queryAllByRole('button')).toEqual([]);
-    expect(temporal.getWorkflowHandlers).not.toHaveBeenCalled();
+    for (const fn of Object.values(temporal)) expect(fn).not.toHaveBeenCalled();
     for (const fn of Object.values(api)) expect(fn).not.toHaveBeenCalled();
   });
 

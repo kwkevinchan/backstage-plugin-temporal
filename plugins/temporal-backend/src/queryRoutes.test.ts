@@ -36,6 +36,8 @@ const json = (value: unknown) => ({
   data: Buffer.from(JSON.stringify(value)),
 });
 
+const b64 = (s: string) => Buffer.from(s).toString('base64');
+
 function runningWorkflowService() {
   const base = createFakeWorkflowService();
   return {
@@ -102,6 +104,8 @@ async function start(options?: {
   deny?: string[];
   entities?: Entity[];
   client?: unknown;
+  /** The name of the entity reference search attribute. */
+  entityRefAttribute?: string;
   /** The `temporal.control` config. */
   control?: object;
 }) {
@@ -127,7 +131,10 @@ async function start(options?: {
       catalogServiceMock.factory({
         entities: [ordersEntity, ...(options?.entities ?? [])],
       }),
-      fakeTemporalServiceFactory(workflowService, { client: options?.client }),
+      fakeTemporalServiceFactory(workflowService, {
+        client: options?.client,
+        entityRefAttribute: options?.entityRefAttribute,
+      }),
       permissions.factory,
       auditor.factory,
       mockServices.rootConfig.factory({
@@ -170,6 +177,38 @@ describe('query routes of the core plugin', () => {
       .post(`${wf}/query${withEntity}`)
       .send({ name: 'state' });
     expect(res.status).toBe(403);
+    expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 for a query when the entity search attribute is not a reference', async () => {
+    const { server, workflowService } = await start({
+      entityRefAttribute: 'BackstageEntityRef',
+    });
+    workflowService.describeWorkflowExecution.mockImplementation(
+      async (req: any) => ({
+        workflowExecutionInfo: {
+          ...executionInfo({
+            workflowId: req.execution.workflowId,
+            status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+          }),
+          searchAttributes: {
+            indexedFields: {
+              // The JSON form of a payload, as the client library decodes it.
+              BackstageEntityRef: {
+                metadata: { encoding: b64('json/plain') },
+                data: b64(JSON.stringify('not a ref')),
+              },
+            },
+          },
+        },
+        pendingActivities: [],
+      }),
+    );
+    // From the Workflows page: the list permission, no entityRef.
+    const res = await request(server)
+      .post(`${wf}/query`)
+      .send({ name: 'state' });
+    expect(res.status).toBe(400);
     expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
