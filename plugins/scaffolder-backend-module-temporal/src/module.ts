@@ -18,6 +18,7 @@ import {
   coreServices,
   createBackendModule,
 } from '@backstage/backend-plugin-api';
+import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node';
 import {
   createTemporalWorkflowSignalAction,
@@ -45,10 +46,12 @@ export const scaffolderTemporalModule = createBackendModule({
         discovery: coreServices.discovery,
         auth: coreServices.auth,
         config: coreServices.rootConfig,
+        catalog: catalogServiceRef,
       },
-      async init({ scaffolder, discovery, auth, config }) {
+      async init({ scaffolder, discovery, auth, config, catalog }) {
         const options = {
           client: new TemporalPluginClient(discovery, auth),
+          catalog,
           appBaseUrl: config.getString('app.baseUrl'),
           // As the Temporal backend plugin reads it.
           defaultNamespace:

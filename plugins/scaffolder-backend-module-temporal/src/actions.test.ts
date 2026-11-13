@@ -15,6 +15,8 @@
  */
 
 import { mockCredentials } from '@backstage/backend-test-utils';
+import { getTemporalWorkflowSource } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
+import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import {
   createTemporalWorkflowSignalAction,
@@ -24,6 +26,42 @@ import {
 import { TemporalPluginClient } from './client';
 
 const user = mockCredentials.user('user:default/alice');
+
+const entity = (
+  kind: string,
+  name: string,
+  annotations: Record<string, string>,
+) => ({
+  apiVersion: 'backstage.io/v1alpha1',
+  kind,
+  metadata: { name, namespace: 'default', annotations },
+  spec: {},
+});
+
+/** Entities with a namespace, with none, and a TemporalWorkflow with one. */
+const entities = [
+  entity('Component', 'billing', {
+    'temporal.io/workflow-type': 'billingWorkflow',
+    'temporal.io/namespace': 'billing',
+  }),
+  entity('Component', 'plain', {
+    'temporal.io/workflow-type': 'plainWorkflow',
+  }),
+  {
+    apiVersion: 'temporal.io/v1alpha1',
+    kind: 'TemporalWorkflow',
+    metadata: { name: 'audit', namespace: 'default' },
+    spec: {
+      owner: 'group:default/a',
+      workflowType: 'auditWorkflow',
+      namespace: 'audit',
+    },
+  },
+  entity('Component', 'broken', {
+    'temporal.io/workflow-type': 'x',
+    'temporal.io/namespace': 'Not A Namespace!',
+  }),
+];
 
 function setup(defaultNamespace = 'default') {
   const client = {
@@ -38,6 +76,7 @@ function setup(defaultNamespace = 'default') {
   };
   const options = {
     client: client as unknown as TemporalPluginClient,
+    catalog: catalogServiceMock({ entities: entities as any }),
     appBaseUrl: 'http://backstage/',
     defaultNamespace,
   };
@@ -496,5 +535,99 @@ describe('the namespace of wait and signal', () => {
       undefined,
       user,
     );
+  });
+});
+
+describe('the namespace of wait and signal for an entity', () => {
+  const waitNamespace = async (
+    input: Record<string, unknown>,
+    d = 'team-a',
+  ) => {
+    const { client, options } = setup(d);
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(options).handler(
+      context({ workflowId: 'release-1', ...input }),
+    );
+    return client.describe.mock.calls[0][0].namespace;
+  };
+  const signalNamespace = async (
+    input: Record<string, unknown>,
+    d = 'team-a',
+  ) => {
+    const { client, options } = setup(d);
+    await createTemporalWorkflowSignalAction(options).handler(
+      context({ workflowId: 'release-1', name: 'approve', ...input }),
+    );
+    return client.send.mock.calls[0][1].namespace;
+  };
+
+  it.each([
+    [
+      'an entity with a namespace',
+      'component:default/billing',
+      undefined,
+      'billing',
+    ],
+    [
+      'a TemporalWorkflow entity with a namespace',
+      'temporalworkflow:default/audit',
+      undefined,
+      'audit',
+    ],
+    ['an entity without one', 'component:default/plain', undefined, 'team-a'],
+    [
+      'an explicit namespace over the entity',
+      'component:default/billing',
+      'other',
+      'other',
+    ],
+  ])('follows %s', async (_name, entityRef, namespace, expected) => {
+    const input = { entityRef, namespace };
+    expect(await waitNamespace(input)).toBe(expected);
+    expect(await signalNamespace(input)).toBe(expected);
+  });
+
+  it('is the namespace the backend takes for start of the same entity', async () => {
+    // Start sends the entity and lets the backend read its namespace with
+    // getTemporalWorkflowSource, which is what wait and signal use.
+    for (const e of entities.slice(0, 3)) {
+      const ref = `${e.kind.toLowerCase()}:default/${e.metadata.name}`;
+      expect(await waitNamespace({ entityRef: ref })).toBe(
+        getTemporalWorkflowSource(e as any).namespace ?? 'team-a',
+      );
+    }
+  });
+
+  it('does not fall back to the default when the entity cannot be read', async () => {
+    const { client, options } = setup();
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context({
+          workflowId: 'release-1',
+          name: 'approve',
+          entityRef: 'component:default/missing',
+        }),
+      ),
+    ).rejects.toThrow(/Cannot read the entity component:default\/missing/);
+    expect(client.send).not.toHaveBeenCalled();
+    await expect(
+      createTemporalWorkflowWaitAction(options).handler(
+        context({
+          workflowId: 'release-1',
+          entityRef: 'component:default/broken',
+        }),
+      ),
+    ).rejects.toThrow();
+    expect(client.describe).not.toHaveBeenCalled();
+  });
+
+  it('does not read the entity when a namespace is given', async () => {
+    const { options } = setup();
+    const getEntityByRef = jest.spyOn(options.catalog, 'getEntityByRef');
+    await signalNamespace({
+      entityRef: 'component:default/missing',
+      namespace: 'x',
+    });
+    expect(getEntityByRef).not.toHaveBeenCalled();
   });
 });
