@@ -11,6 +11,8 @@ import { Entity } from '@backstage/catalog-model';
 import { FetchApi } from '@backstage/core-plugin-api';
 import type { JsonObject } from '@backstage/types';
 import type { JsonValue } from '@backstage/types';
+import { JSX as JSX_2 } from 'react';
+import { ReactNode } from 'react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import { RouteRef } from '@backstage/core-plugin-api';
 
@@ -507,6 +509,19 @@ export interface TemporalWorkflowListActionDef {
 export interface TemporalWorkflowListActionProps {
   entity?: Entity;
   workflowHref(ref: WorkflowRef): string;
+}
+
+// @public
+export function TemporalWorkflowProvider(
+  props: TemporalWorkflowProviderProps,
+): JSX_2.Element;
+
+// @public
+export interface TemporalWorkflowProviderProps {
+  // (undocumented)
+  children?: ReactNode;
+  // (undocumented)
+  value: TemporalWorkflowExtensionProps;
 }
 
 // @public

@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![六個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 19 個 alpha（report-alpha.api.md），./node 3 個 public（report-node.api.md），./common 126 個，其中 96 個 public、30 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 23 個 public，./alpha 6 個 alpha，./common 同樣 126 個，./ui 24 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![六個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 19 個 alpha（report-alpha.api.md），./node 3 個 public（report-node.api.md），./common 126 個，其中 96 個 public、30 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 126 個，./ui 24 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -62,7 +62,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 |                                      | `./node`   |      3 | `@public`                 | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
 |                                      | `./alpha`  |     19 | `@alpha`                  | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |    126 | `@public` 96、`@alpha` 30 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
-| `temporal-frontend`                  | `.`        |     23 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
+| `temporal-frontend`                  | `.`        |     25 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |      6 | `@alpha`                  | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
 |                                      | `./common` |    126 | `@public` 96、`@alpha` 30 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal-frontend/report-common.api.md)        |
 |                                      | `./ui`     |     24 | `@alpha`                  | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal-frontend/report-ui.api.md)                |
@@ -126,7 +126,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `isTemporalAvailable`、`isTemporalWorkflowEntity`、`getDependsOnTemporalWorkflowRefs`                                                                                             | `.`       | 給 `EntitySwitch` 和 `if` 用的條件（`./common` 也有） | 舊系統的實體頁                     |
 | `TemporalWorkflowActionDef`、`TemporalWorkflowSectionDef`、`TemporalWorkflowListActionDef`、`TemporalScheduleActionDef`                                                           | `.`       | 舊系統 props 收的型別                                 | 舊系統的 props                     |
 | `TemporalWorkflowExtensionProps`、`TemporalWorkflowListActionProps`、`TemporalScheduleActionProps`                                                                                | `.`       | 你的元件收到的 props，兩套系統相同                    | 寫按鈕、分頁或控制項               |
-| `useTemporalWorkflow`                                                                                                                                                             | `.`       | 在詳細頁裡面取得目前的流程                            | 分頁裡較深層的元件                 |
+| `useTemporalWorkflow`、`TemporalWorkflowProvider`、`TemporalWorkflowProviderProps`                                                                                                | `.`       | 在詳細頁裡面取得目前的流程；Provider 在測試裡包住元件 | 分頁裡較深層的元件、它的測試       |
 | `createTemporalControlActionDef`、`TemporalControlActionButtonOptions`                                                                                                            | `.`       | 舊系統的 action，按鈕會執行後端的自訂操作             | 舊系統的 `workflowActions`         |
 | `temporalApiRef`、`TemporalApi`、`TemporalClient`                                                                                                                                 | `.`       | 後端的 client：ref、interface 和預設實作              | 其他外掛呼叫後端，或換掉 client    |
 
@@ -229,7 +229,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ### `TemporalWorkflowExtensionProps`
 
-action 和 section 收到的 props，也是在詳細頁裡 `useTemporalWorkflow()` 的回傳值（在詳細頁以外呼叫會丟出錯誤）：
+action 和 section 收到的 props，也是在詳細頁裡 `useTemporalWorkflow()` 的回傳值（在詳細頁以外呼叫會丟出錯誤；測試裡用 `TemporalWorkflowProvider` 以同樣的值當 `value` 包住元件）：
 
 | 欄位                | 是什麼                                                                        |
 | ------------------- | ----------------------------------------------------------------------------- |
@@ -792,7 +792,6 @@ export async function listRunningWorkflows(
 | `DefaultTemporalAccessService`                                      | 檢查只透過 interface 這一個約定提供 | `temporalAccessServiceRef`，或為它提供自己的 factory                                        |
 | 各個 router、`WorkflowQueries`、`WorkflowCommands`、repository      | 內部分層，由 `plugin.ts` 接起來     | HTTP API、擴充點                                                                            |
 | `temporalWorkflowExtensionsApiRef`、`TemporalWorkflowExtensionsApi` | 收集 blueprint 是實作細節           | blueprint；要拿掉所有擴充就停用 `api:temporal/workflow-extensions`                          |
-| `TemporalWorkflowProvider`                                          | 詳細頁自己會提供流程                | 在詳細頁裡用 `useTemporalWorkflow()`；其他地方用 props                                      |
 | 外掛的擴充本身（`temporalPage`…）                                   | 匯出擴充會把它們的參數固定下來      | `getExtension(id)` 和 `withOverrides()`（[ID](#extension-id)）                              |
 | Zigflow 的型別（`WorkflowDefinitionResponse`…）                     | 這條路由只給 Definition 分頁用      | Definition 分頁                                                                             |
 | 在前端匯入 `@kwkevinchan/backstage-plugin-temporal-backend/common`  | 前端外掛不能匯入後端外掛            | `@kwkevinchan/backstage-plugin-temporal-frontend/common`，同一份定義                        |
