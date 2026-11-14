@@ -27,7 +27,7 @@ import {
   RiStackLine,
 } from '@remixicon/react';
 import type { WorkflowEventGroup } from '../../common';
-import type { GroupBox } from './eventGroups';
+import type { GroupBox, GroupHue } from './eventGroups';
 import {
   groupCountBadge,
   groupDuration,
@@ -133,7 +133,7 @@ export const GroupFrameNode = memo(function GroupFrameView(
   } that started this group`;
   return (
     <div
-      className={tp('tp-group-frame', `tp-tone-${tone}`)}
+      className={tp('tp-group-frame', 'tp-hue', `tp-tone-${tone}`)}
       role="group"
       aria-label={`Event group ${group.name}`}
       data-testid={`group-frame-${group.key}`}
@@ -142,6 +142,7 @@ export const GroupFrameNode = memo(function GroupFrameView(
       data-focused={focused}
       data-active={active}
       data-depth={box.depth}
+      data-hue={box.hue}
     >
       <div className={tp('tp-group-title')}>
         <button
@@ -222,8 +223,14 @@ export const GroupNode = memo(function GroupNodeView(
       />
       <button
         type="button"
-        className={tp('tp-node', `tp-tone-${statusTone(group.status)}`)}
+        className={tp(
+          'tp-node',
+          'tp-hue',
+          `tp-tone-${statusTone(group.status)}`,
+        )}
         data-group={group.kind}
+        data-hue={box.hue}
+        data-depth={box.depth}
         data-nested={group.children.length > 0}
         data-expanded="false"
         data-active={active}
@@ -261,7 +268,11 @@ export const GroupNode = memo(function GroupNodeView(
   );
 });
 
-export type GroupTagData = { groups: WorkflowEventGroup[] };
+export type GroupTagData = {
+  groups: WorkflowEventGroup[];
+  /** Color of the label: that of the first group. */
+  hue: GroupHue;
+};
 export type GroupTagFlowNode = Node<GroupTagData, 'groupTag'>;
 
 /** Height of the label of the groups of a step without their own box. */
@@ -279,7 +290,8 @@ export const GroupTagNode = memo(function GroupTagView(
   return (
     <div className={tp('tp-group-tag-row')}>
       <span
-        className={tp('tp-group-tag')}
+        className={tp('tp-group-tag', 'tp-hue')}
+        data-hue={props.data.hue}
         title={`Event groups: ${names.join(', ')}`}
         data-testid={`group-tag-${props.id}`}
       >

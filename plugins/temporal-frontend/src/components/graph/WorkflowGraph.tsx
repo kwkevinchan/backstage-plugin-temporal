@@ -34,6 +34,7 @@ import {
 import { layoutNotices, refusedNotice } from './groupNotice';
 import {
   GroupedLayout,
+  groupHues,
   groupNodeId,
   GroupViews,
   layoutGroupedSteps,
@@ -69,6 +70,7 @@ import {
   useGraphFullscreen,
   ViewButtons,
 } from './GraphCanvas';
+import { frameInsets } from './frameEdge';
 import { StepFlowNode, StepNode } from './StepNode';
 import {
   LoopFlowNode,
@@ -260,6 +262,7 @@ function useStructure(
       toolEdges,
       nextRun,
       groups,
+      hues: groupHues(graph.eventGroups),
       key: `${steps.nodes.length}:${edges.length}:${layout.width}x${layout.height}:${loopKey}${groupKey}`,
     };
   }, [graph, showMarkers, layoutWidth, loopViews, groupViews]);
@@ -443,7 +446,10 @@ function StepCanvas(
         type: 'groupTag',
         // Nothing in it to operate: not a stop of the Tab key.
         focusable: false,
-        data: { groups: tagged },
+        data: {
+          groups: tagged,
+          hue: structure.hues.get(tagged[0].key) ?? 1,
+        },
       });
     }
     return [...under, ...over, ...tags];
@@ -507,6 +513,14 @@ function StepCanvas(
       focusable: false,
     });
     const result: Edge[] = [];
+    // With frames of event groups, the arrows between steps and group boxes
+    // turn outside the frames they leave or enter.
+    const grouped = structure.groups?.graph;
+    const parentOf = new Map<string, string | undefined>();
+    if (grouped?.frames.length) {
+      for (const f of grouped.frames) parentOf.set(f.id, f.parent);
+      for (const n of grouped.nodes) parentOf.set(n.id, n.parent);
+    }
     // Arrows of the main graph; those of an expanded loop go into its
     // first round and out of its last one.
     for (const e of structure.edges) {
@@ -514,15 +528,18 @@ function StepCanvas(
       const into = expanded.get(e.target);
       const source = from ? from.frames[from.frames.length - 1].id : e.source;
       const target = into ? into.frames[0].id : e.target;
-      result.push(
-        toFlow(
-          { id: e.id, source, target },
-          {
-            sourceHandle: from ? 'out' : undefined,
-            targetHandle: into ? 'in' : undefined,
-          },
-        ),
+      const edge = toFlow(
+        { id: e.id, source, target },
+        {
+          sourceHandle: from ? 'out' : undefined,
+          targetHandle: into ? 'in' : undefined,
+        },
       );
+      if (parentOf.size > 0 && !from && !into) {
+        edge.type = 'frameEdge';
+        edge.data = frameInsets(layout, parentOf, source, target);
+      }
+      result.push(edge);
     }
     for (const box of expanded.values()) {
       // Round after round, top to bottom.
@@ -546,7 +563,7 @@ function StepCanvas(
       }
     }
     return result;
-  }, [structure, running]);
+  }, [structure, layout, running]);
 
   return (
     <GraphCanvas<FlowNode>

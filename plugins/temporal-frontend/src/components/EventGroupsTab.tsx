@@ -28,7 +28,7 @@ import {
 } from '@backstage/ui';
 import { RiLockLine } from '@remixicon/react';
 import { formatTime } from './format';
-import { groupTree } from './graph/eventGroups';
+import { groupHues, groupTree } from './graph/eventGroups';
 import type { GroupDisplay } from './graph/WorkflowGraph';
 import {
   groupDuration,
@@ -63,6 +63,7 @@ export function EventGroupsTab(props: {
     () => groupTree(graph.eventGroups ?? []),
     [graph.eventGroups],
   );
+  const hues = useMemo(() => groupHues(graph.eventGroups), [graph.eventGroups]);
   const withTokens = rows.some(r => r.group.usage);
   return (
     <Flex direction="column" gap="3" data-testid="workflow-event-groups">
@@ -94,6 +95,11 @@ export function EventGroupsTab(props: {
                   data-group-level={level}
                   data-testid={`group-row-${group.key}`}
                 >
+                  <span
+                    className={tp('tp-group-swatch', 'tp-hue')}
+                    data-hue={hues.get(group.key)}
+                    aria-hidden
+                  />
                   <Text variant="body-small" weight="bold">
                     {group.name}
                   </Text>

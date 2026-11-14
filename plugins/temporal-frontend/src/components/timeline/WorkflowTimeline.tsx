@@ -40,6 +40,7 @@ import {
   groupTokens,
   UNREADABLE_LABEL_TEXT,
 } from '../groupText';
+import { groupHues, GroupHue } from '../graph/eventGroups';
 import { kindLabel } from '../steps';
 import { statusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
@@ -378,6 +379,8 @@ function GroupRow(props: {
   onToggle(): void;
   /** Indent of a group inside other groups, in pixels. */
   indent?: number;
+  /** Color of an event group, as a dot before its name. */
+  hue?: GroupHue;
 }) {
   const place = placeSpan(props.span, props.win);
   return (
@@ -397,6 +400,13 @@ function GroupRow(props: {
             <RiArrowDownSLine size={16} aria-hidden />
           ) : (
             <RiArrowRightSLine size={16} aria-hidden />
+          )}
+          {props.hue && (
+            <span
+              className={tp('tp-group-swatch', 'tp-hue')}
+              data-hue={props.hue}
+              aria-hidden
+            />
           )}
           <span className={tp('tp-tl-name')}>{props.label}</span>
           <span className={tp('tp-muted')}>
@@ -450,6 +460,7 @@ function GroupHeader(props: {
 
 function EventGroupHeader(props: {
   group: TimelineEventGroup;
+  hue?: GroupHue;
   expanded: boolean;
   win: Span;
   onToggle(): void;
@@ -480,6 +491,7 @@ function EventGroupHeader(props: {
       win={props.win}
       onToggle={props.onToggle}
       indent={group.depth ? 8 + group.depth * GROUP_INDENT : undefined}
+      hue={props.hue}
     />
   );
 }
@@ -520,6 +532,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
       buildTimeline(graph, workflow, now, { showMarkers: props.showMarkers }),
     [graph, workflow, now, props.showMarkers],
   );
+  const hues = useMemo(() => groupHues(graph.eventGroups), [graph.eventGroups]);
   const range = model.range;
   const [zoom, setZoom] = useState<Span | undefined>();
   const win = zoom ? clampWindow(zoom, range) : range;
@@ -707,6 +720,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
       <div key={group.key} role="group" aria-label={group.group.name}>
         <EventGroupHeader
           group={group}
+          hue={hues.get(group.group.key)}
           expanded={open}
           win={win}
           onToggle={() => setExpanded(e => ({ ...e, [group.key]: !open }))}

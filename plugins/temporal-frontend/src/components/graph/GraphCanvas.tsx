@@ -31,7 +31,6 @@ import {
   Edge,
   EdgeProps,
   EdgeTypes,
-  getSmoothStepPath,
   Node,
   NodeTypes,
   ReactFlow,
@@ -42,11 +41,15 @@ import '@xyflow/react/dist/style.css';
 import { Button } from '@backstage/ui';
 import {
   boxSize,
+  EDGE_LANE_GAP,
+  FRAME_GAP,
+  FRAME_WRAP_GAP,
   initialViewport,
   keepInGraph,
   panIntoView,
   StepLayout,
 } from './layout';
+import { FrameEdgeData, frameEdgePath } from './frameEdge';
 
 /*
  * The canvas shared by the step graph of a run and the graph of a workflow
@@ -67,20 +70,14 @@ export const MAX_ZOOM = 2;
 export const RELAYOUT_DELAY_MS = 150;
 
 /**
- * An arrow into a later row of a wrapped graph. A plain smooth step turns
- * halfway between its two ends, which can run along the boxes of a taller
- * column in the source row; this one turns in the gap between the rows.
+ * An arrow into a later row of a wrapped graph (`rowGap`), or of a graph
+ * with frames (`frameEdge`). A plain smooth step turns halfway between its
+ * two ends, which can run along the boxes of a taller column in the source
+ * row; this one turns in the gap between the rows. An arrow that leaves or
+ * enters frames turns outside them (see `frameEdgePath`).
  */
-function RowGapEdge(props: EdgeProps<Edge<{ centerY: number }>>) {
-  const [path] = getSmoothStepPath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    sourcePosition: props.sourcePosition,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    targetPosition: props.targetPosition,
-    centerY: props.data?.centerY,
-  });
+function FrameEdge(props: EdgeProps<Edge<FrameEdgeData>>) {
+  const path = frameEdgePath(props, props.data);
   return (
     <BaseEdge
       id={props.id}
@@ -91,22 +88,52 @@ function RowGapEdge(props: EdgeProps<Edge<{ centerY: number }>>) {
   );
 }
 
-const edgeTypes: EdgeTypes = { rowGap: RowGapEdge };
+const edgeTypes: EdgeTypes = { rowGap: FrameEdge, frameEdge: FrameEdge };
 
 /**
  * The edges of a wrapped graph: a smooth step into a later row turns in the
- * gap below the row of its source.
+ * gap below the row of its source. The arrows of a graph with frames
+ * (`frameEdge`) that run in the same gap are spread out side by side,
+ * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows.
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const gaps = layout.rowGaps;
   if (!gaps?.length) return edges;
-  return edges.map(edge => {
-    if (edge.type !== 'smoothstep') return edge;
+  const gapOf = (edge: Edge) => {
+    if (edge.type !== 'smoothstep' && edge.type !== 'frameEdge') {
+      return undefined;
+    }
     const source = layout.positions.get(edge.source);
     const target = layout.positions.get(edge.target);
-    if (!source || !target) return edge;
-    const centerY = gaps.find(g => g > source.y && g < target.y);
+    if (!source || !target) return undefined;
+    return gaps.find(g => g > source.y && g < target.y);
+  };
+  // The arrows with frames in each gap, from the leftmost source: the
+  // first one runs at the top, so the arrows cross as little as possible.
+  const lanes = new Map<Edge, number>();
+  const inGap = new Map<number, Edge[]>();
+  for (const edge of edges) {
+    const gap = edge.type === 'frameEdge' ? gapOf(edge) : undefined;
+    if (gap !== undefined) inGap.set(gap, [...(inGap.get(gap) ?? []), edge]);
+  }
+  const x = (id: string) => layout.positions.get(id)?.x ?? 0;
+  const widest = FRAME_WRAP_GAP / 2 - FRAME_GAP;
+  for (const shared of inGap.values()) {
+    shared.sort(
+      (a, b) => x(a.source) - x(b.source) || x(a.target) - x(b.target),
+    );
+    shared.forEach((edge, i) => {
+      const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
+      lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
+    });
+  }
+  return edges.map(edge => {
+    const centerY = gapOf(edge);
     if (centerY === undefined) return edge;
+    if (edge.type === 'frameEdge') {
+      const lane = lanes.get(edge) ?? 0;
+      return { ...edge, data: { ...edge.data, centerY: centerY + lane } };
+    }
     return { ...edge, type: 'rowGap', data: { ...edge.data, centerY } };
   });
 }
