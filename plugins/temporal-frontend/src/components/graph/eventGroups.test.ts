@@ -30,6 +30,7 @@ import {
 } from './layout';
 import {
   GroupedLayout,
+  groupHues,
   groupNodeId,
   GroupViews,
   layoutGroupedSteps,
@@ -601,6 +602,51 @@ describe('layoutGroupedSteps', () => {
     // The piece is as wide as both frames together.
     expect(right('A') - left('B')).toBe(1384);
     expect(left('c')).toBeGreaterThanOrEqual(right('A'));
+  });
+});
+
+describe('groupHues', () => {
+  it('gives the outermost groups the hues in turn and the others theirs', () => {
+    const groups = nest(
+      [
+        group('first', ['a1', 'a2']),
+        group('inner', ['a2']),
+        group('deeper', ['a2']),
+        group('second', ['a3']),
+        { ...group('signal', ['a4']), key: 'event:9', kind: 'event' as const },
+        group('third', ['a5']),
+        {
+          ...group('update', ['a5']),
+          key: 'update:3',
+          kind: 'update' as const,
+          parent: 'label:third',
+        },
+      ],
+      { inner: 'first', deeper: 'inner' },
+    );
+    groups[5] = { ...groups[5], children: ['update:3'] };
+    expect(Object.fromEntries(groupHues(groups))).toEqual({
+      'label:first': 1,
+      'label:inner': 1,
+      'label:deeper': 1,
+      'label:second': 2,
+      // Signals and updates have the color of messages, also inside.
+      'event:9': 'message',
+      'label:third': 3,
+      'update:3': 'message',
+    });
+    // The boxes carry them.
+    const plan = planGroups(['a1', 'a2', 'a3', 'a4', 'a5'], groups, {});
+    expect(plan.boxes.get('group:label:deeper')!.hue).toBe(1);
+    expect(plan.boxes.get('group:event:9')!.hue).toBe('message');
+  });
+
+  it('starts again with the first hue after the last one', () => {
+    const groups = Array.from({ length: 8 }, (_, i) =>
+      group(`g${i}`, [`a${i + 1}`]),
+    );
+    expect([...groupHues(groups).values()]).toEqual([1, 2, 3, 4, 5, 6, 1, 2]);
+    expect(groupHues(undefined).size).toBe(0);
   });
 });
 

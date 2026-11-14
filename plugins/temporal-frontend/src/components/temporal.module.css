@@ -729,10 +729,10 @@
 }
 /*
  * Temporal event groups. An expanded group is a frame under its steps: a
- * thin border, a faint body (nested frames add up to a slightly darker
- * one) and a title bar without a fill, so the steps stay in front. The
- * border takes the status color only while the group runs or after it
- * failed, like a round frame.
+ * thin border, a faint body in the color of the group (nested frames add
+ * up to a slightly darker one) and a title bar without a fill, so the
+ * steps stay in front. The border takes the status color only while the
+ * group runs or after it failed, like a round frame.
  */
 .tp-group-frame {
   container-type: inline-size;
@@ -840,7 +840,7 @@
   }
 }
 .tp-group-frame.tp-tone-neutral .tp-group-facts {
-  color: var(--bui-fg-secondary);
+  color: var(--tp-group-fg-2, var(--bui-fg-secondary));
 }
 .tp-group-source {
   display: inline-flex;
@@ -894,10 +894,15 @@
   gap: 3px;
   max-width: 75%;
   padding: 0 6px;
-  border: 1px solid var(--bui-border-2);
+  border: 1px solid
+    color-mix(in srgb, var(--tp-group-hue) 35%, var(--bui-border-2));
   border-radius: 999px;
-  background: var(--bui-bg-neutral-1);
-  color: var(--bui-fg-secondary);
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) var(--tp-tint, 7%),
+    var(--bui-bg-neutral-1)
+  );
+  color: var(--tp-group-fg-2, var(--bui-fg-secondary));
   font-family: var(--bui-font-regular);
   font-size: 12px;
   line-height: 14px;
@@ -941,6 +946,139 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+/*
+ * Colors of the event groups, only to tell them apart: six hues mixed from
+ * the theme's colors (no red, apart from the failed status; none like the
+ * model calls or the messages), and the color of messages for the groups
+ * of signals and updates. The frames, borders and labels keep their shape
+ * without them.
+ */
+.tp-hue {
+  --tp-group-hue-1: var(--bui-fg-info);
+  --tp-group-hue-2: var(--bui-fg-warning);
+  --tp-group-hue-3: color-mix(
+    in srgb,
+    var(--bui-fg-success) 60%,
+    var(--bui-fg-warning)
+  );
+  --tp-group-hue-4: color-mix(
+    in srgb,
+    var(--bui-fg-info) 45%,
+    var(--bui-fg-danger)
+  );
+  --tp-group-hue-5: var(--bui-fg-success);
+  --tp-group-hue-6: color-mix(
+    in srgb,
+    var(--bui-fg-warning) 60%,
+    var(--bui-fg-success)
+  );
+  /* As the kind color of messages (--tp-kind-message). */
+  --tp-group-hue-message: color-mix(
+    in srgb,
+    var(--bui-fg-success) 45%,
+    var(--bui-fg-info)
+  );
+  --tp-group-hue: var(--tp-group-hue-1);
+  /* Second text on a tinted surface. */
+  --tp-group-fg-2: var(--bui-fg-secondary);
+}
+:global([data-theme-mode='dark']) .tp-hue {
+  /* The secondary text of the dark theme needs more contrast on a tint. */
+  --tp-group-fg-2: color-mix(
+    in srgb,
+    var(--bui-fg-secondary) 55%,
+    var(--bui-fg-primary)
+  );
+}
+.tp-hue[data-hue='2'] {
+  --tp-group-hue: var(--tp-group-hue-2);
+}
+.tp-hue[data-hue='3'] {
+  --tp-group-hue: var(--tp-group-hue-3);
+}
+.tp-hue[data-hue='4'] {
+  --tp-group-hue: var(--tp-group-hue-4);
+}
+.tp-hue[data-hue='5'] {
+  --tp-group-hue: var(--tp-group-hue-5);
+}
+.tp-hue[data-hue='6'] {
+  --tp-group-hue: var(--tp-group-hue-6);
+}
+.tp-hue[data-hue='message'] {
+  --tp-group-hue: var(--tp-group-hue-message);
+}
+/*
+ * How much of the hue a frame adds: nested frames are drawn over each
+ * other, so each frame inside adds less, and the fourth one none.
+ */
+.tp-group-frame.tp-hue {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-tint, 7%) * 0.7),
+    transparent
+  );
+}
+.tp-group-frame.tp-hue:not([data-depth='0']) {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-tint, 7%) * 0.4),
+    transparent
+  );
+}
+.tp-group-frame.tp-hue[data-depth='3'],
+.tp-group-frame.tp-hue[data-depth='4'] {
+  background: none;
+}
+/* The status color wins while the group runs or after it failed. */
+.tp-group-frame.tp-hue.tp-tone-neutral {
+  border-color: color-mix(
+    in srgb,
+    var(--tp-group-hue) 35%,
+    var(--bui-border-2)
+  );
+}
+.tp-group-frame.tp-hue .tp-group-icon,
+.tp-node.tp-hue[data-group] .tp-group-icon {
+  color: var(--tp-group-hue);
+}
+/*
+ * A collapsed group: a bar of its color on the left and the body of its
+ * frame, as dark as the frames around it add up to.
+ */
+.tp-node.tp-hue[data-group] {
+  --tp-group-level: calc(var(--tp-tint, 7%) * 0.7);
+  border-left: 3px solid var(--tp-group-hue);
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) var(--tp-group-level),
+    var(--bui-bg-neutral-2)
+  );
+}
+.tp-node.tp-hue[data-group][data-depth='1'] {
+  --tp-group-level: calc(var(--tp-tint, 7%) * 1.1);
+}
+.tp-node.tp-hue[data-group]:not([data-depth='0']):not([data-depth='1']) {
+  --tp-group-level: calc(var(--tp-tint, 7%) * 1.5);
+}
+.tp-node.tp-hue[data-group]:hover {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-group-level) + 6%),
+    var(--bui-bg-neutral-2)
+  );
+}
+.tp-node.tp-hue[data-group] .tp-node-sub {
+  color: var(--tp-group-fg-2);
+}
+/* The color of a group before its name in the tab and the timeline. */
+.tp-group-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tp-group-hue);
 }
 .tp-loop-controls {
   display: inline-flex;

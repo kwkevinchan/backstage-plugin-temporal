@@ -34,6 +34,7 @@ import { temporalApiRef } from '../extensions';
 import temporalPlugin from '../alpha';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { WorkflowGraph } from './graph/WorkflowGraph';
+import { groupHues } from './graph/eventGroups';
 import type { GroupViews } from './graph/eventGroups';
 import {
   entity,
@@ -439,6 +440,115 @@ describe('event groups on the workflow page', () => {
     const tool = document.querySelector('.temporal-llm-tool-edge')!;
     expect(tool).toHaveClass('react-flow__edge-frameEdge');
     expect(tool.getAttribute('class')).toMatch(/tp-edge-tool/);
+  });
+
+  it('gives each outermost group a color, the same for the groups inside', async () => {
+    const hues = () =>
+      Object.fromEntries(
+        [...document.querySelectorAll('[data-hue]')]
+          .filter(e => e.closest('[data-testid="workflow-graph"]'))
+          .map(e => [
+            e.getAttribute('data-testid'),
+            e.getAttribute('data-hue'),
+          ]),
+      );
+    const { unmount } = await renderInTestApp(
+      <WorkflowGraph graph={loopGraph} onSelect={() => {}} />,
+    );
+    const first = hues();
+    expect(first).toEqual({
+      'group-frame-label:loop:draft-review': '1',
+      [`group-${roundKey(1)}`]: '1',
+      [`group-${roundKey(2)}`]: '1',
+      [`group-${roundKey(3)}`]: '1',
+      // The group of the signal handler has the color of messages.
+      'group-frame-event:29': 'message',
+      // The next outermost group has the next color.
+      'group-frame-label:wrap-up': '2',
+    });
+    unmount();
+    // The same run, drawn again: the same colors.
+    await renderInTestApp(
+      <WorkflowGraph graph={loopGraph} onSelect={() => {}} />,
+    );
+    expect(hues()).toEqual(first);
+  });
+
+  it('gives the label of a group without a box its color', async () => {
+    await renderInTestApp(
+      <WorkflowGraph graph={parallelGraph} onSelect={() => {}} />,
+    );
+    // Tag X shares a step with Parallel A: a label, in the color of its
+    // first group.
+    const tag = await screen.findByTestId('group-tag-activity-52#groups');
+    expect(tag).toHaveTextContent(/^Tag X/);
+    expect(tag.getAttribute('data-hue')).toBe(
+      String(groupHues(parallelGraph.eventGroups).get('label:tag:x')),
+    );
+  });
+
+  it('takes the colors in turn, the seventh group the first one again', async () => {
+    const t = (n: number) =>
+      new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString();
+    const ids = ['start', ...Array.from({ length: 7 }, (_, i) => `a${i}`)];
+    const graph: WorkflowGraphResponse = {
+      status: 'Completed',
+      nodes: ids.map((id, i) => ({
+        id,
+        kind: i === 0 ? 'workflowStarted' : 'activity',
+        name: id,
+        status: 'Completed',
+        startTime: t(i),
+        endTime: t(i + 1),
+        events: [],
+      })),
+      edges: ids.slice(1).map((id, i) => ({
+        id: `${ids[i]}->${id}`,
+        source: ids[i],
+        target: id,
+      })),
+      completedSteps: 7,
+      totalSteps: 7,
+      truncated: false,
+      payloadsHidden: false,
+      eventGroups: Array.from({ length: 7 }, (_, i) => ({
+        key: `label:g${i}`,
+        kind: 'label' as const,
+        id: `g${i}`,
+        name: `Group ${i}`,
+        nodeIds: [`a${i}`],
+        children: [],
+        status: 'Completed' as const,
+        startTime: t(i + 1),
+        endTime: t(i + 2),
+      })),
+    };
+    await renderInTestApp(<WorkflowGraph graph={graph} onSelect={() => {}} />);
+    expect(
+      Array.from({ length: 7 }, (_, i) =>
+        screen.getByTestId(`group-frame-label:g${i}`).getAttribute('data-hue'),
+      ),
+    ).toEqual(['1', '2', '3', '4', '5', '6', '1']);
+  });
+
+  it('shows the color of each group in the tab and the timeline', async () => {
+    await render(loopGraph);
+    await userEvent.click(
+      await screen.findByRole('tab', { name: 'Event Groups' }),
+    );
+    const dot = (row: HTMLElement) =>
+      row.querySelector('[data-hue]')?.getAttribute('data-hue');
+    expect(
+      dot(await screen.findByTestId('group-row-label:loop:draft-review')),
+    ).toBe('1');
+    expect(dot(screen.getByTestId(`group-row-${roundKey(2)}`))).toBe('1');
+    expect(dot(screen.getByTestId('group-row-event:29'))).toBe('message');
+    expect(dot(screen.getByTestId('group-row-label:wrap-up'))).toBe('2');
+    await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }));
+    expect(dot(await screen.findByTestId('timeline-group-label:wrap-up'))).toBe(
+      '2',
+    );
+    expect(dot(screen.getByTestId(`timeline-group-${roundKey(1)}`))).toBe('1');
   });
 
   it('lists the groups in the Event Groups tab and shows one in the graph', async () => {

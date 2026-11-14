@@ -51,11 +51,44 @@ export const MAX_GROUP_DEPTH = 5;
 /** Groups this deep (0: outermost) start collapsed. */
 export const COLLAPSED_DEPTH = 3;
 
+/**
+ * The color of a group: one of `GROUP_HUES` hues, or the color of
+ * messages for the groups of signals and updates.
+ */
+export type GroupHue = 1 | 2 | 3 | 4 | 5 | 6 | 'message';
+/** How many hues the groups take turns with. */
+export const GROUP_HUES = 6;
+
+/**
+ * The color of each group, by key, only to tell the groups apart: the
+ * outermost groups take the hues in turn, in the order they started (so
+ * two groups next to each other differ, and a run shows the same colors
+ * every time), and the groups inside them take the hue of the outermost
+ * one. The groups of signals and updates have the color of messages.
+ */
+export function groupHues(
+  groups: WorkflowEventGroup[] | undefined,
+): Map<string, GroupHue> {
+  const hues = new Map<string, GroupHue>();
+  let next = 0;
+  let outer: GroupHue = 1;
+  for (const { group, level } of groupTree(groups ?? [])) {
+    const message = group.kind === 'event' || group.kind === 'update';
+    if (level === 0) {
+      outer = message ? 'message' : (((next++ % GROUP_HUES) + 1) as GroupHue);
+    }
+    hues.set(group.key, message ? 'message' : outer);
+  }
+  return hues;
+}
+
 /** The box of an event group. */
 export interface GroupBox {
   /** Node ID: `group:<key>`. */
   id: string;
   group: WorkflowEventGroup;
+  /** Its color (see `groupHues`). */
+  hue: GroupHue;
   /** Boxes around this one: 0 for an outermost box. */
   depth: number;
   /** The box around this one. */
@@ -153,6 +186,7 @@ export function planGroups(
   const shown = new Set(stepIds);
   const order = new Map(stepIds.map((id, i) => [id, i]));
   const byKey = new Map(groups.map(g => [g.key, g]));
+  const hues = groupHues(groups);
   const tag = (group: WorkflowEventGroup, steps: string[]) => {
     for (const id of steps) {
       const list = plan.tags.get(id) ?? [];
@@ -183,6 +217,7 @@ export function planGroups(
     const box: GroupBox = {
       id: groupNodeId(group.key),
       group,
+      hue: hues.get(group.key) ?? 1,
       depth,
       parent: outer?.id,
       children: [],

@@ -649,6 +649,13 @@ On the workflow page:
   Internal steps are left out; a group without a step shown has no box.
   Arrows into and out of a box turn outside it and cross its border
   straight.
+- **Colors.** A faint color only tells the groups apart: the outermost
+  groups take six colors in turn, in the order they started, and the
+  groups inside a group have its color (a little darker for each box
+  inside). Signal and update groups have the color of messages. A
+  collapsed box, a label, and the rows of the timeline and the Event
+  Groups tab show the same color; the borders, titles and indents say the
+  same without it.
 - **Expand and collapse.** The arrow in the title bar collapses a group
   into one box with the same facts and its number of steps; pressing the
   box expands it. Collapsing a group hides the groups inside it. At first

@@ -34,6 +34,7 @@ import {
 import { layoutNotices, refusedNotice } from './groupNotice';
 import {
   GroupedLayout,
+  groupHues,
   groupNodeId,
   GroupViews,
   layoutGroupedSteps,
@@ -261,6 +262,7 @@ function useStructure(
       toolEdges,
       nextRun,
       groups,
+      hues: groupHues(graph.eventGroups),
       key: `${steps.nodes.length}:${edges.length}:${layout.width}x${layout.height}:${loopKey}${groupKey}`,
     };
   }, [graph, showMarkers, layoutWidth, loopViews, groupViews]);
@@ -444,7 +446,10 @@ function StepCanvas(
         type: 'groupTag',
         // Nothing in it to operate: not a stop of the Tab key.
         focusable: false,
-        data: { groups: tagged },
+        data: {
+          groups: tagged,
+          hue: structure.hues.get(tagged[0].key) ?? 1,
+        },
       });
     }
     return [...under, ...over, ...tags];
