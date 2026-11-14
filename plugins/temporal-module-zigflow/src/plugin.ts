@@ -26,14 +26,15 @@ import { temporalPlugin } from '@kwkevinchan/backstage-plugin-temporal-frontend'
  *
  * @public
  */
-export const EntityTemporalDefinitionContent = temporalPlugin.provide(
-  createComponentExtension({
-    name: 'EntityTemporalDefinitionContent',
-    component: {
-      lazy: () =>
-        import('./components/definition/DefinitionContent').then(
-          m => m.EntityTemporalDefinitionContentPage,
-        ),
-    },
-  }),
-);
+export const EntityTemporalDefinitionContent: () => JSX.Element =
+  temporalPlugin.provide(
+    createComponentExtension({
+      name: 'EntityTemporalDefinitionContent',
+      component: {
+        lazy: () =>
+          import('./components/definition/DefinitionContent').then(
+            m => m.EntityTemporalDefinitionContentPage,
+          ),
+      },
+    }),
+  );
