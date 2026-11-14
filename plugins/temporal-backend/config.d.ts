@@ -151,12 +151,17 @@ export interface Config {
         };
         /**
          * An AWS account of Backstage's `aws.accounts`, whose credentials
-         * (access key, profile or role) are used. Write it as a string.
+         * (access key, profile or role) are used. The entry needs its own role,
+         * access key or profile; without them the backend does not start.
+         * Write it as a string.
          */
         accountId?: string;
         /**
          * Read with the AWS SDK's default credential chain (environment
-         * variables, profile, the role of the instance or pod).
+         * variables, profile, the role of the instance or pod). Without `aws.mainAccount`, Backstage's
+         * URL reader also reads with this identity, so use it only when the
+         * identity of the machine should let Backstage read this bucket; the
+         * backend logs a warning.
          */
         defaultCredentials?: boolean;
         /**

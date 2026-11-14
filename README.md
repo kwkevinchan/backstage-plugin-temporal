@@ -668,8 +668,8 @@ temporal:
 | `externalStorage.s3.region`             | `us-east-1`          | Region of the bucket.                                                                                                                                                                                 |
 | `externalStorage.s3.forcePathStyle`     | `false`              | Bucket in the path instead of the host name (most self-hosted services).                                                                                                                              |
 | `externalStorage.s3.credentials`        |                      | An access key of the plugin: `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`). One of `credentials`, `accountId` and `defaultCredentials` is required. |
-| `externalStorage.s3.accountId`          |                      | An AWS account of Backstage's `aws.accounts` (as a string), whose access key, profile or role the plugin reads with.                                                                                  |
-| `externalStorage.s3.defaultCredentials` | `false`              | `true`: read with the AWS SDK's default credential chain (environment, profile, instance or pod role).                                                                                                |
+| `externalStorage.s3.accountId`          |                      | An AWS account of Backstage's `aws.accounts` (as a string), whose own access key, profile or role the plugin reads with.                                                                              |
+| `externalStorage.s3.defaultCredentials` | `false`              | `true`: read with the AWS SDK's default credential chain (environment, profile, instance or pod role); see the warning below.                                                                         |
 | `externalStorage.s3.maxInlineBytes`     | `262144`             | JSON payloads up to this size are shown like payloads in the history.                                                                                                                                 |
 | `externalStorage.s3.previewBytes`       | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                               |
 | `definitions.maxBytes`                  | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                               |
@@ -778,8 +778,10 @@ not start with none or with two:
 - `credentials`: an access key of the plugin, as above.
 - `accountId`: an AWS account that Backstage's `aws` config manages
   (`@backstage/integration-aws-node`), with its access key, profile or role
-  (`roleName`, `externalId`, `webIdentityTokenFile`). Use an account entry
-  of its own, as the TechDocs publisher does with
+  (`roleName`, `externalId`, `webIdentityTokenFile`). The entry needs its
+  own role or access key (or profile): an entry without them would read
+  with the identity of the machine, and the backend does not start.
+  Use an account entry of its own, as the TechDocs publisher does with
   `techdocs.publisher.awsS3.accountId`:
 
   ```yaml
@@ -799,13 +801,19 @@ not start with none or with two:
 - `defaultCredentials: true`: the AWS SDK's default credential chain, for
   example the role of the instance or pod. The plugin never falls back to
   it on its own, so that a configuration with a missing key does not read
-  with the identity of the machine.
+  with the identity of the machine. Without `aws.mainAccount` (with an
+  access key or profile), Backstage's URL reader also uses this identity,
+  so use it only when the identity of the machine should let Backstage
+  read this bucket; the backend logs a warning.
 
-At startup the backend logs one line with the bucket, the endpoint, the
-region and which source it reads with (never a secret). It warns when the
-`accountId` is not in `aws.accounts` (so it can only be the main account)
-or is the account of a `roleArn` in `integrations.awsS3`: Backstage's URL
-reader reads with those (see [Security](#security)). Temporary
+At startup the backend logs one line with the bucket, the host of the
+endpoint, the region and which source it reads with (never a secret). It does not start
+when the `accountId` entry of `aws.accounts` has no role, access key or
+profile. It warns when the `accountId` is not in `aws.accounts` (so it can
+only be the main account) or is the account of a `roleArn` in
+`integrations.awsS3`, and when `defaultCredentials: true` is set without an
+`aws.mainAccount` of its own: Backstage's URL reader reads with those (see
+[Security](#security)). Temporary
 credentials (a role) are renewed before they expire.
 
 When S3 cannot be read (a missing object, refused credentials), the step
@@ -1464,8 +1472,10 @@ warning; it does not fail the lint.
   unset): Backstage's URL reader reads with those, and the catalog, the
   Scaffolder and the Definition tab of the Zigflow module use it to read
   URLs that users give, without the permission checks of this plugin. The
-  same holds for `defaultCredentials: true` when the URL reader also reads
-  with the machine's role. A codec that encrypts payloads in the workers
+  same holds for `defaultCredentials: true` when `aws.mainAccount` is not
+  set: the URL reader also reads with the machine's role. An `accountId`
+  entry without its own role or access key would do the same, and the
+  backend refuses to start with it. A codec that encrypts payloads in the workers
   limits what a leaked object shows.
 - **TLS is off by default.** Without `connection.tls: true`, a bearer token
   (`auth.type: bearer`) is sent without TLS, for a Temporal server inside a

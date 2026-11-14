@@ -612,7 +612,11 @@ Defaults and meanings are in the [README](../README.md#configuration).
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
 the `workflowUrl` output. With `externalStorage.s3.accountId`, the backend
 also reads Backstage's `aws` config (`aws.accounts`, `aws.accountDefaults`,
-`aws.mainAccount`) for that account; those keys belong to Backstage.
+`aws.mainAccount`) for that account; those keys belong to Backstage. The
+`accountId` entry needs its own `roleName`, `accessKeyId` or `profile`
+(otherwise the backend does not start), and with `defaultCredentials: true`
+the backend reads `aws.mainAccount` to warn when Backstage's URL reader
+shares the identity of the machine.
 
 ## Catalog: annotations and the `TemporalWorkflow` kind
 

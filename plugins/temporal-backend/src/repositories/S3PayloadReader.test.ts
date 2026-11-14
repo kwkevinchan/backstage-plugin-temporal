@@ -190,7 +190,7 @@ describe('S3PayloadReader.fromConfig', () => {
     });
     expect(defaultChain).not.toHaveBeenCalled();
     expect(log.info).toHaveBeenCalledWith(
-      'External Storage reads bucket payloads from http://localhost:9100 (region us-east-1) with the access key of temporal.externalStorage.s3.credentials',
+      'External Storage reads bucket payloads from localhost:9100 (region us-east-1) with the access key of temporal.externalStorage.s3.credentials',
     );
     expect(JSON.stringify(log.info.mock.calls)).not.toMatch(/"s"|"t"/);
     expect(log.warn).not.toHaveBeenCalled();
@@ -293,6 +293,74 @@ describe('S3PayloadReader.fromConfig', () => {
     expect(log.info).toHaveBeenCalledWith(
       "External Storage reads bucket b from AWS S3 (region ap-northeast-1) with the AWS SDK's default credential chain",
     );
+  });
+
+  it('prints only the host of the endpoint', () => {
+    const { log } = read({
+      s3: {
+        bucket: 'b',
+        endpoint: 'http://user:pass@storage.local:9000/path?x=1',
+        credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+      },
+    });
+    expect(log.info).toHaveBeenCalledWith(
+      'External Storage reads bucket b from storage.local:9000 (region us-east-1) with the access key of temporal.externalStorage.s3.credentials',
+    );
+    expect(JSON.stringify(log.info.mock.calls)).not.toMatch(/user|pass/);
+  });
+
+  it('refuses an account entry without credentials of its own', () => {
+    for (const entry of [{ accountId }, { accountId, region: undefined }]) {
+      let message = '';
+      try {
+        read({ aws: { accounts: [entry] }, s3: { bucket: 'b', accountId } });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain(
+        'The entry of temporal.externalStorage.s3.accountId 123456789012 in aws.accounts has no credentials of its own (roleName, accessKeyId or profile)',
+      );
+      expect(message).toContain(
+        'temporal.externalStorage.s3.defaultCredentials: true',
+      );
+    }
+    expect(MockS3Client).not.toHaveBeenCalled();
+    for (const own of [
+      { roleName: 'r' },
+      { accessKeyId: 'k', secretAccessKey: 's' },
+      { profile: 'p' },
+    ]) {
+      expect(() =>
+        read({
+          aws: { accounts: [{ accountId, ...own }] },
+          s3: { bucket: 'b', accountId },
+        }),
+      ).not.toThrow();
+    }
+  });
+
+  it('warns when the default credentials are also those of the URL reader', () => {
+    const s3 = { bucket: 'b', defaultCredentials: true };
+    const unset = read({ s3 }).log;
+    expect(unset.warn).toHaveBeenCalledTimes(1);
+    expect(unset.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^temporal\.externalStorage\.s3\.defaultCredentials reads with the identity of the machine.*Backstage's URL reader/,
+      ),
+    );
+    expect(
+      read({ aws: { mainAccount: {} }, s3 }).log.warn,
+    ).toHaveBeenCalledTimes(1);
+    const own = read({
+      aws: {
+        mainAccount: { accessKeyId: 'main', secretAccessKey: 'main-s' },
+      },
+      s3,
+    }).log;
+    expect(own.warn).not.toHaveBeenCalled();
+    expect(
+      read({ aws: { mainAccount: { profile: 'main' } }, s3 }).log.warn,
+    ).not.toHaveBeenCalled();
   });
 
   it('needs exactly one source of credentials', () => {

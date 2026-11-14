@@ -111,6 +111,56 @@ export function sharedAccountWarning(
   return undefined;
 }
 
+/**
+ * Refuses an `accountId` whose entry in `aws.accounts` has no credentials of
+ * its own (`roleName`, `accessKeyId` or `profile`): the credentials manager
+ * then falls back to the AWS SDK's default credential chain, the identity
+ * of the machine, which Backstage's URL reader also uses.
+ */
+export function assertAccountHasCredentials(
+  config: Config,
+  accountId: string,
+): void {
+  const entry = (config.getOptionalConfigArray('aws.accounts') ?? []).find(
+    a => a.getOptionalString('accountId') === accountId,
+  );
+  if (!entry) return;
+  const own = ['roleName', 'accessKeyId', 'profile'].some(key =>
+    entry.getOptionalString(key),
+  );
+  if (!own) {
+    throw new Error(
+      `The entry of ${KEY}.accountId ${accountId} in aws.accounts has no credentials of its own (roleName, accessKeyId or profile), so it would read with the identity of the machine, which Backstage's URL reader also uses. Give the entry its own role or access key, or set ${KEY}.defaultCredentials: true to use the identity of the machine on purpose`,
+    );
+  }
+}
+
+/**
+ * Why `defaultCredentials` may also be Backstage's URL reader's identity:
+ * its default AWS entry reads with the main account, which is the AWS SDK's
+ * default credential chain unless `aws.mainAccount` has an access key or a
+ * profile. Undefined when it does not.
+ */
+export function defaultCredentialsWarning(config: Config): string | undefined {
+  const main = config.getOptionalConfig('aws.mainAccount');
+  if (
+    main?.getOptionalString('accessKeyId') ||
+    main?.getOptionalString('profile')
+  ) {
+    return undefined;
+  }
+  return `${KEY}.defaultCredentials reads with the identity of the machine, and aws.mainAccount has no access key or profile of its own, so Backstage's URL reader, which reads the URLs that users give it, uses the same identity. Use defaultCredentials only when the identity of the machine should let Backstage read this bucket`;
+}
+
+/** The host (with port) of an endpoint, without any user, password or path. */
+function endpointHost(endpoint: string): string {
+  try {
+    return new URL(endpoint).host;
+  } catch {
+    return 'the configured endpoint';
+  }
+}
+
 /** One line on the S3 connection, without secrets, for the startup log. */
 function describeConnection(
   bucket: string,
@@ -126,7 +176,7 @@ function describeConnection(
     default: "the AWS SDK's default credential chain",
   }[source.type];
   return `External Storage reads bucket ${bucket} from ${
-    endpoint ?? 'AWS S3'
+    endpoint === undefined ? 'AWS S3' : endpointHost(endpoint)
   } (region ${region}) with ${credentials}`;
 }
 
@@ -233,7 +283,11 @@ export class S3PayloadReader {
     const region = s3.getOptionalString('region') || DEFAULT_REGION;
     const source = readCredentialSource(s3);
     if (source.type === 'account') {
+      assertAccountHasCredentials(config, source.accountId);
       const warning = sharedAccountWarning(config, source.accountId);
+      if (warning) options.logger?.warn(warning);
+    } else if (source.type === 'default') {
+      const warning = defaultCredentialsWarning(config);
       if (warning) options.logger?.warn(warning);
     }
     options.logger?.info(describeConnection(bucket, endpoint, region, source));
