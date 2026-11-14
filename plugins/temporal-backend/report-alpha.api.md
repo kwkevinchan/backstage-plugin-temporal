@@ -129,6 +129,60 @@ export interface TemporalEntityContext {
 }
 
 // @alpha
+export interface TemporalLlmAdapter {
+  id: string;
+  isModelCall(step: TemporalLlmStep): boolean;
+  readModelCalls(
+    step: TemporalLlmStep,
+    payloads: TemporalLlmStepPayloads,
+  ): TemporalLlmModelCall[];
+  readToolCall?(
+    step: TemporalLlmStep,
+    payloads: TemporalLlmStepPayloads,
+  ): TemporalLlmToolStep | undefined;
+}
+
+// @alpha
+export interface TemporalLlmAdapterExtensionPoint {
+  // (undocumented)
+  addLlmAdapter(adapter: TemporalLlmAdapter): void;
+}
+
+// @alpha
+export const temporalLlmAdapterExtensionPoint: ExtensionPoint<TemporalLlmAdapterExtensionPoint>;
+
+// @alpha
+export interface TemporalLlmModelCall {
+  name?: string;
+  raw?: JsonValue;
+  // Warning: (ae-forgotten-export) The symbol "WorkflowLlmRecord" needs to be exported by the entry point alpha.d.ts
+  record?: WorkflowLlmRecord;
+}
+
+// @alpha
+export interface TemporalLlmStep {
+  activityId?: string;
+  // (undocumented)
+  activityType: string;
+  kind: 'activity' | 'localActivity';
+  summary?: string;
+}
+
+// @alpha
+export interface TemporalLlmStepPayloads {
+  failureDetails?: JsonValue[];
+  input?: JsonValue[];
+  result?: JsonValue;
+}
+
+// @alpha
+export interface TemporalLlmToolStep {
+  modelCall?: string;
+  toolCallId?: string;
+  toolName?: string;
+}
+
+// @alpha
 export type TemporalWorkflowAccessLevel = 'read' | 'history';
 
 // @alpha

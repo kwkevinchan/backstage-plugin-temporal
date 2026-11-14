@@ -154,13 +154,12 @@ export interface Config {
       };
     };
     /**
-     * Views that are not part of the first release and will move to a
-     * separate package: AI loops (the Loops tab, loops in the graph) and LLM
-     * steps (model and tool calls). Off by default; no compatibility
-     * promise.
+     * Views that are not part of the first release: the loops (the Loops
+     * tab, loops in the graph). Off by default; no compatibility promise.
+     * Model calls and tool calls are shown without a setting.
      */
     experimental?: {
-      /** Show AI loops and LLM steps. Defaults to false. */
+      /** Show the loops. Defaults to false. */
       aiWorkflows?: boolean;
     };
   };

@@ -72,9 +72,17 @@ workflow definition.
 - **Permissions.** Every read and every operation goes through the
   Backstage permission framework and is recorded with the auditor (see
   [Permissions](#permissions)).
+- **Model calls and tool calls** (experimental shape). Workflows that use
+  the official Temporal AI integrations (Vercel AI SDK, OpenAI Agents SDK)
+  show each model call as a box with the model, tokens, duration and number
+  of tools; the tool calls it asked for hang off it. Its panel shows the
+  input, the thinking, the output, the tool calls and the usage. Nothing to
+  turn on and nothing to change in the worker; other frameworks can be
+  added with a backend module (see
+  [Model calls and tool calls](#model-calls-and-tool-calls)).
 
-**Experimental, off by default.** Views of AI workflows are not part of the
-first release and will move to a separate package. Turn them on with
+**Experimental, off by default.** The loop views are not part of the first
+release and will move to a separate package. Turn them on with
 `temporal.experimental.aiWorkflows: true` (no compatibility promise):
 
 - **Loops of AI workflows.** Rounds of generate, check and revise loops are
@@ -83,12 +91,6 @@ first release and will move to a separate package. Turn them on with
   and one row per round in the **Loops** tab, across continue-as-new runs
   (with `@kwkevinchan/temporal-workflow-kit/loop`, see
   [the workflow kit](plugins/temporal-workflow-kit)).
-- **LLM steps of agent workflows.** Each model call is a box with the
-  model, tokens, duration and number of tools; the tools it asked for hang
-  off it. Its panel shows the input, the thinking, the output, the tool
-  calls and the usage. The records follow the OpenTelemetry GenAI
-  conventions (with `@kwkevinchan/temporal-workflow-kit/llm`, see
-  [LLM steps](#llm-steps)).
 
 | Workflows of an entity                                           | Step graph and step panel                                        |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -97,7 +99,7 @@ first release and will move to a separate package. Turn them on with
 | ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded, one frame per round](docs/images/loop.png)    |
 | **Large payload in S3**                                          | **Workflow controls**                                            |
 | ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
-| **A model call and its tool calls** (experimental)               | **LLM panel** (experimental)                                     |
+| **A model call and its tool calls**                              | **LLM panel**                                                    |
 | ![A model call with three tool calls](docs/images/llm-graph.png) | ![LLM panel of a model call](docs/images/llm-panel.png)          |
 
 ## Packages
@@ -132,8 +134,9 @@ Which ones to install:
   the tab says that it is missing.
 - **With templates:** the Scaffolder modules. The backend module may run in
   another backend than the Temporal plugin; it calls the plugin over HTTP.
-- **With loops or LLM steps of AI workflows (experimental):** the workflow
-  kit in your Temporal workers (not in Backstage; not published yet).
+- **With loops of AI workflows (experimental):** the workflow kit in your
+  Temporal workers (not in Backstage; not published yet). Model calls of the
+  official Temporal AI integrations need nothing more.
 - **With large payloads in External Storage:** nothing more; the backend
   reads the references itself and only needs `temporal.externalStorage.s3`.
 
@@ -473,50 +476,95 @@ for the format and a TypeScript helper, `/loop`):
 Workflows without markers look as before. The loop data needs the read
 permission, like the graph; inputs and results are not part of it.
 
-## LLM steps
+<a id="llm-steps"></a>
 
-> **Experimental, off by default.** Set `temporal.experimental.aiWorkflows: true`. This view will move to a separate package; there is no compatibility promise.
+## Model calls and tool calls
 
-LLM agents call a model, run the tools it asks for, and call it again. When
-the activity of each model call returns a record of the call and the
-activities of the tools carry a marker (see
-[`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit#llm-llm-steps-of-agent-workflows)
-for the format, a TypeScript recorder and converters for OpenAI, Anthropic
-and Ollama, `/llm`):
+> **Experimental.** The shape of the data changes before the first stable release. Nothing needs to be turned on.
+
+LLM agents call a model, run the tools it asks for, and call it again. The
+backend recognizes these steps in the history with LLM adapters: a step an
+adapter recognizes is shown as a model call (messages, tool calls, tokens),
+any other step as a plain step. The worker does not change for the plugin.
+
+Built-in adapters:
+
+| Adapter (`framework`) | Integration                                                        | Model calls                                                   | Tool calls                                                                                        |
+| --------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `vercel-ai-sdk`       | `@temporalio/vercel-ai-sdk` 1.0 (with `ai` 7)                      | Activities `invokeModel`, `invokeModelStreaming`              | MCP tools (`<server>-callTool`) by their tool call ID; tools defined in the workflow by inference |
+| `openai-agents`       | `@temporalio/openai-agents` 1.24 (with `@openai/agents-core` 0.14) | Activities `invokeModelActivity`, `invokeModelStreamActivity` | `activityAsTool` tools by inference                                                               |
+
+Embedding calls (`invokeEmbeddingModel`) have no messages and stay plain
+steps. A step is taken for a model call only when its input and result have
+the shape of the integration, since anyone can give an activity these names.
+
+What the plugin shows:
 
 - the graph draws a model call as a larger box with the model, the input and
-  output tokens, the duration and the number of tools. The tool calls it
-  asked for are smaller boxes with the tool name, joined to it by dashed
-  arrows, so an agent loop reads as model call, tools, model call. Retries
-  of a tool show on its box.
+  output tokens, the duration and the number of tools. Its title is the call
+  name when the step records one, else the step's summary (the `summary`
+  option of the integrations, for example `languageModel.summary` or
+  `modelParams.summary`), else the model. The tool calls it asked for are
+  smaller boxes with the tool name, joined to it by dashed arrows, so an
+  agent loop reads as model call, tools, model call. Retries of a tool show
+  on its box.
 - selecting a model call opens the LLM panel: **Input** (system
   instructions and messages as a chat, long texts collapsed), **Thinking**
   (collapsed), **Output**, **Tool calls** (name, arguments, response,
   status, and a button to the step of the tool) and **Usage** (input,
   output, reasoning and cached tokens, duration). Every section has a copy
-  button; **Raw JSON** shows the record as the worker wrote it. A tool step
-  links back to its model call.
-- the **Loops** tab adds the tokens of each round and of the loop, and marks
-  model and tool calls; the **Timeline** marks them too.
+  button; **Raw JSON** shows the input and result the record was read from.
+  A tool step links back to its model call.
+- the **Timeline** marks model and tool calls.
 
-The format:
+Tool calls are linked to the model call that asked for them in two ways. A
+step that records the tool call ID (MCP tools of the Vercel AI SDK) is
+linked to the model call whose output has that ID. Other steps are matched
+by inference: a step scheduled after the model call ended and before the
+next model call of the agent (the one whose input answers the tool call),
+with the tool's name (ignoring case and separators, so `search_docs` runs
+as `searchDocs`), preferring the one with the same arguments. Inferred links
+are marked **Inferred link**. Two calls of one tool with the same arguments
+in parallel cannot be told apart; they are paired in the order the steps
+were scheduled.
 
-- activity ID `llm/<call>[/...]` for a model call and
-  `tool/<call>/<tool call ID>[/...]` for a tool call; a loop marker may
-  follow (`llm/r2/loop/agent/2/callModel`). Read without the payload codec.
-- the result of a model call holds the record under `temporal.llm`: the
-  attributes of the
-  [OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai)
-  (`gen_ai.request.model`, `gen_ai.usage.input_tokens`,
-  `gen_ai.input.messages`, `gen_ai.output.messages` with parts `text`,
-  `reasoning`, `tool_call`, `tool_call_response`, ...), version
-  `gen-ai-dev/1.42.0-dev`. Large records go to External Storage like any payload.
-
-The graph, the Loops tab and the timeline need the read permission and show
-names and numbers only (model, tokens, tool names). The messages, the
-thinking and tool arguments and results need
+The graph and the timeline need the read permission only, and show names
+and numbers the backend reads from the payloads of a model call: the
+framework, the model, the token counts (input, output, reasoning, cached),
+the finish reason, the names and tool call IDs of the tools it asked for,
+and the type or message of an error. No setting turns this on: whoever may
+read a workflow sees it wherever the history has model calls. The
+messages, the thinking and tool arguments and results need
 `temporal.workflow.history.read`, like inputs and results
-(`GET .../llm-calls/:eventId`). Workflows without markers look as before.
+(`GET .../llm-calls/:eventId`; `?index=` picks a later call of a step that
+made several).
+
+Known limits:
+
+- a payload codec (for example encryption) encodes the inputs and results:
+  the backend cannot read them, and the model calls are plain steps.
+- tool links of tools that record no tool call ID are inferred (above).
+- the graph does not download the input of a model call from External
+  Storage (it is the whole conversation). When the input is stored there,
+  the graph lacks what only the input has: the model of an OpenAI Agents
+  call, and the end of the inference window, which then is the next model
+  call. The panel reads the full record, input included.
+- only the TypeScript integrations were checked against recorded histories.
+  The streamed calls show their result; the stream itself
+  (`__temporal_workflow_stream_publish` signals) stays a list of signals.
+- the provider is not in the history of either integration, so it is not
+  shown.
+
+Other frameworks are added with a backend module and
+`temporalLlmAdapterExtensionPoint` (see
+[Extending](#extending) and the
+[public interfaces](docs/public-interfaces.md#llm-adapters)). The
+unreleased `@kwkevinchan/temporal-workflow-kit` has its own format
+(activity IDs `llm/<call>`, `tool/<call>/<tool call ID>` and a
+`temporal.llm` record with the
+[OpenTelemetry GenAI](https://github.com/open-telemetry/semantic-conventions-genai)
+attributes); the backend still reads it with an internal adapter
+(`temporal-workflow-kit`), which will be removed together with the kit.
 
 ## Workflow definitions
 
@@ -595,8 +643,7 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
-  # Optional: views that are not part of the first release, see Loops and
-  # LLM steps.
+  # Optional: views that are not part of the first release, see Loops.
   experimental:
     aiWorkflows: false
 ```
@@ -625,7 +672,7 @@ temporal:
 | `externalStorage.s3.previewBytes`   | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                   |
 | `definitions.maxBytes`              | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                   |
 | `definitions.readFileLocations`     | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                          |
-| `experimental.aiWorkflows`          | `false`              | Show the AI loops and LLM steps (experimental, no compatibility promise).                                                                                                                 |
+| `experimental.aiWorkflows`          | `false`              | Show the loops (experimental, no compatibility promise). Model calls are shown without it.                                                                                                |
 
 All keys are under `temporal`. `maxInlineBytes` and `previewBytes` must be
 non-negative integers. The frontend reads `connection.defaultNamespace`,
@@ -1285,6 +1332,15 @@ of `@kwkevinchan/backstage-plugin-temporal-frontend` to `workflowActions`. Custo
 actions, the operations and the reads with `temporalApiRef`
 (`runWorkflowAction`, `signalWorkflow`, `getWorkflow`, …).
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
+
+Backend modules can teach the backend the model calls of another framework
+with `temporalLlmAdapterExtensionPoint.addLlmAdapter()` (`./alpha`; see
+[Model calls and tool calls](#model-calls-and-tool-calls)). Adapters added
+this way are asked before the built-in ones; an ID that is taken fails the
+backend start. An adapter that throws, or returns something of the wrong
+shape, makes that step a plain step and logs a warning.
+[Public interfaces](docs/public-interfaces.md#llm-adapters) has a minimal
+adapter.
 
 The other backend code that only needs Temporal uses the shared connection
 of the backend plugin, without its routes:

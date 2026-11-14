@@ -33,19 +33,20 @@ import {
   dropUndefined,
   durationToMs,
   eventTypeName,
+  summaryOf,
   toDisplayJson,
   toIsoTime,
   toWorkflowFailure,
 } from './convert';
 import {
-  linkLlmSteps,
-  llmFieldsOf,
-  llmRecordOf,
+  LlmStepEntry,
+  LlmSteps,
   localActivityId,
   localActivityResult,
-  summarizeLlmCall,
-  toolMarkerOf,
+  localActivityType,
+  readLlmSteps,
 } from './llm/llm';
+import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   buildLoopGroups,
   parseActivityLoopMarker,
@@ -85,21 +86,6 @@ function memoValue(memo: Json, key: string): unknown {
   if (!payload) return undefined;
   const decoded = decodePayload(payload);
   return 'value' in decoded ? decoded.value : undefined;
-}
-
-/**
- * The summary of the step an event starts: Temporal's user metadata, a
- * `json/plain` text set by the workflow (for example the `summary` option
- * of an activity, a timer or a child workflow). First line only.
- */
-function summaryOf(event: Json): string | undefined {
-  const payload = event.userMetadata?.summary;
-  if (!payload) return undefined;
-  const decoded = decodePayload(payload);
-  const value = 'value' in decoded ? decoded.value : undefined;
-  if (typeof value !== 'string') return undefined;
-  const line = value.trim().split('\n')[0].trim();
-  return line || undefined;
 }
 
 /**
@@ -162,33 +148,14 @@ export interface BuildGraphOptions {
    * is kept, since the graph does not show the loop.
    */
   aiWorkflows?: boolean;
+  /** The LLM adapters that read model calls and tool calls. */
+  llmAdapters?: LlmAdapters;
 }
 
 export interface Building extends WorkflowGraphNode {
   /** Event ID of the first and of the closing event, for the arrows. */
   first: number;
   last?: number;
-  /** Call name of a model call (activity ID `llm/...`). */
-  llmCall?: string;
-  /** Decoded result (or failure details) of a model call. */
-  llmResult?: unknown;
-}
-
-/** The decoded payload with an LLM record in the details of a failure. */
-function failureRecord(failure: Json): unknown {
-  for (let f = failure, depth = 0; f && depth < 5; f = f.cause, depth++) {
-    const decoded = decodePayloads(f.applicationFailureInfo?.details);
-    const list = Array.isArray(decoded) ? decoded : [decoded];
-    const found = list.find(
-      d =>
-        d &&
-        typeof d === 'object' &&
-        'value' in d &&
-        llmRecordOf((d as any).value),
-    );
-    if (found) return found;
-  }
-  return undefined;
 }
 
 function num(value: unknown): number {
@@ -244,7 +211,21 @@ export function buildWorkflowGraph(
   events: Json[],
   options: BuildGraphOptions,
 ): WorkflowGraphResponse {
+  return buildWorkflowGraphWithLlm(events, options).graph;
+}
+
+/**
+ * The graph of a run and the model calls the LLM adapters read from its
+ * steps, by node ID.
+ */
+export function buildWorkflowGraphWithLlm(
+  events: Json[],
+  options: BuildGraphOptions,
+): { graph: WorkflowGraphResponse; llm: LlmSteps } {
   const nodes: Building[] = [];
+  // Activities and local activities, for the LLM adapters.
+  const llmEntries: LlmStepEntry[] = [];
+  const llmEntry = new Map<Building, LlmStepEntry>();
   const byKey = new Map<string, Building>();
   const payload = (value: JsonValue | undefined) =>
     options.includePayloads ? value : undefined;
@@ -400,7 +381,6 @@ export function buildWorkflowGraph(
     a = event.activityTaskScheduledEventAttributes;
     if (a) {
       const max = num(a.retryPolicy?.maximumAttempts);
-      const llm = llmFieldsOf(a.activityId);
       const node = add(`activity-${event.eventId}`, event, {
         kind: 'activity',
         name: a.activityType?.name ?? '',
@@ -414,8 +394,19 @@ export function buildWorkflowGraph(
           taskQueue: a.taskQueue?.name || undefined,
         }),
       });
-      if (llm && 'llmCall' in llm) node.llmCall = llm.llmCall;
-      if (llm && 'tool' in llm) node.tool = llm.tool;
+      const entry: LlmStepEntry = {
+        node,
+        step: dropUndefined({
+          kind: 'activity' as const,
+          activityType: a.activityType?.name ?? '',
+          activityId: a.activityId || undefined,
+          summary: summaryOf(event),
+        }),
+        input: a.input,
+        failures: [],
+      };
+      llmEntries.push(entry);
+      llmEntry.set(node, entry);
       attach(node, event);
       continue;
     }
@@ -428,10 +419,8 @@ export function buildWorkflowGraph(
       node.status = 'Running';
       node.attempt = attempt;
       node.attempts = [];
-      if (attempt > 1 && a.lastFailure && node.llmCall) {
-        node.llmResult = failureRecord(a.lastFailure) ?? node.llmResult;
-      }
       if (attempt > 1 && a.lastFailure) {
+        llmEntry.get(node)?.failures.unshift(a.lastFailure);
         node.attempts.push({
           attempt: attempt - 1,
           status: 'Failed',
@@ -463,11 +452,9 @@ export function buildWorkflowGraph(
       close(node, event, status);
       if (a.result) node.result = payload(decodePayloads(a.result) ?? null);
       if (a.failure) node.failure = toWorkflowFailure(a.failure);
-      if (node.llmCall) {
-        node.llmResult = a.result
-          ? decodePayloads(a.result) ?? null
-          : failureRecord(a.failure) ?? node.llmResult;
-      }
+      const entry = llmEntry.get(node);
+      if (entry && a.result) entry.result = a.result;
+      if (entry && a.failure) entry.failures.unshift(a.failure);
       const current = lastAttempt(node);
       if (current) {
         current.status = status;
@@ -724,21 +711,18 @@ export function buildWorkflowGraph(
         details: { markerName },
       });
       if (isLocalActivity) {
-        // A tool call run as a local activity: the activity ID (SDKs that
-        // set it) or the tool marker in the result.
-        const fields = llmFieldsOf(localActivityId(details));
-        const tool =
-          fields && 'tool' in fields
-            ? fields.tool
-            : toolMarkerOf(localActivityResult(details));
-        if (tool) {
-          node.tool = { call: tool.call, toolCallId: tool.toolCallId };
-          const data = (details.data as JsonObject | undefined)?.value as
-            | JsonObject
-            | undefined;
-          const type = data?.activity_type ?? data?.activityType;
-          if (typeof type === 'string' && type) node.name = type;
-        }
+        // A tool call can run as a local activity.
+        llmEntries.push({
+          node,
+          step: dropUndefined({
+            kind: 'localActivity' as const,
+            activityType: localActivityType(details) ?? '',
+            activityId: localActivityId(details),
+            summary: summaryOf(event),
+          }),
+          localResult: localActivityResult(details),
+          failures: [],
+        });
       }
       instant(node, event);
       attach(node, event);
@@ -874,12 +858,12 @@ export function buildWorkflowGraph(
     }
   }
 
-  // Model calls: summaries from their records, tool calls linked to them.
-  for (const node of nodes) {
-    if (node.llmCall === undefined) continue;
-    node.llm = summarizeLlmCall(node, node.llmCall, node.llmResult);
-  }
-  linkLlmSteps(nodes);
+  // Model calls and tool calls, read by the LLM adapters.
+  const llm = readLlmSteps(
+    llmEntries,
+    (options.llmAdapters ?? builtInOnlyLlmAdapters()).reader(),
+    decodePayloads,
+  );
 
   const visible = nodes.filter(n => !n.internal);
   // A running workflow with nothing open waits for something outside.
@@ -936,10 +920,7 @@ export function buildWorkflowGraph(
   });
   const response: WorkflowGraphResponse = {
     status: options.status,
-    nodes: nodes.map(
-      ({ first: _f, last: _l, llmCall: _c, llmResult: _r, ...node }) =>
-        dropUndefined(node),
-    ),
+    nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
     edges,
     current: current.text,
     currentDeadline: current.deadline,
@@ -957,7 +938,7 @@ export function buildWorkflowGraph(
         : undefined,
     loops,
   };
-  return dropUndefined(response);
+  return { graph: dropUndefined(response), llm };
 }
 
 /**

@@ -167,7 +167,7 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 ## 7. AI 流程（實驗性）
 
-開發用 app 打開了 `temporal.experimental.aiWorkflows`；在你自己的 app 裡這些畫面預設是關的，之後會移到獨立套件，也不承諾相容性。範例 Worker 啟動的是假的 AI 流程，不會呼叫任何模型。
+開發用 app 打開了 `temporal.experimental.aiWorkflows`；在你自己的 app 裡迴圈畫面預設是關的，之後會移到獨立套件，也不承諾相容性。模型呼叫不需要這個設定就會顯示。範例 Worker 啟動的是假的 AI 流程，不會呼叫任何模型。
 
 1. **迴圈。** `draftReviewWorkflow` 產生、檢查、修改，直到分數夠高（在第 4 輪、最多 5 輪中完成）。流程圖把迴圈收成一個方塊；展開後一輪一個框。**Loops** 分頁（只有含迴圈的流程才有）由新到舊列出每一輪的決定和分數。`longRefineWorkflow` 跑 25 輪、每 10 輪 Continue-As-New 一次，所以它的輪次跨三個 Run 計算（`Run 3 of 3`）；它最後顯示 `Round 25 of 25 · Out of rounds`，因為範例永遠達不到目標。
 

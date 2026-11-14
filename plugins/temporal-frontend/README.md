@@ -13,10 +13,10 @@ definition) and a **Workflows** page. Works with the legacy
 and the new frontend system of Backstage 1.56. The **Definition** tab for
 workflows written in YAML (Zigflow) is a separate package,
 [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](../temporal-module-zigflow/README.md).
-Experimental and off by default (backend config
-`temporal.experimental.aiWorkflows`; it will move to a separate package, no
-compatibility promise): the loops of AI workflows and the LLM steps of agent
-workflows. The buttons that start, signal, update, cancel, terminate and
+Model calls and tool calls of the official Temporal AI integrations are shown
+in the graph with an LLM panel (experimental shape). Experimental and off by
+default (backend config `temporal.experimental.aiWorkflows`; it will move to a
+separate package, no compatibility promise): the loops of AI workflows. The buttons that start, signal, update, cancel, terminate and
 rerun workflows, run custom backend actions, and pause, resume and run
 schedules come with the plugin; they show nothing when
 `temporal.control.enabled` is false (the backend then serves none of those

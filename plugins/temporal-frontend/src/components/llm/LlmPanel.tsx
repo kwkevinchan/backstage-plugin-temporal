@@ -42,7 +42,13 @@ import { FailureView } from '../FailureView';
 import { CopyButton, JsonView, PayloadView } from '../PayloadView';
 import { WorkflowStatusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
-import { formatCallDuration, formatTokens, modelText } from './llmText';
+import {
+  formatCallDuration,
+  formatTokens,
+  INFERRED_LINK_TEXT,
+  llmCallName,
+  modelText,
+} from './llmText';
 
 /** Text longer than this (characters or lines) starts collapsed. */
 const CLAMP_CHARS = 600;
@@ -367,6 +373,15 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
               {card.execution && !card.node && (
                 <span className={tp('tp-llm-tag')}>In the activity</span>
               )}
+              {card.node && card.ref?.inferred && (
+                <span
+                  className={tp('tp-llm-tag')}
+                  title="Matched by the tool name, the arguments and the order of the steps: the step recorded no tool call ID"
+                  data-testid="llm-tool-inferred"
+                >
+                  {INFERRED_LINK_TEXT}
+                </span>
+              )}
               {card.node && card.node.attempt && card.node.attempt > 1 && (
                 <span className={tp('tp-llm-tag')}>
                   Attempt {card.node.attempt}
@@ -429,8 +444,14 @@ function UsageTiles(props: {
     ['Duration', formatCallDuration(duration)],
   ];
   const shown = items.filter(([, v]) => v !== '');
+  const count = summary.callCount ?? 1;
   return (
     <>
+      {count > 1 && !props.record && shown.length > 0 && (
+        <Text as="p" variant="body-small" color="secondary">
+          Totals of the {count} model calls of this step.
+        </Text>
+      )}
       <div className={tp('tp-llm-usage')} data-testid="llm-usage-tiles">
         {shown.map(([label, value]) => (
           <div key={label}>
@@ -526,8 +547,17 @@ export function LlmPanel(props: {
       : []),
     ...(record?.inputMessages ?? []),
   ];
+  // A step with several model calls: the summary adds them all up, the
+  // record is one of them (the first). Name and model come from that one.
+  const count = data?.callCount ?? summary.callCount ?? 1;
+  const index = data?.index ?? 0;
+  const callModel = record?.responseModel ?? record?.requestModel;
+  const name =
+    count > 1
+      ? data?.call ?? summary.call ?? step.summary ?? callModel ?? step.name
+      : llmCallName(step);
   const facts = [
-    modelText(summary),
+    count > 1 ? callModel : modelText(summary),
     summary.provider,
     record?.finishReasons?.length
       ? `finish: ${record.finishReasons.join(', ')}`
@@ -537,7 +567,12 @@ export function LlmPanel(props: {
   return (
     <div data-testid="llm-panel">
       <Flex align="center" gap="2" style={{ flexWrap: 'wrap' }}>
-        <span className={tp('tp-llm-tag')}>LLM call {summary.call}</span>
+        <span className={tp('tp-llm-tag')}>LLM call {name}</span>
+        {count > 1 && (
+          <span className={tp('tp-llm-tag')} data-testid="llm-call-of">
+            Call {index + 1} of {count}
+          </span>
+        )}
         <Text variant="body-small" color="secondary">
           {facts.join(' · ')}
         </Text>

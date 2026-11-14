@@ -255,12 +255,15 @@ export async function createRouter(
   });
 
   // The full record of one model call: messages, reasoning, tool calls.
-  // Like inputs and results, it needs the history permission.
+  // Like inputs and results, it needs the history permission. `index`
+  // picks a later call of a step that made several.
   router.get(workflowSubpaths('llm-calls/:eventId'), async (req, res) => {
     const eventId = req.params.eventId;
     if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
+    const index = optionalString(req.query.index, 'index') ?? '0';
+    if (!/^\d{1,4}$/.test(index)) throw new InputError('Invalid index');
     const { workflow } = await loadWorkflow(req, 'history');
-    res.json(await ai.llmCall(workflow, eventId));
+    res.json(await ai.llmCall(workflow, eventId, Number(index)));
   });
 
   router.get(workflowSubpaths('progress'), async (req, res) => {

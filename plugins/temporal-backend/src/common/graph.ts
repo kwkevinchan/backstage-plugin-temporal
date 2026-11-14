@@ -172,11 +172,14 @@ export interface WorkflowGraphNode {
    */
   loop?: WorkflowLoopMarker;
   /**
-   * A model call (activity ID `llm/...`): model, tokens and tool calls.
-   * Experimental (`temporal.experimental.aiWorkflows`).
+   * A model call, recognized by an LLM adapter: model, tokens and tool
+   * calls. Experimental: the shape changes before the first stable release.
    */
   llm?: WorkflowLlmSummary;
-  /** A tool call of a model call (activity ID `tool/...`). */
+  /**
+   * A tool call of a model call. Experimental: the shape changes before
+   * the first stable release.
+   */
   tool?: WorkflowToolLink;
   /** The events of the step, oldest first. */
   events: WorkflowNodeEvent[];

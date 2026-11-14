@@ -25,9 +25,9 @@ import {
   WorkflowNodeStatus,
   WorkflowStatus,
   WorkflowSummary,
-  parseLlmMarker,
 } from '../common';
-import { linkLlmSteps, summarizeLlmCall } from './llm/llm';
+import { LlmLinkNode, LlmStepEntry, readLlmSteps } from './llm/llm';
+import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   EXTERNAL_PAYLOAD,
   referenceInfo,
@@ -486,6 +486,21 @@ export function decodePayloads(raw: Json): JsonValue | undefined {
   return decoded.length === 1 ? decoded[0] : decoded;
 }
 
+/**
+ * The summary of the step an event starts: Temporal's user metadata, a
+ * `json/plain` text set by the workflow (for example the `summary` option
+ * of an activity, a timer or a child workflow). First line only.
+ */
+export function summaryOf(event: Json): string | undefined {
+  const payload = event.userMetadata?.summary;
+  if (!payload) return undefined;
+  const decoded = decodePayload(payload);
+  const value = 'value' in decoded ? decoded.value : undefined;
+  if (typeof value !== 'string') return undefined;
+  const line = value.trim().split('\n')[0].trim();
+  return line || undefined;
+}
+
 const ACTIVITY_CLOSE_EVENTS: Record<string, ActivityStep['status']> = {
   activityTaskCompletedEventAttributes: 'Completed',
   activityTaskFailedEventAttributes: 'Failed',
@@ -495,16 +510,34 @@ const ACTIVITY_CLOSE_EVENTS: Record<string, ActivityStep['status']> = {
 
 /**
  * Builds workflow input/result and one step per activity from history events
- * (JSON form, oldest first).
+ * (JSON form, oldest first). The LLM adapters add the model calls and tool
+ * calls.
  */
 export function toWorkflowSteps(
   events: Json[],
   truncated: boolean,
+  llmAdapters?: LlmAdapters,
 ): WorkflowStepsResponse {
   const response: WorkflowStepsResponse = { activities: [], truncated };
   const byScheduledId = new Map<string, ActivityStep>();
-  // Model calls: call name and decoded result, by scheduled event ID.
-  const llmCalls = new Map<string, { call: string; result?: unknown }>();
+  // The activities as steps for the LLM adapters, by scheduled event ID,
+  // and the event IDs of their closing events.
+  const entries = new Map<string, LlmStepEntry>();
+  const closedBy = new Map<string, number>();
+  const nodeOf = (step: ActivityStep): LlmLinkNode => {
+    const status: WorkflowNodeStatus =
+      step.status === 'Started' ? 'Running' : step.status;
+    return dropUndefined({
+      id: `activity-${step.scheduledEventId}`,
+      kind: 'activity' as const,
+      name: step.activityType,
+      status,
+      startTime: step.startedTime ?? step.scheduledTime,
+      endTime: step.closeTime,
+      events: [],
+      first: Number(step.scheduledEventId),
+    });
+  };
   for (const event of events) {
     const time = toIsoTime(event.eventTime);
     const started = event.workflowExecutionStartedEventAttributes;
@@ -532,14 +565,19 @@ export function toWorkflowSteps(
         scheduledTime: time,
         input: decodePayloads(scheduled.input),
       });
-      const marker = parseLlmMarker(step.activityId);
-      if (marker?.kind === 'llm') {
-        llmCalls.set(step.scheduledEventId, { call: marker.call });
-      } else if (marker) {
-        step.tool = { call: marker.call, toolCallId: marker.toolCallId };
-      }
       byScheduledId.set(step.scheduledEventId, step);
       response.activities.push(step);
+      entries.set(step.scheduledEventId, {
+        node: nodeOf(step),
+        step: dropUndefined({
+          kind: 'activity' as const,
+          activityType: step.activityType,
+          activityId: step.activityId || undefined,
+          summary: summaryOf(event),
+        }),
+        input: scheduled.input,
+        failures: [],
+      });
       continue;
     }
     const startedActivity = event.activityTaskStartedEventAttributes;
@@ -549,6 +587,11 @@ export function toWorkflowSteps(
         step.status = 'Started';
         step.attempt = Number(startedActivity.attempt ?? 1);
         if (time) step.startedTime = time;
+        if (step.attempt > 1 && startedActivity.lastFailure) {
+          entries
+            .get(step.scheduledEventId)!
+            .failures.unshift(startedActivity.lastFailure);
+        }
       }
       continue;
     }
@@ -561,46 +604,28 @@ export function toWorkflowSteps(
       if (time) step.closeTime = time;
       if (attrs.result) step.result = decodePayloads(attrs.result) ?? null;
       if (attrs.failure) step.failure = toWorkflowFailure(attrs.failure);
-      const llm = llmCalls.get(step.scheduledEventId);
-      if (llm) llm.result = step.result;
+      const entry = entries.get(step.scheduledEventId)!;
+      closedBy.set(step.scheduledEventId, Number(event.eventId));
+      if (attrs.result) entry.result = attrs.result;
+      if (attrs.failure) entry.failures.unshift(attrs.failure);
       break;
     }
   }
-  if (llmCalls.size > 0 || response.activities.some(s => s.tool)) {
-    const nodes = response.activities.map(step => {
-      const llm = llmCalls.get(step.scheduledEventId);
-      const status: WorkflowNodeStatus =
-        step.status === 'Started' ? 'Running' : step.status;
-      return {
-        step,
-        node: {
-          id: `activity-${step.scheduledEventId}`,
-          kind: 'activity' as const,
-          name: step.activityType,
-          status,
-          startTime: step.startedTime ?? step.scheduledTime,
-          endTime: step.closeTime,
-          events: [],
-          first: Number(step.scheduledEventId),
-          tool: step.tool,
-          llm: llm
-            ? summarizeLlmCall(
-                {
-                  status,
-                  startTime: step.startedTime ?? step.scheduledTime,
-                  endTime: step.closeTime,
-                },
-                llm.call,
-                llm.result,
-              )
-            : undefined,
-        },
-      };
-    });
-    linkLlmSteps(nodes.map(n => n.node));
-    for (const { step, node } of nodes) {
-      if (node.llm) step.llm = node.llm;
-    }
+  for (const step of response.activities) {
+    const entry = entries.get(step.scheduledEventId)!;
+    entry.node = nodeOf(step);
+    const last = closedBy.get(step.scheduledEventId);
+    if (last !== undefined) entry.node.last = last;
+  }
+  readLlmSteps(
+    [...entries.values()],
+    (llmAdapters ?? builtInOnlyLlmAdapters()).reader(),
+    decodePayloads,
+  );
+  for (const step of response.activities) {
+    const { node } = entries.get(step.scheduledEventId)!;
+    if (node.llm) step.llm = node.llm;
+    if (node.tool) step.tool = node.tool;
   }
   return response;
 }

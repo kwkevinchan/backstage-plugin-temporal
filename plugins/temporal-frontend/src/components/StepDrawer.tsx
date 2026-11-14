@@ -19,7 +19,7 @@ import type { WorkflowGraphNode, WorkflowRef } from '../common';
 import { Button, ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react';
 import { LlmPanel } from './llm/LlmPanel';
-import { toolName } from './llm/llmText';
+import { INFERRED_LINK_TEXT, llmCallName, toolName } from './llm/llmText';
 import { FailureView } from './FailureView';
 import { deadlineText, formatDuration, formatTime } from './format';
 import { JsonView, PayloadView } from './PayloadView';
@@ -180,6 +180,12 @@ export function StepDrawer(props: StepDrawerProps) {
             items={[
               ['Tool call ID', step.tool.toolCallId],
               [
+                'Link',
+                step.tool.inferred
+                  ? `${INFERRED_LINK_TEXT}: matched by the tool name, the arguments and the order of the steps`
+                  : undefined,
+              ],
+              [
                 'Activity type',
                 step.tool.name && step.tool.name !== step.name
                   ? step.name
@@ -195,7 +201,7 @@ export function StepDrawer(props: StepDrawerProps) {
               style={{ marginTop: 6 }}
               onPress={() => props.onSelectStep!(llmOwner.id)}
             >
-              Model call {llmOwner.llm?.call ?? llmOwner.name}
+              Model call {llmCallName(llmOwner)}
             </Button>
           )}
         </div>

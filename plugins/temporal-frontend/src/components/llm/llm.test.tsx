@@ -28,7 +28,14 @@ import { WorkflowGraph } from '../graph/WorkflowGraph';
 import { layoutSteps, stepSize, visibleSteps } from '../graph/layout';
 import { StepDrawer } from '../StepDrawer';
 import { LoopsTab } from '../LoopsTab';
-import { formatCallDuration, formatTokens, llmStatsText } from './llmText';
+import type { WorkflowGraphResponse } from '../../common';
+import {
+  formatCallDuration,
+  formatTokens,
+  llmBoxTitle,
+  llmCallName,
+  llmStatsText,
+} from './llmText';
 
 const node = (id: string) => llmGraphResponse.nodes.find(n => n.id === id)!;
 const ref = { namespace: 'default', workflowId: 'agent-1', runId: 'run-1' };
@@ -202,6 +209,128 @@ describe('LLM panel', () => {
     );
     expect(onSelectStep).toHaveBeenCalledWith('activity-5');
     expect(screen.getByTestId('step-output')).toHaveTextContent('hits');
+  });
+});
+
+/** A model call of an official integration: no call name, no provider. */
+const officialGraph: WorkflowGraphResponse = {
+  status: 'Completed',
+  completedSteps: 2,
+  totalSteps: 2,
+  truncated: false,
+  payloadsHidden: true,
+  edges: [{ id: 'm->t', source: 'activity-11', target: 'activity-17' }],
+  nodes: [
+    {
+      id: 'activity-11',
+      kind: 'activity',
+      name: 'invokeModel',
+      summary: 'plan call',
+      status: 'Completed',
+      events: [],
+      llm: {
+        framework: 'vercel-ai-sdk',
+        record: 'available',
+        model: 'fake-model-2026-11',
+        usage: { inputTokens: 121, outputTokens: 30 },
+        reasoning: true,
+        toolCalls: [
+          {
+            id: 'call_1',
+            name: 'search_docs',
+            nodeId: 'activity-17',
+            status: 'Completed',
+            inferred: true,
+          },
+        ],
+      },
+    },
+    {
+      id: 'activity-17',
+      kind: 'activity',
+      name: 'searchDocs',
+      status: 'Completed',
+      events: [],
+      tool: {
+        toolCallId: 'call_1',
+        llmNodeId: 'activity-11',
+        name: 'search_docs',
+        inferred: true,
+      },
+    },
+  ],
+};
+
+describe('Model calls without a call name', () => {
+  it('are titled by the summary, else the model', () => {
+    const [call] = officialGraph.nodes;
+    expect(llmCallName(call)).toBe('plan call');
+    expect(llmBoxTitle(call)).toBe('plan call');
+    const { summary: _summary, ...withoutSummary } = call;
+    expect(llmBoxTitle(withoutSummary)).toBe('fake-model-2026-11');
+    // A call with a name keeps the activity type as the box title.
+    expect(llmBoxTitle(node('activity-5'))).toBe('callModel');
+    expect(llmCallName(node('activity-5'))).toBe('r1');
+  });
+
+  it('mark an inferred tool link', async () => {
+    await renderInTestApp(
+      <WorkflowGraph graph={officialGraph} onSelect={() => {}} />,
+    );
+    expect(screen.getByTestId('step-activity-11')).toHaveTextContent(
+      'plan call',
+    );
+    const tool = screen.getByTestId('step-activity-17');
+    expect(tool).toHaveTextContent('search_docs');
+    expect(tool).toHaveTextContent('Inferred link');
+  });
+});
+
+describe('A step with several model calls', () => {
+  it('shows one call, labeled, with its own model', async () => {
+    const step = {
+      ...node('activity-5'),
+      llm: {
+        ...node('activity-5').llm!,
+        call: undefined,
+        callCount: 2,
+        model: 'model-b',
+        usage: { inputTokens: 30 },
+      },
+    };
+    const api = mockTemporalApi();
+    api.getLlmCall.mockResolvedValue({
+      ...llmCallResponse,
+      call: undefined,
+      index: 0,
+      callCount: 2,
+      record: {
+        ...llmCallResponse.record!,
+        requestModel: 'model-a',
+        responseModel: undefined,
+        usage: { inputTokens: 10 },
+      },
+    });
+    await renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <StepDrawer
+          step={step}
+          payloadsHidden={false}
+          workflowHref={() => '/x'}
+          onClose={() => {}}
+          nodes={llmGraphResponse.nodes}
+          workflowRef={ref}
+          entityRef="component:default/agents"
+        />
+      </TestApiProvider>,
+    );
+    expect(await screen.findByTestId('llm-call-of')).toHaveTextContent(
+      'Call 1 of 2',
+    );
+    const panel = screen.getByTestId('llm-panel');
+    await waitFor(() => expect(panel).toHaveTextContent('model-a'));
+    expect(panel).not.toHaveTextContent('model-b');
+    expect(screen.getByTestId('llm-usage-tiles')).toHaveTextContent('10');
   });
 });
 
