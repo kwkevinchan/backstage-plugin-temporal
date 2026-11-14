@@ -19,8 +19,10 @@ import { boxSize, FRAME_GAP, StepLayout } from './layout';
 
 /*
  * Arrows of a graph with frames around some of its steps. An arrow that
- * leaves or enters frames turns `FRAME_GAP` outside the outermost of them,
- * so it never runs along a frame border, and crosses the borders straight.
+ * leaves or enters frames turns `FRAME_GAP` outside the outermost of them
+ * (or of the ones it can leave without crossing a box of them, into a later
+ * row), so it never runs along a frame border, and crosses the borders
+ * straight.
  */
 
 /** Data of an arrow that leaves or enters frames. */
@@ -62,9 +64,11 @@ export function frameInsets(
   };
   const from = chain(source);
   const to = chain(target);
-  // The outermost frame around one end only.
-  const outer = (frames: string[], other: string[]) =>
-    frames.filter(f => !other.includes(f)).pop();
+  // The frames around one end only, the outermost last.
+  const own = (chainOf: string[], other: string[]) =>
+    chainOf.filter(f => !other.includes(f));
+  const outer = (chainOf: string[], other: string[]) =>
+    own(chainOf, other).pop();
   const left = (id: string) => layout.positions.get(id)?.x ?? 0;
   const right = (id: string) => left(id) + boxSize(layout, id).width;
   const top = (id: string) => layout.positions.get(id)?.y ?? 0;
@@ -76,8 +80,8 @@ export function frameInsets(
     sourceInset: out ? right(out) - right(source) + FRAME_GAP : 0,
     targetInset: into ? left(target) - left(into) + FRAME_GAP : 0,
   };
-  const firstTurn = right(source) + Math.max(insets.sourceInset, OFFSET);
-  const lastTurn = left(target) - Math.max(insets.targetInset, OFFSET);
+  const farTurnOut = right(source) + Math.max(insets.sourceInset, OFFSET);
+  const farTurnIn = left(target) - Math.max(insets.targetInset, OFFSET);
 
   // An arrow into a later row runs back in the gap below the row of its
   // source (as `routeRowGaps` finds it).
@@ -87,17 +91,56 @@ export function frameInsets(
     // the frames. Without room between them (the target is above or below
     // the frame of the source, or the other way round) any way around the
     // frames would cross other boxes: the smooth step it was.
-    if ((!out && !into) || firstTurn > lastTurn) {
+    if ((!out && !into) || farTurnOut > farTurnIn) {
       return { sourceInset: 0, targetInset: 0 };
     }
     return insets;
   }
 
-  // The two turns down (or up) stay clear of the borders of other frames
-  // next to them: the first one moves right, the last one left.
   const frames = [...new Set(parentOf.values())].filter(
     (f): f is string => f !== undefined,
   );
+  // A box of a frame around an end can be in the way out of that frame
+  // (the source is not in its last column, or the target not in its first
+  // one). Then the arrow turns `FRAME_GAP` outside the frames it can leave
+  // without crossing a box, or next to its end when it can leave none, and
+  // its way down or up crosses the bottom or top border of the others at
+  // a right angle.
+  const boxes = [...parentOf.keys()].filter(
+    id => !frames.includes(id) && id !== source && id !== target,
+  );
+  const inTheWay = (y: number, x1: number, x2: number) =>
+    boxes.some(
+      id =>
+        layout.positions.has(id) &&
+        top(id) < y &&
+        bottom(id) > y &&
+        left(id) < x2 &&
+        right(id) > x1,
+    );
+  const outTurns = [
+    right(source) + OFFSET,
+    ...own(from, to).map(f => right(f) + FRAME_GAP),
+    farTurnOut,
+  ];
+  const inTurns = [
+    left(target) - OFFSET,
+    ...own(to, from).map(f => left(f) - FRAME_GAP),
+    farTurnIn,
+  ];
+  const firstTurn = outTurns.reduce((turn, next) =>
+    turn === farTurnOut || inTheWay(middle(source), right(source), next)
+      ? turn
+      : next,
+  );
+  const lastTurn = inTurns.reduce((turn, next) =>
+    turn === farTurnIn || inTheWay(middle(target), next, left(target))
+      ? turn
+      : next,
+  );
+
+  // The two turns down (or up) stay clear of the borders of other frames
+  // next to them: the first one moves right, the last one left.
   const clear = (
     x: number,
     y1: number,

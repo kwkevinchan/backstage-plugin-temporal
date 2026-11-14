@@ -434,6 +434,39 @@ describe('arrows and the boxes on their way', () => {
       expect(throughBoxes(result)).toEqual([]);
     },
   );
+
+  it('never run through a step next to them in a frame, into the next row', () => {
+    // a1 is in the first column of g0 and leaves it for a6 in the next row:
+    // a2, next to it in g0, is in the way to the right of the frame.
+    const ids = ['start', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'end'];
+    const nodes = chain(7).nodes.filter(n => ids.includes(n.id));
+    const pairs = [
+      ['start', 'a1'],
+      ['a1', 'a2'],
+      ['a1', 'a3'],
+      ['a3', 'a4'],
+      ['a2', 'a4'],
+      ['a4', 'a5'],
+      ['a5', 'a6'],
+      ['a1', 'a6'],
+      ['start', 'a7'],
+      ['a7', 'end'],
+    ];
+    const edges = pairs.map(([source, target]) => ({
+      id: `${source}->${target}`,
+      source,
+      target,
+    }));
+    const result = layOut({ nodes, edges }, nested(['a1', 'a2'], ['a1']), 1400);
+    expect(result.layout.wrapped).toBe(true);
+    expect(
+      arrows(result).some(
+        a => a.edge.id === 'a1->a6' && a.edge.data?.centerY !== undefined,
+      ),
+    ).toBe(true);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(problems(result)).toEqual([]);
+  });
 });
 
 describe('columns next to frames', () => {
