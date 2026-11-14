@@ -423,7 +423,7 @@ export const TemporalControlActionBlueprint: ExtensionBlueprint<{
 export const TemporalScheduleActionBlueprint: ExtensionBlueprint<{
   kind: 'temporal-schedule-action';
   params: {
-    loader: Loader<TemporalScheduleActionProps>;
+    loader: () => Promise<ComponentType<TemporalScheduleActionProps>>;
     filter?: (schedule: TemporalSchedule) => boolean;
   };
   output: ExtensionDataRef<
@@ -447,7 +447,7 @@ export const TemporalScheduleActionBlueprint: ExtensionBlueprint<{
 export const TemporalWorkflowActionBlueprint: ExtensionBlueprint<{
   kind: 'temporal-workflow-action';
   params: {
-    loader: Loader<TemporalWorkflowExtensionProps>;
+    loader: () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
     filter?: (workflow: WorkflowDetail) => boolean;
   };
   output: ExtensionDataRef<
@@ -471,7 +471,7 @@ export const TemporalWorkflowActionBlueprint: ExtensionBlueprint<{
 export const TemporalWorkflowListActionBlueprint: ExtensionBlueprint<{
   kind: 'temporal-workflow-list-action';
   params: {
-    loader: Loader<TemporalWorkflowListActionProps>;
+    loader: () => Promise<ComponentType<TemporalWorkflowListActionProps>>;
     filter?: (context: { entity?: Entity }) => boolean;
   };
   output: ExtensionDataRef<
@@ -496,7 +496,7 @@ export const TemporalWorkflowSectionBlueprint: ExtensionBlueprint<{
   kind: 'temporal-workflow-section';
   params: {
     title: string;
-    loader: Loader<TemporalWorkflowExtensionProps>;
+    loader: () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
     filter?: (workflow: WorkflowDetail) => boolean;
   };
   output: ExtensionDataRef<
@@ -528,7 +528,6 @@ export const TemporalWorkflowSectionBlueprint: ExtensionBlueprint<{
 // src/alpha.d.ts:205:13 - (ae-forgotten-export) The symbol "WorkflowDetail" needs to be exported by the entry point alpha.d.ts
 // src/alpha.d.ts:216:13 - (ae-forgotten-export) The symbol "TemporalWorkflowListActionProps" needs to be exported by the entry point alpha.d.ts
 // src/control/alpha.d.ts:81:5 - (ae-forgotten-export) The symbol "TemporalControlActionButtonOptions" needs to be exported by the entry point alpha.d.ts
-// src/extensions/blueprints.d.ts:117:9 - (ae-forgotten-export) The symbol "Loader" needs to be exported by the entry point alpha.d.ts
 
 // (No @packageDocumentation comment for this package)
 ```

@@ -115,6 +115,14 @@ export function Loading(props: {
 }): JSX_2.Element;
 
 // @alpha
+export interface NodeSize {
+  // (undocumented)
+  height: number;
+  // (undocumented)
+  width: number;
+}
+
+// @alpha
 export function PanelCard(props: {
   title: string;
   subtitle?: ReactNode;
@@ -177,8 +185,4 @@ export function workflowLink(ref: {
   workflowId: string;
   runId?: string;
 }): string;
-
-// Warnings were encountered during analysis:
-//
-// src/components/graph/layout.d.ts:91:5 - (ae-forgotten-export) The symbol "NodeSize" needs to be exported by the entry point ui.d.ts
 ```

@@ -29,6 +29,11 @@ export const TOOL_NODE_HEIGHT = 52;
 /** Widest box, for the columns of a wrapped graph. */
 const MAX_NODE_WIDTH = LLM_NODE_WIDTH;
 
+/**
+ * Size of the box of a step.
+ *
+ * @alpha
+ */
 export interface NodeSize {
   width: number;
   height: number;
