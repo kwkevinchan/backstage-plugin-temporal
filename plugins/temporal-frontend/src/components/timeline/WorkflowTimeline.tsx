@@ -34,6 +34,12 @@ import {
 } from '@remixicon/react';
 import { formatTime } from '../format';
 import { decisionText, roundLabel } from '../loopText';
+import {
+  groupCountBadge,
+  groupDuration,
+  groupTokens,
+  UNREADABLE_LABEL_TEXT,
+} from '../groupText';
 import { kindLabel } from '../steps';
 import { statusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
@@ -47,7 +53,9 @@ import {
   placeTime,
   selectWindow,
   Span,
+  TimelineEventGroup,
   TimelineGroup,
+  TimelineItem,
   TimelineRow,
   timeTicks,
   zoomWindow,
@@ -69,6 +77,9 @@ export interface WorkflowTimelineProps {
   /** The current time; for tests. */
   now?: number;
 }
+
+/** Indent of each level of event groups in the label column. */
+const GROUP_INDENT = 16;
 
 /** Drag distance in pixels that selects a range instead of a click. */
 const DRAG_PX = 4;
@@ -299,6 +310,8 @@ function Bar(props: {
 function RowLabel(props: {
   row: TimelineRow;
   nested: boolean;
+  /** Event groups around the row, past the first one. */
+  depth?: number;
   onSelect(id: string): void;
 }) {
   const { row } = props;
@@ -308,6 +321,11 @@ function RowLabel(props: {
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className={tp('tp-tl-label')}
+      style={
+        props.depth
+          ? { paddingLeft: 30 + props.depth * GROUP_INDENT }
+          : undefined
+      }
       data-nested={props.nested}
       onClick={() => props.onSelect(row.id)}
       title={`${name} · ${kindLabel(row.node.kind)}`}
@@ -340,52 +358,59 @@ function RowLabel(props: {
   );
 }
 
-function GroupHeader(props: {
-  group: TimelineGroup;
+/**
+ * The header row of a group of rows (a loop round or an event group): a
+ * button that expands or collapses it, and a bar over the time of its
+ * steps.
+ */
+function GroupRow(props: {
+  testId: string;
+  label: string;
+  /** Title of the button. */
+  hint?: string;
+  /** Title of the bar. */
+  barTitle: string;
+  steps: number;
+  span: Span;
+  tone: string;
   expanded: boolean;
   win: Span;
   onToggle(): void;
+  /** Indent of a group inside other groups, in pixels. */
+  indent?: number;
 }) {
-  const { group, win } = props;
-  const place = placeSpan(group.span, win);
-  const decision = decisionText(group.round);
-  const label = `${group.loop.name} · ${roundLabel(
-    group.round.iteration,
-    group.loop,
-  )}`;
+  const place = placeSpan(props.span, props.win);
   return (
-    <div
-      className={tp('tp-tl-row', 'tp-tl-group')}
-      data-testid={`timeline-round-${group.key}`}
-    >
-      <div className={tp('tp-tl-label')}>
+    <div className={tp('tp-tl-row', 'tp-tl-group')} data-testid={props.testId}>
+      <div
+        className={tp('tp-tl-label')}
+        style={props.indent ? { paddingLeft: props.indent } : undefined}
+      >
         <button
           type="button"
           className={tp('tp-tl-toggle')}
           aria-expanded={props.expanded}
           onClick={props.onToggle}
-          title={decision || undefined}
+          title={props.hint || undefined}
         >
           {props.expanded ? (
             <RiArrowDownSLine size={16} aria-hidden />
           ) : (
             <RiArrowRightSLine size={16} aria-hidden />
           )}
-          <span className={tp('tp-tl-name')}>{label}</span>
+          <span className={tp('tp-tl-name')}>{props.label}</span>
           <span className={tp('tp-muted')}>
-            {props.expanded ? '' : ` · ${group.rows.length} steps`}
+            {props.expanded ? '' : ` · ${props.steps} steps`}
           </span>
         </button>
       </div>
       <div className={tp('tp-tl-track')}>
         {place && (
           <div
-            className={tp('tp-tl-group-bar', `tp-tone-${group.tone}`)}
+            className={tp('tp-tl-group-bar', `tp-tone-${props.tone}`)}
             data-expanded={props.expanded}
             style={{ left: `${place.left}%`, width: `${place.width}%` }}
-            title={[label, statusLabel(group.round.status), decision]
-              .filter(Boolean)
-              .join(' · ')}
+            title={props.barTitle}
           />
         )}
       </div>
@@ -393,7 +418,73 @@ function GroupHeader(props: {
   );
 }
 
-function Legend(props: { rounds: boolean }) {
+function GroupHeader(props: {
+  group: TimelineGroup;
+  expanded: boolean;
+  win: Span;
+  onToggle(): void;
+}) {
+  const { group } = props;
+  const decision = decisionText(group.round);
+  const label = `${group.loop.name} · ${roundLabel(
+    group.round.iteration,
+    group.loop,
+  )}`;
+  return (
+    <GroupRow
+      testId={`timeline-round-${group.key}`}
+      label={label}
+      hint={decision}
+      barTitle={[label, statusLabel(group.round.status), decision]
+        .filter(Boolean)
+        .join(' · ')}
+      steps={group.rows.length}
+      span={group.span}
+      tone={group.tone}
+      expanded={props.expanded}
+      win={props.win}
+      onToggle={props.onToggle}
+    />
+  );
+}
+
+function EventGroupHeader(props: {
+  group: TimelineEventGroup;
+  expanded: boolean;
+  win: Span;
+  onToggle(): void;
+}) {
+  const { group } = props;
+  const count = groupCountBadge(group.group);
+  const label = [group.group.name, count].filter(Boolean).join(' ');
+  const facts = [
+    statusLabel(group.group.status),
+    groupDuration(group.group),
+    groupTokens(group.group),
+  ].filter(Boolean);
+  return (
+    <GroupRow
+      testId={`timeline-group-${group.group.key}`}
+      label={label}
+      hint={[
+        group.group.labelUnreadable ? UNREADABLE_LABEL_TEXT : '',
+        facts.join(' · '),
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      barTitle={[label, ...facts].join(' · ')}
+      steps={group.rows.length}
+      span={group.span}
+      tone={group.tone}
+      expanded={props.expanded}
+      win={props.win}
+      onToggle={props.onToggle}
+      indent={group.depth ? 8 + group.depth * GROUP_INDENT : undefined}
+    />
+  );
+}
+
+function Legend(props: { rounds: boolean; groups?: boolean }) {
   const item = (cls: string, text: string, tone = 'tp-tone-success') => (
     <span className={tp('tp-tl-legend-item')}>
       <span className={tp('tp-tl-legend-swatch', cls, tone)} aria-hidden />
@@ -408,6 +499,7 @@ function Legend(props: { rounds: boolean }) {
       {item('tp-tl-legend-wait', 'Timer or wait', 'tp-tone-neutral')}
       {item('tp-tl-legend-point', 'Signal or update', 'tp-tone-info')}
       {props.rounds && item('tp-tl-legend-round', 'Collapsed round')}
+      {props.groups && item('tp-tl-legend-round', 'Collapsed group')}
     </div>
   );
 }
@@ -415,8 +507,9 @@ function Legend(props: { rounds: boolean }) {
 /**
  * The steps of a run on a time axis: one bar per step with the time it
  * waited for a worker (queued) and the time it ran, dashed bars for timers
- * and waits, and points for signals and updates. Rounds of a loop are
- * grouped and can be collapsed. Drag across the chart, or scroll with Ctrl
+ * and waits, and points for signals and updates. Rounds of a loop and
+ * Temporal event groups are grouped and can be collapsed; a group inside
+ * another one is indented under it. Drag across the chart, or scroll with Ctrl
  * held, to zoom.
  */
 export function WorkflowTimeline(props: WorkflowTimelineProps) {
@@ -549,6 +642,23 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
   );
   const setAll = (value: boolean) =>
     setExpanded(Object.fromEntries(groups.map(g => [g.key, value])));
+  // Event groups, at any depth.
+  const eventGroups: TimelineEventGroup[] = [];
+  const collect = (items: TimelineItem[]) => {
+    for (const i of items) {
+      if (i.type !== 'eventGroup') continue;
+      eventGroups.push(i.group);
+      collect(i.group.items);
+    }
+  };
+  collect(model.items);
+  const isGroupExpanded = (group: TimelineEventGroup) =>
+    expanded[group.key] ?? group.expanded;
+  const setAllGroups = (value: boolean) =>
+    setExpanded(e => ({
+      ...e,
+      ...Object.fromEntries(eventGroups.map(g => [g.key, value])),
+    }));
 
   const zoomBy = (factor: number) =>
     setZoom(zoomWindow(win, range, 0.5, factor));
@@ -568,13 +678,13 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
       { start: 0, end: 1 },
     );
 
-  const renderRow = (row: TimelineRow, nested: boolean) => (
+  const renderRow = (row: TimelineRow, nested: boolean, depth = 0) => (
     <div
       key={row.id}
       className={tp('tp-tl-row')}
       data-selected={row.id === selectedId}
     >
-      <RowLabel row={row} nested={nested} onSelect={select} />
+      <RowLabel row={row} nested={nested} depth={depth} onSelect={select} />
       <div className={tp('tp-tl-track')}>
         <Bar
           row={row}
@@ -587,6 +697,28 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
       </div>
     </div>
   );
+
+  const renderEventGroup = (group: TimelineEventGroup): ReactNode => {
+    const open = isGroupExpanded(group);
+    return (
+      <div key={group.key} role="group" aria-label={group.group.name}>
+        <EventGroupHeader
+          group={group}
+          expanded={open}
+          win={win}
+          onToggle={() => setExpanded(e => ({ ...e, [group.key]: !open }))}
+        />
+        {open &&
+          group.items.map(item => {
+            if (item.type === 'eventGroup') return renderEventGroup(item.group);
+            if (item.type === 'row') {
+              return renderRow(item.row, true, group.depth);
+            }
+            return null;
+          })}
+      </div>
+    );
+  };
 
   return (
     <div className={tp('tp-timeline')} data-testid="workflow-timeline">
@@ -601,6 +733,24 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           pans.
         </Text>
         <Flex align="center" gap="2" className={tp('tp-graph-toolbar')}>
+          {eventGroups.length > 1 && (
+            <>
+              <Button
+                size="small"
+                variant="secondary"
+                onPress={() => setAllGroups(true)}
+              >
+                Expand groups
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                onPress={() => setAllGroups(false)}
+              >
+                Collapse groups
+              </Button>
+            </>
+          )}
           {groups.length > 1 && (
             <>
               <Button
@@ -640,7 +790,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           </Button>
         </Flex>
       </Flex>
-      <Legend rounds={groups.length > 0} />
+      <Legend rounds={groups.length > 0} groups={eventGroups.length > 0} />
       <div
         ref={chartRef}
         className={tp('tp-tl-chart')}
@@ -705,6 +855,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           </div>
           {model.items.map(item => {
             if (item.type === 'row') return renderRow(item.row, false);
+            if (item.type === 'eventGroup') return renderEventGroup(item.group);
             const { group } = item;
             const open = isExpanded(group);
             return (

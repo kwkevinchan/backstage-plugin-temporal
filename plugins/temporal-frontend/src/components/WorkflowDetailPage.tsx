@@ -56,6 +56,8 @@ import {
 } from './graph/GraphCanvas';
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { loopOfStep, LoopView, LoopViews } from './graph/loops';
+import type { GroupViews } from './graph/eventGroups';
+import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
 import { LoopsTab } from './LoopsTab';
 import { JsonView } from './PayloadView';
@@ -260,6 +262,9 @@ function GraphCard(props: {
   onShowMarkersChange(show: boolean): void;
   loopViews: LoopViews;
   onLoopViewChange(name: string, view: LoopView): void;
+  groupViews: GroupViews;
+  onGroupViewChange(key: string, expanded: boolean): void;
+  focusGroup?: { key: string };
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
@@ -289,6 +294,14 @@ function GraphCard(props: {
             style={{ marginBottom: 12 }}
           />
         )}
+        {graph?.eventGroupsTruncated && (
+          <Alert
+            status="info"
+            icon
+            title="The run has more event groups than the graph reads; some groups are left out."
+            style={{ marginBottom: 12 }}
+          />
+        )}
         {graph && (
           <GraphFullscreenContext.Provider value={fullscreen}>
             <div
@@ -304,6 +317,9 @@ function GraphCard(props: {
                 onShowMarkersChange={props.onShowMarkersChange}
                 loopViews={props.loopViews}
                 onLoopViewChange={props.onLoopViewChange}
+                groupViews={props.groupViews}
+                onGroupViewChange={props.onGroupViewChange}
+                focusGroup={props.focusGroup}
                 panelOpen={Boolean(selected)}
               />
               {selected && (
@@ -437,6 +453,15 @@ export function WorkflowDetailPage(
       setLoopViews(views => ({ ...views, [name]: view })),
     [],
   );
+  // Temporal event groups the user expanded or collapsed, and the group
+  // picked in the Event Groups tab.
+  const [groupViews, setGroupViews] = useState<GroupViews>({});
+  const [focusGroup, setFocusGroup] = useState<{ key: string }>();
+  const setGroupView = useCallback(
+    (key: string, expanded: boolean) =>
+      setGroupViews(views => ({ ...views, [key]: expanded })),
+    [],
+  );
   const graphRef = useRef<HTMLDivElement>(null);
   const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
   const { workflow, graph } = data;
@@ -461,6 +486,19 @@ export function WorkflowDetailPage(
   );
   const nodes = data.graph?.nodes;
   const loops = data.graph?.loops;
+  const eventGroups = data.graph?.eventGroups;
+  // A step picked outside the graph: its groups are expanded.
+  const openGroupsOf = useCallback(
+    (id: string) => {
+      const keys = nodes?.find(n => n.id === id)?.groups ?? [];
+      if (keys.length === 0) return;
+      setGroupViews(views => ({
+        ...views,
+        ...Object.fromEntries(keys.map(k => [k, true])),
+      }));
+    },
+    [nodes],
+  );
   const scrollToGraph = useCallback(
     () =>
       graphRef.current?.scrollIntoView?.({
@@ -482,10 +520,11 @@ export function WorkflowDetailPage(
           iteration: inLoop.round.iteration,
         });
       }
+      openGroupsOf(id);
       setSelectedId(id);
       scrollToGraph();
     },
-    [nodes, loops, setLoopView, scrollToGraph],
+    [nodes, loops, setLoopView, scrollToGraph, openGroupsOf],
   );
   // A step picked in the step panel: shown in its loop round, selected.
   const selectInGraph = useCallback(
@@ -497,9 +536,10 @@ export function WorkflowDetailPage(
           iteration: inLoop.round.iteration,
         });
       }
+      openGroupsOf(id);
       setSelectedId(id);
     },
-    [loops, setLoopView],
+    [loops, setLoopView, openGroupsOf],
   );
   const showRound = useCallback(
     (loop: string, iteration: number) => {
@@ -508,6 +548,26 @@ export function WorkflowDetailPage(
       scrollToGraph();
     },
     [setLoopView, scrollToGraph],
+  );
+  // A group picked in the Event Groups tab: expanded with the groups
+  // around it and brought into view.
+  const showGroup = useCallback(
+    (key: string) => {
+      const byKey = new Map((eventGroups ?? []).map(g => [g.key, g]));
+      const open: Record<string, boolean> = {};
+      for (
+        let g = byKey.get(key);
+        g && !(g.key in open);
+        g = g.parent ? byKey.get(g.parent) : undefined
+      ) {
+        open[g.key] = true;
+      }
+      setGroupViews(views => ({ ...views, ...open }));
+      setFocusGroup({ key });
+      setSelectedId(undefined);
+      scrollToGraph();
+    },
+    [eventGroups, scrollToGraph],
   );
 
   // Back to the list with its filters and page, as it was left.
@@ -697,6 +757,9 @@ export function WorkflowDetailPage(
             onShowMarkersChange={setShowMarkers}
             loopViews={loopViews}
             onLoopViewChange={setLoopView}
+            groupViews={groupViews}
+            onGroupViewChange={setGroupView}
+            focusGroup={focusGroup}
           />
         </div>
 
@@ -710,6 +773,9 @@ export function WorkflowDetailPage(
                 <Tab id="steps">Steps</Tab>
                 <Tab id="timeline">Timeline</Tab>
                 {loops && loops.length > 0 ? <Tab id="loops">Loops</Tab> : null}
+                {eventGroups && eventGroups.length > 0 ? (
+                  <Tab id="event-groups">Event Groups</Tab>
+                ) : null}
                 <Tab id="events">Events</Tab>
                 <Tab id="details">Details</Tab>
                 {sections.map(s => (
@@ -748,6 +814,11 @@ export function WorkflowDetailPage(
                     workflowHref={workflowHref}
                     onShowRound={showRound}
                   />
+                </TabPanel>
+              ) : null}
+              {graph && eventGroups && eventGroups.length > 0 ? (
+                <TabPanel id="event-groups">
+                  <EventGroupsTab graph={graph} onShowGroup={showGroup} />
                 </TabPanel>
               ) : null}
               <TabPanel id="events">

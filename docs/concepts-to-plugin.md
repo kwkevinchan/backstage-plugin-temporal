@@ -222,6 +222,13 @@ first release, will move to a separate package and carry no compatibility
 promise. See [Loops](../README.md#loops) and
 [Model calls and tool calls](../README.md#model-calls-and-tool-calls).
 
+Workflows can group their steps themselves with Temporal Event Groups
+(experimental in Temporal; server 1.32, TypeScript SDK 1.23 or later). The
+Temporal Web UI filters the history by group; the plugin draws each group
+as a box around its steps, nested and collapsible, with `×3` for three
+groups inside, and adds an **Event Groups** tab, without a setting. See
+[Event groups](../README.md#event-groups).
+
 ## What the plugin does not do
 
 - It does not create or change namespaces, search attributes or schedules.

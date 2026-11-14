@@ -15,6 +15,7 @@
  */
 
 import type {
+  WorkflowEventGroup,
   WorkflowGraphNode,
   WorkflowGraphResponse,
   WorkflowLoopGroup,
@@ -24,10 +25,12 @@ import type {
 } from '../../common';
 import { isMarkerStep, isOpenStep } from '../steps';
 import { statusTone, Tone } from '../WorkflowStatusLabel';
+import { boxChain, GroupPlan, planGroups } from '../graph/eventGroups';
 
 /*
  * Layout of the Timeline tab, without React: one row per step with the
- * times of its bar, rows of a loop grouped by round, and the time window
+ * times of its bar, rows of a loop grouped by round, rows of a Temporal
+ * event group grouped by group (inside the groups around it), and the time window
  * shown (zoom, pan, ticks of the time axis).
  */
 
@@ -72,9 +75,27 @@ export interface TimelineGroup {
   latest: boolean;
 }
 
+/** The steps of a Temporal event group, with the groups inside it. */
+export interface TimelineEventGroup {
+  /** `group:<group key>`. */
+  key: string;
+  group: WorkflowEventGroup;
+  /** Groups around this one: 0 for an outermost group. */
+  depth: number;
+  /** Steps and groups inside, oldest first. */
+  items: TimelineItem[];
+  /** Steps inside, at any depth, oldest first. */
+  rows: TimelineRow[];
+  span: Span;
+  tone: Tone;
+  /** Whether it starts expanded: as in the graph. */
+  expanded: boolean;
+}
+
 export type TimelineItem =
   | { type: 'row'; row: TimelineRow }
-  | { type: 'group'; group: TimelineGroup };
+  | { type: 'group'; group: TimelineGroup }
+  | { type: 'eventGroup'; group: TimelineEventGroup };
 
 export interface TimelineModel {
   /** From the start of the run to its end, or to now while it runs. */
@@ -344,7 +365,73 @@ export function buildTimeline(
   }
 
   const range = { start: runStart, end: Math.max(runEnd, runStart + 1000) };
-  return { range, items, open: !closed };
+  const grouped = graph.eventGroups?.length
+    ? groupItems(
+        items,
+        planGroups(
+          items.flatMap(i => (i.type === 'row' ? [i.row.id] : [])),
+          graph.eventGroups,
+          {},
+        ),
+      )
+    : items;
+  return { range, items: grouped, open: !closed };
+}
+
+/**
+ * Rows of Temporal event groups grouped, like the rounds of a loop: a
+ * group takes the place of its first row, and holds the groups inside it.
+ * Rows of a loop round stay in their round.
+ */
+function groupItems(items: TimelineItem[], plan: GroupPlan): TimelineItem[] {
+  if (plan.boxes.size === 0) return items;
+  const build = (list: TimelineItem[], depth: number): TimelineItem[] => {
+    const out: TimelineItem[] = [];
+    const open = new Map<
+      string,
+      { group: TimelineEventGroup; members: TimelineItem[] }
+    >();
+    for (const item of list) {
+      const box =
+        item.type === 'row'
+          ? boxChain(plan, plan.boxOf.get(item.row.id))[depth]
+          : undefined;
+      if (!box) {
+        out.push(item);
+        continue;
+      }
+      let entry = open.get(box.id);
+      if (!entry) {
+        entry = {
+          group: {
+            key: box.id,
+            group: box.group,
+            depth,
+            items: [],
+            rows: [],
+            span: { start: Infinity, end: -Infinity },
+            tone: statusTone(box.group.status),
+            expanded: box.expanded,
+          },
+          members: [],
+        };
+        open.set(box.id, entry);
+        out.push({ type: 'eventGroup', group: entry.group });
+      }
+      entry.members.push(item);
+    }
+    for (const { group, members } of open.values()) {
+      group.items = build(members, depth + 1);
+      for (const member of members) {
+        if (member.type !== 'row') continue;
+        group.rows.push(member.row);
+        group.span.start = Math.min(group.span.start, member.row.span.start);
+        group.span.end = Math.max(group.span.end, member.row.span.end);
+      }
+    }
+    return out;
+  };
+  return build(items, 0);
 }
 
 /** Keeps a window inside the full range and at least `MIN_WINDOW_MS` wide. */

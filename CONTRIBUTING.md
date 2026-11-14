@@ -99,6 +99,10 @@ integrations are tested against recorded histories in
 `test-fixtures/llm-integrations` (see its README; rename task queues,
 workflow types and IDs, worker identities and paths before adding one).
 The event groups are tested the same way against `test-fixtures/event-groups`.
+The frontend tests of the event group views read graph responses written
+from some of these histories with the backend's graph builder: run
+`yarn sync:test-graphs` when the shape of the graph changes
+(`plugins/temporal-frontend/src/testGraphs/README.md`).
 Large payloads use Temporal External
 Storage: the backend tests read payloads written by the official S3 driver
 (`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).

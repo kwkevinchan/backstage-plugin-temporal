@@ -1,0 +1,1077 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Written by scripts/event-group-graphs.mjs from test-fixtures/event-groups/loop-ts-sdk-1.25.json:
+// a loop of three rounds, each round a group inside the loop group, a signal handler group and a group of one step. Run `yarn sync:test-graphs` to write it again.
+
+import type { WorkflowGraphResponse } from '../common';
+
+export const loopGraph: WorkflowGraphResponse = {
+  status: 'Completed',
+  nodes: [
+    {
+      id: 'start',
+      kind: 'workflowStarted',
+      name: 'Start',
+      status: 'Completed',
+      input: { encoding: 'json/plain', value: {} },
+      details: {
+        workflowType: 'groupLoop',
+        taskQueue: 'event-groups',
+        attempt: 1,
+      },
+      events: [
+        {
+          eventId: '1',
+          eventType: 'WorkflowExecutionStarted',
+          eventTime: '2026-11-14T08:17:50.102Z',
+        },
+      ],
+      startTime: '2026-11-14T08:17:50.102Z',
+      endTime: '2026-11-14T08:17:50.102Z',
+    },
+    {
+      id: 'workflowTask-2',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:50.102Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '2',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:50.102Z',
+        },
+        {
+          eventId: '3',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:50.119Z',
+        },
+        {
+          eventId: '4',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:50.231Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:50.231Z',
+    },
+    {
+      kind: 'activity',
+      name: 'draft',
+      stepId: '1',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:50.232Z',
+      input: {
+        encoding: 'json/plain',
+        value: { topic: 'Event Groups 範例', round: 1 },
+      },
+      maximumAttempts: 3,
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-5',
+      events: [
+        {
+          eventId: '5',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:50.232Z',
+        },
+        {
+          eventId: '6',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:50.232Z',
+        },
+        {
+          eventId: '7',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:50.249Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:1'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:50.232Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:50.249Z',
+      result: {
+        encoding: 'json/plain',
+        value: { text: '第 1 版：Event Groups 範例' },
+      },
+    },
+    {
+      id: 'workflowTask-8',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:50.249Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '8',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:50.249Z',
+        },
+        {
+          eventId: '9',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:50.255Z',
+        },
+        {
+          eventId: '10',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:50.267Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:50.267Z',
+    },
+    {
+      kind: 'timer',
+      name: 'Timer 2s',
+      stepId: '1',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:50.267Z',
+      details: { duration: '2s' },
+      id: 'timer-11',
+      events: [
+        {
+          eventId: '11',
+          eventType: 'TimerStarted',
+          eventTime: '2026-11-14T08:17:50.267Z',
+        },
+        {
+          eventId: '12',
+          eventType: 'TimerFired',
+          eventTime: '2026-11-14T08:17:52.269Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:1'],
+      endTime: '2026-11-14T08:17:52.269Z',
+    },
+    {
+      id: 'workflowTask-13',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:52.270Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '13',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:52.270Z',
+        },
+        {
+          eventId: '14',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:52.275Z',
+        },
+        {
+          eventId: '15',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:52.286Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:52.286Z',
+    },
+    {
+      kind: 'activity',
+      name: 'review',
+      stepId: '2',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:52.286Z',
+      input: {
+        encoding: 'json/plain',
+        value: { text: '第 1 版：Event Groups 範例', round: 1 },
+      },
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-16',
+      events: [
+        {
+          eventId: '16',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:52.286Z',
+        },
+        {
+          eventId: '17',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:52.286Z',
+        },
+        {
+          eventId: '18',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:52.293Z',
+        },
+      ],
+      summary: 'review round 1',
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:1'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:52.286Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:52.293Z',
+      result: {
+        encoding: 'json/plain',
+        value: { score: 0.5, reason: '第 1 輪還不夠具體' },
+      },
+    },
+    {
+      id: 'workflowTask-19',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:52.293Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '19',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:52.293Z',
+        },
+        {
+          eventId: '20',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:52.298Z',
+        },
+        {
+          eventId: '21',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:52.307Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:52.307Z',
+    },
+    {
+      kind: 'activity',
+      name: 'draft',
+      stepId: '3',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:52.307Z',
+      input: {
+        encoding: 'json/plain',
+        value: {
+          topic: 'Event Groups 範例',
+          round: 2,
+          feedback: '第 1 輪還不夠具體',
+        },
+      },
+      maximumAttempts: 3,
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-22',
+      events: [
+        {
+          eventId: '22',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:52.307Z',
+        },
+        {
+          eventId: '23',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:52.307Z',
+        },
+        {
+          eventId: '24',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:52.313Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:2'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:52.307Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:52.313Z',
+      result: {
+        encoding: 'json/plain',
+        value: { text: '第 2 版：Event Groups 範例（改：第 1 輪還不夠具體）' },
+      },
+    },
+    {
+      id: 'workflowTask-25',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:52.313Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '25',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:52.313Z',
+        },
+        {
+          eventId: '26',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:52.319Z',
+        },
+        {
+          eventId: '27',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:52.328Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:52.328Z',
+    },
+    {
+      kind: 'timer',
+      name: 'Timer 2s',
+      stepId: '2',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:52.328Z',
+      details: { duration: '2s' },
+      id: 'timer-28',
+      events: [
+        {
+          eventId: '28',
+          eventType: 'TimerStarted',
+          eventTime: '2026-11-14T08:17:52.328Z',
+        },
+        {
+          eventId: '39',
+          eventType: 'TimerFired',
+          eventTime: '2026-11-14T08:17:54.330Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:2'],
+      endTime: '2026-11-14T08:17:54.330Z',
+    },
+    {
+      kind: 'signal',
+      name: 'hint',
+      status: 'Completed',
+      input: { encoding: 'json/plain', value: '多寫一個例子' },
+      details: { identity: 'client' },
+      id: 'signal-29',
+      events: [
+        {
+          eventId: '29',
+          eventType: 'WorkflowExecutionSignaled',
+          eventTime: '2026-11-14T08:17:53.120Z',
+        },
+      ],
+      startTime: '2026-11-14T08:17:53.120Z',
+      endTime: '2026-11-14T08:17:53.120Z',
+    },
+    {
+      id: 'workflowTask-30',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:53.120Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '30',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:53.120Z',
+        },
+        {
+          eventId: '31',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:53.127Z',
+        },
+        {
+          eventId: '32',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:53.139Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:53.139Z',
+    },
+    {
+      kind: 'activity',
+      name: 'notify',
+      stepId: '4',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:53.139Z',
+      input: {
+        encoding: 'json/plain',
+        value: { message: '收到提示：多寫一個例子' },
+      },
+      maximumAttempts: 3,
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-33',
+      events: [
+        {
+          eventId: '33',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:53.139Z',
+        },
+        {
+          eventId: '34',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:53.139Z',
+        },
+        {
+          eventId: '35',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:53.146Z',
+        },
+      ],
+      groups: ['event:29'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:53.139Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:53.146Z',
+      result: {
+        encoding: 'json/plain',
+        value: { sent: '收到提示：多寫一個例子' },
+      },
+    },
+    {
+      id: 'workflowTask-36',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:53.146Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '36',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:53.146Z',
+        },
+        {
+          eventId: '37',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:53.151Z',
+        },
+        {
+          eventId: '38',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:53.160Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:53.160Z',
+    },
+    {
+      id: 'workflowTask-40',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:54.330Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '40',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:54.330Z',
+        },
+        {
+          eventId: '41',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:54.336Z',
+        },
+        {
+          eventId: '42',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:54.345Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:54.345Z',
+    },
+    {
+      kind: 'activity',
+      name: 'review',
+      stepId: '5',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:54.345Z',
+      input: {
+        encoding: 'json/plain',
+        value: {
+          text: '第 2 版：Event Groups 範例（改：第 1 輪還不夠具體）',
+          round: 2,
+        },
+      },
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-43',
+      events: [
+        {
+          eventId: '43',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:54.345Z',
+        },
+        {
+          eventId: '44',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:54.345Z',
+        },
+        {
+          eventId: '45',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:54.351Z',
+        },
+      ],
+      summary: 'review round 2',
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:2'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:54.345Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:54.351Z',
+      result: {
+        encoding: 'json/plain',
+        value: { score: 0.7, reason: '第 2 輪還不夠具體' },
+      },
+    },
+    {
+      id: 'workflowTask-46',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:54.351Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '46',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:54.351Z',
+        },
+        {
+          eventId: '47',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:54.357Z',
+        },
+        {
+          eventId: '48',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:54.366Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:54.366Z',
+    },
+    {
+      kind: 'activity',
+      name: 'draft',
+      stepId: '6',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:54.366Z',
+      input: {
+        encoding: 'json/plain',
+        value: {
+          topic: 'Event Groups 範例',
+          round: 3,
+          feedback: '第 2 輪還不夠具體',
+        },
+      },
+      maximumAttempts: 3,
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-49',
+      events: [
+        {
+          eventId: '49',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:54.366Z',
+        },
+        {
+          eventId: '50',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:54.366Z',
+        },
+        {
+          eventId: '51',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:54.374Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:3'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:54.366Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:54.374Z',
+      result: {
+        encoding: 'json/plain',
+        value: { text: '第 3 版：Event Groups 範例（改：第 2 輪還不夠具體）' },
+      },
+    },
+    {
+      id: 'workflowTask-52',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:54.374Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '52',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:54.374Z',
+        },
+        {
+          eventId: '53',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:54.379Z',
+        },
+        {
+          eventId: '54',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:54.388Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:54.388Z',
+    },
+    {
+      kind: 'timer',
+      name: 'Timer 2s',
+      stepId: '3',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:54.388Z',
+      details: { duration: '2s' },
+      id: 'timer-55',
+      events: [
+        {
+          eventId: '55',
+          eventType: 'TimerStarted',
+          eventTime: '2026-11-14T08:17:54.388Z',
+        },
+        {
+          eventId: '56',
+          eventType: 'TimerFired',
+          eventTime: '2026-11-14T08:17:56.390Z',
+        },
+      ],
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:3'],
+      endTime: '2026-11-14T08:17:56.390Z',
+    },
+    {
+      id: 'workflowTask-57',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:56.390Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '57',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.390Z',
+        },
+        {
+          eventId: '58',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:56.397Z',
+        },
+        {
+          eventId: '59',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.407Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.407Z',
+    },
+    {
+      kind: 'activity',
+      name: 'review',
+      stepId: '7',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:56.407Z',
+      input: {
+        encoding: 'json/plain',
+        value: {
+          text: '第 3 版：Event Groups 範例（改：第 2 輪還不夠具體）',
+          round: 3,
+        },
+      },
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-60',
+      events: [
+        {
+          eventId: '60',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.407Z',
+        },
+        {
+          eventId: '61',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:56.407Z',
+        },
+        {
+          eventId: '62',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.415Z',
+        },
+      ],
+      summary: 'review round 3',
+      groups: ['label:loop:draft-review', 'label:loop:draft-review:3'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:56.407Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.415Z',
+      result: {
+        encoding: 'json/plain',
+        value: { score: 0.9, reason: '可以了' },
+      },
+    },
+    {
+      id: 'workflowTask-63',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:56.415Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '63',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.415Z',
+        },
+        {
+          eventId: '64',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:56.421Z',
+        },
+        {
+          eventId: '65',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.432Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.432Z',
+    },
+    {
+      kind: 'activity',
+      name: 'notify',
+      stepId: '8',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:56.432Z',
+      input: { encoding: 'json/plain', value: { message: '完成，3 輪' } },
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-66',
+      events: [
+        {
+          eventId: '66',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.432Z',
+        },
+        {
+          eventId: '67',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:56.432Z',
+        },
+        {
+          eventId: '68',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.439Z',
+        },
+      ],
+      groups: ['label:wrap-up'],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:56.432Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.439Z',
+      result: { encoding: 'json/plain', value: { sent: '完成，3 輪' } },
+    },
+    {
+      id: 'workflowTask-69',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:56.439Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '69',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.439Z',
+        },
+        {
+          eventId: '70',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:56.445Z',
+        },
+        {
+          eventId: '71',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.454Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.454Z',
+    },
+    {
+      kind: 'activity',
+      name: 'notify',
+      stepId: '9',
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:56.454Z',
+      input: { encoding: 'json/plain', value: { message: '沒有群組的步驟' } },
+      maximumAttempts: 3,
+      details: { taskQueue: 'event-groups' },
+      id: 'activity-72',
+      events: [
+        {
+          eventId: '72',
+          eventType: 'ActivityTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.454Z',
+        },
+        {
+          eventId: '73',
+          eventType: 'ActivityTaskStarted',
+          eventTime: '2026-11-14T08:17:56.454Z',
+        },
+        {
+          eventId: '74',
+          eventType: 'ActivityTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.461Z',
+        },
+      ],
+      attempt: 1,
+      attempts: [
+        {
+          attempt: 1,
+          status: 'Completed',
+          startedTime: '2026-11-14T08:17:56.454Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.461Z',
+      result: { encoding: 'json/plain', value: { sent: '沒有群組的步驟' } },
+    },
+    {
+      id: 'workflowTask-75',
+      kind: 'workflowTask',
+      name: 'Workflow task',
+      status: 'Completed',
+      internal: true,
+      startTime: '2026-11-14T08:17:56.461Z',
+      attempt: 1,
+      events: [
+        {
+          eventId: '75',
+          eventType: 'WorkflowTaskScheduled',
+          eventTime: '2026-11-14T08:17:56.461Z',
+        },
+        {
+          eventId: '76',
+          eventType: 'WorkflowTaskStarted',
+          eventTime: '2026-11-14T08:17:56.467Z',
+        },
+        {
+          eventId: '77',
+          eventType: 'WorkflowTaskCompleted',
+          eventTime: '2026-11-14T08:17:56.477Z',
+        },
+      ],
+      endTime: '2026-11-14T08:17:56.477Z',
+    },
+    {
+      id: 'end',
+      kind: 'workflowClosed',
+      name: 'End',
+      status: 'Completed',
+      events: [
+        {
+          eventId: '78',
+          eventType: 'WorkflowExecutionCompleted',
+          eventTime: '2026-11-14T08:17:56.477Z',
+        },
+      ],
+      startTime: '2026-11-14T08:17:56.477Z',
+      endTime: '2026-11-14T08:17:56.477Z',
+      result: {
+        encoding: 'json/plain',
+        value: {
+          rounds: [
+            { round: 1, score: 0.5, decision: 'revise' },
+            { round: 2, score: 0.7, decision: 'revise' },
+            { round: 3, score: 0.9, decision: 'accept' },
+          ],
+          hints: ['多寫一個例子'],
+        },
+      },
+    },
+  ],
+  edges: [
+    { id: 'start->activity-5', source: 'start', target: 'activity-5' },
+    { id: 'activity-5->timer-11', source: 'activity-5', target: 'timer-11' },
+    { id: 'timer-11->activity-16', source: 'timer-11', target: 'activity-16' },
+    {
+      id: 'activity-16->activity-22',
+      source: 'activity-16',
+      target: 'activity-22',
+    },
+    { id: 'activity-22->timer-28', source: 'activity-22', target: 'timer-28' },
+    {
+      id: 'activity-22->signal-29',
+      source: 'activity-22',
+      target: 'signal-29',
+    },
+    {
+      id: 'signal-29->activity-33',
+      source: 'signal-29',
+      target: 'activity-33',
+    },
+    { id: 'timer-28->activity-43', source: 'timer-28', target: 'activity-43' },
+    {
+      id: 'activity-33->activity-43',
+      source: 'activity-33',
+      target: 'activity-43',
+    },
+    {
+      id: 'activity-43->activity-49',
+      source: 'activity-43',
+      target: 'activity-49',
+    },
+    { id: 'activity-49->timer-55', source: 'activity-49', target: 'timer-55' },
+    { id: 'timer-55->activity-60', source: 'timer-55', target: 'activity-60' },
+    {
+      id: 'activity-60->activity-66',
+      source: 'activity-60',
+      target: 'activity-66',
+    },
+    {
+      id: 'activity-66->activity-72',
+      source: 'activity-66',
+      target: 'activity-72',
+    },
+    { id: 'activity-72->end', source: 'activity-72', target: 'end' },
+  ],
+  completedSteps: 12,
+  totalSteps: 12,
+  truncated: false,
+  payloadsHidden: false,
+  eventGroups: [
+    {
+      key: 'label:loop:draft-review',
+      kind: 'label',
+      id: 'loop:draft-review',
+      name: 'Loop draft-review',
+      nodeIds: [
+        'activity-5',
+        'timer-11',
+        'activity-16',
+        'activity-22',
+        'timer-28',
+        'activity-43',
+        'activity-49',
+        'timer-55',
+        'activity-60',
+      ],
+      children: [
+        'label:loop:draft-review:1',
+        'label:loop:draft-review:2',
+        'label:loop:draft-review:3',
+      ],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:50.232Z',
+      endTime: '2026-11-14T08:17:56.415Z',
+    },
+    {
+      key: 'label:loop:draft-review:1',
+      kind: 'label',
+      id: 'loop:draft-review:1',
+      name: 'draft-review · round 1',
+      nodeIds: ['activity-5', 'timer-11', 'activity-16'],
+      parent: 'label:loop:draft-review',
+      children: [],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:50.232Z',
+      endTime: '2026-11-14T08:17:52.293Z',
+    },
+    {
+      key: 'label:loop:draft-review:2',
+      kind: 'label',
+      id: 'loop:draft-review:2',
+      name: 'draft-review · round 2',
+      nodeIds: ['activity-22', 'timer-28', 'activity-43'],
+      parent: 'label:loop:draft-review',
+      children: [],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:52.307Z',
+      endTime: '2026-11-14T08:17:54.351Z',
+    },
+    {
+      key: 'event:29',
+      kind: 'event',
+      id: '29',
+      name: 'hint (29)',
+      sourceNodeId: 'signal-29',
+      nodeIds: ['activity-33'],
+      children: [],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:53.139Z',
+      endTime: '2026-11-14T08:17:53.146Z',
+    },
+    {
+      key: 'label:loop:draft-review:3',
+      kind: 'label',
+      id: 'loop:draft-review:3',
+      name: 'draft-review · round 3',
+      nodeIds: ['activity-49', 'timer-55', 'activity-60'],
+      parent: 'label:loop:draft-review',
+      children: [],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:54.366Z',
+      endTime: '2026-11-14T08:17:56.415Z',
+    },
+    {
+      key: 'label:wrap-up',
+      kind: 'label',
+      id: 'wrap-up',
+      name: 'Wrap-up',
+      nodeIds: ['activity-66'],
+      children: [],
+      status: 'Completed',
+      startTime: '2026-11-14T08:17:56.432Z',
+      endTime: '2026-11-14T08:17:56.439Z',
+    },
+  ],
+};

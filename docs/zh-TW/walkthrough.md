@@ -179,6 +179,8 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 **為什麼：** Temporal 只看到一串 Activity。這些標記由 workflow kit 寫入、外掛讀回。見 [Loops](../../README.md#loops) 和 [LLM steps](../../README.md#llm-steps)。
 
+用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要這個設定：流程圖把箱子巢狀排好，迴圈的每一輪收成一排小方塊（`×3`），**Event Groups** 分頁列出所有群組。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
+
 ## 8. 從 Temporal 這一側看
 
 用 CLI（同一個伺服器，`localhost:7233`）：

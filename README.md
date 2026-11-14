@@ -635,6 +635,45 @@ the groups, their names and their tokens are shown to anyone who may read
 the workflow. A run has at most 1000 groups and a step 32; more are left
 out (`eventGroupsTruncated`).
 
+On the workflow page:
+
+- **Graph.** Each group is a box around its steps, inside the box of the
+  group it is in, any number of groups deep. The title bar has the name,
+  `×3` when three groups are directly inside, the status (in the colors of
+  the steps), the duration (the time so far while it runs) and the tokens
+  of its model calls. A signal or update group has a dashed border, a mail
+  or edit icon and a button that selects the signal or update that started
+  it. A lock next to the name says that the label could not be read.
+  Internal steps are left out; a group without a step shown has no box.
+- **Expand and collapse.** The arrow in the title bar collapses a group
+  into one box with the same facts and its number of steps; pressing the
+  box expands it. Collapsing a group hides the groups inside it. At first
+  the outermost groups are expanded; of several groups in one group (the
+  rounds of a loop) only the running one, else the last failed one, is
+  expanded, the others are a row of collapsed boxes; groups four deep
+  start collapsed. In a large run the groups start collapsed once the open
+  boxes would hold about 200 steps, and do not open past about 600. A step picked in another tab or in the
+  step panel opens its groups.
+- **Where a box cannot be drawn.** A step that ran between two steps of a
+  group without being in it (for example the steps of a signal handler)
+  is drawn outside the box, above or below it. Of two groups that share
+  steps without one being inside the other, the one that started first
+  gets the box; the other one is shown as a label on the top edge of its
+  steps, and so are groups more than five deep. A group whose box would
+  cover other steps in the layout is shown as labels too.
+- **Timeline.** The steps of a group are grouped under a row with the
+  group's bar, indented under the group it is in, and collapse like the
+  rounds of a loop (**Expand groups**, **Collapse groups**).
+- **Event Groups tab.** Shown when the run has groups: each group with its
+  kind, status, steps, groups inside, start, duration and tokens, indented
+  under its parent, in the order the groups started. Pressing a group
+  expands it in the graph and brings it into view.
+
+When the backend leaves groups out, the graph and the tab say so. A run
+without groups looks as before. The loop views of the workflow kit
+([Loops](#loops)) stay as they are; when a run has both, a step in a loop
+is drawn in the loop, and the boxes of the groups hold the other steps.
+
 ## Workflow definitions
 
 Workflows written in YAML (CNCF Serverless Workflow DSL 1.0, as

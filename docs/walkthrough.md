@@ -364,6 +364,12 @@ example worker starts fake AI workflows that call no model.
 the workflow kit and read back by the plugin. See [Loops](../README.md#loops) and
 [LLM steps](../README.md#llm-steps).
 
+Workflows that group their steps with Temporal Event Groups (server 1.32 or
+later) get a box per group, without the setting: the graph nests the
+boxes and collapses the rounds of a loop into a row (`×3`), and the
+**Event Groups** tab lists the groups. The example worker does not use Event
+Groups yet. See [Event groups](../README.md#event-groups).
+
 ## 8. The Temporal side
 
 With the CLI (the same server, `localhost:7233`):
