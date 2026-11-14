@@ -17,7 +17,11 @@
 import type { ReactNode } from 'react';
 import { Card, CardBody, CardHeader, Flex, Text } from '@backstage/ui';
 
-/** A @backstage/ui card with a title, an optional subtitle and actions. */
+/**
+ * A `@backstage/ui` card with a title, an optional subtitle and actions.
+ *
+ * @alpha
+ */
 export function PanelCard(props: {
   title: string;
   subtitle?: ReactNode;

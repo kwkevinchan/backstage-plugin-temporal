@@ -40,7 +40,11 @@ import { PAGE_SIZES } from './listState';
 import { WorkflowProgress } from './WorkflowProgress';
 import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
 
-/** Relative link from a workflow list to a workflow's details. */
+/**
+ * Relative link from a workflow list to a workflow's details.
+ *
+ * @alpha
+ */
 export function workflowLink(ref: {
   namespace: string;
   workflowId: string;

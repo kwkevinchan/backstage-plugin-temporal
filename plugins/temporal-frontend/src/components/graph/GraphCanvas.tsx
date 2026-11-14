@@ -61,6 +61,8 @@ export const MAX_ZOOM = 2;
  * Time the graph area keeps its width before the graph is laid out again
  * for it, so resizing the window or the step panel does not re-layout on
  * every frame.
+ *
+ * @alpha
  */
 export const RELAYOUT_DELAY_MS = 150;
 
@@ -109,7 +111,11 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   });
 }
 
-/** Position and size of a laid out box, as React Flow takes them. */
+/**
+ * Position and size of a laid out box, as React Flow takes them.
+ *
+ * @alpha
+ */
 export function flowNodeBase(layout: StepLayout, id: string) {
   const size = boxSize(layout, id);
   return {
@@ -123,6 +129,11 @@ export function flowNodeBase(layout: StepLayout, id: string) {
   };
 }
 
+/**
+ * Props of {@link GraphCanvas}.
+ *
+ * @alpha
+ */
 export interface GraphCanvasProps<N extends Node> {
   nodes: N[];
   edges: Edge[];
@@ -148,6 +159,8 @@ export interface GraphCanvasProps<N extends Node> {
  * the view again when the layout changes (boxes added by auto refresh) or
  * the area gets narrower or wider (a panel opened or closed). The selected
  * box is moved into view without cutting off the first column.
+ *
+ * @alpha
  */
 export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   const { layout, onSelect } = props;
@@ -288,7 +301,11 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   );
 }
 
-/** Full screen of a graph and the panel next to it. */
+/**
+ * Full screen of a graph and the panel next to it.
+ *
+ * @alpha
+ */
 export interface GraphFullscreen {
   fullscreen: boolean;
   toggle(): void;
@@ -297,12 +314,18 @@ export interface GraphFullscreen {
 /**
  * Given by the area that can go full screen (the graph and its step
  * panel); without it the graph has no full screen button.
+ *
+ * @alpha
  */
 export const GraphFullscreenContext = createContext<
   GraphFullscreen | undefined
 >(undefined);
 
-/** The full screen state of a graph area, for its context. */
+/**
+ * The full screen state of a graph area, for its context.
+ *
+ * @alpha
+ */
 export function useGraphFullscreenState(): GraphFullscreen {
   const [fullscreen, setFullscreen] = useState(false);
   const current = useRef(false);
@@ -347,7 +370,11 @@ export function useGraphFullscreenState(): GraphFullscreen {
   return useMemo(() => ({ fullscreen, toggle }), [fullscreen, toggle]);
 }
 
-/** The full screen state around a graph, when it can go full screen. */
+/**
+ * The full screen state around a graph, when it can go full screen.
+ *
+ * @alpha
+ */
 export function useGraphFullscreen(): GraphFullscreen | undefined {
   return useContext(GraphFullscreenContext);
 }
@@ -356,6 +383,8 @@ export function useGraphFullscreen(): GraphFullscreen | undefined {
  * "Full screen", in an area that can go full screen. Zooming is with the
  * graph's own controls (zoom in, zoom out, fit the whole graph); the graph
  * opens at a readable size.
+ *
+ * @alpha
  */
 export function ViewButtons() {
   const fullscreen = useGraphFullscreen();
@@ -381,6 +410,8 @@ export function ViewButtons() {
  * changes the width in one step, and waiting would show the old layout
  * under the panel until the delay ends (longer while a large payload in
  * the panel renders).
+ *
+ * @alpha
  */
 export function useSettledWidth(
   delay: number,

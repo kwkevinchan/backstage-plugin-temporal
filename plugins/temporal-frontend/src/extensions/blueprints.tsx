@@ -128,7 +128,7 @@ export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
   *factory(
     params: {
       /** Loads the control to show. */
-      loader: Loader<TemporalWorkflowExtensionProps>;
+      loader: () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },
@@ -166,7 +166,7 @@ export const TemporalWorkflowListActionBlueprint = createExtensionBlueprint({
   *factory(
     params: {
       /** Loads the control to show. */
-      loader: Loader<TemporalWorkflowListActionProps>;
+      loader: () => Promise<ComponentType<TemporalWorkflowListActionProps>>;
       filter?: (context: { entity?: Entity }) => boolean;
     },
     { node },
@@ -193,7 +193,7 @@ export const TemporalScheduleActionBlueprint = createExtensionBlueprint({
   *factory(
     params: {
       /** Loads the control to show. */
-      loader: Loader<TemporalScheduleActionProps>;
+      loader: () => Promise<ComponentType<TemporalScheduleActionProps>>;
       filter?: (schedule: TemporalSchedule) => boolean;
     },
     { node },
@@ -207,8 +207,8 @@ export const TemporalScheduleActionBlueprint = createExtensionBlueprint({
 });
 
 /**
- * Adds a tab to the workflow details page, next to Steps, Events and
- * Details.
+ * Adds a tab to the workflow details page, after Steps, Timeline, Events
+ * and Details.
  *
  * @alpha
  */
@@ -221,7 +221,7 @@ export const TemporalWorkflowSectionBlueprint = createExtensionBlueprint({
     params: {
       /** Tab label. */
       title: string;
-      loader: Loader<TemporalWorkflowExtensionProps>;
+      loader: () => Promise<ComponentType<TemporalWorkflowExtensionProps>>;
       filter?: (workflow: WorkflowDetail) => boolean;
     },
     { node },

@@ -76,15 +76,15 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
      */
     exampleInput?: JsonValue;
     /**
-     * The file of the workflow, for the Definition tab: a workflow DSL file
-     * (`serverless-workflow`) drawn as a graph, or the source code
-     * (`source`) with the workflow's function marked.
-     */
-    /**
      * The signals, updates and queries of the workflow: their arguments, for
      * the forms of the operation dialogs.
      */
     messages?: TemporalWorkflowMessagesSpec;
+    /**
+     * The file of the workflow, for the Definition tab: a workflow DSL file
+     * (`serverless-workflow`) drawn as a graph, or the source code
+     * (`source`) with the workflow's function marked.
+     */
     definition?: {
       /** Format of the file: `serverless-workflow` or `source`. */
       format: string;

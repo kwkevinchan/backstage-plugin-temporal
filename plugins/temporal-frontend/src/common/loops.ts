@@ -28,11 +28,11 @@ import type { WorkflowStatus } from './types';
  * SDKs follow the format in its README.
  */
 
-/** Name of the query that returns the loop state of a running workflow. @public */
+/** Name of the query that returns the loop state of a running workflow. @alpha */
 export const LOOP_STATE_QUERY = '__loop_state';
-/** Memo key with the loop state, upserted after each round. @public */
+/** Memo key with the loop state, upserted after each round. @alpha */
 export const LOOP_STATE_MEMO_KEY = 'temporal.loops';
-/** Memo key of a child workflow started in a round, with its marker. @public */
+/** Memo key of a child workflow started in a round, with its marker. @alpha */
 export const LOOP_MARKER_MEMO_KEY = 'temporal.loop';
 
 /**

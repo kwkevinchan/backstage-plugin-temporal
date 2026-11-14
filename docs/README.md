@@ -14,11 +14,12 @@ link to it instead of repeating it.
 | [How it works](how-it-works.md)                                  | You want to follow a request from the browser to Temporal, or a Scaffolder run from start to finish, and see where permission checks and audit records happen. | Platform engineers who install or extend the plugin |
 | [Architecture](architecture.md)                                  | You are deciding which packages to install, writing a backend module or a permission policy, or contributing.                                                  | Platform engineers, contributors                    |
 | [The plugin and the Temporal Web UI](compared-to-temporal-ui.md) | You wonder whether you still need the Temporal Web UI, or which one to use for a task.                                                                         | Everyone                                            |
+| [Public interfaces](public-interfaces.md)                        | You install the plugin, extend it with a module, or call it from other code, and want every interface you can rely on, with examples.                          | Integrators, module authors                         |
 | [Walkthrough](walkthrough.md)                                    | You want to see every screen and operation on your own machine, with the example worker of this repository.                                                    | Everyone; about two hours                           |
 
 A good order for a first read: the primer, the concepts guide, then the
 walkthrough. Read "How it works" and "Architecture" before you change or
-extend the plugin.
+extend the plugin, and "Public interfaces" before you build on it.
 
 The diagrams are SVG files in [`images/`](images/). Screenshots are shared
 with the README.

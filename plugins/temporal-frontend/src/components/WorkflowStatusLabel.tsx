@@ -30,10 +30,19 @@ import {
 import { RUN_HELP } from './RunHelp';
 import { tp } from './styles';
 
-/** Color tone of a status, mapped to the @backstage/ui status tokens. */
+/**
+ * Color tone of a status, mapped to the `@backstage/ui` status tokens.
+ *
+ * @alpha
+ */
 export type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
 
-type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
+/**
+ * A workflow status or a step status.
+ *
+ * @alpha
+ */
+export type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
 
 const LABELS: Record<AnyStatus, string> = {
   Running: 'Running',
@@ -50,10 +59,20 @@ const LABELS: Record<AnyStatus, string> = {
   Rejected: 'Rejected',
 };
 
+/**
+ * The label of a workflow or step status.
+ *
+ * @alpha
+ */
 export function statusLabel(status: AnyStatus): string {
   return LABELS[status] ?? status;
 }
 
+/**
+ * The color tone of a workflow or step status.
+ *
+ * @alpha
+ */
 export function statusTone(status: AnyStatus): Tone {
   switch (status) {
     case 'Completed':
@@ -73,7 +92,11 @@ export function statusTone(status: AnyStatus): Tone {
   }
 }
 
-/** True for statuses that are still in progress. */
+/**
+ * True for statuses that are still in progress.
+ *
+ * @alpha
+ */
 export function isActiveStatus(status: AnyStatus): boolean {
   return status === 'Running' || status === 'Retrying';
 }
