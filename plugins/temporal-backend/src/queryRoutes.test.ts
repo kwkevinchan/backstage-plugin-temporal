@@ -25,15 +25,17 @@ import {
   createFakeWorkflowService,
   executionInfo,
   fakeTemporalServiceFactory,
-  fakeScheduleService,
-  FakeSchedule,
-  grpcError,
   checkoutEntity,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
+import {
+  fakeScheduleService,
+  FakeSchedule,
+  grpcError,
+} from './__testUtils__/schedules';
 
 const json = (value: unknown) => ({
   metadata: { encoding: Buffer.from('json/plain') },

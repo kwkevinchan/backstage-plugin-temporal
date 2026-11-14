@@ -14,45 +14,30 @@
  * limitations under the License.
  */
 
-import { Connection, ScheduleClient } from '@temporalio/client';
 import {
+  Connection,
   defaultPayloadConverter,
   Payload,
-  PayloadCodec,
-} from '@temporalio/common';
+  ScheduleClient,
+} from '@temporalio/client';
 import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
 
 /**
- * A payload codec in front of the default data converter that turns a
- * payload the converter cannot read (binary data, or encoded by a payload
- * codec such as encryption) into its description (`{ encoding, size,
- * undecodable: true }`, like the payloads of workflows). A schedule's memo
- * and action arguments are decoded by the schedule client whether or not the
- * plugin shows them, so without this one unreadable schedule would fail
- * every list and operation. A codec that decodes them (a Codec Server) goes
- * before it.
- */
-const undecodablePayloadCodec: PayloadCodec = {
-  async encode(payloads) {
-    return payloads;
-  },
-  async decode(payloads) {
-    return payloads.map((payload: Payload) => {
-      try {
-        defaultPayloadConverter.fromPayload(payload);
-        return payload;
-      } catch {
-        return encodeJsonPayloads([
-          decodeJsonPayloads({ payloads: [payload] }) ?? null,
-        ]).payloads[0] as Payload;
-      }
-    });
-  },
-};
-
-/**
  * A schedule client of a namespace that reads the schedules with payloads
- * it cannot decode, too.
+ * it cannot decode, too. Only for reading and for patches (pause, unpause,
+ * trigger): a schedule's memo and action arguments are decoded by the client
+ * whether or not the plugin shows them, so one schedule encoded by a payload
+ * codec (encryption, compression) would fail every list and operation. Its
+ * codec turns a payload the default converter cannot read into its
+ * description (`{ encoding, size, undecodable: true }`, like the payloads of
+ * workflows).
+ *
+ * Writing is refused: `update()` and `create()` would write the descriptions
+ * back in place of the user's encrypted arguments, so `encode` throws.
+ *
+ * The SDK decodes through `payloadCodecs` from the last to the first; a codec
+ * that decodes the payloads (a Codec Server) belongs after this one in the
+ * array, so that it runs before it.
  */
 export function scheduleClientOf(
   connection: Connection,
@@ -61,6 +46,28 @@ export function scheduleClientOf(
   return new ScheduleClient({
     connection,
     namespace,
-    dataConverter: { payloadCodecs: [undecodablePayloadCodec] },
+    dataConverter: {
+      payloadCodecs: [
+        {
+          async encode() {
+            throw new Error(
+              'This schedule client only reads schedules and patches them; it does not write payloads',
+            );
+          },
+          async decode(payloads) {
+            return payloads.map((payload: Payload) => {
+              try {
+                defaultPayloadConverter.fromPayload(payload);
+                return payload;
+              } catch {
+                return encodeJsonPayloads([
+                  decodeJsonPayloads({ payloads: [payload] }) ?? null,
+                ]).payloads[0] as Payload;
+              }
+            });
+          },
+        },
+      ],
+    },
   });
 }

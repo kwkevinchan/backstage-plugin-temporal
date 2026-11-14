@@ -32,14 +32,16 @@ import { temporalAccessServiceFactory } from './alpha';
 import {
   createFakeWorkflowService,
   executionInfo,
-  fakeScheduleService,
-  FakeSchedule,
-  grpcError,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
+import {
+  fakeScheduleService,
+  FakeSchedule,
+  grpcError,
+} from './__testUtils__/schedules';
 import { temporalPlugin } from './plugin';
 
 const json = (value: unknown) => ({
@@ -716,7 +718,7 @@ describe('schedule controls', () => {
     await request(server).post(path('nightly', 'trigger')).send({}).expect(202);
     // With the schedule's overlap policy.
     expect(patchesOf('nightly')[2]).toEqual({
-      triggerImmediately: { overlapPolicy: 1 }, // SKIP
+      triggerImmediately: { overlapPolicy: 2 }, // BUFFER_ONE, the schedule's own
     });
   });
 

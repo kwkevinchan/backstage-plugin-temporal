@@ -1141,7 +1141,8 @@ The Workflows page lists schedules for users that may list every workflow
 (`temporal.workflow.list` without conditions); an entity's list needs
 `temporal.workflow.read` on the entity. At most the first 500 schedules of a
 namespace are read. A schedule whose memo or arguments cannot be decoded
-(binary, or encrypted by a codec) is listed and operated like any other.
+(an encoding the default converter does not know, such as encryption or
+compression by a codec) is listed and operated like any other.
 
 ## Templates (Scaffolder)
 
