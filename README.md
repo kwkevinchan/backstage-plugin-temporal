@@ -16,9 +16,12 @@ permission framework and recorded with the auditor.
 
 This README is the reference. The guides in [`docs/`](docs/README.md) explain how
 the plugin works and why: a Temporal primer, how a request travels from the
-browser to Temporal, the architecture, a comparison with the Temporal Web UI and
-a walkthrough with the example worker. They are also available in Traditional
-Chinese ([繁體中文](docs/zh-TW/README.md)).
+browser to Temporal, the architecture, a comparison with the Temporal Web UI,
+a walkthrough with the example worker, and the
+[public interfaces](docs/public-interfaces.md) for integrators: every entry
+point, extension point, route, permission and setting other code can rely on.
+They are also available in Traditional Chinese
+([繁體中文](docs/zh-TW/README.md)).
 
 ## Terms
 
