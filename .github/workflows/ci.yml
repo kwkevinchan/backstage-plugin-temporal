@@ -100,6 +100,11 @@ jobs:
       - name: Prettier
         run: yarn prettier:check
 
+      # The graph responses of the frontend tests, written from the recorded
+      # histories by the backend's graph builder, are up to date.
+      - name: Test graphs
+        run: yarn sync:test-graphs:check
+
       # Lint and validate the OpenAPI spec of the backend plugin. The route
       # tests check the requests and responses against it.
       - name: OpenAPI spec

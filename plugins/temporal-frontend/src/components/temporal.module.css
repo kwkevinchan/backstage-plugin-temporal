@@ -727,6 +727,221 @@
   font-size: 13px;
   white-space: nowrap;
 }
+/*
+ * Temporal event groups. An expanded group is a frame under its steps: a
+ * thin border, a faint body (nested frames add up to a slightly darker
+ * one) and a title bar without a fill, so the steps stay in front. The
+ * border takes the status color only while the group runs or after it
+ * failed, like a round frame.
+ */
+.tp-group-frame {
+  container-type: inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--tp-border);
+  border-radius: var(--bui-radius-3, 8px);
+  background: color-mix(in srgb, var(--bui-bg-neutral-2) 35%, transparent);
+  font-family: var(--bui-font-regular);
+  cursor: default;
+}
+.tp-group-frame[data-kind='event'],
+.tp-group-frame[data-kind='update'] {
+  border-style: dashed;
+}
+.tp-group-frame[data-status='Running'],
+.tp-group-frame[data-status='Failed'] {
+  border-width: 2px;
+}
+.tp-group-frame[data-active='true'] {
+  animation: tp-pulse 1.6s ease-in-out infinite;
+}
+.tp-group-frame[data-focused='true'] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bui-ring) 60%, transparent);
+}
+.tp-group-title {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2, 8px);
+  height: 30px;
+  padding: 0 var(--bui-space-2, 8px) 0 var(--bui-space-1, 4px);
+  color: var(--bui-fg-primary);
+  /* At least 12px at the smallest zoom the graph opens with. */
+  font-size: 13px;
+  min-width: 0;
+}
+.tp-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  /* The name keeps its room; the facts after it are cut first. */
+  flex: 0 1 auto;
+  max-width: 100%;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--bui-radius-2, 4px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--bui-font-weight-bold, 600);
+  cursor: pointer;
+}
+.tp-group-toggle:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+.tp-group-toggle:focus-visible,
+.tp-group-source:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+.tp-group-toggle > svg:first-child {
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-group-icon {
+  color: var(--bui-fg-secondary);
+}
+.tp-group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-group-unreadable {
+  display: inline-flex;
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-group-count {
+  margin-left: 2px;
+  --tp-border: var(--bui-border-2);
+  --tp-fg: var(--bui-fg-secondary);
+}
+.tp-group-facts {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--tp-fg);
+}
+.tp-group-status {
+  flex: none;
+}
+.tp-group-extra {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A narrow frame (one step) keeps the name and the status in its title. */
+@container (max-width: 360px) {
+  .tp-group-extra {
+    display: none;
+  }
+}
+.tp-group-frame.tp-tone-neutral .tp-group-facts {
+  color: var(--bui-fg-secondary);
+}
+.tp-group-source {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding: 2px;
+  border: none;
+  border-radius: var(--bui-radius-2, 4px);
+  background: none;
+  color: var(--bui-fg-secondary);
+  cursor: pointer;
+}
+.tp-group-source:hover {
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2-hover);
+}
+/* A collapsed group: a box with a second edge behind it when it holds
+   groups of its own. */
+.tp-node[data-group] {
+  border-left-width: 1.5px;
+  border-top-width: 3px;
+}
+.tp-node[data-group='event'],
+.tp-node[data-group='update'] {
+  border-style: dashed;
+  border-top-style: solid;
+}
+.tp-node[data-group][data-nested='true'] {
+  box-shadow: 4px 4px 0 -1.5px var(--bui-bg-neutral-2),
+    4px 4px 0 0 var(--tp-border);
+}
+.tp-node[data-group][data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--bui-ring);
+}
+.tp-node[data-group] .tp-node-title {
+  gap: 4px;
+}
+/* The groups of a step without a box: a label on the top edge of it. */
+.tp-group-tag-row {
+  display: flex;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 0 8px;
+  pointer-events: none;
+}
+.tp-group-tag {
+  /* The label sits on the top edge of the step: presses go to the step. */
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 75%;
+  padding: 0 6px;
+  border: 1px solid var(--bui-border-2);
+  border-radius: 999px;
+  background: var(--bui-bg-neutral-1);
+  color: var(--bui-fg-secondary);
+  font-family: var(--bui-font-regular);
+  font-size: 12px;
+  line-height: 14px;
+}
+.tp-group-tag > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-tool-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tp-tool-sub > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-inferred {
+  display: inline-flex;
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.tp-group-notice {
+  margin: 0 0 var(--bui-space-2, 8px);
+}
+.tp-group-row-note {
+  color: var(--bui-fg-secondary);
+  font-size: var(--bui-font-size-1, 12px);
+}
+.tp-group-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .tp-loop-controls {
   display: inline-flex;
   align-items: center;

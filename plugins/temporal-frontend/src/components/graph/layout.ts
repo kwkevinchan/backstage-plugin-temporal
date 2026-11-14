@@ -48,7 +48,7 @@ export function stepSize(node: { llm?: unknown; tool?: unknown }): NodeSize {
 /** Space between the columns, between the steps of a column, and around. */
 const COLUMN_GAP = 56;
 const ROW_GAP = 24;
-const MARGIN = 16;
+export const MARGIN = 16;
 /** Space between two rows of a wrapped graph. */
 const WRAP_GAP = 40;
 
@@ -191,20 +191,65 @@ export function layoutSteps(
   width?: number,
   options: { direction?: 'LR' | 'TB' } = {},
 ): StepLayout {
+  return layoutGraph(nodes, edges, width, options);
+}
+
+/**
+ * A frame around steps, laid out with them: the steps (and frames) whose
+ * `parent` it is, plus room for its title bar.
+ */
+export interface LayoutFrame {
+  id: string;
+  /** The frame around this one. */
+  parent?: string;
+}
+
+/** Space between a frame and the boxes in it, below and on the sides. */
+export const FRAME_PADDING = 12;
+/** Height of the title bar of a frame of steps. */
+export const FRAME_TITLE_HEIGHT = 30;
+/** Space above the boxes of a frame: its title bar and a gap. */
+export const FRAME_TOP = FRAME_TITLE_HEIGHT + 8;
+
+/**
+ * {@link layoutSteps} with frames around some of the steps, any number of
+ * frames deep: dagre lays out the steps as a compound graph, which keeps
+ * the steps of a frame together and the steps of other frames out of it.
+ * The frame boxes are then drawn around their steps, with the title bar at
+ * the top. A wrapped graph never splits an outermost frame across rows.
+ */
+export function layoutGraph(
+  nodes: { id: string; size?: NodeSize; parent?: string }[],
+  edges: { source: string; target: string }[],
+  width?: number,
+  options: { direction?: 'LR' | 'TB'; frames?: LayoutFrame[] } = {},
+): StepLayout {
   const topDown = options.direction === 'TB';
+  const frames = options.frames ?? [];
   const sizeOf = (node: { size?: NodeSize }) =>
     node.size ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
-  const graph = new dagre.graphlib.Graph();
+  const compound = frames.length > 0 && !topDown;
+  const graph = new dagre.graphlib.Graph({ compound });
   graph.setGraph({
     rankdir: topDown ? 'TB' : 'LR',
     nodesep: topDown ? COLUMN_GAP / 2 : ROW_GAP,
     ranksep: topDown ? RANK_GAP_TB : COLUMN_GAP,
     marginx: MARGIN,
     marginy: MARGIN,
+    ...(compound ? frameSpacing(frames) : {}),
   });
   graph.setDefaultEdgeLabel(() => ({}));
   for (const node of nodes) {
     graph.setNode(node.id, sizeOf(node));
+  }
+  if (compound) {
+    for (const frame of frames) graph.setNode(frame.id, {});
+    for (const frame of frames) {
+      if (frame.parent) graph.setParent(frame.id, frame.parent);
+    }
+    for (const node of nodes) {
+      if (node.parent) graph.setParent(node.id, node.parent);
+    }
   }
   for (const edge of edges) {
     graph.setEdge(edge.source, edge.target);
@@ -229,11 +274,132 @@ export function layoutSteps(
     height: size.height ?? NODE_HEIGHT + 2 * MARGIN,
     wrapped: false,
   };
+  if (compound) placeFrames(layout, nodes, frames, sizes);
   if (sizes.size > 0) layout.sizes = sizes;
   if (width === undefined || nodes.length === 0 || topDown) return layout;
   // Fits as it is, at a readable zoom.
   if (layout.width * READABLE_ZOOM <= width) return layout;
-  return wrapColumns(layout, width);
+  return wrapColumns(
+    layout,
+    width,
+    compound ? frames.filter(f => !f.parent).map(f => f.id) : [],
+  );
+}
+
+/**
+ * Spacing of a compound graph. dagre puts the border of a frame on ranks of
+ * its own, `2 × depth + 1` ranks for each column: the space between the
+ * ranks is cut so that the columns stay about as far apart as without
+ * frames, with room for the padding of the frames between them. Frame
+ * borders count as dummy boxes in dagre (`edgesep`): the space between a
+ * border and a step leaves room for the title bar above the steps.
+ */
+function frameSpacing(frames: LayoutFrame[]) {
+  const depth = Math.max(...frameDepths(frames).values()) + 1;
+  const factor = 2 * depth + 1;
+  return {
+    ranksep: Math.max(16, Math.ceil(COLUMN_GAP / factor)),
+    edgesep: 2 * FRAME_TOP - ROW_GAP,
+  };
+}
+
+/** How many frames are around each frame: 0 for an outermost one. */
+function frameDepths(frames: LayoutFrame[]): Map<string, number> {
+  const parentOf = new Map(frames.map(f => [f.id, f.parent]));
+  const depths = new Map<string, number>();
+  for (const frame of frames) {
+    let d = 0;
+    let p = frame.parent;
+    while (p && d < frames.length) {
+      d++;
+      p = parentOf.get(p);
+    }
+    depths.set(frame.id, d);
+  }
+  return depths;
+}
+
+/**
+ * Boxes of the frames, innermost first: around the boxes in each frame,
+ * with the padding and the title bar. The graph grows when a frame needs
+ * more room than dagre left at the edges.
+ */
+function placeFrames(
+  layout: StepLayout,
+  nodes: { id: string; size?: NodeSize; parent?: string }[],
+  frames: LayoutFrame[],
+  sizes: Map<string, NodeSize>,
+) {
+  const rects = new Map<
+    string,
+    { left: number; top: number; right: number; bottom: number }
+  >();
+  const grow = (
+    id: string,
+    left: number,
+    top: number,
+    right: number,
+    bottom: number,
+  ) => {
+    const r = rects.get(id);
+    rects.set(
+      id,
+      r
+        ? {
+            left: Math.min(r.left, left),
+            top: Math.min(r.top, top),
+            right: Math.max(r.right, right),
+            bottom: Math.max(r.bottom, bottom),
+          }
+        : { left, top, right, bottom },
+    );
+  };
+  for (const node of nodes) {
+    if (!node.parent) continue;
+    const p = layout.positions.get(node.id)!;
+    const size = node.size ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+    grow(node.parent, p.x, p.y, p.x + size.width, p.y + size.height);
+  }
+  // Innermost frames first.
+  const depths = frameDepths(frames);
+  const ordered = [...frames].sort(
+    (a, b) => depths.get(b.id)! - depths.get(a.id)!,
+  );
+  let minX = 0;
+  let minY = 0;
+  let maxX = layout.width;
+  let maxY = layout.height;
+  for (const frame of ordered) {
+    const inner = rects.get(frame.id);
+    if (!inner) continue;
+    const box = {
+      left: inner.left - FRAME_PADDING,
+      top: inner.top - FRAME_TOP,
+      right: inner.right + FRAME_PADDING,
+      bottom: inner.bottom + FRAME_PADDING,
+    };
+    rects.set(frame.id, box);
+    if (frame.parent) {
+      grow(frame.parent, box.left, box.top, box.right, box.bottom);
+    }
+    layout.positions.set(frame.id, { x: box.left, y: box.top });
+    sizes.set(frame.id, {
+      width: box.right - box.left,
+      height: box.bottom - box.top,
+    });
+    minX = Math.min(minX, box.left - MARGIN);
+    minY = Math.min(minY, box.top - MARGIN);
+    maxX = Math.max(maxX, box.right + MARGIN);
+    maxY = Math.max(maxY, box.bottom + MARGIN);
+  }
+  // Frames that reach past the margin move everything right or down.
+  if (minX < 0 || minY < 0) {
+    for (const [id, p] of layout.positions) {
+      layout.positions.set(id, { x: p.x - minX, y: p.y - minY });
+    }
+  }
+  layout.width = maxX - minX;
+  layout.height = maxY - minY;
 }
 
 /** Size of a laid out box. */
@@ -245,50 +411,93 @@ export function boxSize(layout: StepLayout, id: string): NodeSize {
  * Moves the columns of a laid out graph into rows of at most `width`.
  * Columns are as wide as the widest box (the column width of a step, or
  * more for a large box such as an expanded loop), and fill each row from
- * the left.
+ * the left. Each of `outerFrames` stays in one row, with the boxes in its
+ * width.
  */
-function wrapColumns(layout: StepLayout, width: number): StepLayout {
+export function wrapColumns(
+  layout: StepLayout,
+  width: number,
+  outerFrames: string[] = [],
+): StepLayout {
   // Boxes of one column share their center; columns of steps are as wide
   // as the widest step when some steps are larger.
   const stepColumn = layout.sizes ? MAX_NODE_WIDTH : NODE_WIDTH;
   const center = (id: string, p: { x: number }) =>
     Math.round(p.x + boxSize(layout, id).width / 2);
-  const columnWidth = new Map<number, number>();
-  for (const [id, p] of layout.positions) {
-    const x = center(id, p);
-    columnWidth.set(
-      x,
-      Math.max(columnWidth.get(x) ?? stepColumn, boxSize(layout, id).width),
-    );
-  }
-  const columns = [...columnWidth.keys()].sort((a, b) => a - b);
 
-  // Columns into rows, from the left.
+  // An outermost frame moves as one piece, with every box whose center is
+  // in its width (the frames in it, and the steps above or below it).
+  const spans = outerFrames
+    .map(id => {
+      const p = layout.positions.get(id)!;
+      return { left: p.x, right: p.x + boxSize(layout, id).width };
+    })
+    .sort((a, b) => a.left - b.left);
+  const merged: { left: number; right: number }[] = [];
+  for (const span of spans) {
+    const last = merged[merged.length - 1];
+    if (last && span.left <= last.right) {
+      last.right = Math.max(last.right, span.right);
+    } else merged.push({ ...span });
+  }
+  const spanOf = (x: number) =>
+    merged.findIndex(s => x >= s.left && x <= s.right);
+
+  // The pieces: a column of boxes, or a frame with the boxes in its width.
+  // A frame piece is keyed by `-1 - index`, a column by its center.
+  const pieceWidth = new Map<number, number>();
+  const pieceLeft = new Map<number, number>();
+  const pieceRight = new Map<number, number>();
+  const pieceOf = (id: string, p: { x: number }) => {
+    const x = center(id, p);
+    const span = spanOf(x);
+    return span >= 0 ? -1 - span : x;
+  };
+  for (const [id, p] of layout.positions) {
+    const key = pieceOf(id, p);
+    const w = boxSize(layout, id).width;
+    if (key >= 0) {
+      pieceWidth.set(key, Math.max(pieceWidth.get(key) ?? stepColumn, w));
+    } else {
+      pieceLeft.set(key, Math.min(pieceLeft.get(key) ?? p.x, p.x));
+      pieceRight.set(key, Math.max(pieceRight.get(key) ?? p.x + w, p.x + w));
+    }
+  }
+  for (const [key, right] of pieceRight) {
+    pieceWidth.set(key, right - pieceLeft.get(key)!);
+  }
+  const centerOf = (key: number) =>
+    key >= 0 ? key : pieceLeft.get(key)! + pieceWidth.get(key)! / 2;
+  const pieces = [...pieceWidth.keys()].sort(
+    (a, b) => centerOf(a) - centerOf(b),
+  );
+
+  // Pieces into rows, from the left.
   const room = width - 2 * MARGIN;
   const rowOf = new Map<number, number>();
   const leftOf = new Map<number, number>();
   let row = 0;
   let x = 0;
   let widest = 0;
-  for (const column of columns) {
-    const w = columnWidth.get(column)!;
+  for (const piece of pieces) {
+    const w = pieceWidth.get(piece)!;
     if (x > 0 && x + w > room) {
       row++;
       x = 0;
     }
-    rowOf.set(column, row);
-    leftOf.set(column, x);
+    rowOf.set(piece, row);
+    leftOf.set(piece, x);
     x += w + COLUMN_GAP;
     widest = Math.max(widest, x - COLUMN_GAP);
   }
   const rowCount = row + 1;
   if (rowCount === 1) return layout;
 
-  // Height of each row, from the steps in it.
+  // Height of each row, from the boxes in it.
   const top = new Array<number>(rowCount).fill(Infinity);
   const bottom = new Array<number>(rowCount).fill(-Infinity);
   for (const [id, p] of layout.positions) {
-    const r = rowOf.get(center(id, p))!;
+    const r = rowOf.get(pieceOf(id, p))!;
     top[r] = Math.min(top[r], p.y);
     bottom[r] = Math.max(bottom[r], p.y + boxSize(layout, id).height);
   }
@@ -303,13 +512,15 @@ function wrapColumns(layout: StepLayout, width: number): StepLayout {
 
   const positions = new Map<string, { x: number; y: number }>();
   for (const [id, p] of layout.positions) {
-    const column = center(id, p);
-    const r = rowOf.get(column)!;
+    const piece = pieceOf(id, p);
+    const r = rowOf.get(piece)!;
     positions.set(id, {
       x:
         MARGIN +
-        leftOf.get(column)! +
-        (columnWidth.get(column)! - boxSize(layout, id).width) / 2,
+        leftOf.get(piece)! +
+        (piece >= 0
+          ? (pieceWidth.get(piece)! - boxSize(layout, id).width) / 2
+          : p.x - pieceLeft.get(piece)!),
       y: offsets[r] + (p.y - top[r]),
     });
   }

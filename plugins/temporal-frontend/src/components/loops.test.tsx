@@ -222,6 +222,21 @@ describe('loops on the workflow page', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('keeps the loop box a stop of the Tab key, so the view can follow it', async () => {
+    const api = loopApi();
+    await render(api, '/namespaces/default/workflows/draft-1/runs/run-2');
+    const box = await screen.findByRole('button', {
+      name: 'Loop draft-review, round 2 of 5, done',
+    });
+    // React Flow brings a node into view when the node itself gets the focus.
+    expect(box.closest('.react-flow__node')).toHaveAttribute('tabindex', '0');
+
+    fireEvent.click(box);
+    const round = await screen.findByTestId('loop-round-draft-review-1');
+    // A round frame has nothing to operate.
+    expect(round.closest('.react-flow__node')).not.toHaveAttribute('tabindex');
+  });
+
   it('lists the rounds in the Loops tab and shows a round in the graph', async () => {
     const api = loopApi();
     await render(api, '/namespaces/default/workflows/draft-1/runs/run-2');

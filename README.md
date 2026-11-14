@@ -524,7 +524,8 @@ by inference: a step scheduled after the model call ended and before the
 next model call of the agent (the one whose input answers the tool call),
 with the tool's name (ignoring case and separators, so `search_docs` runs
 as `searchDocs`), preferring the one with the same arguments. Inferred links
-are marked **Inferred link**. Two calls of one tool with the same arguments
+are marked with a link icon (**Inferred link** in its tooltip and in the step
+panel). Two calls of one tool with the same arguments
 in parallel cannot be told apart; they are paired in the order the steps
 were scheduled.
 
@@ -634,6 +635,62 @@ The graph needs the read permission only, like the summaries of the steps:
 the groups, their names and their tokens are shown to anyone who may read
 the workflow. A run has at most 1000 groups and a step 32; more are left
 out (`eventGroupsTruncated`).
+
+On the workflow page:
+
+- **Graph.** Each group is a box around its steps, inside the box of the
+  group it is in, any number of groups deep. The title bar has the name,
+  `×3` when three groups are directly inside, the status (in the colors of
+  the steps), the duration (the time so far while it runs) and the tokens
+  of its model calls; a narrow frame shows the name and the status, and the
+  rest in its tooltip. A signal or update group has a dashed border, a mail
+  or edit icon and a button that selects the signal or update that started
+  it. A lock next to the name says that the label could not be read.
+  Internal steps are left out; a group without a step shown has no box.
+- **Expand and collapse.** The arrow in the title bar collapses a group
+  into one box with the same facts and its number of steps; pressing the
+  box expands it. Collapsing a group hides the groups inside it. At first
+  the outermost groups are expanded; of several groups in one group (the
+  rounds of a loop) only the running one, else the last failed one, is
+  expanded, the others are a row of collapsed boxes; groups four deep
+  start collapsed. A step picked in another tab or in the step panel opens
+  its groups.
+- **Large runs.** The open frames hold at most 300 boxes (steps and
+  collapsed groups directly in them) for the groups the user expanded,
+  which come first, and 200 with the groups that open by default. So
+  expanding a group can collapse another group that was open by default,
+  and as a running workflow grows, open groups can collapse or turn into
+  labels. A group the user expands without room stays collapsed and a line
+  above the graph says why; only collapsing a group the user expanded makes
+  room. The line goes away when the graph is pressed. A step picked in
+  another tab inside a group without room is shown by its collapsed group,
+  which is selected.
+- **Labels instead of frames.** The graph shows groups as labels on their
+  steps, with a line above it that says why, when an outermost group alone
+  holds more than 300 boxes (a whole batch in one group), when the graph is
+  too long to lay out with frames (dagre adds ranks for the frame borders:
+  past about `boxes × (2 × depth + 1)` = 1000 it can run out of stack), or
+  when laying out the frames fails.
+- **Where a box cannot be drawn.** A step that ran between two steps of a
+  group without being in it (for example the steps of a signal handler)
+  is drawn outside the box, above or below it. Of two groups that share
+  steps without one being inside the other, the one that started first
+  gets the box; the other one is shown as a label on the top edge of its
+  steps, and so are groups more than five deep. A group whose box would
+  cover other steps in the layout is shown as labels too.
+- **Timeline.** The steps of a group are grouped under a row with the
+  group's bar, indented under the group it is in, and collapse like the
+  rounds of a loop (**Expand groups**, **Collapse groups**).
+- **Event Groups tab.** Shown when the run has groups: each group with its
+  kind, status, steps, groups inside, start, duration and tokens, indented
+  under its parent, in the order the groups started, with a note on groups
+  the graph shows as labels or not at all. Pressing a group expands it in
+  the graph and brings it into view.
+
+When the backend leaves groups out, a line above the graph says so. A run
+without groups is laid out as before. The loop views of the workflow kit
+([Loops](#loops)) stay as they are; when a run has both, a step in a loop
+is drawn in the loop, and the boxes of the groups hold the other steps.
 
 ## Workflow definitions
 

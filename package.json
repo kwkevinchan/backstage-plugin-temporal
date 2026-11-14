@@ -34,6 +34,8 @@
     "boundaries:selftest": "node scripts/check-boundaries.test.mjs",
     "sync:common": "node scripts/sync-common.mjs",
     "sync:common:check": "node scripts/sync-common.mjs --check",
+    "sync:test-graphs": "node scripts/event-group-graphs.mjs",
+    "sync:test-graphs:check": "node scripts/event-group-graphs.mjs --check",
     "changeset": "changeset",
     "prepare": "husky",
     "test:e2e:next": "SMOKE_APP=app-next playwright test"
