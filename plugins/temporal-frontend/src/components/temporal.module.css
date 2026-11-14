@@ -1033,12 +1033,11 @@
   color: var(--tp-group-hue);
 }
 /*
- * A collapsed group: a bar of its color on the left and the body of its
- * frame.
+ * A collapsed group: the body of its frame. The left border keeps the
+ * color of its status.
  */
 .tp-node.tp-hue[data-group] {
   --tp-group-level: calc(var(--tp-tint, 7%) * 0.7);
-  border-left: 3px solid var(--tp-group-hue);
   background: color-mix(
     in srgb,
     var(--tp-group-hue) var(--tp-group-level),
@@ -1067,12 +1066,15 @@
 .tp-node.tp-hue[data-group] .tp-badge {
   color: var(--tp-group-fg-2);
 }
-/* The color of a group before its name in the tab and the timeline. */
-.tp-group-dot {
+/*
+ * The color of a group before its name in the tab and the timeline: a
+ * small square like its frame, apart from the round status icons.
+ */
+.tp-group-swatch {
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
+  border-radius: 2px;
   background: var(--tp-group-hue);
 }
 .tp-loop-controls {

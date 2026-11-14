@@ -96,7 +96,7 @@ export function EventGroupsTab(props: {
                   data-testid={`group-row-${group.key}`}
                 >
                   <span
-                    className={tp('tp-group-dot', 'tp-hue')}
+                    className={tp('tp-group-swatch', 'tp-hue')}
                     data-hue={hues.get(group.key)}
                     aria-hidden
                   />

@@ -403,7 +403,7 @@ function GroupRow(props: {
           )}
           {props.hue && (
             <span
-              className={tp('tp-group-dot', 'tp-hue')}
+              className={tp('tp-group-swatch', 'tp-hue')}
               data-hue={props.hue}
               aria-hidden
             />

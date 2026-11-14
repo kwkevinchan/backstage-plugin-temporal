@@ -653,9 +653,11 @@ On the workflow page:
   groups take four colors in turn, in the order they started, and the
   groups inside a group have its color (a little darker for each box
   inside). Signal and update groups have the color of messages. A
-  collapsed box, a label, and the rows of the timeline and the Event
-  Groups tab show the same color; the borders, titles and indents say the
-  same without it.
+  collapsed box shows the same color in its background and icon, a label
+  in its background and border, and the rows of the timeline and the
+  Event Groups tab in a small square; the borders, titles and indents say
+  the same without it. The borders of collapsed boxes keep the color of
+  their status.
 - **Expand and collapse.** The arrow in the title bar collapses a group
   into one box with the same facts and its number of steps; pressing the
   box expands it. Collapsing a group hides the groups inside it. At first
