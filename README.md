@@ -647,6 +647,8 @@ On the workflow page:
   or edit icon and a button that selects the signal or update that started
   it. A lock next to the name says that the label could not be read.
   Internal steps are left out; a group without a step shown has no box.
+  Arrows into and out of a box turn outside it and cross its border
+  straight.
 - **Expand and collapse.** The arrow in the title bar collapses a group
   into one box with the same facts and its number of steps; pressing the
   box expands it. Collapsing a group hides the groups inside it. At first

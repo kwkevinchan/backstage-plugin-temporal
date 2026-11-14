@@ -401,6 +401,46 @@ describe('event groups on the workflow page', () => {
     expect(screen.queryByText(/more event groups/)).not.toBeInTheDocument();
   });
 
+  it('draws the arrows into frames around the frames, styled as before', async () => {
+    // The wrap-up step runs: the arrow into its frame moves.
+    const running: WorkflowGraphResponse = {
+      ...loopGraph,
+      status: 'Running',
+      nodes: loopGraph.nodes.map(n =>
+        n.id === 'activity-66' ? { ...n, status: 'Running' } : n,
+      ),
+    };
+    const { unmount } = await renderInTestApp(
+      <WorkflowGraph graph={running} onSelect={() => {}} />,
+    );
+    const into = await screen.findByTestId(
+      `rf__edge-group:${roundKey(3)}->activity-66`,
+    );
+    expect(into).toHaveClass('react-flow__edge-frameEdge', 'animated');
+    expect(into.getAttribute('class')).toMatch(/tp-edge-active/);
+    // It turns outside the frame of the step, then goes straight into it.
+    const d = into.querySelector('path')!.getAttribute('d')!;
+    const end = d.match(/L(-?[\d.]+) (-?[\d.]+)$/)!;
+    const before = d
+      .slice(0, -end[0].length)
+      .match(/(-?[\d.]+)[ ,](-?[\d.]+)$/)!;
+    expect(Number(before[2])).toBe(Number(end[2]));
+    expect(Number(end[1]) - Number(before[1])).toBeGreaterThan(20);
+    unmount();
+
+    // Tool calls in an open round keep their own style.
+    await renderInTestApp(
+      <WorkflowGraph
+        graph={agentGraph}
+        onSelect={() => {}}
+        groupViews={{ 'label:loop:agent:1': true }}
+      />,
+    );
+    const tool = document.querySelector('.temporal-llm-tool-edge')!;
+    expect(tool).toHaveClass('react-flow__edge-frameEdge');
+    expect(tool.getAttribute('class')).toMatch(/tp-edge-tool/);
+  });
+
   it('lists the groups in the Event Groups tab and shows one in the graph', async () => {
     await render(loopGraph);
     await userEvent.click(
