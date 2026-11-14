@@ -65,20 +65,20 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 
 不用改外掛就能擴充它。用法和範例在 [Extending](../../README.md#extending)；下表列出有哪些。
 
-| 你想要                         | 使用                                                                                                                                               | 位置                                       |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| 在詳細頁加按鈕                 | `TemporalWorkflowActionBlueprint`（新前端系統）或 `workflowActions`（舊系統）                                                                      | `temporal-frontend/alpha`                  |
-| 在詳細頁加分頁                 | `TemporalWorkflowSectionBlueprint` 或 `workflowSections`                                                                                           | `temporal-frontend/alpha`                  |
-| 在流程清單上方加控制項         | `TemporalWorkflowListActionBlueprint` 或 `workflowListActions`                                                                                     | `temporal-frontend/alpha`                  |
-| 從別的外掛呼叫這個外掛         | `temporalApiRef`                                                                                                                                   | `temporal-frontend`                        |
-| 從其他後端程式呼叫 Temporal    | `temporalServiceRef`（`getClient()`）                                                                                                              | `temporal-backend/node`                    |
-| 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                   |
-| 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）            |
-| 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                   |
-| 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                   |
-| 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                       |
-| 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                   |
-| 限制誰能做什麼                 | 用外掛的權限和條件寫 Backstage 權限政策                                                                                                            | [Permissions](../../README.md#permissions) |
+| 你想要                         | 使用                                                                                                                                               | 位置                                           |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| 在詳細頁加按鈕                 | `TemporalWorkflowActionBlueprint`（新前端系統）或 `workflowActions`（舊系統）                                                                      | `temporal-frontend/alpha`、`temporal-frontend` |
+| 在詳細頁加分頁                 | `TemporalWorkflowSectionBlueprint` 或 `workflowSections`                                                                                           | `temporal-frontend/alpha`、`temporal-frontend` |
+| 在流程清單上方加控制項         | `TemporalWorkflowListActionBlueprint` 或 `workflowListActions`                                                                                     | `temporal-frontend/alpha`、`temporal-frontend` |
+| 從別的外掛呼叫這個外掛         | `temporalApiRef`                                                                                                                                   | `temporal-frontend`                            |
+| 從其他後端程式呼叫 Temporal    | `temporalServiceRef`（`getClient()`）                                                                                                              | `temporal-backend/node`                        |
+| 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                       |
+| 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）                |
+| 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                       |
+| 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                       |
+| 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                           |
+| 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                       |
+| 限制誰能做什麼                 | 用外掛的權限和條件寫 Backstage 權限政策                                                                                                            | [Permissions](../../README.md#permissions)     |
 
 自訂 action 拿到的 Temporal client，用後端的憑證，可以碰到 Namespace 裡的每一個流程，但權限只檢查了這次請求的那個流程。會動到其他流程的 action 必須自己檢查那些流程的權限；見 [Extending](../../README.md#extending)。
 

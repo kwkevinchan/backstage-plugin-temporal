@@ -41,7 +41,7 @@ Every exported name carries a release tag in its doc comment, and the
 | Tag          | Meaning                                                                                                                                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                                                 |
-| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; `./common` and `./ui` have some.                                                                              |
+| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui`, and `./common` has 30 of them (the experimental names).                                       |
 | Experimental | The loop and LLM views (`temporal.experimental.aiWorkflows`). They will change substantially or be removed before the first release; see [Experimental](#experimental-loops-and-llm-steps). Do not build on them. |
 
 The HTTP API, the permissions, the configuration keys, the annotations, the
@@ -51,7 +51,7 @@ experimental routes and key.
 
 ## Where the interfaces are
 
-![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal-frontend (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins and the Scaffolder module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind and reads the annotations (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
+![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal-frontend (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins and the Scaffolder module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind, and the plugin reads that kind and the annotations of entities (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
 
 Each number is one kind of interface; the sections below follow them.
 Teal is what the frontend uses, orange what backend code uses, purple
@@ -72,28 +72,28 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The six published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 19 alpha (report-alpha.api.md), ./node 3 public (report-node.api.md), ./common 126, public except 30 experimental names (report-common.api.md). temporal-frontend: . 23 public, ./alpha 6 alpha, ./common the same 126, ./ui 20 without a tag, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The six published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 19 alpha (report-alpha.api.md), ./node 3 public (report-node.api.md), ./common 126, of which 96 public and 30 experimental alpha (report-common.api.md). temporal-frontend: . 23 public, ./alpha 6 alpha, ./common the same 126, ./ui 24 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
 the tables below say what each name is for.
 
-| Package                              | Entry      | Names | Tag             | For                                                   | API report                                                                         |
-| ------------------------------------ | ---------- | ----: | --------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `temporal-backend`                   | `.`        |     3 | `@public`       | Installing the backend                                | [`report.api.md`](../plugins/temporal-backend/report.api.md)                       |
-|                                      | `./node`   |     3 | `@public`       | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |    19 | `@alpha`        | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
-|                                      | `./common` |   126 | `@public`/alpha | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
-| `temporal-frontend`                  | `.`        |    23 | `@public`       | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
-|                                      | `./alpha`  |     6 | `@alpha`        | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
-|                                      | `./common` |   126 | `@public`/alpha | The same definitions, for frontend code               | [`report-common.api.md`](../plugins/temporal-frontend/report-common.api.md)        |
-|                                      | `./ui`     |    20 | none            | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal-frontend/report-ui.api.md)                |
-| `temporal-backend-module-zigflow`    | `.`        |     1 | `@public`       | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-zigflow/report.api.md)        |
-| `temporal-module-zigflow`            | `.`        |     1 | `@public`       | Legacy frontend system                                | [`report.api.md`](../plugins/temporal-module-zigflow/report.api.md)                |
-|                                      | `./alpha`  |     2 | `@alpha`        | New frontend system                                   | [`report-alpha.api.md`](../plugins/temporal-module-zigflow/report-alpha.api.md)    |
-| `scaffolder-backend-module-temporal` | `.`        |     1 | `@public`       | Installing the module                                 | [`report.api.md`](../plugins/scaffolder-backend-module-temporal/report.api.md)     |
-| `scaffolder-module-temporal`         | `.`        |     2 | `@public`       | Legacy frontend system                                | [`report.api.md`](../plugins/scaffolder-module-temporal/report.api.md)             |
-|                                      | `./alpha`  |     2 | `@alpha`        | New frontend system                                   | [`report-alpha.api.md`](../plugins/scaffolder-module-temporal/report-alpha.api.md) |
+| Package                              | Entry      | Names | Tag                       | For                                                   | API report                                                                         |
+| ------------------------------------ | ---------- | ----: | ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `temporal-backend`                   | `.`        |     3 | `@public`                 | Installing the backend                                | [`report.api.md`](../plugins/temporal-backend/report.api.md)                       |
+|                                      | `./node`   |     3 | `@public`                 | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
+|                                      | `./alpha`  |    19 | `@alpha`                  | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./common` |   126 | `@public` 96, `@alpha` 30 | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
+| `temporal-frontend`                  | `.`        |    23 | `@public`                 | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
+|                                      | `./alpha`  |     6 | `@alpha`                  | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
+|                                      | `./common` |   126 | `@public` 96, `@alpha` 30 | The same definitions, for frontend code               | [`report-common.api.md`](../plugins/temporal-frontend/report-common.api.md)        |
+|                                      | `./ui`     |    24 | `@alpha`                  | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal-frontend/report-ui.api.md)                |
+| `temporal-backend-module-zigflow`    | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-zigflow/report.api.md)        |
+| `temporal-module-zigflow`            | `.`        |     1 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/temporal-module-zigflow/report.api.md)                |
+|                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/temporal-module-zigflow/report-alpha.api.md)    |
+| `scaffolder-backend-module-temporal` | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/scaffolder-backend-module-temporal/report.api.md)     |
+| `scaffolder-module-temporal`         | `.`        |     2 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/scaffolder-module-temporal/report.api.md)             |
+|                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/scaffolder-module-temporal/report-alpha.api.md) |
 
 `./common` of the frontend is a generated copy of the backend's (a frontend
 plugin may not import a backend plugin); both reports are identical. Import
@@ -158,8 +158,8 @@ The 126 names in groups. Every name is in the
 
 `./ui` (graph canvas, status helpers, panels, class names) exists for
 `temporal-module-zigflow`, which is released with the same version. Its
-names have no release tag and no compatibility promise: other packages
-should not use it.
+names are `@alpha`, with no compatibility promise: other packages should
+not use it.
 
 ### Modules
 
@@ -207,12 +207,12 @@ the checks every route of the plugin runs. Modules of the plugin (that is,
 `createBackendModule({ pluginId: 'temporal' })`) use it in their own routes
 so that "who may see this workflow" has one definition.
 
-| Method                                                                           | Does                                                                                                                        |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check (namespace, `read` or `history` level on its entity, or the list permissions without one) |
-| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                             |
-| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                              |
-| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                               |
+| Method                                                                           | Does                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check: the namespace, then, with `entityRef`, the `read` or `history` permission on that entity; without it, first the list permissions on the workflow itself, else the permission on the entity in its entity search attribute ([order](#which-entity-a-workflow-is-checked-on)) |
+| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                                                                                                                                                                                                                |
+| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                                                                                                                                                                                                                 |
+| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                                                                                                                                                                                                                  |
 
 The package's default export installs the default factory
 (`temporalAccessServiceFactory`). To decide access in another way, add a
@@ -243,12 +243,18 @@ them itself with `temporalAccessServiceRef`.
 
 `./alpha`, `@alpha`. `addWorkflowEnricher({ id, enrich })` adds data to
 workflow summaries: `enrich(items, { entity?, namespace, credentials })`
-runs, in the order the enrichers were added, on the lists of an entity and
-on the details. Put your data under `extensions[id]` of each summary
-(`WorkflowSummary.extensions`); the frontend shows it nowhere by itself, so
-pair it with a [tab or a button](#blueprints-and-props) that reads it. Do
-not rely on `entity` being set: lists that span entities may run enrichers
-without one later.
+runs, in the order the enrichers were added, where a workflow is read
+through an entity: the workflow lists of an entity, and the details of a
+workflow read through one (passed as `entityRef`, or the entity of its
+search attribute when the list permissions do not allow it). It does not
+run for the list of the Workflows page or for details allowed by the list
+permissions. Put your data under `extensions[id]` of each summary
+(`WorkflowSummary.extensions`); the fields you return are merged into the
+summary. The frontend shows it nowhere by itself, so pair it with a
+[tab or a button](#blueprints-and-props) that reads it. An enricher that
+throws is skipped with a warning in the log; a second enricher with the same
+`id` makes the plugin fail at startup. Do not rely on `entity` being set:
+lists that span entities may run enrichers without one later.
 
 ### Feature loader and catalog module
 
@@ -282,8 +288,19 @@ the extensions `temporal-workflow-action:temporal/controls`,
 `temporal-workflow-list-action:temporal/start` and
 `temporal-schedule-action:temporal/controls`; in the legacy system
 `EntityTemporalContent` and `TemporalPage` put them before yours. They render
-nothing when `temporal.control.enabled` is false; your own extensions do not
-check that key.
+nothing when `temporal.control.enabled` is false, and neither do the buttons
+of `TemporalControlActionBlueprint` and `createTemporalControlActionDef`.
+Other extensions you write do not check that key.
+
+The blueprints and the kind of the extensions they make:
+
+| Blueprint                             | Kind                            |
+| ------------------------------------- | ------------------------------- |
+| `TemporalWorkflowActionBlueprint`     | `temporal-workflow-action`      |
+| `TemporalControlActionBlueprint`      | `temporal-control-action`       |
+| `TemporalWorkflowSectionBlueprint`    | `temporal-workflow-section`     |
+| `TemporalWorkflowListActionBlueprint` | `temporal-workflow-list-action` |
+| `TemporalScheduleActionBlueprint`     | `temporal-schedule-action`      |
 
 `TemporalControlActionBlueprint` (and `createTemporalControlActionDef` in the
 legacy system) is a ready-made action: a button that calls
@@ -347,21 +364,69 @@ The modules add `entity-content:temporal/definition` (Zigflow) and
 `scaffolder-form-field:scaffolder/temporal-workflow-picker` (Scaffolder).
 Extensions you make with the blueprints get IDs of the form
 `<kind>:<plugin ID>/<name>`, for example
-`temporal-workflow-action:temporal/escalate` in a module of the `temporal`
-plugin.
+`temporal-control-action:temporal/escalate` for the button of
+`TemporalControlActionBlueprint.make({ name: 'escalate' })` in a module of
+the `temporal` plugin.
+
+### Routes and links
+
+The plugin has two route refs: `root` (the Workflows page, `temporal:root`)
+and `entityContent` (the entity tab, `temporal:entity-content`). In the
+legacy system they are `temporalPlugin.routes.root` and
+`temporalPlugin.routes.entityContent` of the main entry point; in the new
+system the default export of `./alpha` has the same `routes`. Another plugin
+links to the Workflows page with `useRouteRef(temporalPlugin.routes.root)`.
+
+Below either page, the details of a run are at
+`namespaces/:namespace/workflows/:workflowId[/runs/:runId]`: for the
+Workflows page on `/temporal` that is
+`/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId`, which
+`buildWorkflowPath` of `./common` builds after the page path. The
+`workflowUrl` output of the Scaffolder module uses this shape.
 
 ## HTTP API
 
 Every route is under the backend plugin's base URL, `/api/temporal`, and
-needs Backstage credentials (a user token, or a service token of another
-plugin). `:wf` stands for `namespaces/:namespace/workflows/:workflowId`,
-optionally followed by `/runs/:runId` (without a run ID the latest run).
-Routes with a workflow and the entity routes check permissions on the
-entity: pass `?entityRef=` with the entity the workflow is shown for;
-without it the entity in the `searchAttributes.entityRef` attribute is used,
-and without either the list permissions apply. Errors are Backstage error
-bodies: `400` input, `403` denied, `404` not found, `409` not running or the
-action's filter refused.
+needs Backstage credentials: a user token, or a token of another backend
+plugin on behalf of a user.
+
+> **Service credentials skip the policy.** A request with the credentials of
+> a backend plugin itself (`auth.getOwnServiceCredentials()`) is a service
+> principal, and Backstage allows every permission to a service principal
+> without asking the permission policy (unless its token carries
+> `accessRestrictions`). Such a caller can read and operate every workflow
+> of the allowed namespaces. Use it only for code that may do everything the
+> plugin can; to act with a user's permissions, use
+> `auth.getPluginRequestToken({ onBehalfOf: <the user's credentials> })`
+> ([example](#call-the-http-api-from-another-backend)).
+
+`:wf` stands for `namespaces/:namespace/workflows/:workflowId`, optionally
+followed by `/runs/:runId` (without a run ID the latest run). Every route
+under `:wf` and the schedule operations take `?entityRef=`, the entity the
+workflow is shown for.
+
+#### Which entity a workflow is checked on
+
+- With `entityRef`: the read (`temporal.workflow.read`) or history
+  (`temporal.workflow.history.read`) permission on that entity, and the
+  workflow must be one of its workflows (`404` otherwise).
+- Without it: first the list permissions on the workflow itself
+  (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
+  history level), with their conditions. If they do not allow it, the
+  entity in the workflow's `searchAttributes.entityRef` attribute is checked
+  as above; a workflow without that attribute is refused (`403`).
+- An operation then checks its own permission on the entity it was read
+  through, else on the entity of its search attribute; a workflow with
+  neither needs the permission allowed without conditions.
+
+Errors are Backstage error bodies: `400` input, `403` denied, `404` not
+found, `409` a conflict (the workflow is not running, the action's filter
+refused it, or Temporal refused it: a workflow ID already in use, a schedule
+in the wrong state), `503` Temporal not reachable or not answering in time.
+Routes the backend does not serve answer `404` **without** a body: the
+operations when `temporal.control.enabled` is false, and the definition route
+without the Zigflow backend module. The two list routes take
+`searchAttribute`, the name of a `Bool` search attribute that must be true.
 
 Reads are always served:
 
@@ -383,31 +448,35 @@ Reads are always served:
 | `GET /:wf/loops`                                      | read level. **Experimental**                           | `entityRef`                                                                                                         | `WorkflowLoopsResponse`        |
 | `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                        | `entityRef`                                                                                                         | `WorkflowLlmCallResponse`      |
 
-The read level is `temporal.workflow.read` on the entity (or
-`temporal.workflow.list` without one), the history level
-`temporal.workflow.history.read` (or `temporal.workflow.history.list`). The
-experimental routes answer `404` unless `temporal.experimental.aiWorkflows`
-is true.
+The read and history levels are decided as in
+[Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
+The experimental routes answer `404` unless
+`temporal.experimental.aiWorkflows` is true.
 
 Operations are served unless `temporal.control.enabled` is false; then the
 routes do not exist and answer `404` without an error body. Each one is
 recorded with the auditor ([event IDs](#what-the-plugin-writes)):
 
-| Method and path                                                               | Permission (besides the read level)                                                                    | Request                                           | Response                                         |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------- | ------------------------------------------------ |
-| `POST /entities/:kind/:namespace/:name/workflows`                             | `temporal.workflow.start` (entity); only its workflow types and task queue                             | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
-| `POST /workflows`                                                             | `temporal.workflow.list` and `temporal.workflow.start`, unconditional                                  | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
-| `POST /:wf/signal`                                                            | `temporal.workflow.signal`; running only                                                               | `WorkflowMessageRequest`                          | `202` `{}`                                       |
-| `POST /:wf/update`                                                            | `temporal.workflow.update`; running only                                                               | `WorkflowMessageRequest`                          | `WorkflowMessageResponse`                        |
-| `POST /:wf/cancel`                                                            | `temporal.workflow.cancel`; running only                                                               |                                                   | `202` `{}`                                       |
-| `POST /:wf/terminate`                                                         | `temporal.workflow.terminate`; running only                                                            | `{ reason? }`                                     | `{}`                                             |
-| `POST /:wf/rerun`                                                             | `temporal.workflow.rerun`                                                                              | `{ workflowId? }`                                 | `201` `WorkflowStartResponse`                    |
-| `POST /:wf/actions/:actionId`                                                 | the action's `permission`, then its `filter`                                                           | any JSON                                          | `WorkflowMessageResponse` (`{ result }` or `{}`) |
-| `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `temporal.workflow.start` on `?entityRef=` (the schedule must start its workflows), else unconditional | `TemporalScheduleNoteRequest` (not for `trigger`) | `202` `{}`                                       |
+| Method and path                                                               | Permission                                                                                                                  | Request                                           | Response                                         |
+| ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
+| `POST /entities/:kind/:namespace/:name/workflows`                             | `temporal.workflow.start` on the entity (no read level); only its workflow types and task queue                             | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
+| `POST /workflows`                                                             | `temporal.workflow.list` and `temporal.workflow.start`, both without conditions (no read level)                             | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
+| `POST /:wf/signal`                                                            | read level and `temporal.workflow.signal`; running only                                                                     | `WorkflowMessageRequest`                          | `202` `{}`                                       |
+| `POST /:wf/update`                                                            | read level and `temporal.workflow.update`; running only                                                                     | `WorkflowMessageRequest`                          | `WorkflowMessageResponse`                        |
+| `POST /:wf/cancel`                                                            | read level and `temporal.workflow.cancel`; running only                                                                     |                                                   | `202` `{}`                                       |
+| `POST /:wf/terminate`                                                         | read level and `temporal.workflow.terminate`; running only                                                                  | `{ reason? }`                                     | `{}`                                             |
+| `POST /:wf/rerun`                                                             | read level and `temporal.workflow.rerun`                                                                                    | `{ workflowId? }`                                 | `201` `WorkflowStartResponse`                    |
+| `POST /:wf/actions/:actionId`                                                 | read level, then the action's `permission`, then its `filter`; an unknown `actionId` answers `404`                          | any JSON                                          | `WorkflowMessageResponse` (`{ result }` or `{}`) |
+| `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `temporal.workflow.start` on `?entityRef=` (the schedule must start its workflows), else without conditions (no read level) | `TemporalScheduleNoteRequest` (not for `trigger`) | `202` `{}`                                       |
 
 The Zigflow backend module adds
 `GET /entities/:kind/:namespace/:name/definition` (`temporal.workflow.read`
-on a `TemporalWorkflow` entity with `spec.definition`).
+on a `TemporalWorkflow` entity with `spec.definition`). These 25 routes
+(15 reads, 9 operations, 1 of the Zigflow module) are the plugin's own.
+Because the plugin registers a permission resource type, the permission
+framework also serves `GET /.well-known/backstage/permissions/metadata` and
+`POST /.well-known/backstage/permissions/apply-conditions` under
+`/api/temporal`; the permission backend calls them, not your code.
 
 The path helpers of `./common` (`buildWorkflowPath`,
 `buildEntityWorkflowsPath`, `buildWorkflowOperationPath`,
@@ -416,7 +485,7 @@ paths by hand. From the browser, use `temporalApiRef` instead.
 
 ### One custom action, from the button to Temporal
 
-![One custom action in nine steps. In the browser: (1) the button of TemporalControlActionBlueprint, with your params label, confirm, body, permission (disables the button) and filter (shows it); (2) TemporalApi.runWorkflowAction(); (3) POST /api/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId/actions/:actionId. In the backend: (4) the route exists only when temporal.control.enabled is true, else 404; (5) loadWorkflow() checks the namespace and the read level on the entity; (6) authorizeOn() checks the action’s permission, else 403; (7) the action’s filter, else 409; (8) the auditor records workflow-action; (9) action.handle() runs with the entity, workflow, credentials and Temporal client and calls Temporal. Its value comes back as { result } and the button shows it. Your code runs at steps 1, 7 and 9.](images/action-flow.svg)
+![One custom action in nine steps. In the browser: (1) the button of TemporalControlActionBlueprint, with your params label, confirm, body, permission (disables the button) and filter (shows it); (2) TemporalApi.runWorkflowAction(); (3) POST /api/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId/actions/:actionId. In the backend: (4) the route exists only when temporal.control.enabled is true, and the actionId must be registered, else 404; (5) loadWorkflow() checks the namespace and the read level on the entity; (6) authorizeOn() checks the action’s permission, else 403; (7) the action’s filter, else 409; (8) the auditor records workflow-action; (9) action.handle() runs with the entity, workflow, credentials and Temporal client and calls Temporal. Its value comes back as { result } and the button shows it. Your code runs at steps 1, 7 and 9.](images/action-flow.svg)
 
 The same order holds for the built-in operations, with their own
 permission and without your code. A Query runs the same way under the read
@@ -532,6 +601,14 @@ Other systems can read these, so they are interfaces too:
   in `temporal.searchAttributes.initiator`, when those keys are set. Both
   must be `Keyword` attributes registered in Temporal. A rerun keeps the
   original run's attributes and sets the initiator.
+
+  The plugin reads both attributes on **every** workflow, whoever set them:
+  the entity reference adds the workflow to that entity's list and decides
+  on which entity its permissions are checked, and the initiator is what the
+  `IS_INITIATOR` rule compares. Code outside Backstage that starts workflows
+  with these attributes gets the same effect, so set them only to the entity
+  and user the workflow belongs to.
+
 - **Identity.** Operations pass `backstage:<user entity ref>` (or
   `backstage:<service subject>`) as the Temporal identity, shown in the
   history.
@@ -539,11 +616,13 @@ Other systems can read these, so they are interfaces too:
   `workflow-signal`, `workflow-update`, `workflow-query`, `workflow-cancel`,
   `workflow-terminate`, `workflow-rerun`, `workflow-action`,
   `schedule-pause`, `schedule-unpause`, `schedule-trigger`, with the
-  namespace, workflow and entity in the metadata.
+  namespace, workflow and entity in the metadata. Their severity is `low`
+  for `workflow-query`, `high` for `workflow-terminate` and `medium` for the
+  others.
 
-The plugin reads the memo and search attributes your workers write only for
-the experimental views (below), and the references of Temporal External
-Storage (written by the SDK's S3 driver, not by the plugin's format).
+The memo your workers write is read only by the experimental views
+(below). The plugin also reads the references of Temporal External Storage,
+written by the SDK's S3 driver in its own format.
 
 ## Scaffolder
 
@@ -736,7 +815,8 @@ export const temporalModuleOwner = createBackendModule({
 ```
 
 The value is then `workflow.extensions?.owner` in the frontend, as in the
-next example.
+next example, on the pages where the enricher runs (not on the Workflows
+page; see [the extension point](#temporalworkflowenricherextensionpoint)).
 
 ### Add a tab to the details page
 
@@ -768,7 +848,8 @@ export const temporalTabsModule = createFrontendModule({
 Legacy system: pass
 `workflowSections={[{ id: 'owner', title: 'Owner', component: OwnerSection }]}`
 to `EntityTemporalContent` and `TemporalPage`. A component deeper in the tab
-gets the same props with `useTemporalWorkflow()`.
+gets the same props with `useTemporalWorkflow()`. This tab reads data of the
+enricher above, so on the Workflows page it shows "unknown".
 
 ### Override an extension
 
@@ -787,6 +868,9 @@ export default createApp({
   ],
 });
 ```
+
+The `workflowUrl` output of the Scaffolder actions still points to
+`/temporal`: the module builds it with that path.
 
 `api:temporal` takes its params as a callback; give it your own
 `TemporalApi` with
@@ -844,23 +928,29 @@ export const mtlsTemporalServiceFactory = createServiceFactory({
               key: readFileSync('/etc/temporal/tls.key'),
             },
           },
+        }).catch(error => {
+          // Connect again on the next call instead of keeping the failure.
+          connection = undefined;
+          throw error;
         });
         return connection;
       },
-      async getClient(options) {
+      getClient(options) {
         const namespace = options?.namespace ?? defaultNamespace;
         if (!namespaces.includes(namespace)) {
-          throw new Error(`Temporal namespace is not allowed: ${namespace}`);
-        }
-        if (!clients.has(namespace)) {
-          clients.set(
-            namespace,
-            service
-              .getConnection()
-              .then(c => new Client({ connection: c, namespace })),
+          return Promise.reject(
+            new Error(`Temporal namespace is not allowed: ${namespace}`),
           );
         }
-        return clients.get(namespace)!;
+        let client = clients.get(namespace);
+        if (!client) {
+          client = service
+            .getConnection()
+            .then(c => new Client({ connection: c, namespace }));
+          client.catch(() => clients.delete(namespace));
+          clients.set(namespace, client);
+        }
+        return client;
       },
       getDefaultNamespace: () => defaultNamespace,
       getAllowedNamespaces: () => [...namespaces],
@@ -873,12 +963,16 @@ export const mtlsTemporalServiceFactory = createServiceFactory({
           'temporal.searchAttributes.initiator',
         ),
       }),
-      getWebUiUrl: (ref: WorkflowRef) =>
-        webUi
-          ? `${webUi}/namespaces/${encodeURIComponent(
-              ref.namespace,
-            )}/workflows/${encodeURIComponent(ref.workflowId)}`
-          : undefined,
+      getWebUiUrl(ref: WorkflowRef) {
+        if (!webUi) return undefined;
+        const workflow = `${webUi}/namespaces/${encodeURIComponent(
+          ref.namespace,
+        )}/workflows/${encodeURIComponent(ref.workflowId)}`;
+        // The Web UI addresses a run as …/workflows/:workflowId/:runId/history.
+        return ref.runId
+          ? `${workflow}/${encodeURIComponent(ref.runId)}/history`
+          : workflow;
+      },
     };
     lifecycle.addShutdownHook(async () => {
       if (connection) await (await connection).close();
@@ -930,10 +1024,11 @@ export async function listRunningWorkflows(
 }
 ```
 
-With `auth.getOwnServiceCredentials()` instead of the user's credentials,
-the permission policy sees your plugin as a service principal. From a
-frontend plugin, use `useApi(temporalApiRef)` instead
-(`listEntityWorkflows(entityRef, { status: 'Running' })`).
+Do not replace the user's credentials with
+`auth.getOwnServiceCredentials()` to get around a denial: a service
+principal is allowed every permission without the policy being asked (see
+[HTTP API](#http-api)). From a frontend plugin, use `useApi(temporalApiRef)`
+instead (`listEntityWorkflows(entityRef, { status: 'Running' })`).
 
 ## Not public
 
@@ -970,10 +1065,12 @@ this guide in the same pull request when the change adds, removes or
 renames a name listed here.
 
 Some reports carry warnings that API Extractor writes into them
-(`// Warning: ...`): public types that name types of another entry point of
-the same package, `@public` names that reference experimental `@alpha`
-types, and the untagged names of `./ui`. They are allowed for
-`temporal-backend` and `temporal-frontend` (`--allow-warnings`) until they
-are resolved; a new warning still shows up in the report diff.
+(`// Warning: ...`), allowed for `temporal-backend` and `temporal-frontend`
+(`--allow-warnings`); a new warning still shows up in the report diff. Most
+are expected: a type of one entry point that names a type of another entry
+point of the same package (for example `TemporalApi` and the response types
+of `./common`), which this repository does not export twice. The others are
+the experimental fields of the graph types (`@public` types that reference
+`@alpha` ones), which change with the experimental views.
 
 Back to [the documentation index](README.md).
