@@ -15,6 +15,8 @@
     "start": "backstage-cli repo start packages/app packages/backend",
     "build:backend": "yarn workspace backend build",
     "build:all": "backstage-cli repo build --all",
+    "build:api-reports": "yarn build:api-reports:only --tsc",
+    "build:api-reports:only": "backstage-repo-tools api-reports -o ae-wrong-input-file-type,ae-undocumented --validate-release-tags --allow-warnings plugins/temporal-backend,plugins/temporal-frontend plugins/temporal-backend plugins/temporal-frontend plugins/temporal-backend-module-zigflow plugins/temporal-module-zigflow plugins/scaffolder-backend-module-temporal plugins/scaffolder-module-temporal",
     "tsc": "tsc",
     "tsc:full": "tsc --skipLibCheck false --incremental false",
     "clean": "backstage-cli repo clean",
@@ -53,6 +55,7 @@
   "devDependencies": {
     "@backstage/cli": "backstage:^",
     "@backstage/cli-defaults": "backstage:^",
+    "@backstage/repo-tools": "backstage:^",
     "@changesets/cli": "^2.29.0",
     "@jest/environment-jsdom-abstract": "~30.2.0",
     "@playwright/test": "^1.32.3",

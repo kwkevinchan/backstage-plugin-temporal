@@ -103,6 +103,12 @@ jobs:
       - name: Type check
         run: yarn tsc:full
 
+      # The API reports (report*.api.md) of the published packages must match
+      # their exports. Reads the declarations the type check wrote to
+      # dist-types; run `yarn build:api-reports` and commit the changes.
+      - name: API reports
+        run: yarn build:api-reports:only --ci
+
       - name: Lint
         run: yarn backstage-cli repo lint
 
