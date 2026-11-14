@@ -26,7 +26,7 @@ role of each package and [which ones to install](../README.md#packages).
 - **Core, backend** (`temporal-backend`): serves `/api/temporal`, reads and
   operates workflows, checks access, adds the `TemporalWorkflow` kind to the
   catalog, and gives other backend code the shared Temporal client
-  (`./node`), the extension points (`./node`, `./alpha`) and the shared
+  (`./node`), the extension points (`./alpha`) and the shared
   definitions (`./common`). One `backend.add()` installs all of it.
 - **Core, frontend** (`temporal-frontend`): the entity tab, the details page,
   the Workflows page and the buttons of the operations, for both frontend
@@ -68,8 +68,8 @@ The cost:
 
 - **Modules import a backend plugin package.** Backend modules import
   `temporal-backend`: the Zigflow and Scaffolder modules its definitions
-  (`./common`), and your own modules also the client service and the
-  extension points (`./node`, `./alpha`). Backstage's lint rule
+  (`./common`), and your own modules also the client service (`./node`)
+  and the extension points (`./alpha`). Backstage's lint rule
   `@backstage/no-mixed-plugin-imports` prints a warning for that; it does not
   fail the lint. Those entry points do not load the plugin itself (a test
   checks it), but installing a module brings the whole backend package and

@@ -49,8 +49,16 @@ describe('entry points for backend modules', () => {
       expect(alpha.temporalWorkflowEnricherExtensionPoint.id).toBe(
         'temporal.workflow-enrichers',
       );
-      expect(alpha.encodeJsonPayloads).toBeUndefined();
-      expect(alpha.decodeJsonPayloads).toBeUndefined();
+      expect(Object.keys(alpha).sort()).toEqual([
+        'createTemporalWorkflowConditionalDecision',
+        'temporalAccessServiceFactory',
+        'temporalAccessServiceRef',
+        'temporalControlExtensionPoint',
+        'temporalWorkflowConditions',
+        'temporalWorkflowEnricherExtensionPoint',
+        'temporalWorkflowPermissionResourceRef',
+        'temporalWorkflowPermissionRules',
+      ]);
       expect(alpha.temporalWorkflowPermissionResourceRef.resourceType).toBe(
         'temporal-workflow',
       );

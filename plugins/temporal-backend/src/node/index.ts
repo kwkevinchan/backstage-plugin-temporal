@@ -16,7 +16,8 @@
 
 /**
  * For backend modules and other backend plugins: the shared Temporal
- * connection service (`temporalServiceRef`). This entry point does not load the plugin itself.
+ * connection service (`temporalServiceRef`). This entry point does not load the plugin
+ * itself.
  *
  * @packageDocumentation
  */
