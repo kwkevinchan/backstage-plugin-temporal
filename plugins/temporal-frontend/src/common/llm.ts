@@ -22,9 +22,14 @@ import type { WorkflowNodeStatus } from './graph';
 import type { ExternalPayload } from './types';
 
 /*
- * LLM steps: activities that call a model, and the activities that run the
- * tools the model asked for. The activity ID marks them, so the backend
- * finds them without a payload codec:
+ * Model calls and tool calls: the steps of a run that call a model, and the
+ * steps that run the tools a model asked for. LLM adapters in the backend
+ * recognize them in the history (the official Temporal AI integrations,
+ * and adapters that modules add) and turn them into the types below.
+ *
+ * The markers and the record below are the format of the unreleased
+ * `@kwkevinchan/temporal-workflow-kit`, read by a built-in adapter that
+ * will be removed with it:
  *
  *   llm/<call>[/<rest>]                 one model call
  *   tool/<call>/<toolCallId>[/<rest>]   one tool call of that model call
@@ -32,9 +37,7 @@ import type { ExternalPayload } from './types';
  * `<rest>` is free; a loop marker (`loop/<loop>/<round>/<step>`) there puts
  * the step in a loop round. The result of the model call holds the record
  * of the call under `temporal.llm`, with the attributes of the
- * OpenTelemetry GenAI semantic conventions. `@kwkevinchan/temporal-workflow-kit/llm`
- * writes both in TypeScript workers; other SDKs follow the format in its
- * README.
+ * OpenTelemetry GenAI semantic conventions.
  */
 
 /** First segment of the activity ID of a model call. @alpha */
@@ -53,18 +56,15 @@ export const LLM_RECORD_VERSION = 1;
 /**
  * Version of the OpenTelemetry GenAI semantic conventions the record
  * follows (schema URL suffix of the conventions, status Development).
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
  *
  * @alpha
  */
 export const LLM_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev';
 
 /**
- * A step of an LLM agent: a model call, or a tool call of one.
+ * A marker of the workflow kit: a model call, or a tool call of one.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -79,8 +79,7 @@ const TOOL_PATTERN = /^tool\/([^/]+)\/([^/]+)(?:\/|$)/;
  * Reads `llm/<call>[/...]` or `tool/<call>/<toolCallId>[/...]` from an
  * activity ID. Names are percent-encoded.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -110,8 +109,7 @@ export function parseLlmMarker(
  * include cached tokens, output tokens include reasoning tokens (as in the
  * OpenTelemetry conventions).
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -126,8 +124,7 @@ export interface WorkflowLlmUsage {
 /**
  * A tool call the model asked for.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -141,6 +138,11 @@ export interface WorkflowLlmToolCallRef {
   status?: WorkflowNodeStatus;
   /** True when the tool ran inside the model call's activity. */
   inActivity?: boolean;
+  /**
+   * True when the step in `nodeId` was found by its name, arguments and
+   * place in the run, not by a tool call ID the step recorded.
+   */
+  inferred?: boolean;
 }
 
 /**
@@ -152,8 +154,7 @@ export interface WorkflowLlmToolCallRef {
  *   larger than the backend reads inline (the full record route reads it);
  * - `missing`: the result has no record.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -168,20 +169,29 @@ export type WorkflowLlmRecordState =
  * reasoning, arguments and results need the permission to read the
  * history, through the full record route.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
 export interface WorkflowLlmSummary {
-  /** The call name of the marker. */
-  call: string;
+  /**
+   * Name of the call, when the step records one (the workflow kit's
+   * marker). Otherwise show the step's summary or the model.
+   */
+  call?: string;
+  /**
+   * The LLM adapter that read the step, for example `vercel-ai-sdk` or
+   * `openai-agents`.
+   */
+  framework: string;
+  /** Model calls in the step, when more than one: the numbers add up all. */
+  callCount?: number;
   record: WorkflowLlmRecordState;
   /** `gen_ai.operation.name`, for example `chat`. */
   operation?: string;
-  /** `gen_ai.provider.name`, for example `openai`. */
+  /** The provider, for example `openai`, when the step records it. */
   provider?: string;
-  /** The response model, else the request model. */
+  /** The response model, else the request model (of the last call). */
   model?: string;
   usage?: WorkflowLlmUsage;
   /** Duration of the call, from the record, else from the activity. */
@@ -197,18 +207,24 @@ export interface WorkflowLlmSummary {
 /**
  * The model call a tool call belongs to.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
 export interface WorkflowToolLink {
-  call: string;
-  toolCallId: string;
+  /** Name of the model call, when it has one. */
+  call?: string;
+  /** Tool call ID from the step, or from the model call it was linked to. */
+  toolCallId?: string;
   /** Graph node of the model call. */
   llmNodeId?: string;
   /** Tool name from the model call, when it was read. */
   name?: string;
+  /**
+   * True when the link was inferred from the tool name, the arguments and
+   * the order of the steps: the step recorded no tool call ID.
+   */
+  inferred?: boolean;
 }
 
 /**
@@ -217,8 +233,7 @@ export interface WorkflowToolLink {
  * `uri`, `server_tool_call`, `server_tool_call_response`, `compaction`,
  * or a type of a provider.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -227,8 +242,7 @@ export type WorkflowLlmPart = JsonObject & { type: string };
 /**
  * One message sent to or received from the model.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -244,8 +258,7 @@ export interface WorkflowLlmMessage {
 /**
  * A tool that ran inside the model call's activity.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -264,10 +277,10 @@ export interface WorkflowLlmToolExecution {
 }
 
 /**
- * The record of one model call, read from the OpenTelemetry attributes.
+ * The record of one model call: what an LLM adapter read from the step, in
+ * the shape of the OpenTelemetry GenAI conventions.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -299,8 +312,7 @@ export interface WorkflowLlmRecord {
 /**
  * The full record of one model call.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */
@@ -309,11 +321,18 @@ export interface WorkflowLlmCallResponse {
   nodeId: string;
   activityId: string;
   activityType: string;
-  call: string;
+  /** Name of the call, when the step records one. */
+  call?: string;
+  /** The LLM adapter that read the step. */
+  framework: string;
+  /** Position of this call among the model calls of the step, from 0. */
+  index?: number;
+  /** Model calls in the step, when more than one (`?index=` picks one). */
+  callCount?: number;
   status: WorkflowNodeStatus;
   /** The record; left out with `unavailable`. */
   record?: WorkflowLlmRecord;
-  /** The record as the worker wrote it. */
+  /** The data the record was read from, as the worker wrote it. */
   raw?: JsonValue;
   /** Why there is no record, in words. */
   unavailable?: string;
@@ -327,8 +346,7 @@ export interface WorkflowLlmCallResponse {
  * Builds the path of the full record of a model call, relative to the
  * path of the workflow: `/llm-calls/<scheduled event ID>`.
  *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
+ * Experimental: the shape changes before the first stable release.
  *
  * @alpha
  */

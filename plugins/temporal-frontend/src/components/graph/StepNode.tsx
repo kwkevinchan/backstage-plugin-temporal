@@ -35,6 +35,8 @@ import {
 } from '@remixicon/react';
 import {
   formatCallDuration,
+  INFERRED_LINK_TEXT,
+  llmBoxTitle,
   llmStatsText,
   modelText,
   toolName,
@@ -124,6 +126,7 @@ function toolSubtitle(step: WorkflowGraphNode): string {
     statusLabel(step.status),
     step.kind === 'marker' ? 'Local activity' : '',
     step.kind !== 'marker' && ms !== undefined ? formatCallDuration(ms) : '',
+    step.tool?.inferred ? INFERRED_LINK_TEXT : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -142,7 +145,7 @@ function LlmLines(props: { step: WorkflowGraphNode; badge?: string }) {
           className={tp('tp-node-icon', 'tp-llm-icon')}
           aria-hidden
         />
-        <span>{step.name}</span>
+        <span>{llmBoxTitle(step)}</span>
         {badge && <span className={tp('tp-badge')}>{badge}</span>}
       </span>
       <span className={tp('tp-node-sub', 'tp-llm-model')}>
@@ -163,10 +166,12 @@ export const StepNode = memo(function StepNodeView(
   const badge = retryBadge(step);
   if (step.llm || step.tool) {
     const text = step.llm
-      ? `Model call ${step.name}, ${modelText(step.llm)}, ${llmStatsText(
+      ? `Model call ${llmBoxTitle(step)}, ${modelText(
           step.llm,
-        )}`
-      : `Tool call ${toolName(step)}`;
+        )}, ${llmStatsText(step.llm)}`
+      : `Tool call ${toolName(step)}${
+          step.tool?.inferred ? `, ${INFERRED_LINK_TEXT.toLowerCase()}` : ''
+        }`;
     return (
       <>
         <Handle

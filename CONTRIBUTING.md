@@ -94,7 +94,11 @@ The Zigflow modules share one file in the same way:
 The backend reads the loop markers and LLM records with its own code; the
 workflow kit writes them. Both are tested against
 `test-fixtures/loop-markers.json` and `test-fixtures/llm-records.json`, so
-change the format there first. Large payloads use Temporal External
+change the format there first. The LLM adapters of the official Temporal AI
+integrations are tested against recorded histories in
+`test-fixtures/llm-integrations` (see its README; rename task queues,
+workflow types and IDs, worker identities and paths before adding one).
+Large payloads use Temporal External
 Storage: the backend tests read payloads written by the official S3 driver
 (`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).
 
@@ -130,7 +134,7 @@ The query classes in `services/` each cover one kind of read:
 `EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
 `WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
 class that uses it. The access service uses `EntityWorkflowSources` and
-`WorkflowQueries`; the router uses all four. The parsing and the views of the experimental LLM records are in
+`WorkflowQueries`; the router uses all four. The LLM adapters (model calls and tool calls) and their views are in
 `services/llm/` (backend) and `components/llm/` (frontend).
 
 The classes are plain; there are no repository interfaces or DI container

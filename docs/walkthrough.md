@@ -335,10 +335,10 @@ The tab belongs to two optional packages; see
 
 ## 7. AI workflows (experimental)
 
-The development app turns on `temporal.experimental.aiWorkflows`; the views are
-off by default in your own app, will move to a separate package, and carry no
-compatibility promise. The example worker starts fake AI workflows that call no
-model.
+The development app turns on `temporal.experimental.aiWorkflows`; the loop
+views are off by default in your own app, will move to a separate package, and
+carry no compatibility promise. Model calls are shown without the setting. The
+example worker starts fake AI workflows that call no model.
 
 1. **Loops.** `draftReviewWorkflow` drafts, reviews and revises until the score is
    high enough (done in round 4 of 5). The graph folds the loop into one box;

@@ -864,10 +864,12 @@ export interface WorkflowLlmCallResponse {
   activityId: string;
   // (undocumented)
   activityType: string;
-  // (undocumented)
-  call: string;
+  call?: string;
+  callCount?: number;
   external?: ExternalPayload;
+  framework: string;
   fromFailure?: boolean;
+  index?: number;
   nodeId: string;
   raw?: JsonValue;
   record?: WorkflowLlmRecord;
@@ -948,11 +950,13 @@ export type WorkflowLlmRecordState =
 
 // @alpha
 export interface WorkflowLlmSummary {
-  call: string;
+  call?: string;
+  callCount?: number;
   durationMs?: number;
   error?: string;
   // (undocumented)
   finishReasons?: string[];
+  framework: string;
   model?: string;
   operation?: string;
   provider?: string;
@@ -969,6 +973,7 @@ export interface WorkflowLlmSummary {
 export interface WorkflowLlmToolCallRef {
   id?: string;
   inActivity?: boolean;
+  inferred?: boolean;
   // (undocumented)
   name: string;
   nodeId?: string;
@@ -1277,11 +1282,10 @@ export interface WorkflowSummary {
 
 // @alpha
 export interface WorkflowToolLink {
-  // (undocumented)
-  call: string;
+  call?: string;
+  inferred?: boolean;
   llmNodeId?: string;
   name?: string;
-  // (undocumented)
-  toolCallId: string;
+  toolCallId?: string;
 }
 ```

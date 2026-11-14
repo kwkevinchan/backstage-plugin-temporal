@@ -16,7 +16,7 @@
 
 // The alpha API for backend modules, exported from `./alpha`: the access
 // service that the plugin and its modules share, and the extension points
-// for workflow actions and workflow enrichers.
+// for workflow actions, workflow enrichers and LLM adapters.
 
 import {
   BackstageCredentials,
@@ -31,6 +31,7 @@ import type { Client } from '@temporalio/client';
 import {
   RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   WorkflowDetail,
+  WorkflowLlmRecord,
   WorkflowRef,
   WorkflowSummary,
 } from '../common';
@@ -323,4 +324,151 @@ export interface TemporalWorkflowEnricherExtensionPoint {
 export const temporalWorkflowEnricherExtensionPoint =
   createExtensionPoint<TemporalWorkflowEnricherExtensionPoint>({
     id: 'temporal.workflow-enrichers',
+  });
+
+/**
+ * A step of a run as LLM adapters see it: what the history says about it
+ * without decoding payloads.
+ *
+ * @alpha
+ */
+export interface TemporalLlmStep {
+  /**
+   * An activity, or a local activity (a marker in the history). Model calls
+   * are read from activities only; local activities are only asked
+   * `readToolCall`.
+   */
+  kind: 'activity' | 'localActivity';
+  activityType: string;
+  /** Activity ID; for local activities only when the SDK records it. */
+  activityId?: string;
+  /**
+   * The summary text of the step (Temporal's user metadata), first line,
+   * when it is plain JSON. A payload codec encodes it.
+   */
+  summary?: string;
+}
+
+/**
+ * The decoded payloads of a step. A payload that a codec encoded, or one
+ * in External Storage that the backend does not read here, is left out.
+ *
+ * @alpha
+ */
+export interface TemporalLlmStepPayloads {
+  /** The arguments, when all of them are readable. */
+  input?: JsonValue[];
+  /** The result of the completed step. */
+  result?: JsonValue;
+  /**
+   * The failure details of the step's failed attempts, newest first; left
+   * out once the step completed.
+   */
+  failureDetails?: JsonValue[];
+}
+
+/**
+ * One model call read from a step.
+ *
+ * @alpha
+ */
+export interface TemporalLlmModelCall {
+  /** Name of the call, when the step records one. */
+  name?: string;
+  /**
+   * The call in the plugin's format. Leave it out when the step has no
+   * readable record of it yet (for example while it runs).
+   */
+  record?: WorkflowLlmRecord;
+  /** The data the record was read from, shown as raw JSON. */
+  raw?: JsonValue;
+}
+
+/**
+ * A step that ran a tool a model call asked for.
+ *
+ * @alpha
+ */
+export interface TemporalLlmToolStep {
+  /** The tool name, when the step records it. */
+  toolName?: string;
+  /** The tool call ID from the model, when the step records it. */
+  toolCallId?: string;
+  /** Name of the model call that asked for it, when the step records it. */
+  modelCall?: string;
+}
+
+/**
+ * Recognizes the model calls and tool calls of one framework in a run's
+ * history and turns them into the plugin's format. The backend asks the
+ * adapters in order (the ones modules added, then the built-in ones); the
+ * first that reads a step decides. An adapter that throws, or returns
+ * something that is not of these types or not plain JSON (cycles,
+ * functions, class instances), makes the step a plain step, and the
+ * backend logs a warning with the adapter ID, the event ID of the step and
+ * the name of the error, once per adapter each time a run is read. The
+ * message of the error is neither logged nor returned.
+ *
+ * Steps are matched by plain names that anyone can give their activities,
+ * so check the shape of the payloads before you read a step as yours.
+ *
+ * @alpha
+ */
+export interface TemporalLlmAdapter {
+  /**
+   * Unique ID, shown as the framework of the calls it reads, for example
+   * `vercel-ai-sdk`.
+   */
+  id: string;
+  /**
+   * True when the step may be a model call of this framework, from what
+   * the history says without payloads (usually the activity type). The
+   * backend then calls `readModelCalls`. For the graph it reads the result
+   * from External Storage, not the input: an input stored there is left
+   * out, and only the full record route (`/llm-calls`) passes it. True for
+   * a local activity has no effect, and is logged once.
+   */
+  isModelCall(step: TemporalLlmStep): boolean;
+  /**
+   * The model calls of a step that `isModelCall` accepted, in order:
+   * usually one, several when the step runs a whole agent (at most 100;
+   * more make the step a plain step). An empty list
+   * when the payloads do not have the framework's shape (the step is then
+   * offered to the next adapter, and is otherwise a plain step).
+   */
+  readModelCalls(
+    step: TemporalLlmStep,
+    payloads: TemporalLlmStepPayloads,
+  ): TemporalLlmModelCall[];
+  /**
+   * Whether a step that is not a model call ran a tool a model call asked
+   * for. Undefined when it is not (or not known to be): the backend still
+   * links steps whose name and arguments match a tool call (`inferred`).
+   */
+  readToolCall?(
+    step: TemporalLlmStep,
+    payloads: TemporalLlmStepPayloads,
+  ): TemporalLlmToolStep | undefined;
+}
+
+/**
+ * Extension point for LLM adapters.
+ *
+ * @alpha
+ */
+export interface TemporalLlmAdapterExtensionPoint {
+  addLlmAdapter(adapter: TemporalLlmAdapter): void;
+}
+
+/**
+ * Extension point for LLM adapters: `addLlmAdapter()` teaches the backend
+ * the model calls of another framework. Adapters added here are asked
+ * before the built-in ones (`vercel-ai-sdk`, `openai-agents`); an ID that
+ * is taken fails the backend start.
+ *
+ * @alpha
+ */
+export const temporalLlmAdapterExtensionPoint =
+  createExtensionPoint<TemporalLlmAdapterExtensionPoint>({
+    id: 'temporal.llm-adapters',
   });
