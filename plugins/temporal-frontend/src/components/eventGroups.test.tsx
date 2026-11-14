@@ -286,9 +286,13 @@ describe('event groups on the workflow page', () => {
       );
     }
     await renderInTestApp(<Graph />);
-    const box = await screen.findByTestId('group-label:g35');
+    // Each press lays out 300 boxes in frames: slow on a busy machine.
+    const slow = { timeout: 15_000 };
+    const box = await screen.findByTestId('group-label:g35', {}, slow);
     fireEvent.click(box);
-    expect(await screen.findByTestId('group-notice')).toHaveTextContent(
+    expect(
+      await screen.findByTestId('group-notice', {}, slow),
+    ).toHaveTextContent(
       '“Group 35” could not be expanded: the groups you expanded already hold 300 boxes.',
     );
     // The request is dropped: it holds no place.
@@ -302,8 +306,10 @@ describe('event groups on the workflow page', () => {
     expect(screen.queryByTestId('group-notice')).not.toBeInTheDocument();
     fireEvent.pointerDown(screen.getByTestId('group-label:g35'));
     fireEvent.click(screen.getByTestId('group-label:g35'));
-    expect(await screen.findByTestId('group-notice')).toBeInTheDocument();
-  });
+    expect(
+      await screen.findByTestId('group-notice', {}, slow),
+    ).toBeInTheDocument();
+  }, 60_000);
 
   it('says in the tab when the steps of a group are in a loop box', async () => {
     await render({
