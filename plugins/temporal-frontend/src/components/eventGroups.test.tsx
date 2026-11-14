@@ -119,6 +119,11 @@ describe('event groups on the workflow page', () => {
       expect(round).toHaveTextContent(`draft-review · round ${n}`);
       expect(round).toHaveTextContent(/Completed · \ds · 3 steps/);
     }
+    // A collapsed box is a stop of the Tab key itself, so the view can follow
+    // it to a box that is out of sight.
+    expect(
+      screen.getByTestId(`group-${roundKey(1)}`).closest('.react-flow__node'),
+    ).toHaveAttribute('tabindex', '0');
     expect(screen.queryByTestId('step-activity-5')).not.toBeInTheDocument();
     // A group of one step, and the group of the signal handler with a
     // button to the signal.
@@ -152,7 +157,8 @@ describe('event groups on the workflow page', () => {
       `group:${roundKey(2)}`,
     );
     expect(frame).toHaveAttribute('data-focused', 'false');
-    // Frames are not stops of the Tab key; their buttons are.
+    // A frame is not a stop of the Tab key; its buttons are. Panning to it
+    // would centre on the whole frame, not on its title bar.
     expect(frame.closest('.react-flow__node')).not.toHaveAttribute('tabindex');
 
     // Collapsing the loop hides every round in it.

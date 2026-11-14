@@ -310,7 +310,9 @@ function StepCanvas(
         under.push({
           ...flowNodeBase(layout, frame.id),
           type: 'groupFrame',
-          // Not a stop of the Tab key: its button is, where it has one.
+          // Not a stop of the Tab key: its buttons are. Panning to a frame
+          // centres on the whole frame, which can leave its title bar out of
+          // view.
           focusable: false,
           data: {
             box,
@@ -329,8 +331,6 @@ function StepCanvas(
         over.push({
           ...flowNodeBase(layout, box.id),
           type: 'eventGroup',
-          // Not a stop of the Tab key: its button is, where it has one.
-          focusable: false,
           data: {
             box,
             focused: box.id === markId,
@@ -350,8 +350,6 @@ function StepCanvas(
         over.push({
           ...common,
           type: 'loop',
-          // Not a stop of the Tab key: its button is, where it has one.
-          focusable: false,
           data: {
             box,
             active: running && box.loop.status === 'running',
@@ -365,7 +363,7 @@ function StepCanvas(
           under.push({
             ...flowNodeBase(layout, noteBeforeId(box.id)),
             type: 'loopNote',
-            // Not a stop of the Tab key: its button is, where it has one.
+            // Nothing in it to operate: not a stop of the Tab key.
             focusable: false,
             data: {
               text: notes.before,
@@ -377,7 +375,7 @@ function StepCanvas(
           under.push({
             ...flowNodeBase(layout, noteAfterId(box.id)),
             type: 'loopNote',
-            // Not a stop of the Tab key: its button is, where it has one.
+            // Nothing in it to operate: not a stop of the Tab key.
             focusable: false,
             data: {
               text: notes.after,
@@ -390,7 +388,7 @@ function StepCanvas(
           under.push({
             ...flowNodeBase(layout, frame.id),
             type: 'round',
-            // Not a stop of the Tab key: its button is, where it has one.
+            // Nothing in it to operate: not a stop of the Tab key.
             focusable: false,
             data: {
               loop: box.loop,
@@ -443,7 +441,7 @@ function StepCanvas(
         // Presses go through the label to the step under it.
         style: { pointerEvents: 'none' },
         type: 'groupTag',
-        // Not a stop of the Tab key: its button is, where it has one.
+        // Nothing in it to operate: not a stop of the Tab key.
         focusable: false,
         data: { groups: tagged },
       });
