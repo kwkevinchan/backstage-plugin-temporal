@@ -487,7 +487,7 @@ describe('event groups on the workflow page', () => {
     );
   });
 
-  it('takes the colors in turn, the seventh group the first one again', async () => {
+  it('takes the colors in turn, the fifth group the first one again', async () => {
     const t = (n: number) =>
       new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString();
     const ids = ['start', ...Array.from({ length: 7 }, (_, i) => `a${i}`)];
@@ -528,7 +528,7 @@ describe('event groups on the workflow page', () => {
       Array.from({ length: 7 }, (_, i) =>
         screen.getByTestId(`group-frame-label:g${i}`).getAttribute('data-hue'),
       ),
-    ).toEqual(['1', '2', '3', '4', '5', '6', '1']);
+    ).toEqual(['1', '2', '3', '4', '1', '2', '3']);
   });
 
   it('shows the color of each group in the tab and the timeline', async () => {

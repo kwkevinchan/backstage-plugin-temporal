@@ -642,10 +642,10 @@ describe('groupHues', () => {
   });
 
   it('starts again with the first hue after the last one', () => {
-    const groups = Array.from({ length: 8 }, (_, i) =>
+    const groups = Array.from({ length: 6 }, (_, i) =>
       group(`g${i}`, [`a${i + 1}`]),
     );
-    expect([...groupHues(groups).values()]).toEqual([1, 2, 3, 4, 5, 6, 1, 2]);
+    expect([...groupHues(groups).values()]).toEqual([1, 2, 3, 4, 1, 2]);
     expect(groupHues(undefined).size).toBe(0);
   });
 });

@@ -55,9 +55,9 @@ export const COLLAPSED_DEPTH = 3;
  * The color of a group: one of `GROUP_HUES` hues, or the color of
  * messages for the groups of signals and updates.
  */
-export type GroupHue = 1 | 2 | 3 | 4 | 5 | 6 | 'message';
+export type GroupHue = 1 | 2 | 3 | 4 | 'message';
 /** How many hues the groups take turns with. */
-export const GROUP_HUES = 6;
+export const GROUP_HUES = 4;
 
 /**
  * The color of each group, by key, only to tell the groups apart: the

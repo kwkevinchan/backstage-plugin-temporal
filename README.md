@@ -650,7 +650,7 @@ On the workflow page:
   Arrows into and out of a box turn outside it and cross its border
   straight.
 - **Colors.** A faint color only tells the groups apart: the outermost
-  groups take six colors in turn, in the order they started, and the
+  groups take four colors in turn, in the order they started, and the
   groups inside a group have its color (a little darker for each box
   inside). Signal and update groups have the color of messages. A
   collapsed box, a label, and the rows of the timeline and the Event
