@@ -88,9 +88,41 @@ that call the Temporal backend from their own components, use these exports.
   `scheduleActions` of `EntityTemporalContent` and `TemporalPage`).
 - `useTemporalWorkflow()`: the workflow shown on the current page, as
   `TemporalWorkflowExtensionProps` (the props of the action components). It
-  works only below the workflow details page; a component that is tested or
-  rendered on its own gets the values it needs as props (action and section
-  components receive `TemporalWorkflowExtensionProps` anyway).
+  works only below the workflow details page. To test a component that calls
+  it, wrap the component in `TemporalWorkflowProvider` (`value` is the
+  `TemporalWorkflowExtensionProps`):
+
+  ```tsx
+  import { render, screen } from '@testing-library/react';
+  import { TemporalWorkflowProvider } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+  import { OwnerSection } from './OwnerSection';
+
+  it('shows the workflow id', () => {
+    render(
+      <TemporalWorkflowProvider
+        value={{
+          workflow: {
+            namespace: 'default',
+            workflowId: 'order-1',
+            runId: 'run-1',
+            workflowType: 'Order',
+            status: 'Running',
+            pendingActivities: [],
+          },
+          reload: () => {},
+          workflowHref: ref => `/temporal/${ref.workflowId}`,
+        }}
+      >
+        <OwnerSection />
+      </TemporalWorkflowProvider>,
+    );
+    expect(screen.getByText('order-1')).toBeInTheDocument();
+  });
+  ```
+
+  A component can also take `TemporalWorkflowExtensionProps` as props, as
+  action and section components do, and be rendered without a provider.
+
 - `./alpha`: `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
   and `TemporalWorkflowSectionBlueprint` for the new frontend system, and

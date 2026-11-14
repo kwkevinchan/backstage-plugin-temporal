@@ -26,13 +26,23 @@ const TemporalWorkflowContext = createVersionedContext<{
 }>('temporal-workflow-context');
 
 /**
- * Provides the current workflow to extensions. Rendered by the workflow
- * details page.
+ * Props of {@link TemporalWorkflowProvider}.
+ *
+ * @public
  */
-export function TemporalWorkflowProvider(props: {
+export interface TemporalWorkflowProviderProps {
   value: TemporalWorkflowExtensionProps;
   children?: ReactNode;
-}) {
+}
+
+/**
+ * Provides the current workflow to {@link useTemporalWorkflow}. The workflow
+ * details page renders it; use it to render a component that calls the hook
+ * in a test.
+ *
+ * @public
+ */
+export function TemporalWorkflowProvider(props: TemporalWorkflowProviderProps) {
   return (
     <TemporalWorkflowContext.Provider
       value={createVersionedValueMap({ 1: props.value })}

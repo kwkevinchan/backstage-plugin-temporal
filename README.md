@@ -1175,7 +1175,8 @@ the shared mount point `api:temporal/workflow-extensions`, so they show on
 the pages of the entity tab and of the Workflows page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
 `scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
-`useTemporalWorkflow()`.
+`useTemporalWorkflow()`. To test a component that
+calls the hook, wrap it in `TemporalWorkflowProvider`.
 
 To change one of the plugin's own extensions, such as the Workflows page,
 take it from the plugin with `getExtension()` and install the plugin with

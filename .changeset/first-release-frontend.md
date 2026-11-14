@@ -41,7 +41,8 @@ that the backend does not serve the Temporal plugin and name that package.
   browser tab is in front, and the Refresh buttons send one request at a
   time.
 - Extension points for other plugins and app modules: `temporalApiRef`,
-  `useTemporalWorkflow`, `TemporalWorkflowActionBlueprint`,
+  `useTemporalWorkflow` (with `TemporalWorkflowProvider` to test a component
+  that calls it), `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
   and `TemporalWorkflowSectionBlueprint` (`./alpha`, next to the plugin
   as its default export; a section needs a `title` for its tab), and the
