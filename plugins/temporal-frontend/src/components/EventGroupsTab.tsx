@@ -17,7 +17,6 @@
 import { useMemo } from 'react';
 import type { WorkflowGraphResponse } from '../common';
 import {
-  Alert,
   Cell,
   Column,
   Flex,
@@ -30,6 +29,7 @@ import {
 import { RiLockLine } from '@remixicon/react';
 import { formatTime } from './format';
 import { groupTree } from './graph/eventGroups';
+import type { GroupDisplay } from './graph/WorkflowGraph';
 import {
   groupDuration,
   groupKindLabel,
@@ -47,9 +47,11 @@ import { tp } from './styles';
  */
 export function EventGroupsTab(props: {
   graph: WorkflowGraphResponse;
+  /** How the graph draws each group; left out before it is drawn. */
+  display?: GroupDisplay;
   onShowGroup(key: string): void;
 }) {
-  const { graph, onShowGroup } = props;
+  const { graph, display, onShowGroup } = props;
   const rows = useMemo(
     () => groupTree(graph.eventGroups ?? []),
     [graph.eventGroups],
@@ -57,13 +59,6 @@ export function EventGroupsTab(props: {
   const withTokens = rows.some(r => r.group.usage);
   return (
     <Flex direction="column" gap="3" data-testid="workflow-event-groups">
-      {graph.eventGroupsTruncated && (
-        <Alert
-          status="info"
-          icon
-          title="The run has more event groups than the backend reads; some groups are left out."
-        />
-      )}
       <Text variant="body-small" color="secondary">
         Groups the workflow put its steps in (Temporal Event Groups). Which
         group is inside which is read from their steps.
@@ -103,6 +98,16 @@ export function EventGroupsTab(props: {
                       title={UNREADABLE_LABEL_TEXT}
                     >
                       <RiLockLine size={12} aria-hidden />
+                    </span>
+                  )}
+                  {display && display[group.key] !== 'box' && (
+                    <span
+                      className={tp('tp-group-row-note')}
+                      data-testid={`group-row-note-${group.key}`}
+                    >
+                      {display[group.key] === 'label'
+                        ? 'Labels on its steps in the graph'
+                        : 'Not in the graph'}
                     </span>
                   )}
                 </span>

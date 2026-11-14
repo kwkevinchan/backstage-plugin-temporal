@@ -32,6 +32,7 @@ import type { WorkflowGraphResponse } from '../common';
 import { temporalApiRef } from '../extensions';
 import temporalPlugin from '../alpha';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
+import { groupNotice } from './graph/WorkflowGraph';
 import { entity, failedWorkflow, mockTemporalApi } from '../testData';
 import { agentGraph } from '../testGraphs/agentGraph';
 import { codecLoopGraph } from '../testGraphs/codecLoopGraph';
@@ -119,7 +120,11 @@ describe('event groups on the workflow page', () => {
     expect(signal).toHaveAttribute('data-kind', 'event');
     expect(signal).toHaveTextContent('hint (29)');
     // Inside the graph, clicks are plain events, as in the loop tests.
-    fireEvent.click(within(signal).getByRole('button', { name: 'Signal' }));
+    fireEvent.click(
+      within(signal).getByRole('button', {
+        name: 'Show the signal that started this group',
+      }),
+    );
     expect(await screen.findByTestId('step-drawer')).toHaveTextContent('hint');
   });
 
@@ -133,7 +138,8 @@ describe('event groups on the workflow page', () => {
     // The step of the signal ran between the steps of the round: it stays
     // out of the round's frame, in its own group.
     expect(screen.getByTestId('step-activity-33')).toBeInTheDocument();
-    await waitFor(() => expect(frame).toHaveAttribute('data-focused', 'true'));
+    // Only a group picked in the tab is marked.
+    expect(frame).toHaveAttribute('data-focused', 'false');
 
     // Collapsing the loop hides every round in it.
     const collapse = within(
@@ -175,6 +181,10 @@ describe('event groups on the workflow page', () => {
         .getAllByRole('button')
         .filter(b => /^Model call/.test(b.getAttribute('aria-label') ?? '')),
     ).toHaveLength(3);
+    // A model call without a name has the model as its title, once.
+    expect(
+      screen.getByTestId('step-activity-11').textContent?.match(/fake-model/g),
+    ).toHaveLength(1);
   });
 
   it('labels the steps of groups that share steps with another frame', async () => {
@@ -191,6 +201,39 @@ describe('event groups on the workflow page', () => {
     expect(
       screen.getByTestId('group-tag-activity-52#groups'),
     ).toHaveTextContent('Tag X');
+    // The tab says how the graph shows each group.
+    await userEvent.click(screen.getByRole('tab', { name: 'Event Groups' }));
+    expect(
+      await screen.findByTestId('group-row-note-label:tag:x'),
+    ).toHaveTextContent('Labels on its steps in the graph');
+    expect(
+      screen.queryByTestId('group-row-note-label:par:a'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says why groups are not drawn as asked', () => {
+    const base = {
+      layout: { positions: new Map(), width: 0, height: 0, wrapped: false },
+      plan: { boxes: new Map(), boxOf: new Map(), tags: new Map() },
+      graph: { nodes: [], edges: [], frames: [], collapsed: [] },
+      refused: [],
+    };
+    expect(groupNotice(undefined)).toBeUndefined();
+    expect(groupNotice(base)).toBeUndefined();
+    expect(groupNotice({ ...base, notice: 'failed' })).toMatch(
+      /^The frames of the event groups could not be laid out; .* The Timeline and the Event Groups tab show every group\.$/,
+    );
+    expect(groupNotice({ ...base, notice: 'tooLarge' })).toMatch(
+      /^The run is too long to draw frames/,
+    );
+    const refused = ['a', 'b', 'c'].map(id => ({
+      ...loopGraph.eventGroups![0],
+      key: `label:${id}`,
+      name: id.toUpperCase(),
+    }));
+    expect(groupNotice({ ...base, refused })).toBe(
+      '“A”, “B” and 1 more could not be expanded: the open groups already hold 300 boxes. Collapse another group, or see the steps in the Timeline or the Event Groups tab.',
+    );
   });
 
   it('shows the ID of a group whose label is encoded, with a note', async () => {
@@ -217,7 +260,7 @@ describe('event groups on the workflow page', () => {
     await render({ ...loopGraph, eventGroupsTruncated: true });
     expect(
       await screen.findByText(
-        'The run has more event groups than the graph reads; some groups are left out.',
+        'The run has more event groups than the backend reads; some groups are left out.',
       ),
     ).toBeInTheDocument();
   });
@@ -267,6 +310,9 @@ describe('event groups on the workflow page', () => {
     const frame = await screen.findByTestId(`group-frame-${roundKey(2)}`);
     await waitFor(() => expect(frame).toHaveAttribute('data-focused', 'true'));
     expect(screen.getByTestId('step-activity-22')).toBeInTheDocument();
+    // Pressing the graph clears the mark.
+    fireEvent.pointerDown(screen.getByTestId('workflow-graph'));
+    await waitFor(() => expect(frame).toHaveAttribute('data-focused', 'false'));
   });
 
   it('opens the groups of a step picked in the Steps tab', async () => {

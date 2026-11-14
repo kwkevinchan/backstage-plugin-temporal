@@ -32,6 +32,7 @@ import {
   RiForbidLine,
   RiSparkling2Line,
   RiToolsLine,
+  RiLinkM,
 } from '@remixicon/react';
 import {
   formatCallDuration,
@@ -126,7 +127,6 @@ function toolSubtitle(step: WorkflowGraphNode): string {
     statusLabel(step.status),
     step.kind === 'marker' ? 'Local activity' : '',
     step.kind !== 'marker' && ms !== undefined ? formatCallDuration(ms) : '',
-    step.tool?.inferred ? INFERRED_LINK_TEXT : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -137,6 +137,9 @@ function LlmLines(props: { step: WorkflowGraphNode; badge?: string }) {
   const { step, badge } = props;
   const llm = step.llm!;
   const status = step.status === 'Completed' ? '' : statusLabel(step.status);
+  // Without a call name the title is the model already.
+  const title = llmBoxTitle(step);
+  const model = modelText(llm);
   return (
     <>
       <span className={tp('tp-node-title')}>
@@ -145,11 +148,11 @@ function LlmLines(props: { step: WorkflowGraphNode; badge?: string }) {
           className={tp('tp-node-icon', 'tp-llm-icon')}
           aria-hidden
         />
-        <span>{llmBoxTitle(step)}</span>
+        <span>{title}</span>
         {badge && <span className={tp('tp-badge')}>{badge}</span>}
       </span>
       <span className={tp('tp-node-sub', 'tp-llm-model')}>
-        {[modelText(llm), status].filter(Boolean).join(' · ')}
+        {[model === title ? '' : model, status].filter(Boolean).join(' · ')}
       </span>
       <span className={tp('tp-node-sub')} data-testid="llm-stats">
         {llmStatsText(llm) || (llm.reasoning ? 'Reasoning' : '')}
@@ -213,7 +216,20 @@ export const StepNode = memo(function StepNodeView(
                 <span>{toolName(step)}</span>
                 {badge && <span className={tp('tp-badge')}>{badge}</span>}
               </span>
-              <span className={tp('tp-node-sub')}>{toolSubtitle(step)}</span>
+              <span className={tp('tp-node-sub', 'tp-tool-sub')}>
+                <span>{toolSubtitle(step)}</span>
+                {step.tool?.inferred && (
+                  <span
+                    className={tp('tp-inferred')}
+                    title={`${INFERRED_LINK_TEXT}: linked to its model call by its name and order`}
+                  >
+                    <RiLinkM size={12} aria-hidden />
+                    <span className={tp('tp-visually-hidden')}>
+                      {INFERRED_LINK_TEXT}
+                    </span>
+                  </span>
+                )}
+              </span>
             </>
           )}
         </button>

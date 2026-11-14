@@ -20,6 +20,7 @@ import {
   RiArrowDownSLine,
   RiArrowRightSLine,
   RiEditBoxLine,
+  RiFocus3Line,
   RiLockLine,
   RiMailLine,
   RiPriceTag3Line,
@@ -127,6 +128,9 @@ export const GroupFrameNode = memo(function GroupFrameView(
   const tone =
     group.status === 'Completed' ? 'neutral' : statusTone(group.status);
   const facts = groupFacts(box, false);
+  const sourceText = `Show the ${
+    group.kind === 'update' ? 'update' : 'signal'
+  } that started this group`;
   return (
     <div
       className={tp('tp-group-frame', `tp-tone-${tone}`)}
@@ -155,23 +159,29 @@ export const GroupFrameNode = memo(function GroupFrameView(
             <span className={tp('tp-badge', 'tp-group-count')}>{count}</span>
           )}
         </button>
+        {/* The status stays; the other facts go first in a narrow frame. */}
         <span
           className={tp('tp-group-facts')}
           data-testid="group-facts"
           title={facts.join(' · ')}
         >
-          {facts.join(' · ')}
+          <span className={tp('tp-group-status')}>{facts[0]}</span>
+          {facts.length > 1 && (
+            <span className={tp('tp-group-extra')}>
+              {/* A space at the start of a flex item is dropped. */}
+              {`\u00a0· ${facts.slice(1).join(' · ')}`}
+            </span>
+          )}
         </span>
         {group.sourceNodeId && onSelectSource && (
           <button
             type="button"
             className={tp('tp-group-source')}
             onClick={() => onSelectSource(group.sourceNodeId!)}
-            title={`Show the ${
-              group.kind === 'update' ? 'update' : 'signal'
-            } that started this group`}
+            aria-label={sourceText}
+            title={sourceText}
           >
-            {group.kind === 'update' ? 'Update' : 'Signal'}
+            <RiFocus3Line size={14} aria-hidden />
           </button>
         )}
       </div>

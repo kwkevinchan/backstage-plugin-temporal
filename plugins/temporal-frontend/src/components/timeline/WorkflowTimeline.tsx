@@ -641,7 +641,10 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
     i.type === 'group' ? [i.group] : [],
   );
   const setAll = (value: boolean) =>
-    setExpanded(Object.fromEntries(groups.map(g => [g.key, value])));
+    setExpanded(e => ({
+      ...e,
+      ...Object.fromEntries(groups.map(g => [g.key, value])),
+    }));
   // Event groups, at any depth.
   const eventGroups: TimelineEventGroup[] = [];
   const collect = (items: TimelineItem[]) => {

@@ -735,6 +735,7 @@
  * failed, like a round frame.
  */
 .tp-group-frame {
+  container-type: inline-size;
   box-sizing: border-box;
   width: 100%;
   height: 100%;
@@ -818,26 +819,38 @@
   --tp-fg: var(--bui-fg-secondary);
 }
 .tp-group-facts {
-  flex: 1 1 0;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--tp-fg);
+}
+.tp-group-status {
+  flex: none;
+}
+.tp-group-extra {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--tp-fg);
+}
+/* A narrow frame (one step) keeps the name and the status in its title. */
+@container (max-width: 360px) {
+  .tp-group-extra {
+    display: none;
+  }
 }
 .tp-group-frame.tp-tone-neutral .tp-group-facts {
   color: var(--bui-fg-secondary);
 }
 .tp-group-source {
+  display: inline-flex;
   flex: none;
-  padding: 0 6px;
-  border: 1px solid var(--bui-border-2);
-  border-radius: 999px;
+  margin-left: auto;
+  padding: 2px;
+  border: none;
+  border-radius: var(--bui-radius-2, 4px);
   background: none;
   color: var(--bui-fg-secondary);
-  font: inherit;
-  font-size: 12px;
-  line-height: 18px;
   cursor: pointer;
 }
 .tp-group-source:hover {
@@ -874,6 +887,8 @@
   pointer-events: none;
 }
 .tp-group-tag {
+  /* The label sits on the top edge of the step: presses go to the step. */
+  pointer-events: none;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -886,12 +901,41 @@
   font-family: var(--bui-font-regular);
   font-size: 12px;
   line-height: 14px;
-  pointer-events: auto;
 }
 .tp-group-tag > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.tp-tool-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tp-tool-sub > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-inferred {
+  display: inline-flex;
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.tp-group-notice {
+  margin: 0 0 var(--bui-space-2, 8px);
+}
+.tp-group-row-note {
+  color: var(--bui-fg-secondary);
+  font-size: var(--bui-font-size-1, 12px);
 }
 .tp-group-row-name {
   display: inline-flex;

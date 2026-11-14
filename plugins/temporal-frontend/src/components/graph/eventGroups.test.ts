@@ -23,6 +23,8 @@ import {
   boxSize,
   layoutGraph,
   layoutSteps,
+  StepLayout,
+  wrapColumns,
   stepSize,
   visibleSteps,
 } from './layout';
@@ -35,6 +37,7 @@ import {
 } from './eventGroups';
 import { agentGraph } from '../../testGraphs/agentGraph';
 import { ambiguousGraph } from '../../testGraphs/ambiguousGraph';
+import { layoutBaseline } from './layoutBaseline';
 import { loopGraph } from '../../testGraphs/loopGraph';
 import { parallelGraph } from '../../testGraphs/parallelGraph';
 
@@ -435,21 +438,152 @@ describe('layoutGroupedSteps', () => {
     const started = Date.now();
     const result = laidOut({ nodes, edges, eventGroups: groups }, {}, 1400);
     // The first groups open until the frames hold 200 boxes; the others
-    // start collapsed.
+    // start collapsed, and can be opened.
     expect(result.graph.frames).toHaveLength(20);
     expect(result.graph.collapsed).toHaveLength(80);
+    expect(result.notice).toBeUndefined();
     expect(Date.now() - started).toBeLessThan(5000);
     expectCleanFrames(result);
 
-    // Every group opened by hand: the frames hold 300 boxes at most, the
-    // other groups stay collapsed.
-    const all = laidOut(
+    // A group the user opens comes before those that open by default.
+    const late = laidOut(
+      { nodes, edges, eventGroups: groups },
+      { 'label:g90': true },
+      1400,
+    );
+    expect(late.graph.frames.map(f => f.id)).toContain('group:label:g90');
+    expect(late.graph.frames).toHaveLength(20);
+    expect(late.refused).toEqual([]);
+  });
+
+  it('says which groups the user opened could not be opened', () => {
+    const { nodes, edges } = chain(400);
+    const groups = Array.from({ length: 40 }, (_, i) =>
+      group(
+        `g${i}`,
+        Array.from({ length: 10 }, (__, j) => `a${i * 10 + j + 1}`),
+      ),
+    );
+    const result = laidOut(
       { nodes, edges, eventGroups: groups },
       Object.fromEntries(groups.map(g => [g.key, true])),
       1400,
     );
-    expect(all.graph.frames).toHaveLength(30);
-    expect(all.graph.collapsed).toHaveLength(70);
+    // 300 boxes at most: 30 groups open, 10 stay collapsed.
+    expect(result.refused.map(g => g.id)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `g${30 + i}`),
+    );
+    expect(result.graph.collapsed.map(b => b.group.id)).toEqual(
+      result.refused.map(g => g.id),
+    );
+  });
+
+  it('shows a group around a whole batch as labels, with its steps', () => {
+    const { nodes, edges } = chain(400);
+    const batch = group(
+      'batch',
+      Array.from({ length: 400 }, (_, i) => `a${i + 1}`),
+    );
+    const result = laidOut({ nodes, edges, eventGroups: [batch] }, {}, 1400);
+    expect(result.plan.boxes.size).toBe(0);
+    expect(result.layout.positions.has('a1')).toBe(true);
+    expect(result.plan.tags.get('a1')!.map(g => g.id)).toEqual(['batch']);
+  });
+
+  it('shows the groups of a graph too long for frames as labels', () => {
+    const { nodes, edges } = chain(600);
+    const result = laidOut({
+      nodes,
+      edges,
+      eventGroups: [group('small', ['a3', 'a4'])],
+    });
+    expect(result.notice).toBe('tooLarge');
+    expect(result.graph.frames).toEqual([]);
+    expect(result.plan.tags.get('a3')!.map(g => g.id)).toEqual(['small']);
+  });
+
+  it('shows every group as labels when the layout fails', () => {
+    const { nodes, edges } = chain(6);
+    const visible = visibleSteps(nodes, edges);
+    for (const error of [new Error('boom'), new TypeError('too deep')]) {
+      const result = layoutGroupedSteps(
+        visible.nodes,
+        visible.edges,
+        nest([group('outer', ['a1', 'a2', 'a3']), group('inner', ['a2'])], {
+          inner: 'outer',
+        }),
+        {},
+        900,
+        () => {
+          throw error;
+        },
+      );
+      expect(result.notice).toBe('failed');
+      expect(result.graph.frames).toEqual([]);
+      expect(result.plan.boxes.size).toBe(0);
+      expect(result.plan.tags.get('a2')!.map(g => g.id)).toEqual([
+        'outer',
+        'inner',
+      ]);
+      expect(result.layout).toEqual(
+        layoutSteps(visible.nodes, visible.edges, 900),
+      );
+    }
+  });
+
+  it('draws no frame over another box, even when laying out again fails', () => {
+    const { nodes, edges } = chain(4);
+    const visible = visibleSteps(nodes, edges);
+    // A layout that puts a step into every frame.
+    const covering: typeof layoutGraph = (n, e, w, options) => {
+      const layout = layoutGraph(n, e, w, options);
+      const frame = options?.frames?.[0];
+      if (frame) {
+        layout.positions.set('start', { ...layout.positions.get(frame.id)! });
+      }
+      return layout;
+    };
+    const result = layoutGroupedSteps(
+      visible.nodes,
+      visible.edges,
+      [group('a', ['a1', 'a2']), group('b', ['a3'])],
+      {},
+      undefined,
+      covering,
+    );
+    expect(result.graph.frames).toEqual([]);
+    expect(result.plan.tags.get('a1')!.map(g => g.id)).toEqual(['a']);
+    expect(result.plan.tags.get('a3')!.map(g => g.id)).toEqual(['b']);
+  });
+
+  it('keeps wrapped outer frames apart from the next column', () => {
+    // Two outermost frames whose widths overlap, the later one starting
+    // further left: one piece when the graph wraps. Then a column, and a
+    // last one that wraps into the next row.
+    const layout: StepLayout = {
+      positions: new Map([
+        ['A', { x: 400, y: 16 }],
+        ['B', { x: 16, y: 200 }],
+        ['c', { x: 1500, y: 16 }],
+        ['d', { x: 1800, y: 16 }],
+      ]),
+      sizes: new Map([
+        ['A', { width: 1000, height: 120 }],
+        ['B', { width: 600, height: 120 }],
+        ['c', { width: 220, height: 64 }],
+        ['d', { width: 220, height: 64 }],
+      ]),
+      width: 2036,
+      height: 336,
+      wrapped: false,
+    };
+    const wrapped = wrapColumns(layout, 1800, ['A', 'B']);
+    expect(wrapped.wrapped).toBe(true);
+    const left = (id: string) => wrapped.positions.get(id)!.x;
+    const right = (id: string) => left(id) + boxSize(wrapped, id).width;
+    // The piece is as wide as both frames together.
+    expect(right('A') - left('B')).toBe(1384);
+    expect(left('c')).toBeGreaterThanOrEqual(right('A'));
   });
 });
 
@@ -481,10 +615,37 @@ describe('planGroups', () => {
 });
 
 describe('layoutGraph', () => {
-  it('lays out a graph without frames like layoutSteps', () => {
-    const { nodes, edges } = chain(30);
-    expect(layoutGraph(nodes, edges, 900, { frames: [] })).toEqual(
-      layoutSteps(nodes, edges, 900),
-    );
+  it('lays out graphs without frames as before the frames', () => {
+    for (const c of layoutBaseline) {
+      const options = c.direction ? { direction: 'TB' as const } : {};
+      const width = c.width ?? undefined;
+      for (const layout of [
+        layoutSteps(c.nodes, c.edges, width, options),
+        layoutGraph(c.nodes, c.edges, width, { ...options, frames: [] }),
+      ]) {
+        expect({
+          name: c.name,
+          width: c.width,
+          positions: [...layout.positions],
+          sizes: layout.sizes
+            ? [...layout.sizes].map(([id, s]) => [
+                id,
+                { width: s.width, height: s.height },
+              ])
+            : null,
+          size: [layout.width, layout.height],
+          wrapped: layout.wrapped,
+          rowGaps: layout.rowGaps ?? null,
+        }).toEqual({
+          name: c.name,
+          width: c.width,
+          positions: c.layout.positions,
+          sizes: c.layout.sizes,
+          size: [c.layout.width, c.layout.height],
+          wrapped: c.layout.wrapped,
+          rowGaps: c.layout.rowGaps,
+        });
+      }
+    }
   });
 });

@@ -414,7 +414,7 @@ export function boxSize(layout: StepLayout, id: string): NodeSize {
  * the left. Each of `outerFrames` stays in one row, with the boxes in its
  * width.
  */
-function wrapColumns(
+export function wrapColumns(
   layout: StepLayout,
   width: number,
   outerFrames: string[] = [],
@@ -447,6 +447,7 @@ function wrapColumns(
   // A frame piece is keyed by `-1 - index`, a column by its center.
   const pieceWidth = new Map<number, number>();
   const pieceLeft = new Map<number, number>();
+  const pieceRight = new Map<number, number>();
   const pieceOf = (id: string, p: { x: number }) => {
     const x = center(id, p);
     const span = spanOf(x);
@@ -459,11 +460,11 @@ function wrapColumns(
       pieceWidth.set(key, Math.max(pieceWidth.get(key) ?? stepColumn, w));
     } else {
       pieceLeft.set(key, Math.min(pieceLeft.get(key) ?? p.x, p.x));
-      pieceWidth.set(
-        key,
-        Math.max(pieceWidth.get(key) ?? 0, p.x + w - pieceLeft.get(key)!),
-      );
+      pieceRight.set(key, Math.max(pieceRight.get(key) ?? p.x + w, p.x + w));
     }
+  }
+  for (const [key, right] of pieceRight) {
+    pieceWidth.set(key, right - pieceLeft.get(key)!);
   }
   const centerOf = (key: number) =>
     key >= 0 ? key : pieceLeft.get(key)! + pieceWidth.get(key)! / 2;

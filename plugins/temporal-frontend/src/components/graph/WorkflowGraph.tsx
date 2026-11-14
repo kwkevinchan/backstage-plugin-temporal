@@ -28,11 +28,38 @@ import {
   visibleSteps,
 } from './layout';
 import {
+  FRAME_LIMIT,
   GroupedLayout,
   groupNodeId,
   GroupViews,
   layoutGroupedSteps,
 } from './eventGroups';
+
+/** How each event group is drawn, by key: as a box or as labels. */
+export type GroupDisplay = Record<string, 'box' | 'label'>;
+
+/** The line above the graph when groups are not drawn as asked. */
+export function groupNotice(
+  groups: GroupedLayout | undefined,
+): string | undefined {
+  if (!groups) return undefined;
+  const elsewhere = 'The Timeline and the Event Groups tab show every group.';
+  if (groups.notice === 'failed') {
+    return `The frames of the event groups could not be laid out; the groups are shown as labels on their steps. ${elsewhere}`;
+  }
+  if (groups.notice === 'tooLarge') {
+    return `The run is too long to draw frames around its event groups; expanded groups are shown as labels on their steps. ${elsewhere}`;
+  }
+  if (groups.refused.length > 0) {
+    const names = groups.refused.map(g => `“${g.name}”`);
+    const shown =
+      names.length > 2
+        ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
+        : names.join(' and ');
+    return `${shown} could not be expanded: the open groups already hold ${FRAME_LIMIT} boxes. Collapse another group, or see the steps in the Timeline or the Event Groups tab.`;
+  }
+  return undefined;
+}
 import {
   GROUP_TAG_HEIGHT,
   GroupFlowNode,
@@ -121,6 +148,11 @@ export interface WorkflowGraphProps {
    * tab); a new object moves the view again.
    */
   focusGroup?: { key: string };
+  /**
+   * How each event group is drawn: a box (`box`) or labels on its steps
+   * (`label`); a group left out is not in the graph.
+   */
+  onGroupDisplay?(display: GroupDisplay): void;
   /**
    * True while the step panel is open next to the graph. When it opens or
    * closes, the graph is laid out for the new width at once, before the
@@ -402,6 +434,8 @@ function StepCanvas(
           y: base.position.y - GROUP_TAG_HEIGHT / 2,
         },
         height: GROUP_TAG_HEIGHT,
+        // Presses go through the label to the step under it.
+        style: { pointerEvents: 'none' },
         type: 'groupTag',
         data: { groups: tagged },
       });
@@ -633,8 +667,8 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     loopViews,
     groupViews,
   );
-  // The group opened or closed last, or picked in the Event Groups tab:
-  // it is brought into view.
+  // The group picked in the Event Groups tab: brought into view and
+  // marked until the user moves the view or presses the graph.
   const [focusGroup, setFocusGroup] = useState<string>();
   useEffect(() => {
     if (props.focusGroup) setFocusGroup(props.focusGroup.key);
@@ -645,7 +679,7 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
       const expanded = !plan?.boxes.get(groupNodeId(key))?.expanded;
       if (onGroupViewChange) onGroupViewChange(key, expanded);
       else setOwnGroupViews(views => ({ ...views, [key]: expanded }));
-      setFocusGroup(key);
+      setFocusGroup(undefined);
     },
     [plan, onGroupViewChange],
   );
@@ -679,6 +713,21 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     (focusBox
       ? focusFrame(focusBox, loopViews[focusBox.loop.name])?.id
       : undefined);
+  const { onGroupDisplay } = props;
+  const groupLayout = structure.groups;
+  useEffect(() => {
+    if (!onGroupDisplay || !groupLayout) return;
+    const display: GroupDisplay = {};
+    for (const box of groupLayout.plan.boxes.values()) {
+      display[box.group.key] = 'box';
+    }
+    for (const tagged of groupLayout.plan.tags.values()) {
+      for (const g of tagged) display[g.key] ??= 'label';
+    }
+    onGroupDisplay(display);
+  }, [groupLayout, onGroupDisplay]);
+  const notice = groupNotice(groupLayout);
+  const clearFocus = focusGroup ? () => setFocusGroup(undefined) : undefined;
   const hasMarkers = props.graph.nodes.some(isMarkerStep);
   const fullscreen = useGraphFullscreen();
   const minHeight = graphHeight(
@@ -695,8 +744,22 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           onShowMarkersChange={props.onShowMarkersChange}
           onLoopViewChange={changeLoopView}
         />
+        {notice && (
+          <Text
+            as="p"
+            variant="body-small"
+            color="secondary"
+            role="status"
+            className={tp('tp-group-notice')}
+            data-testid="group-notice"
+          >
+            {notice}
+          </Text>
+        )}
         <div
           ref={areaRef}
+          onPointerDown={clearFocus}
+          onWheel={clearFocus}
           className={tp('tp-graph')}
           // Full screen: the graph takes the height of the window instead.
           style={fullscreen?.fullscreen ? undefined : { minHeight }}

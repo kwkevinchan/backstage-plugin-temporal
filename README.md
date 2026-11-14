@@ -641,7 +641,8 @@ On the workflow page:
   group it is in, any number of groups deep. The title bar has the name,
   `×3` when three groups are directly inside, the status (in the colors of
   the steps), the duration (the time so far while it runs) and the tokens
-  of its model calls. A signal or update group has a dashed border, a mail
+  of its model calls; a narrow frame shows the name and the status, and the
+  rest in its tooltip. A signal or update group has a dashed border, a mail
   or edit icon and a button that selects the signal or update that started
   it. A lock next to the name says that the label could not be read.
   Internal steps are left out; a group without a step shown has no box.
@@ -651,9 +652,18 @@ On the workflow page:
   the outermost groups are expanded; of several groups in one group (the
   rounds of a loop) only the running one, else the last failed one, is
   expanded, the others are a row of collapsed boxes; groups four deep
-  start collapsed. In a large run the groups start collapsed once the open
-  boxes would hold about 200 steps, and do not open past about 300. A step picked in another tab or in the
-  step panel opens its groups.
+  start collapsed. A step picked in another tab or in the step panel opens
+  its groups.
+- **Large runs.** The open frames hold at most 200 boxes (steps and
+  collapsed groups directly in them) with the groups that open by default,
+  and 300 with the groups the user opened, which come first. A group past
+  that stays collapsed, and a line above the graph says why when the user
+  opened it; an outermost group that alone holds more than 300 boxes (a
+  whole batch in one group) is shown as labels on its steps instead. A run
+  too long to lay out with frames (dagre adds ranks for the borders of the
+  frames, about `boxes × (2 × depth + 1)` past 1000) shows the expanded
+  groups as labels and says so; if laying out the frames fails, every group
+  is shown as labels.
 - **Where a box cannot be drawn.** A step that ran between two steps of a
   group without being in it (for example the steps of a signal handler)
   is drawn outside the box, above or below it. Of two groups that share
@@ -666,10 +676,11 @@ On the workflow page:
   rounds of a loop (**Expand groups**, **Collapse groups**).
 - **Event Groups tab.** Shown when the run has groups: each group with its
   kind, status, steps, groups inside, start, duration and tokens, indented
-  under its parent, in the order the groups started. Pressing a group
-  expands it in the graph and brings it into view.
+  under its parent, in the order the groups started, with a note on groups
+  the graph shows as labels or not at all. Pressing a group expands it in
+  the graph and brings it into view.
 
-When the backend leaves groups out, the graph and the tab say so. A run
+When the backend leaves groups out, a line above the graph says so. A run
 without groups looks as before. The loop views of the workflow kit
 ([Loops](#loops)) stay as they are; when a run has both, a step in a loop
 is drawn in the loop, and the boxes of the groups hold the other steps.

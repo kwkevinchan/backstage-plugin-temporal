@@ -133,13 +133,16 @@ export function groupTree(
  * and its steps are in the boxes around it only: of two groups that share
  * steps without one being inside the other, the one that started first
  * gets the box and the other one is shown as labels. `noBox` names groups
- * that get no box (their box would cover other steps).
+ * that get no box (their box would cover other steps, or would hold too
+ * many). With `noFrames`, a group that would be expanded is shown as
+ * labels too: only collapsed boxes are drawn.
  */
 export function planGroups(
   stepIds: string[],
   groups: WorkflowEventGroup[] | undefined,
   views: GroupViews,
   noBox: ReadonlySet<string> = new Set(),
+  options: { noFrames?: boolean } = {},
 ): GroupPlan {
   const plan: GroupPlan = {
     boxes: new Map(),
@@ -165,11 +168,13 @@ export function planGroups(
     steps.sort((a, b) => order.get(a)! - order.get(b)!);
     const depth = outer ? outer.depth + 1 : 0;
     const fits = steps.every(id => plan.boxOf.get(id) === outer?.id);
+    const expanded = views[group.key] ?? defaultExpanded(group, depth, byKey);
     if (
       steps.length === 0 ||
       !fits ||
       depth >= MAX_GROUP_DEPTH ||
-      noBox.has(group.key)
+      noBox.has(group.key) ||
+      (options.noFrames && expanded)
     ) {
       if (steps.length > 0) tag(group, steps);
       around.set(group.key, outer);
@@ -181,7 +186,7 @@ export function planGroups(
       depth,
       parent: outer?.id,
       children: [],
-      expanded: views[group.key] ?? defaultExpanded(group, depth, byKey),
+      expanded,
       stepIds: steps,
     };
     plan.boxes.set(box.id, box);
@@ -189,44 +194,80 @@ export function planGroups(
     for (const id of steps) plan.boxOf.set(id, box.id);
     around.set(group.key, box);
   }
-  limitFrames(plan, views);
   return plan;
 }
 
 /**
  * Most boxes the expanded frames hold when they open by default. A
- * compound layout takes longer than a plain one; in a large run the groups
- * the user did not open start collapsed once the frames would hold more.
+ * compound layout takes longer than a plain one; in a large run the
+ * groups past it start collapsed.
  */
 export const FRAME_BUDGET = 200;
-/**
- * Most boxes the expanded frames hold even when the user opened them:
- * dagre recurses along the ranks of a compound graph, and runs out of
- * stack on long graphs. Groups past it stay collapsed.
- */
+/** Most boxes the expanded frames hold, with the groups the user opened. */
 export const FRAME_LIMIT = 300;
+/**
+ * Largest graph laid out as a compound graph, as boxes laid out times
+ * `2 × depth + 1` (the ranks dagre adds for the borders of the frames).
+ * dagre recurses along the ranks and runs out of stack on longer graphs;
+ * past it the expanded groups are shown as labels.
+ */
+export const COMPOUND_LIMIT = 1000;
 
-function limitFrames(plan: GroupPlan, views: GroupViews) {
+/** What `allocateFrames` changed in a plan. */
+interface Allocation {
+  /** Groups to show as labels: they would hold more than any budget. */
+  tag: string[];
+  /** Groups the user opened that stay collapsed: no room left. */
+  refused: string[];
+}
+
+/**
+ * Opens the expanded groups while the frames have room: first the groups
+ * the user opened (up to `FRAME_LIMIT` boxes), then those that open by
+ * default (up to `FRAME_BUDGET`). A group past it is collapsed; an
+ * outermost one that alone holds more than `FRAME_LIMIT` boxes (a whole
+ * batch in one group) is shown as labels, so its steps stay in sight.
+ */
+function allocateFrames(plan: GroupPlan, views: GroupViews): Allocation {
   // Boxes directly in each frame: its own steps and the boxes inside.
   const direct = new Map<string, number>();
   const add = (id: string) => direct.set(id, (direct.get(id) ?? 0) + 1);
   for (const id of plan.boxOf.values()) add(id);
   for (const box of plan.boxes.values()) if (box.parent) add(box.parent);
+  const cost = (box: GroupBox) => direct.get(box.id) ?? 0;
   const open = new Set<string>();
+  const result: Allocation = { tag: [], refused: [] };
   let framed = 0;
-  for (const box of plan.boxes.values()) {
+  const overflow = (box: GroupBox) => {
+    box.expanded = false;
+    if (!box.parent && cost(box) > FRAME_LIMIT) result.tag.push(box.group.key);
+  };
+  const boxes = [...plan.boxes.values()];
+  for (const box of boxes) {
+    if (views[box.group.key] !== true) continue;
+    const chain = boxChain(plan, box.id);
+    if (chain.some(b => !b.expanded)) continue;
+    const closed = chain.filter(b => !open.has(b.id));
+    const needed = closed.reduce((sum, b) => sum + cost(b), 0);
+    if (framed + needed > FRAME_LIMIT) {
+      result.refused.push(box.group.key);
+      overflow(box);
+      continue;
+    }
+    for (const b of closed) open.add(b.id);
+    framed += needed;
+  }
+  for (const box of boxes) {
+    if (!box.expanded || open.has(box.id)) continue;
     if (box.parent && !open.has(box.parent)) continue;
-    if (!box.expanded) continue;
-    const cost = direct.get(box.id) ?? 0;
-    const limit =
-      views[box.group.key] === undefined ? FRAME_BUDGET : FRAME_LIMIT;
-    if (framed + cost > limit) {
-      box.expanded = false;
+    if (framed + cost(box) > FRAME_BUDGET) {
+      overflow(box);
       continue;
     }
     open.add(box.id);
-    framed += cost;
+    framed += cost(box);
   }
+  return result;
 }
 
 /** The boxes from the outermost one to `id`. */
@@ -402,17 +443,48 @@ export function coveringFrames(
   return [...bad];
 }
 
+/** Why some groups are not drawn as the user or the defaults wanted. */
+export type GroupNotice =
+  /** The graph is too long for frames: expanded groups are labels. */
+  | 'tooLarge'
+  /** Laying out the frames failed: every group is a label. */
+  | 'failed';
+
 /** A laid out graph with group boxes. */
 export interface GroupedLayout {
   layout: StepLayout;
   plan: GroupPlan;
   graph: GroupedGraph;
+  /** Groups the user opened that stay collapsed (no room left). */
+  refused: WorkflowEventGroup[];
+  notice?: GroupNotice;
+}
+
+/** Frames deep, at most, of a graph: 0 without frames. */
+function frameDepth(frames: LayoutFrame[]): number {
+  const parentOf = new Map(frames.map(f => [f.id, f.parent]));
+  let deepest = 0;
+  for (const frame of frames) {
+    let d = 1;
+    for (let p = frame.parent; p && d <= frames.length; d++) {
+      p = parentOf.get(p);
+    }
+    deepest = Math.max(deepest, d);
+  }
+  return deepest;
 }
 
 /**
- * Lays out steps with the boxes of their event groups. A group whose frame
- * would cover other boxes is shown as labels instead, and the graph laid
- * out again (twice at most).
+ * Lays out steps with the boxes of their event groups.
+ *
+ * - The frames open within their budgets (`allocateFrames`).
+ * - A graph too long for a compound layout (`COMPOUND_LIMIT`) shows the
+ *   expanded groups as labels.
+ * - A group whose frame would cover other boxes is shown as labels, and
+ *   the graph laid out again; if frames still cover other boxes after
+ *   that, the expanded groups are shown as labels.
+ * - If the compound layout fails, every group is shown as labels on its
+ *   steps, laid out like a graph without groups.
  */
 export function layoutGroupedSteps(
   nodes: { id: string; size?: NodeSize }[],
@@ -420,16 +492,29 @@ export function layoutGroupedSteps(
   groups: WorkflowEventGroup[],
   views: GroupViews,
   width?: number,
+  /** Lays out the graph; for tests. */
+  lay: typeof layoutGraph = layoutGraph,
 ): GroupedLayout {
   const sizes = new Map(nodes.map(n => [n.id, n.size]));
   const ids = nodes.map(n => n.id);
+  const byKey = new Map(groups.map(g => [g.key, g]));
   const noBox = new Set<string>();
-  let result: GroupedLayout | undefined;
-  const lay = (plan: GroupPlan) => {
-    const graph = groupGraph(nodes, edges, plan);
-    const layout = layoutGraph(
+  const refused = new Set<string>();
+  const plan = (noFrames = false) => {
+    for (let i = 0; i <= groups.length; i++) {
+      const p = planGroups(ids, groups, views, noBox, { noFrames });
+      const allocation = allocateFrames(p, views);
+      for (const key of allocation.refused) refused.add(key);
+      if (allocation.tag.length === 0) return p;
+      for (const key of allocation.tag) noBox.add(key);
+    }
+    return planGroups(ids, groups, views, noBox, { noFrames: true });
+  };
+  const layOut = (p: GroupPlan, notice?: GroupNotice): GroupedLayout => {
+    const graph = groupGraph(nodes, edges, p);
+    const layout = lay(
       graph.nodes.map(n => {
-        const size = plan.boxes.has(n.id)
+        const size = p.boxes.has(n.id)
           ? { width: GROUP_NODE_WIDTH, height: GROUP_NODE_HEIGHT }
           : sizes.get(n.id);
         return { ...n, ...(size ? { size } : {}) };
@@ -438,22 +523,51 @@ export function layoutGroupedSteps(
       width,
       { frames: graph.frames },
     );
-    return { layout, plan, graph };
+    const result: GroupedLayout = {
+      layout,
+      plan: p,
+      graph,
+      refused: [...refused]
+        .map(k => byKey.get(k))
+        .filter((g): g is WorkflowEventGroup => Boolean(g)),
+    };
+    if (notice) result.notice = notice;
+    return result;
   };
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const plan = planGroups(ids, groups, views, noBox);
-    try {
-      result = lay(plan);
-    } catch (error) {
-      // dagre recurses along the ranks: a graph that is still too deep for
-      // it (very long arrows) is laid out with every group collapsed.
-      if (!(error instanceof RangeError)) throw error;
-      for (const box of plan.boxes.values()) box.expanded = false;
-      return lay(plan);
+  try {
+    let notice: GroupNotice | undefined;
+    let current = plan();
+    let graph = groupGraph(nodes, edges, current);
+    if (
+      graph.frames.length > 0 &&
+      graph.nodes.length * (2 * frameDepth(graph.frames) + 1) > COMPOUND_LIMIT
+    ) {
+      notice = 'tooLarge';
+      current = plan(true);
+      graph = groupGraph(nodes, edges, current);
     }
-    const covering = coveringFrames(result.layout, result.graph);
-    if (covering.length === 0) break;
-    for (const id of covering) noBox.add(plan.boxes.get(id)!.group.key);
+    let result = layOut(current, notice);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const covering = coveringFrames(result.layout, result.graph);
+      if (covering.length === 0) return result;
+      if (attempt === 2) break;
+      for (const id of covering)
+        noBox.add(result.plan.boxes.get(id)!.group.key);
+      result = layOut(plan(notice === 'tooLarge'), notice);
+    }
+    // Frames still cover other boxes: no frames at all.
+    return layOut(plan(true), notice);
+  } catch {
+    // A compound layout that fails (too deep for dagre, or anything else)
+    // must not break the page: the groups become labels on their steps.
+    const tagged = planGroups(ids, groups, views, new Set(byKey.keys()));
+    const graph = groupGraph(nodes, edges, tagged);
+    return {
+      layout: layoutGraph(nodes, edges, width),
+      plan: tagged,
+      graph,
+      refused: [],
+      notice: 'failed',
+    };
   }
-  return result!;
 }

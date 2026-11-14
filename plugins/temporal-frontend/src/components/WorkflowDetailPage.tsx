@@ -57,6 +57,7 @@ import {
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { loopOfStep, LoopView, LoopViews } from './graph/loops';
 import type { GroupViews } from './graph/eventGroups';
+import type { GroupDisplay } from './graph/WorkflowGraph';
 import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
 import { LoopsTab } from './LoopsTab';
@@ -265,6 +266,7 @@ function GraphCard(props: {
   groupViews: GroupViews;
   onGroupViewChange(key: string, expanded: boolean): void;
   focusGroup?: { key: string };
+  onGroupDisplay(display: GroupDisplay): void;
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
@@ -298,7 +300,7 @@ function GraphCard(props: {
           <Alert
             status="info"
             icon
-            title="The run has more event groups than the graph reads; some groups are left out."
+            title="The run has more event groups than the backend reads; some groups are left out."
             style={{ marginBottom: 12 }}
           />
         )}
@@ -320,6 +322,7 @@ function GraphCard(props: {
                 groupViews={props.groupViews}
                 onGroupViewChange={props.onGroupViewChange}
                 focusGroup={props.focusGroup}
+                onGroupDisplay={props.onGroupDisplay}
                 panelOpen={Boolean(selected)}
               />
               {selected && (
@@ -457,6 +460,17 @@ export function WorkflowDetailPage(
   // picked in the Event Groups tab.
   const [groupViews, setGroupViews] = useState<GroupViews>({});
   const [focusGroup, setFocusGroup] = useState<{ key: string }>();
+  // How the graph draws each group, for the Event Groups tab.
+  const [groupDisplay, setGroupDisplay] = useState<GroupDisplay>();
+  const showGroupDisplay = useCallback(
+    (display: GroupDisplay) =>
+      setGroupDisplay(last =>
+        last && JSON.stringify(last) === JSON.stringify(display)
+          ? last
+          : display,
+      ),
+    [],
+  );
   const setGroupView = useCallback(
     (key: string, expanded: boolean) =>
       setGroupViews(views => ({ ...views, [key]: expanded })),
@@ -491,11 +505,12 @@ export function WorkflowDetailPage(
   const openGroupsOf = useCallback(
     (id: string) => {
       const keys = nodes?.find(n => n.id === id)?.groups ?? [];
-      if (keys.length === 0) return;
-      setGroupViews(views => ({
-        ...views,
-        ...Object.fromEntries(keys.map(k => [k, true])),
-      }));
+      // Unchanged when they are open already: no new layout.
+      setGroupViews(views =>
+        keys.every(k => views[k])
+          ? views
+          : { ...views, ...Object.fromEntries(keys.map(k => [k, true])) },
+      );
     },
     [nodes],
   );
@@ -760,6 +775,7 @@ export function WorkflowDetailPage(
             groupViews={groupViews}
             onGroupViewChange={setGroupView}
             focusGroup={focusGroup}
+            onGroupDisplay={showGroupDisplay}
           />
         </div>
 
@@ -818,7 +834,11 @@ export function WorkflowDetailPage(
               ) : null}
               {graph && eventGroups && eventGroups.length > 0 ? (
                 <TabPanel id="event-groups">
-                  <EventGroupsTab graph={graph} onShowGroup={showGroup} />
+                  <EventGroupsTab
+                    graph={graph}
+                    display={groupDisplay}
+                    onShowGroup={showGroup}
+                  />
                 </TabPanel>
               ) : null}
               <TabPanel id="events">
