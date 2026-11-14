@@ -29,6 +29,7 @@ import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
 import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
 import { toTemporalSchedule } from './schedules';
+import { scheduleClientOf } from './scheduleClient';
 import {
   TemporalReadRepository,
   isScheduleNotFound,
@@ -83,7 +84,10 @@ export class WorkflowListQueries {
     filter?: { sources?: { taskQueue?: string; workflowTypes: string[] }[] },
   ): Promise<TemporalScheduleListResponse> {
     this.sources.checkNamespace(namespace);
-    const client = await this.temporal.getClient({ namespace });
+    const client = scheduleClientOf(
+      await this.temporal.getConnection(),
+      namespace,
+    );
     const sources = filter?.sources;
     const items: TemporalSchedule[] = [];
     /** Schedules that match only on a task queue, which the list lacks. */
@@ -91,7 +95,7 @@ export class WorkflowListQueries {
     let truncated = false;
     let read = 0;
     try {
-      for await (const summary of client.schedule.list({ pageSize: 100 })) {
+      for await (const summary of client.list({ pageSize: 100 })) {
         read += 1;
         if (read > MAX_SCHEDULES) {
           truncated = true;
@@ -118,7 +122,7 @@ export class WorkflowListQueries {
       const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
       const queues = await Promise.all(
         batch.map(schedule =>
-          client.schedule
+          client
             .getHandle(schedule.scheduleId)
             .describe()
             .then(d => d.action.taskQueue as string | undefined)

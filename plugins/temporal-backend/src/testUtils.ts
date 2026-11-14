@@ -216,13 +216,10 @@ export function fakeTemporalServiceFactory(
   options?: {
     entityRefAttribute?: string;
     initiatorAttribute?: string;
-    /** A fake client, for schedules. */
-    client?: unknown;
   },
 ) {
   const service: TemporalService = {
     getClient: async () => {
-      if (options?.client) return options.client as any;
       throw new Error('not used');
     },
     getConnection: async () =>
@@ -285,44 +282,6 @@ export function scheduleSummary(
         },
       })),
       nextActionTimes: [new Date('2026-01-03T02:00:00Z')],
-    },
-  };
-}
-
-/** A fake client with schedules, and handles that record their calls. */
-export function fakeScheduleClient(
-  schedules: ReturnType<typeof scheduleSummary>[],
-  taskQueue = 'orders',
-) {
-  const handles = new Map<string, Record<string, jest.Mock>>();
-  return {
-    handles,
-    schedule: {
-      list: async function* list() {
-        for (const s of schedules) yield s;
-      },
-      getHandle: (id: string) => {
-        const found = schedules.find(s => s.scheduleId === id);
-        const handle = {
-          describe: jest.fn(async () => {
-            if (!found) {
-              const { ScheduleNotFoundError } = await import(
-                '@temporalio/client'
-              );
-              throw new ScheduleNotFoundError('not found', id);
-            }
-            return {
-              ...found,
-              action: { ...found.action, taskQueue },
-            };
-          }),
-          pause: jest.fn(async () => undefined),
-          unpause: jest.fn(async () => undefined),
-          trigger: jest.fn(async () => undefined),
-        };
-        handles.set(id, handle);
-        return handle;
-      },
     },
   };
 }
