@@ -43,6 +43,7 @@ import {
   otherNamespaceWorkflowEntity,
   paymentWorkflowEntity,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 const entities = [
   ordersEntity,
@@ -106,7 +107,11 @@ async function start(options?: {
     );
   }
   const { server } = await startTestBackend({ features });
-  return { server, workflowService, permissions };
+  return {
+    server: await withOpenApiValidation(server),
+    workflowService,
+    permissions,
+  };
 }
 
 describe('temporal backend plugin', () => {

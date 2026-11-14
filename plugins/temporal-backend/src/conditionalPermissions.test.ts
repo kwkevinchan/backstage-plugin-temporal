@@ -59,6 +59,7 @@ import {
   createFakeWorkflowService,
   fakeTemporalServiceFactory,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 jest.setTimeout(120_000);
 
@@ -236,13 +237,14 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
     });
 
     const url = '/api/temporal/entities/component/default/orders/workflows';
-    const owner = await request(server)
+    const api = await withOpenApiValidation(server);
+    const owner = await request(api)
       .get(url)
       .set('Authorization', mockCredentials.user.header('user:default/alice'));
     expect(owner.status).toBe(200);
     expect(owner.body.items).toHaveLength(1);
 
-    const other = await request(server)
+    const other = await request(api)
       .get(url)
       .set('Authorization', mockCredentials.user.header('user:default/bob'));
     expect(other.status).toBe(403);
@@ -250,11 +252,11 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
     // The same holds for the history permission on a single workflow.
     const history =
       '/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=component:default/orders';
-    await request(server)
+    await request(api)
       .get(history)
       .set('Authorization', mockCredentials.user.header('user:default/alice'))
       .expect(200);
-    await request(server)
+    await request(api)
       .get(history)
       .set('Authorization', mockCredentials.user.header('user:default/bob'))
       .expect(403);
@@ -325,7 +327,7 @@ describe('conditional temporal-workflow decisions from a policy', () => {
       'IS_INITIATOR',
     ]);
 
-    const res = await request(server)
+    const res = await request(await withOpenApiValidation(server))
       .get('/api/temporal/workflows')
       .set('Authorization', mockCredentials.user.header('user:default/alice'));
     expect(res.status).toBe(200);

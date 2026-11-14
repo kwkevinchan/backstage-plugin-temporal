@@ -24,6 +24,7 @@
     "fix": "backstage-cli repo fix",
     "lint": "backstage-cli repo lint --since origin/main",
     "lint:all": "backstage-cli repo lint",
+    "lint:openapi": "backstage-repo-tools repo schema openapi lint --strict && yarn workspace @kwkevinchan/backstage-plugin-temporal-backend exec backstage-repo-tools package schema openapi validate",
     "prettier:check": "prettier --check .",
     "new": "backstage-cli new",
     "start:next": "backstage-cli repo start packages/app-next packages/backend",
@@ -53,6 +54,7 @@
   "devDependencies": {
     "@backstage/cli": "backstage:^",
     "@backstage/cli-defaults": "backstage:^",
+    "@backstage/repo-tools": "backstage:^",
     "@changesets/cli": "^2.29.0",
     "@jest/environment-jsdom-abstract": "~30.2.0",
     "@playwright/test": "^1.32.3",
@@ -66,6 +68,14 @@
     "prettier": "^2.3.2",
     "protobufjs": "^8.8.1",
     "typescript": "~5.8.0"
+  },
+  "dependenciesMeta": {
+    "@openapitools/openapi-generator-cli": {
+      "built": false
+    },
+    "@scarf/scarf": {
+      "built": false
+    }
   },
   "resolutions": {
     "@types/react": "^18",
