@@ -264,7 +264,7 @@ function GraphCard(props: {
   loopViews: LoopViews;
   onLoopViewChange(name: string, view: LoopView): void;
   groupViews: GroupViews;
-  onGroupViewChange(key: string, expanded: boolean): void;
+  onGroupViewChange(key: string, expanded: boolean | undefined): void;
   focusGroup?: { key: string };
   onGroupDisplay(display: GroupDisplay): void;
 }) {
@@ -472,8 +472,10 @@ export function WorkflowDetailPage(
     [],
   );
   const setGroupView = useCallback(
-    (key: string, expanded: boolean) =>
-      setGroupViews(views => ({ ...views, [key]: expanded })),
+    (key: string, expanded: boolean | undefined) =>
+      setGroupViews(({ [key]: _old, ...views }) =>
+        expanded === undefined ? views : { ...views, [key]: expanded },
+      ),
     [],
   );
   const graphRef = useRef<HTMLDivElement>(null);

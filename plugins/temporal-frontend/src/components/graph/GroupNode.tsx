@@ -193,7 +193,10 @@ export type GroupNodeData = {
   box: GroupBox;
   /** True while the group runs in a running workflow: the box pulses. */
   active: boolean;
+  /** Picked in the Event Groups tab. */
   focused: boolean;
+  /** The selected step is in this collapsed group. */
+  selected?: boolean;
   onToggle(key: string): void;
 };
 
@@ -206,7 +209,7 @@ export type GroupFlowNode = Node<GroupNodeData, 'eventGroup'>;
 export const GroupNode = memo(function GroupNodeView(
   props: NodeProps<GroupFlowNode>,
 ) {
-  const { box, active, focused, onToggle } = props.data;
+  const { box, active, focused, selected, onToggle } = props.data;
   const { group } = box;
   const count = groupCountBadge(group);
   return (
@@ -224,11 +227,13 @@ export const GroupNode = memo(function GroupNodeView(
         data-nested={group.children.length > 0}
         data-expanded="false"
         data-active={active}
-        data-selected={focused}
+        data-selected={focused || Boolean(selected)}
         data-status={group.status}
         data-testid={`group-${group.key}`}
         aria-expanded={false}
-        aria-label={groupAria(box)}
+        aria-label={`${groupAria(box)}${
+          selected ? ', has the selected step' : ''
+        }`}
         title={`${group.name}: ${groupFacts(box, true).join(' · ')}. Expand`}
         onClick={() => onToggle(group.key)}
       >

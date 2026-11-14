@@ -524,7 +524,8 @@ by inference: a step scheduled after the model call ended and before the
 next model call of the agent (the one whose input answers the tool call),
 with the tool's name (ignoring case and separators, so `search_docs` runs
 as `searchDocs`), preferring the one with the same arguments. Inferred links
-are marked **Inferred link**. Two calls of one tool with the same arguments
+are marked with a link icon (**Inferred link** in its tooltip and in the step
+panel). Two calls of one tool with the same arguments
 in parallel cannot be told apart; they are paired in the order the steps
 were scheduled.
 
@@ -654,16 +655,22 @@ On the workflow page:
   expanded, the others are a row of collapsed boxes; groups four deep
   start collapsed. A step picked in another tab or in the step panel opens
   its groups.
-- **Large runs.** The open frames hold at most 200 boxes (steps and
-  collapsed groups directly in them) with the groups that open by default,
-  and 300 with the groups the user opened, which come first. A group past
-  that stays collapsed, and a line above the graph says why when the user
-  opened it; an outermost group that alone holds more than 300 boxes (a
-  whole batch in one group) is shown as labels on its steps instead. A run
-  too long to lay out with frames (dagre adds ranks for the borders of the
-  frames, about `boxes × (2 × depth + 1)` past 1000) shows the expanded
-  groups as labels and says so; if laying out the frames fails, every group
-  is shown as labels.
+- **Large runs.** The open frames hold at most 300 boxes (steps and
+  collapsed groups directly in them) for the groups the user expanded,
+  which come first, and 200 with the groups that open by default. So
+  expanding a group can collapse another group that was open by default,
+  and as a running workflow grows, open groups can collapse or turn into
+  labels. A group the user expands without room stays collapsed and a line
+  above the graph says why; only collapsing a group the user expanded makes
+  room. The line goes away when the graph is pressed. A step picked in
+  another tab inside a group without room is shown by its collapsed group,
+  which is selected.
+- **Labels instead of frames.** The graph shows groups as labels on their
+  steps, with a line above it that says why, when an outermost group alone
+  holds more than 300 boxes (a whole batch in one group), when the graph is
+  too long to lay out with frames (dagre adds ranks for the frame borders:
+  past about `boxes × (2 × depth + 1)` = 1000 it can run out of stack), or
+  when laying out the frames fails.
 - **Where a box cannot be drawn.** A step that ran between two steps of a
   group without being in it (for example the steps of a signal handler)
   is drawn outside the box, above or below it. Of two groups that share
@@ -681,7 +688,7 @@ On the workflow page:
   the graph and brings it into view.
 
 When the backend leaves groups out, a line above the graph says so. A run
-without groups looks as before. The loop views of the workflow kit
+without groups is laid out as before. The loop views of the workflow kit
 ([Loops](#loops)) stay as they are; when a run has both, a step in a loop
 is drawn in the loop, and the boxes of the groups hold the other steps.
 

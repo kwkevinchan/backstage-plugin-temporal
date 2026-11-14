@@ -457,6 +457,11 @@ export interface GroupedLayout {
   graph: GroupedGraph;
   /** Groups the user opened that stay collapsed (no room left). */
   refused: WorkflowEventGroup[];
+  /**
+   * Groups shown as labels because each alone holds more boxes than the
+   * frames may (`FRAME_LIMIT`).
+   */
+  tooBig: WorkflowEventGroup[];
   notice?: GroupNotice;
 }
 
@@ -500,16 +505,24 @@ export function layoutGroupedSteps(
   const byKey = new Map(groups.map(g => [g.key, g]));
   const noBox = new Set<string>();
   const refused = new Set<string>();
+  const tooBig = new Set<string>();
   const plan = (noFrames = false) => {
     for (let i = 0; i <= groups.length; i++) {
       const p = planGroups(ids, groups, views, noBox, { noFrames });
       const allocation = allocateFrames(p, views);
       for (const key of allocation.refused) refused.add(key);
       if (allocation.tag.length === 0) return p;
-      for (const key of allocation.tag) noBox.add(key);
+      for (const key of allocation.tag) {
+        noBox.add(key);
+        tooBig.add(key);
+      }
     }
     return planGroups(ids, groups, views, noBox, { noFrames: true });
   };
+  const groupsOf = (keys: Set<string>) =>
+    [...keys]
+      .map(k => byKey.get(k))
+      .filter((g): g is WorkflowEventGroup => Boolean(g));
   const layOut = (p: GroupPlan, notice?: GroupNotice): GroupedLayout => {
     const graph = groupGraph(nodes, edges, p);
     const layout = lay(
@@ -527,9 +540,8 @@ export function layoutGroupedSteps(
       layout,
       plan: p,
       graph,
-      refused: [...refused]
-        .map(k => byKey.get(k))
-        .filter((g): g is WorkflowEventGroup => Boolean(g)),
+      refused: groupsOf(refused),
+      tooBig: groupsOf(tooBig),
     };
     if (notice) result.notice = notice;
     return result;
@@ -567,6 +579,7 @@ export function layoutGroupedSteps(
       plan: tagged,
       graph,
       refused: [],
+      tooBig: [],
       notice: 'failed',
     };
   }

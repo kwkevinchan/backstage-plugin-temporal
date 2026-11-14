@@ -38,6 +38,7 @@ import {
 import { agentGraph } from '../../testGraphs/agentGraph';
 import { ambiguousGraph } from '../../testGraphs/ambiguousGraph';
 import { layoutBaseline } from './layoutBaseline';
+import { layoutNotices, refusedNotice } from './groupNotice';
 import { loopGraph } from '../../testGraphs/loopGraph';
 import { parallelGraph } from '../../testGraphs/parallelGraph';
 
@@ -476,6 +477,9 @@ describe('layoutGroupedSteps', () => {
     expect(result.graph.collapsed.map(b => b.group.id)).toEqual(
       result.refused.map(g => g.id),
     );
+    expect(refusedNotice(result.refused[0])).toBe(
+      '“g30” could not be expanded: the groups you expanded already hold 300 boxes. Collapse one of them, or see the steps in the Timeline or the Event Groups tab.',
+    );
   });
 
   it('shows a group around a whole batch as labels, with its steps', () => {
@@ -488,6 +492,11 @@ describe('layoutGroupedSteps', () => {
     expect(result.plan.boxes.size).toBe(0);
     expect(result.layout.positions.has('a1')).toBe(true);
     expect(result.plan.tags.get('a1')!.map(g => g.id)).toEqual(['batch']);
+    // The graph says why it has no frame.
+    expect(result.tooBig.map(g => g.id)).toEqual(['batch']);
+    expect(layoutNotices(result)).toEqual([
+      '“batch” holds more than 300 boxes, so it is shown as labels on the steps instead of a frame.',
+    ]);
   });
 
   it('shows the groups of a graph too long for frames as labels', () => {
@@ -499,6 +508,9 @@ describe('layoutGroupedSteps', () => {
     });
     expect(result.notice).toBe('tooLarge');
     expect(result.graph.frames).toEqual([]);
+    expect(layoutNotices(result)).toEqual([
+      'The graph is too long to lay out with frames, so expanded groups are shown as labels on their steps. The Timeline and the Event Groups tab show every group.',
+    ]);
     expect(result.plan.tags.get('a3')!.map(g => g.id)).toEqual(['small']);
   });
 
@@ -519,6 +531,9 @@ describe('layoutGroupedSteps', () => {
         },
       );
       expect(result.notice).toBe('failed');
+      expect(layoutNotices(result)).toEqual([
+        'The frames of the event groups could not be laid out, so every group is shown as labels on its steps. The Timeline and the Event Groups tab show every group.',
+      ]);
       expect(result.graph.frames).toEqual([]);
       expect(result.plan.boxes.size).toBe(0);
       expect(result.plan.tags.get('a2')!.map(g => g.id)).toEqual([
@@ -532,9 +547,10 @@ describe('layoutGroupedSteps', () => {
   });
 
   it('draws no frame over another box, even when laying out again fails', () => {
-    const { nodes, edges } = chain(4);
+    const { nodes, edges } = chain(5);
     const visible = visibleSteps(nodes, edges);
-    // A layout that puts a step into every frame.
+    // A layout that puts a step into the first frame, every time: each new
+    // layout drops one frame, and the third one still has a frame left.
     const covering: typeof layoutGraph = (n, e, w, options) => {
       const layout = layoutGraph(n, e, w, options);
       const frame = options?.frames?.[0];
@@ -546,7 +562,7 @@ describe('layoutGroupedSteps', () => {
     const result = layoutGroupedSteps(
       visible.nodes,
       visible.edges,
-      [group('a', ['a1', 'a2']), group('b', ['a3'])],
+      [group('a', ['a1', 'a2']), group('b', ['a3']), group('c', ['a5'])],
       {},
       undefined,
       covering,
@@ -554,6 +570,7 @@ describe('layoutGroupedSteps', () => {
     expect(result.graph.frames).toEqual([]);
     expect(result.plan.tags.get('a1')!.map(g => g.id)).toEqual(['a']);
     expect(result.plan.tags.get('a3')!.map(g => g.id)).toEqual(['b']);
+    expect(result.plan.tags.get('a5')!.map(g => g.id)).toEqual(['c']);
   });
 
   it('keeps wrapped outer frames apart from the next column', () => {

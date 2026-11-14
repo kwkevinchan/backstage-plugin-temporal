@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useState } from 'react';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
@@ -32,8 +33,14 @@ import type { WorkflowGraphResponse } from '../common';
 import { temporalApiRef } from '../extensions';
 import temporalPlugin from '../alpha';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
-import { groupNotice } from './graph/WorkflowGraph';
-import { entity, failedWorkflow, mockTemporalApi } from '../testData';
+import { WorkflowGraph } from './graph/WorkflowGraph';
+import type { GroupViews } from './graph/eventGroups';
+import {
+  entity,
+  failedWorkflow,
+  loopGraphResponse,
+  mockTemporalApi,
+} from '../testData';
 import { agentGraph } from '../testGraphs/agentGraph';
 import { codecLoopGraph } from '../testGraphs/codecLoopGraph';
 import { loopGraph } from '../testGraphs/loopGraph';
@@ -138,8 +145,15 @@ describe('event groups on the workflow page', () => {
     // The step of the signal ran between the steps of the round: it stays
     // out of the round's frame, in its own group.
     expect(screen.getByTestId('step-activity-33')).toBeInTheDocument();
-    // Only a group picked in the tab is marked.
+    // The view goes to the group the user opened; only a group picked in
+    // the tab is marked.
+    expect(screen.getByTestId('workflow-graph')).toHaveAttribute(
+      'data-focus',
+      `group:${roundKey(2)}`,
+    );
     expect(frame).toHaveAttribute('data-focused', 'false');
+    // Frames are not stops of the Tab key; their buttons are.
+    expect(frame.closest('.react-flow__node')).not.toHaveAttribute('tabindex');
 
     // Collapsing the loop hides every round in it.
     const collapse = within(
@@ -148,6 +162,11 @@ describe('event groups on the workflow page', () => {
     collapse.focus();
     await userEvent.keyboard('{Enter}');
     const loop = await screen.findByTestId('group-label:loop:draft-review');
+    expect(screen.getByTestId('workflow-graph')).toHaveAttribute(
+      'data-focus',
+      'group:label:loop:draft-review',
+    );
+    expect(loop).toHaveAttribute('data-selected', 'false');
     expect(loop).toHaveAccessibleName(
       /^Event group Loop draft-review, 3 groups, completed, \d+s, 9 steps, collapsed$/,
     );
@@ -211,28 +230,118 @@ describe('event groups on the workflow page', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('says why groups are not drawn as asked', () => {
-    const base = {
-      layout: { positions: new Map(), width: 0, height: 0, wrapped: false },
-      plan: { boxes: new Map(), boxOf: new Map(), tags: new Map() },
-      graph: { nodes: [], edges: [], frames: [], collapsed: [] },
-      refused: [],
+  it('says when a group the user expands has no room, until the next press', async () => {
+    // 40 groups of 10 steps; 30 of them opened by the user hold 300 boxes.
+    const count = 400;
+    const ids = [
+      'start',
+      ...Array.from({ length: count }, (_, i) => `a${i + 1}`),
+      'end',
+    ];
+    const big: WorkflowGraphResponse = {
+      status: 'Completed',
+      nodes: ids.map(id => ({
+        id,
+        kind: 'activity' as const,
+        name: id,
+        status: 'Completed' as const,
+        events: [],
+      })),
+      edges: ids
+        .slice(1)
+        .map((id, i) => ({ id: `e${i}`, source: ids[i], target: id })),
+      completedSteps: count,
+      totalSteps: count,
+      truncated: false,
+      payloadsHidden: false,
+      eventGroups: Array.from({ length: 40 }, (_, g) => ({
+        key: `label:g${g}`,
+        kind: 'label' as const,
+        id: `g${g}`,
+        name: `Group ${g}`,
+        nodeIds: Array.from({ length: 10 }, (__, j) => `a${g * 10 + j + 1}`),
+        children: [],
+        status: 'Completed' as const,
+      })),
     };
-    expect(groupNotice(undefined)).toBeUndefined();
-    expect(groupNotice(base)).toBeUndefined();
-    expect(groupNotice({ ...base, notice: 'failed' })).toMatch(
-      /^The frames of the event groups could not be laid out; .* The Timeline and the Event Groups tab show every group\.$/,
+    const changes: [string, boolean | undefined][] = [];
+    function Graph() {
+      const [views, setViews] = useState<GroupViews>(
+        Object.fromEntries(
+          Array.from({ length: 30 }, (_, g) => [`label:g${g}`, true]),
+        ),
+      );
+      return (
+        <WorkflowGraph
+          graph={big}
+          onSelect={() => {}}
+          groupViews={views}
+          onGroupViewChange={(key, expanded) => {
+            changes.push([key, expanded]);
+            setViews(({ [key]: _old, ...rest }) =>
+              expanded === undefined ? rest : { ...rest, [key]: expanded },
+            );
+          }}
+        />
+      );
+    }
+    await renderInTestApp(<Graph />);
+    const box = await screen.findByTestId('group-label:g35');
+    fireEvent.click(box);
+    expect(await screen.findByTestId('group-notice')).toHaveTextContent(
+      '“Group 35” could not be expanded: the groups you expanded already hold 300 boxes.',
     );
-    expect(groupNotice({ ...base, notice: 'tooLarge' })).toMatch(
-      /^The run is too long to draw frames/,
+    // The request is dropped: it holds no place.
+    expect(changes).toEqual([
+      ['label:g35', true],
+      ['label:g35', undefined],
+    ]);
+    // Pressing the graph clears the line; pressing the group again shows it
+    // again.
+    fireEvent.pointerDown(screen.getByTestId('workflow-graph'));
+    expect(screen.queryByTestId('group-notice')).not.toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByTestId('group-label:g35'));
+    fireEvent.click(screen.getByTestId('group-label:g35'));
+    expect(await screen.findByTestId('group-notice')).toBeInTheDocument();
+  });
+
+  it('says in the tab when the steps of a group are in a loop box', async () => {
+    await render({
+      ...loopGraphResponse,
+      eventGroups: [
+        {
+          key: 'label:in-loop',
+          kind: 'label',
+          id: 'in-loop',
+          name: 'In the loop',
+          nodeIds: ['activity-5', 'activity-8'],
+          children: [],
+          status: 'Completed',
+        },
+      ],
+    });
+    await userEvent.click(
+      await screen.findByRole('tab', { name: 'Event Groups' }),
     );
-    const refused = ['a', 'b', 'c'].map(id => ({
-      ...loopGraph.eventGroups![0],
-      key: `label:${id}`,
-      name: id.toUpperCase(),
-    }));
-    expect(groupNotice({ ...base, refused })).toBe(
-      '“A”, “B” and 1 more could not be expanded: the open groups already hold 300 boxes. Collapse another group, or see the steps in the Timeline or the Event Groups tab.',
+    expect(
+      await screen.findByTestId('group-row-note-label:in-loop'),
+    ).toHaveTextContent('Its steps are in a loop box in the graph');
+  });
+
+  it('brings the box of a step selected in a collapsed group into view', async () => {
+    await renderInTestApp(
+      <WorkflowGraph
+        graph={loopGraph}
+        selectedId="activity-22"
+        onSelect={() => {}}
+      />,
+    );
+    const round = await screen.findByTestId(`group-${roundKey(2)}`);
+    expect(round).toHaveAttribute('data-selected', 'true');
+    expect(round).toHaveAccessibleName(/, has the selected step$/);
+    expect(screen.getByTestId('workflow-graph')).toHaveAttribute(
+      'data-focus',
+      `group:${roundKey(2)}`,
     );
   });
 

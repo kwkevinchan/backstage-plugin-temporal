@@ -40,6 +40,13 @@ import {
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { tp } from './styles';
 
+/** Where the graph shows a group that has no box. */
+function noteText(display: GroupDisplay[string] | undefined): string {
+  if (display === 'label') return 'Labels on its steps in the graph';
+  if (display === 'loop') return 'Its steps are in a loop box in the graph';
+  return 'Not in the graph';
+}
+
 /**
  * The Event Groups tab: the Temporal event groups of the run, in the
  * order they started, each indented under the group it is in. Pressing a
@@ -105,9 +112,7 @@ export function EventGroupsTab(props: {
                       className={tp('tp-group-row-note')}
                       data-testid={`group-row-note-${group.key}`}
                     >
-                      {display[group.key] === 'label'
-                        ? 'Labels on its steps in the graph'
-                        : 'Not in the graph'}
+                      {noteText(display[group.key])}
                     </span>
                   )}
                 </span>
