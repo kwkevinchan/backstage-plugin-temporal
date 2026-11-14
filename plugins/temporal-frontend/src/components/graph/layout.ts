@@ -144,6 +144,11 @@ export function hideSteps<N extends { id: string }>(
   return { nodes: shown, edges: result };
 }
 
+/**
+ * Positions and size of a laid out step graph.
+ *
+ * @alpha
+ */
 export interface StepLayout {
   positions: Map<string, { x: number; y: number }>;
   /** Size of each box, for boxes that are not of the default size. */
@@ -172,6 +177,8 @@ const RANK_GAP_TB = 40;
  *
  * With `direction: 'TB'` the steps go top to bottom (parallel steps side by
  * side) and the graph is not wrapped: the definition graph next to its YAML.
+ *
+ * @alpha
  */
 export function layoutSteps(
   nodes: { id: string; size?: NodeSize }[],
@@ -342,7 +349,11 @@ export function initialViewport(
   };
 }
 
-/** Height of the graph area: the laid out graph at its zoom, within limits. */
+/**
+ * Height of the graph area: the laid out graph at its zoom, within limits.
+ *
+ * @alpha
+ */
 export function graphHeight(
   layout: { width: number; height: number },
   width: number,

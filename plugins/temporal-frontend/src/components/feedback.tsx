@@ -16,7 +16,11 @@
 
 import { Alert, Skeleton, Flex } from '@backstage/ui';
 
-/** An error from the backend, with its message. */
+/**
+ * An error from the backend, with its message.
+ *
+ * @alpha
+ */
 export function ErrorAlert(props: { error: Error; title?: string }) {
   const { error } = props;
   return (
@@ -30,7 +34,11 @@ export function ErrorAlert(props: { error: Error; title?: string }) {
   );
 }
 
-/** Placeholder rows while data loads. */
+/**
+ * Placeholder rows while data loads.
+ *
+ * @alpha
+ */
 export function Loading(props: { rows?: number; label?: string }) {
   return (
     <Flex

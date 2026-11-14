@@ -16,7 +16,11 @@
 
 import styles from './temporal.module.css';
 
-/** Scoped class names of the plugin styles, joined with spaces. */
+/**
+ * Scoped class names of the plugin styles, joined with spaces.
+ *
+ * @alpha
+ */
 export function tp(...names: string[]): string {
   return names.map(name => styles[name] ?? name).join(' ');
 }

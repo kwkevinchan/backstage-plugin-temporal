@@ -42,7 +42,11 @@ function Section(props: {
   );
 }
 
-/** Rows of a definition list; empty values are left out. */
+/**
+ * Rows of a definition list; empty values are left out.
+ *
+ * @alpha
+ */
 export function DefinitionList(props: { items: [string, ReactNode][] }) {
   const items = props.items.filter(
     ([, v]) => v !== undefined && v !== null && v !== '',

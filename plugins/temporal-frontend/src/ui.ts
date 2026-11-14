@@ -27,7 +27,12 @@
  * @packageDocumentation
  */
 
-export type { GraphFullscreen } from './components/graph/GraphCanvas';
+export type {
+  GraphCanvasProps,
+  GraphFullscreen,
+} from './components/graph/GraphCanvas';
+export type { StepLayout } from './components/graph/layout';
+export type { AnyStatus, Tone } from './components/WorkflowStatusLabel';
 export { tp } from './components/styles';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';

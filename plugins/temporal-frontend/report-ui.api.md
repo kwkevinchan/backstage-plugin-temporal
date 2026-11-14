@@ -10,25 +10,24 @@ import { Node as Node_2 } from '@xyflow/react';
 import { NodeTypes } from '@xyflow/react';
 import type { ReactNode } from 'react';
 
-// Warning: (ae-missing-release-tag) "DefinitionList" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
+// Warning: (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point ui.d.ts
+// Warning: (ae-forgotten-export) The symbol "WorkflowNodeStatus" needs to be exported by the entry point ui.d.ts
 //
-// @public
+// @alpha
+export type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
+
+// @alpha
 export function DefinitionList(props: {
   items: [string, ReactNode][];
 }): JSX_2.Element;
 
-// Warning: (ae-missing-release-tag) "ErrorAlert" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function ErrorAlert(props: {
   error: Error;
   title?: string;
 }): JSX_2.Element;
 
-// Warning: (ae-forgotten-export) The symbol "StepLayout" needs to be exported by the entry point ui.d.ts
-// Warning: (ae-missing-release-tag) "flowNodeBase" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function flowNodeBase(
   layout: StepLayout,
   id: string,
@@ -45,17 +44,32 @@ export function flowNodeBase(
   selectable: boolean;
 };
 
-// Warning: (ae-forgotten-export) The symbol "GraphCanvasProps" needs to be exported by the entry point ui.d.ts
-// Warning: (ae-missing-release-tag) "GraphCanvas" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function GraphCanvas<N extends Node_2>(
   props: GraphCanvasProps<N>,
 ): JSX_2.Element;
 
-// Warning: (ae-missing-release-tag) "GraphFullscreen" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
+export interface GraphCanvasProps<N extends Node_2> {
+  // (undocumented)
+  edges: Edge[];
+  focusId?: string;
+  // (undocumented)
+  layout: StepLayout;
+  layoutKey: string;
+  layoutWidth?: number;
+  // (undocumented)
+  nodes: N[];
+  // (undocumented)
+  nodeTypes: NodeTypes;
+  // (undocumented)
+  onSelect(id: string | undefined): void;
+  selectable?(node: N): boolean;
+  // (undocumented)
+  selectedId?: string;
+}
+
+// @alpha
 export interface GraphFullscreen {
   // (undocumented)
   fullscreen: boolean;
@@ -63,14 +77,10 @@ export interface GraphFullscreen {
   toggle(): void;
 }
 
-// Warning: (ae-missing-release-tag) "GraphFullscreenContext" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export const GraphFullscreenContext: Context<GraphFullscreen | undefined>;
 
-// Warning: (ae-missing-release-tag) "graphHeight" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function graphHeight(
   layout: {
     width: number;
@@ -79,15 +89,10 @@ export function graphHeight(
   width: number,
 ): number;
 
-// Warning: (ae-forgotten-export) The symbol "AnyStatus" needs to be exported by the entry point ui.d.ts
-// Warning: (ae-missing-release-tag) "isActiveStatus" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function isActiveStatus(status: AnyStatus): boolean;
 
-// Warning: (ae-missing-release-tag) "layoutSteps" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function layoutSteps(
   nodes: {
     id: string;
@@ -103,18 +108,13 @@ export function layoutSteps(
   },
 ): StepLayout;
 
-// Warning: (ae-missing-release-tag) "Loading" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function Loading(props: {
   rows?: number;
   label?: string;
 }): JSX_2.Element;
 
-// Warning: (tsdoc-characters-after-block-tag) The token "@backstage" looks like a TSDoc tag but contains an invalid character "/"; if it is not a tag, use a backslash to escape the "@"
-// Warning: (ae-missing-release-tag) "PanelCard" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function PanelCard(props: {
   title: string;
   subtitle?: ReactNode;
@@ -123,53 +123,55 @@ export function PanelCard(props: {
   testId?: string;
 }): JSX_2.Element;
 
-// Warning: (ae-missing-release-tag) "RELAYOUT_DELAY_MS" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export const RELAYOUT_DELAY_MS = 150;
 
-// Warning: (ae-missing-release-tag) "statusLabel" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public (undocumented)
+// @alpha
 export function statusLabel(status: AnyStatus): string;
 
-// Warning: (ae-forgotten-export) The symbol "Tone" needs to be exported by the entry point ui.d.ts
-// Warning: (ae-missing-release-tag) "statusTone" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public (undocumented)
+// @alpha
 export function statusTone(status: AnyStatus): Tone;
 
-// Warning: (ae-missing-release-tag) "tp" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
+export interface StepLayout {
+  // (undocumented)
+  height: number;
+  // (undocumented)
+  positions: Map<
+    string,
+    {
+      x: number;
+      y: number;
+    }
+  >;
+  rowGaps?: number[];
+  sizes?: Map<string, NodeSize>;
+  width: number;
+  wrapped: boolean;
+}
+
+// @alpha
+export type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
+
+// @alpha
 export function tp(...names: string[]): string;
 
-// Warning: (ae-missing-release-tag) "useGraphFullscreen" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function useGraphFullscreen(): GraphFullscreen | undefined;
 
-// Warning: (ae-missing-release-tag) "useGraphFullscreenState" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function useGraphFullscreenState(): GraphFullscreen;
 
-// Warning: (ae-missing-release-tag) "useSettledWidth" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function useSettledWidth(
   delay: number,
   trigger?: unknown,
 ): [(element: HTMLElement | null) => void, number?];
 
-// Warning: (ae-missing-release-tag) "ViewButtons" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function ViewButtons(): JSX_2.Element | null;
 
-// Warning: (ae-missing-release-tag) "workflowLink" is part of the package's API, but it is missing a release tag (@alpha, @beta, @public, or @internal)
-//
-// @public
+// @alpha
 export function workflowLink(ref: {
   namespace: string;
   workflowId: string;
@@ -178,6 +180,5 @@ export function workflowLink(ref: {
 
 // Warnings were encountered during analysis:
 //
-// src/components/WorkflowStatusLabel.d.ts:3:43 - (tsdoc-characters-after-block-tag) The token "@backstage" looks like a TSDoc tag but contains an invalid character "/"; if it is not a tag, use a backslash to escape the "@"
-// src/components/graph/layout.d.ts:84:5 - (ae-forgotten-export) The symbol "NodeSize" needs to be exported by the entry point ui.d.ts
+// src/components/graph/layout.d.ts:91:5 - (ae-forgotten-export) The symbol "NodeSize" needs to be exported by the entry point ui.d.ts
 ```
