@@ -441,15 +441,15 @@ describe('layoutGroupedSteps', () => {
     expect(Date.now() - started).toBeLessThan(5000);
     expectCleanFrames(result);
 
-    // Every group opened by hand: the frames hold 600 boxes at most, the
+    // Every group opened by hand: the frames hold 300 boxes at most, the
     // other groups stay collapsed.
     const all = laidOut(
       { nodes, edges, eventGroups: groups },
       Object.fromEntries(groups.map(g => [g.key, true])),
       1400,
     );
-    expect(all.graph.frames).toHaveLength(60);
-    expect(all.graph.collapsed).toHaveLength(40);
+    expect(all.graph.frames).toHaveLength(30);
+    expect(all.graph.collapsed).toHaveLength(70);
   });
 });
 

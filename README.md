@@ -652,7 +652,7 @@ On the workflow page:
   rounds of a loop) only the running one, else the last failed one, is
   expanded, the others are a row of collapsed boxes; groups four deep
   start collapsed. In a large run the groups start collapsed once the open
-  boxes would hold about 200 steps, and do not open past about 600. A step picked in another tab or in the
+  boxes would hold about 200 steps, and do not open past about 300. A step picked in another tab or in the
   step panel opens its groups.
 - **Where a box cannot be drawn.** A step that ran between two steps of a
   group without being in it (for example the steps of a signal handler)

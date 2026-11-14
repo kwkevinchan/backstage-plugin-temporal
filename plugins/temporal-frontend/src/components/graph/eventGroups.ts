@@ -202,9 +202,9 @@ export const FRAME_BUDGET = 200;
 /**
  * Most boxes the expanded frames hold even when the user opened them:
  * dagre recurses along the ranks of a compound graph, and runs out of
- * stack with a few thousand. Groups past it stay collapsed.
+ * stack on long graphs. Groups past it stay collapsed.
  */
-export const FRAME_LIMIT = 600;
+export const FRAME_LIMIT = 300;
 
 function limitFrames(plan: GroupPlan, views: GroupViews) {
   // Boxes directly in each frame: its own steps and the boxes inside.
