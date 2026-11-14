@@ -435,6 +435,7 @@ describe('the default client', () => {
           workflow={running}
           entity={entity}
           reload={jest.fn()}
+          workflowHref={href}
         />
       </TestApiProvider>,
     );
@@ -536,7 +537,12 @@ describe('ControlActionButton', () => {
     const reload = jest.fn();
     const Action = def.component;
     const { api } = render(
-      <Action workflow={running} entity={entity} reload={reload} />,
+      <Action
+        workflow={running}
+        entity={entity}
+        reload={reload}
+        workflowHref={href}
+      />,
     );
     await userEvent.click(
       await screen.findByRole('button', { name: 'Escalate' }),
@@ -683,7 +689,12 @@ describe('with temporal.control.enabled: false', () => {
     ],
     [
       'a custom action',
-      <Escalate workflow={running} entity={entity} reload={jest.fn()} />,
+      <Escalate
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
     ],
     [
       'the schedule buttons',

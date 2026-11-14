@@ -21,25 +21,16 @@ import {
 } from '@backstage/version-bridge';
 import type { TemporalWorkflowExtensionProps } from './extensions';
 
-/**
- * Value of the workflow context on the workflow details page.
- *
- * @public
- */
-export type TemporalWorkflowContextValue = TemporalWorkflowExtensionProps;
-
 const TemporalWorkflowContext = createVersionedContext<{
-  1: TemporalWorkflowContextValue | undefined;
+  1: TemporalWorkflowExtensionProps | undefined;
 }>('temporal-workflow-context');
 
 /**
  * Provides the current workflow to extensions. Rendered by the workflow
  * details page.
- *
- * @public
  */
 export function TemporalWorkflowProvider(props: {
-  value: TemporalWorkflowContextValue;
+  value: TemporalWorkflowExtensionProps;
   children?: ReactNode;
 }) {
   return (
@@ -57,7 +48,7 @@ export function TemporalWorkflowProvider(props: {
  *
  * @public
  */
-export function useTemporalWorkflow(): TemporalWorkflowContextValue {
+export function useTemporalWorkflow(): TemporalWorkflowExtensionProps {
   const versioned = useContext(TemporalWorkflowContext);
   const value = versioned?.atVersion(1);
   if (!value) {

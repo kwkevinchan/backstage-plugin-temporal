@@ -274,8 +274,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           onClose={close}
           onConfirm={async () => {
             const started = await api.rerunWorkflow(ref, {}, { entityRef });
-            if (props.workflowHref) navigate(props.workflowHref(started));
-            else reload();
+            navigate(props.workflowHref(started));
           }}
         />
       )}

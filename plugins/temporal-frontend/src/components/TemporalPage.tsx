@@ -18,13 +18,12 @@ import { Route, Routes } from 'react-router-dom';
 import { Content, Header, Page } from '@backstage/core-components';
 import { Container, Flex } from '@backstage/ui';
 import { AllWorkflowsList } from './AllWorkflowsList';
-import {
-  WorkflowDetailPage,
-  WorkflowDetailPageProps,
-} from './WorkflowDetailPage';
+import { WorkflowDetailPage } from './WorkflowDetailPage';
 import type {
   TemporalScheduleActionDef,
+  TemporalWorkflowActionDef,
   TemporalWorkflowListActionDef,
+  TemporalWorkflowSectionDef,
 } from '../extensions';
 import { SchedulesCard } from './SchedulesCard';
 import { tp } from './styles';
@@ -35,12 +34,16 @@ import { withControls } from '../control';
  *
  * @public
  */
-export type TemporalPageProps = WorkflowDetailPageProps & {
+export interface TemporalPageProps {
+  /** Controls in the action bar of the workflow details page. */
+  workflowActions?: TemporalWorkflowActionDef[];
+  /** Tabs on the workflow details page. */
+  workflowSections?: TemporalWorkflowSectionDef[];
   /** Controls above the workflow list, such as "Start workflow". */
   workflowListActions?: TemporalWorkflowListActionDef[];
   /** Controls on each schedule, such as "Pause". */
   scheduleActions?: TemporalScheduleActionDef[];
-};
+}
 
 /** Workflows page content: the list, and details on a nested route. */
 export function TemporalPageContent(props: TemporalPageProps) {

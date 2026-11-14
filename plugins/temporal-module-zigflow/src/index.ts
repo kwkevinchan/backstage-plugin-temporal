@@ -25,4 +25,3 @@
  */
 
 export { EntityTemporalDefinitionContent } from './plugin';
-export * from './common/definition';

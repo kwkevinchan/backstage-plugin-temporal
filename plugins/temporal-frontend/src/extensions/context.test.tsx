@@ -36,6 +36,7 @@ describe('useTemporalWorkflow', () => {
             pendingActivities: [],
           },
           reload: () => {},
+          workflowHref: () => '/x',
         }}
       >
         <Probe />

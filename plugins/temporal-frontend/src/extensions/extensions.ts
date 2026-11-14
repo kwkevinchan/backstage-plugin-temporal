@@ -32,10 +32,8 @@ export interface TemporalWorkflowExtensionProps {
   /**
    * Link of the details page of another workflow on the same page (entity
    * tab or Workflows page), for example a run that was just started.
-   * Optional, as hosts that render these components themselves may not have
-   * one.
    */
-  workflowHref?(ref: WorkflowRef): string;
+  workflowHref(ref: WorkflowRef): string;
 }
 
 /**
@@ -135,8 +133,6 @@ export interface TemporalWorkflowSectionDef {
  * Workflow actions, list actions and sections contributed by other plugins
  * in the new frontend system. The entity tab and the Workflows page both
  * read it, so blueprint extensions show on every page.
- *
- * @public
  */
 export interface TemporalWorkflowExtensionsApi {
   getActions(): TemporalWorkflowActionDef[];

@@ -72,6 +72,9 @@ import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-t
 </EntityLayout.Route>;
 ```
 
+`EntityTemporalDefinitionContent` is the only export of the package root;
+the new frontend system uses the default export of `./alpha`.
+
 The YAML is shown in a read-only [CodeMirror 6](https://codemirror.net/)
 editor, using only its official packages (`@codemirror/view`, `state`,
 `language`, `lang-yaml` and `@lezer/highlight`, all MIT): about 290 KB
