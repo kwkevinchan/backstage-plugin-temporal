@@ -116,21 +116,37 @@ Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
 so a workflow that keeps continuing as new is listed once); `namespace`,
 `workflowType`, `workflowId` (start of the workflow ID) on `/workflows`;
-`limit` (stats, default 50, at most 100); `entityRef` (details and history;
-without it, `temporal.workflow.list` allows any workflow, otherwise the entity
-comes from the `searchAttributes.entityRef` search attribute); `pageSize`,
-`pageToken` (history). Details, history and steps also accept
-`temporal.workflow.list` when no `entityRef` is given.
+`searchAttribute` (both lists: a Bool search attribute that must be true);
+`limit` (stats, default 50, at most 100); `pageSize`, `pageToken` (history);
+`entityRef` on every route under `.../workflows/:workflowId[/runs/:runId]`
+and on the schedule operations. On a workflow route, `entityRef` names the
+entity the permission is checked on, and the workflow must belong to it
+(404 otherwise). Without it, `temporal.workflow.list` (with
+`temporal.workflow.history.list` for history, steps, model calls and
+downloads) allows the workflows it covers; when it does not, the entity
+comes from the `searchAttributes.entityRef` search attribute.
+
+The routes that change one workflow (signal, update, cancel, terminate,
+rerun, custom actions) and query first load the workflow with the read
+checks above (`temporal.workflow.read` on the entity, or
+`temporal.workflow.list` without `entityRef`), then check their own
+permission on the workflow's entity: a caller with `temporal.workflow.signal`
+but without read access gets 403.
 
 Bodies are JSON: `{ name, args }` for signal, update and query (`args` is
 the list of arguments), `{ reason }` for terminate, `{ workflowId? }` for
 rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 `namespace` on `/workflows`). Update, query and actions answer `{ result }`;
 start and rerun answer the new `{ namespace, workflowId, runId }`. Signal,
-update, cancel and terminate answer 409 when the workflow is not running.
-The routes that change workflows (signal, update, cancel, terminate, rerun,
-start, custom actions and the schedule operations) do not exist when
-`temporal.control.enabled` is false (404). Query and `GET .../handlers` (the
+update, cancel and terminate answer 409 when the workflow is not running;
+start and rerun when the workflow ID is taken; the schedule operations when
+Temporal refuses the operation in the state of the schedule; custom actions
+when the action does not apply to the workflow. The routes that change
+workflows (signal, update, cancel, terminate, rerun, start, custom actions
+and the schedule operations) do not exist when `temporal.control.enabled` is
+false: they answer 404 without a body, like the definition route without the
+Zigflow backend module. Errors of the routes that exist have the JSON error
+body of the Backstage backend. Query and `GET .../handlers` (the
 signals, updates and queries a running workflow defines) are always served:
 a query needs `temporal.workflow.query`, the handler list only the read
 permission. The schedule operations take `?entityRef=` (the schedule must
@@ -153,7 +169,10 @@ check their requests and responses against it (the binary payload download
 excepted).
 
 To show it in the catalog, register an `API` entity that reads the file of
-the version you run (replace `main` with its release tag):
+the version you run. Replace `main` with the commit SHA of that release, not
+its tag: the tags (`@kwkevinchan/backstage-plugin-temporal-backend@<version>`)
+contain slashes, and the GitHub URL reader takes the first segment after
+`blob/` as the ref.
 
 ```yaml
 apiVersion: backstage.io/v1alpha1

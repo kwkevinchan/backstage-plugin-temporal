@@ -970,7 +970,7 @@ temporal:
     enabled: false
 ```
 
-The backend then serves none of those routes (they answer 404), ignores the
+The backend then serves none of those routes (they answer 404 without a body), ignores the
 custom actions that modules add (with a warning in the log; the modules
 still start), and the pages show no buttons for them. Reading, Query and the
 Definition tab are not affected. The Scaffolder steps `temporal:workflow:start`
@@ -1057,8 +1057,17 @@ permissions on the workflow's entity: the entity the page is shown for, else
 the entity in the `searchAttributes.entityRef` attribute. A workflow without
 an entity (opened from the Workflows page) is only controlled when the policy
 allows the permission without conditions. Starting from the Workflows page
-also needs `temporal.workflow.list`. Queries only read the workflow; they
-need `temporal.workflow.query` besides the read permission. Denied requests answer 403. Each operation is recorded
+also needs `temporal.workflow.list`. The operations on one workflow, and
+queries, first load it with the read checks: `temporal.workflow.read` on the
+entity (with `entityRef`; the workflow must belong to it, 404 otherwise), or
+`temporal.workflow.list` for a workflow it covers when no `entityRef` is
+given, else `temporal.workflow.read` on the entity of the search attribute.
+A user with `temporal.workflow.signal` but without read access gets 403.
+Queries only read the workflow; they need `temporal.workflow.query` besides
+the read permission. Denied requests answer 403. Signal, update, cancel and
+terminate answer 409 when the workflow is not running, start and rerun when
+the workflow ID is taken, and the schedule operations when Temporal refuses
+the operation in the state of the schedule. Each operation is recorded
 with the auditor service (`workflow-start`, `workflow-signal`,
 `workflow-update`, `workflow-query`, `workflow-cancel`, `workflow-terminate`,
 `workflow-rerun`, `workflow-action`), with the user, the workflow and the

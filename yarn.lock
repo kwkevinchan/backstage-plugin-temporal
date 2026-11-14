@@ -11414,6 +11414,11 @@ __metadata:
     prettier: "npm:^2.3.2"
     protobufjs: "npm:^8.8.1"
     typescript: "npm:~5.8.0"
+  dependenciesMeta:
+    "@openapitools/openapi-generator-cli":
+      built: false
+    "@scarf/scarf":
+      built: false
   languageName: unknown
   linkType: soft
 

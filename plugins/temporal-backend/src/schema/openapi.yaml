@@ -83,7 +83,15 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: The entity the workflow is opened from, for example `component:default/orders`. Without it, `temporal.workflow.list` allows any workflow it covers; otherwise the permission is checked on the entity in the workflow's entity reference search attribute.
+      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` (and `temporal.workflow.history.list` for the history routes) allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none)."
+      schema:
+        type: string
+    scheduleEntityRef:
+      name: entityRef
+      in: query
+      required: false
+      allowReserved: true
+      description: 'An entity, for example `component:default/orders`. `temporal.workflow.start` is checked on it, and the schedule must start one of the workflow types of the entity or of the `TemporalWorkflow` entities it depends on, in its namespace: 404 otherwise. Without it, `temporal.workflow.start` must be allowed without conditions.'
       schema:
         type: string
     status:
@@ -1304,7 +1312,7 @@ paths:
       operationId: listWorkflows
       summary: List the workflows of a namespace
       description: |-
-        Every workflow of a namespace, for the Workflows page. Runs that match a `TemporalWorkflow` entity have `workflowEntityRef`.
+        Every workflow of a namespace, for the Workflows page. Runs that match a `TemporalWorkflow` entity the caller can read in the catalog have `workflowEntityRef`.
 
         Permission: `temporal.workflow.list`; a conditional decision limits the list to the workflows it allows.
       tags:
@@ -1386,7 +1394,7 @@ paths:
       operationId: listEntityWorkflows
       summary: List the workflows of an entity
       description: |-
-        The runs of the entity's workflow sources: its annotations, or the spec of a `TemporalWorkflow` entity, and the `TemporalWorkflow` entities it depends on.
+        The runs of the entity's workflow sources: its annotations, or the spec of a `TemporalWorkflow` entity, and the `TemporalWorkflow` entities it depends on. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity.
       tags:
@@ -1501,7 +1509,7 @@ paths:
       operationId: listEntitySchedules
       summary: List the schedules of an entity
       description: |-
-        Schedules that start the workflow types of the entity's workflow sources.
+        Schedules that start the workflow types of the entity's workflow sources. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity.
       tags:
@@ -1535,7 +1543,10 @@ paths:
     get:
       operationId: getEntityWorkflowStats
       summary: Summarize an entity's most recent runs
-      description: 'Permission: `temporal.workflow.read` on the entity.'
+      description: |-
+        The runs of the entity's workflow sources, as in the workflow list. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
+
+        Permission: `temporal.workflow.read` on the entity.
       tags:
         - Workflows
       x-temporal-permissions:
@@ -1674,12 +1685,14 @@ paths:
       description: |-
         Inputs and results are left out (`payloadsHidden`) without the history permission. The `loop`, `llm`, `tool` and `loops` fields are experimental.
 
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
         - Workflows
       x-temporal-permissions:
         - temporal.workflow.read
         - temporal.workflow.list
+        - temporal.workflow.history.read
+        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1833,17 +1846,16 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':
-          description: The data, with the media type of the payload (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
+          description: The data, with the media type of the payload, for example `application/json` or `image/png` (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
           headers:
             Content-Disposition:
               description: '`attachment; filename="payload-<sha256 prefix>.<ext>"`'
               schema:
                 type: string
           content:
-            application/octet-stream:
+            '*/*':
               schema:
-                type: string
-                contentMediaType: application/octet-stream
+                description: The stored data, as it is.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1861,7 +1873,7 @@ paths:
       operationId: getWorkflowHandlers
       summary: List the signals, updates and queries of a workflow
       description: |-
-        From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out.
+        From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out. The descriptions of a `TemporalWorkflow` entity other than the one the workflow is opened from are used only when the caller has `temporal.workflow.read` on it; otherwise they are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
       tags:
@@ -1899,7 +1911,7 @@ paths:
       description: |-
         Queries only read the workflow, but run the worker's code, so they are recorded with the auditor. Always served, also when `temporal.control.enabled` is false.
 
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.query` on the workflow's entity.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.query` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
       tags:
         - Workflows
       x-temporal-permissions:
@@ -2347,12 +2359,14 @@ paths:
       description: |-
         Inputs and results are left out (`payloadsHidden`) without the history permission. The `loop`, `llm`, `tool` and `loops` fields are experimental.
 
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
         - Workflows
       x-temporal-permissions:
         - temporal.workflow.read
         - temporal.workflow.list
+        - temporal.workflow.history.read
+        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -2511,17 +2525,16 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':
-          description: The data, with the media type of the payload (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
+          description: The data, with the media type of the payload, for example `application/json` or `image/png` (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
           headers:
             Content-Disposition:
               description: '`attachment; filename="payload-<sha256 prefix>.<ext>"`'
               schema:
                 type: string
           content:
-            application/octet-stream:
+            '*/*':
               schema:
-                type: string
-                contentMediaType: application/octet-stream
+                description: The stored data, as it is.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2539,7 +2552,7 @@ paths:
       operationId: getWorkflowRunHandlers
       summary: List the signals, updates and queries of a workflow (one run)
       description: |-
-        From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out.
+        From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out. The descriptions of a `TemporalWorkflow` entity other than the one the workflow is opened from are used only when the caller has `temporal.workflow.read` on it; otherwise they are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
       tags:
@@ -2578,7 +2591,7 @@ paths:
       description: |-
         Queries only read the workflow, but run the worker's code, so they are recorded with the auditor. Always served, also when `temporal.control.enabled` is false.
 
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.query` on the workflow's entity.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.query` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
       tags:
         - Workflows
       x-temporal-permissions:
@@ -2940,7 +2953,7 @@ paths:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/scheduleId'
         - $ref: '#/components/parameters/scheduleOperation'
-        - $ref: '#/components/parameters/entityRef'
+        - $ref: '#/components/parameters/scheduleEntityRef'
       requestBody:
         required: false
         content:

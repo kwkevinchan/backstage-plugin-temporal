@@ -876,6 +876,66 @@ describe('schedule controls', () => {
   });
 });
 
+// The request body of these routes is optional. Sent without one (no body,
+// no content type), as the Scaffolder client does, they use the defaults.
+// The OpenAPI validator of the other tests reads a missing optional body as
+// invalid, so these go to the test backend directly.
+describe('operations without a request body', () => {
+  const schedules = [
+    {
+      scheduleId: 'nightly',
+      workflowType: 'orderWorkflow',
+      taskQueue: 'orders',
+    },
+  ];
+  it.each([
+    {
+      route: 'cancel',
+      path: `${wf}/cancel${withEntity}`,
+      status: 202,
+      check: ({ workflowService }: Awaited<ReturnType<typeof start>>) =>
+        expect(
+          workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
+        ).toMatchObject({
+          workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+          identity: 'backstage:user:default/mock',
+        }),
+    },
+    {
+      route: 'terminate',
+      path: `${wf}/terminate${withEntity}`,
+      status: 200,
+      check: ({ workflowService }: Awaited<ReturnType<typeof start>>) =>
+        expect(
+          workflowService.terminateWorkflowExecution.mock.calls[0][0],
+        ).toMatchObject({ reason: 'Terminated from Backstage' }),
+    },
+    {
+      route: 'rerun',
+      path: `${wf}/rerun${withEntity}`,
+      status: 201,
+      check: ({ workflowService }: Awaited<ReturnType<typeof start>>) =>
+        expect(
+          workflowService.startWorkflowExecution.mock.calls[0][0].workflowId,
+        ).toMatch(/^wf-1-rerun-[a-z0-9]+$/),
+    },
+    {
+      route: 'schedule pause',
+      path: '/api/temporal/namespaces/default/schedules/nightly/pause?entityRef=component:default/orders',
+      status: 202,
+      check: ({ scheduleHandles }: Awaited<ReturnType<typeof start>>) =>
+        expect(scheduleHandles.get('nightly')!.pause).toHaveBeenCalledWith(
+          'Paused from Backstage by user:default/mock',
+        ),
+    },
+  ])('$route uses its defaults', async ({ path, status, check }) => {
+    const started = await start({ schedules });
+    const res = await request(started.backend).post(path);
+    expect(res.status).toBe(status);
+    check(started);
+  });
+});
+
 describe('with temporal.control.enabled: false', () => {
   const disabled = { enabled: false };
   const schedules = [
