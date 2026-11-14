@@ -4,7 +4,10 @@
 #
 #   yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml
 #
-# The credentials come from the environment; the backend only needs read access.
+# The same PAYLOAD_S3_* variables as the example worker (ENDPOINT, BUCKET,
+# ACCESS_KEY, SECRET_KEY); the region is the worker's default. Locally the
+# backend uses the worker's access key; elsewhere give it a key of its own
+# with read access only (see Security in the README).
 temporal:
   externalStorage:
     s3:

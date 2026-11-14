@@ -201,6 +201,25 @@ describe('payload downloads', () => {
     expect(steps.body.input.external.state).toBe('unconfigured');
   });
 
+  it('keeps the errors of S3 in the backend', async () => {
+    mockObjects.clear();
+    const { server } = await start({ s3: true });
+    const res = await request(server).get(download(key));
+    expect(res.status).toBe(500);
+    expect(res.text).not.toContain('NoSuchKey');
+    expect(res.body.error.message).toBe(
+      'Could not read the stored payload from S3; see the backend log',
+    );
+    const steps = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/steps?entityRef=${ref}`,
+    );
+    expect(steps.body.input.external).toMatchObject({
+      state: 'error',
+      error: 'Could not read the stored payload from S3; see the backend log',
+    });
+    expect(JSON.stringify(steps.body)).not.toContain('NoSuchKey');
+  });
+
   it('refuses an object that does not match its reference', async () => {
     const changed = Buffer.from(object);
     changed[changed.length - 1] ^= 1;

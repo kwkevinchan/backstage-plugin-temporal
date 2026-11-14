@@ -605,12 +605,19 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `control.enabled`                                                                                                         | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
 | `control.allowedSignals`, `control.allowedUpdates`                                                                        | backend (rejects), frontend (offers)                                | yes                    |
 | `externalStorage.s3.bucket`, `.driverName`, `.endpoint`, `.region`, `.forcePathStyle`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
-| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; the last two secret                                        |                        |
+| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; secret                                                     |                        |
+| `externalStorage.s3.accountId`, `.defaultCredentials`                                                                     | backend (with Backstage's `aws` config)                             |                        |
 | `definitions.maxBytes`, `definitions.readFileLocations`                                                                   | Zigflow backend module                                              |                        |
 | `experimental.aiWorkflows`                                                                                                | backend, the loops. **Experimental**                                |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
-the `workflowUrl` output.
+the `workflowUrl` output. With `externalStorage.s3.accountId`, the backend
+also reads Backstage's `aws` config (`aws.accounts`, `aws.accountDefaults`,
+`aws.mainAccount`) for that account; those keys belong to Backstage. The
+`accountId` entry needs its own `roleName`, `accessKeyId` or `profile`
+(otherwise the backend does not start), and with `defaultCredentials: true`
+the backend reads `aws.mainAccount` to warn when Backstage's URL reader
+shares the identity of the machine.
 
 ## Catalog: annotations and the `TemporalWorkflow` kind
 

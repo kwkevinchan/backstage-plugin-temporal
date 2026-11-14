@@ -160,7 +160,11 @@ describe('PayloadStore', () => {
     const events = [elsewhere, driver, missing].map(s =>
       startedEvent(s.payload),
     );
-    await new PayloadStore({ store: s3.store() }).resolve(events);
+    const logger = { warn: jest.fn() };
+    await new PayloadStore({
+      store: s3.store(),
+      logger: logger as any,
+    }).resolve(events);
     const [a, b, c] = events.map(
       e => (toWorkflowSteps([e], false).input as any).external,
     );
@@ -173,10 +177,17 @@ describe('PayloadStore', () => {
       error:
         'Stored with the storage driver reports; Backstage reads aws.s3driver',
     });
+    // The error of S3 stays in the backend log.
     expect(c).toMatchObject({
       state: 'error',
-      error: `NoSuchKey ${missing.key}`,
+      error: 'Could not read the stored payload from S3; see the backend log',
+      downloadable: false,
     });
+    expect(JSON.stringify(c)).not.toContain('NoSuchKey');
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Could not read the stored payload ${missing.key} from S3: Error: NoSuchKey ${missing.key}`,
+    );
   });
 
   it('finds references anywhere in the events', async () => {
@@ -256,5 +267,12 @@ describe('PayloadStore', () => {
         }),
       ),
     ).toThrow(/maxInlineBytes/);
+    expect(() =>
+      PayloadStore.fromConfig(
+        new ConfigReader({
+          temporal: { externalStorage: { s3: { bucket: 'b' } } },
+        }),
+      ),
+    ).toThrow(/needs exactly one source of S3 credentials/);
   });
 });
