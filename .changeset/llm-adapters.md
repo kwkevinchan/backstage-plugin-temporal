@@ -19,8 +19,8 @@ plain steps.
   the finish reason, the names and tool call IDs of the tools asked for,
   and the type or message of an error. The messages, the thinking and
   tool arguments and results still need `temporal.workflow.history.read`.
-  The graph does not download the input of a model call from External
-  Storage; the full record route does.
+  Without the history permission, the graph does not download the input
+  of a model call from External Storage; the full record route does.
 - `temporalLlmAdapterExtensionPoint` (`./alpha`) adds LLM adapters for other
   frameworks (`TemporalLlmAdapter`): adapters of modules are asked before
   the built-in ones, a taken ID fails the start, and an adapter that throws

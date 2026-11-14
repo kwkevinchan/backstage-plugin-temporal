@@ -155,12 +155,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                      |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                            |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                          |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                                                                                                                                        |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -544,8 +544,10 @@ Known limits:
 - a payload codec (for example encryption) encodes the inputs and results:
   the backend cannot read them, and the model calls are plain steps.
 - tool links of tools that record no tool call ID are inferred (above).
-- the graph does not download the input of a model call from External
-  Storage (it is the whole conversation). When the input is stored there,
+- without `temporal.workflow.history.read`, the graph does not download the
+  input of a model call from External Storage (it is the whole
+  conversation; with the permission the graph reads every payload). When
+  the input is stored there,
   the graph lacks what only the input has: the model of an OpenAI Agents
   call, and the end of the inference window, which then is the next model
   call. The panel reads the full record, input included.
@@ -565,6 +567,72 @@ unreleased `@kwkevinchan/temporal-workflow-kit` has its own format
 [OpenTelemetry GenAI](https://github.com/open-telemetry/semantic-conventions-genai)
 attributes); the backend still reads it with an internal adapter
 (`temporal-workflow-kit`), which will be removed together with the kit.
+
+## Event groups
+
+> **Experimental.** Event Groups are an experimental feature of Temporal
+> and may change; so may the data below. Nothing needs to be turned on.
+
+A workflow can put the commands it sends (activities, timers, child
+workflows, local activities) into
+[event groups](https://github.com/temporalio/sdk-typescript/blob/main/packages/workflow/src/event-groups.ts),
+for example one group for a loop and one for each of its rounds. Temporal
+records the groups of each command on its event (`eventGroupMarkers`), and
+the Temporal Web UI filters the history by them. The backend reads them
+into the graph (`GET .../graph`); the worker does not change for the
+plugin.
+
+This needs Temporal server 1.32 or later and an SDK that writes Event
+Groups (TypeScript SDK 1.23 or later). With older versions the plugin works
+as before, without groups.
+
+What the graph response has:
+
+- `eventGroups`: each group of the run, in the order it started, with its
+  key (`label:<id>`, `event:<event ID>` for the commands of a signal
+  handler, `update:<update ID>` for those of an update handler; the same
+  keys as the `groups` parameter of the Temporal UI), its name, its steps
+  (`nodeIds`), its parent and child groups, its status, its start and
+  end, and the tokens of the model calls in it.
+- `groups` on each step: the keys of its groups, outer groups first.
+
+The steps of a group can include internal steps (for example a memo
+upsert or a cancel request to another workflow); the frontend decides
+which to show. A group is Running while a step of it is open, Failed when
+a step failed, Canceled when a step was canceled, else Completed. Once the
+run has ended, a group with a step left open (an activity abandoned by a
+timeout or a termination, a timer that had not fired) is Failed when the
+run failed, timed out or was terminated, else Canceled, and it ends when
+the run ended.
+
+The name is the label of the group, cut like the summary of a step to its
+first line, trimmed; else its ID; a signal handler's group
+is `<signal name> (<event ID>)`, an update handler's
+`<update name> (<update ID>)`, as in the Temporal UI. A payload codec
+encodes the label (not the ID): the backend cannot read it, so the group is
+named by its ID and marked `labelUnreadable`.
+
+Temporal records no parent of a group: the events list the groups of a
+step as one flat list, outer groups first. The backend infers the nesting.
+A group is inside another when every step of it is also in the other one
+and the other one comes first in the groups of each of these steps; of
+several such groups, the innermost one. So:
+
+- two groups whose steps overlap without one containing the other (for
+  example two tags on some of the same steps) have no parent;
+- two groups on the same steps nest in the order of the list;
+- a group that a workflow puts on a single step inside another group reads
+  as nested in it, since the history looks the same.
+
+Commands of a signal or update handler carry only the handler's group, not
+the group the workflow was in at that time. A child workflow's step has
+the groups of the parent's event; the child's own history has only its own
+groups. Groups do not continue across continue-as-new: each run has its
+own, and the continued-as-new event counts in the group it was called in.
+The graph needs the read permission only, like the summaries of the steps:
+the groups, their names and their tokens are shown to anyone who may read
+the workflow. A run has at most 1000 groups and a step 32; more are left
+out (`eventGroupsTruncated`).
 
 ## Workflow definitions
 
@@ -962,19 +1030,19 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type       | Used for                                                                                       |
-| -------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph, progress, Zigflow definition                               |
-| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                              |
-| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                     |
-| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                            |
-| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                              |
-| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules |
-| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                  |
-| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                        |
-| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                               |
-| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                    |
-| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                          |
+| Permission                       | Resource type       | Used for                                                                                                      |
+| -------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph (with step summaries and event group labels), progress, Zigflow definition |
+| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                                             |
+| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                                    |
+| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                                           |
+| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                             |
+| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                |
+| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                                 |
+| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                                       |
+| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                                              |
+| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                                   |
+| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                                         |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
@@ -1457,7 +1525,9 @@ warning; it does not fail the lint.
   `temporal.control.enabled: false` to keep the plugin read-only.
 - **Inputs and results can contain personal or secret data.** They are part
   of the history and need `temporal.workflow.history.read`; without it the
-  graph is shown without them. Keep the list permissions
+  graph is shown without them. The summaries of the steps and the labels of
+  event groups are shown with `temporal.workflow.read` alone: do not put
+  secrets into them. Keep the list permissions
   (`temporal.workflow.list`, `.history.list`) for people who may read every
   workflow.
 - **Least privilege towards Temporal and S3.** The token only needs the read

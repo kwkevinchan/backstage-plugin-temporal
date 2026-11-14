@@ -261,6 +261,9 @@ export class LlmAdapters {
    */
   reader(options: { silent?: boolean } = {}): LlmStepReader {
     const adapters = this.all();
+    // The built-in adapters return plain JSON: copying them would copy
+    // whole conversations (`raw`) on every graph.
+    const builtIn = new Set(this.builtIn);
     const noInference = this.noInference;
     const warned = new Set<string>();
     const warn = (
@@ -300,7 +303,10 @@ export class LlmAdapters {
         throw new AdapterFailure();
       }
       try {
-        value = value === undefined ? undefined : jsonCopy(value);
+        // Only the copy of a module's value is used from here on.
+        if (value !== undefined && !builtIn.has(adapter)) {
+          value = jsonCopy(value);
+        }
       } catch {
         warn(
           adapter,

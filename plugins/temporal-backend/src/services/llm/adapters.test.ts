@@ -712,6 +712,30 @@ describe('LLM adapter results', () => {
     }
   });
 
+  it('copies the values of module adapters only', () => {
+    const shared = { kept: true };
+    const returning = (id: string): TemporalLlmAdapter => ({
+      id,
+      isModelCall: step => step.activityType === 'invokeModel',
+      readModelCalls: () => [{ record: plainRecord(), raw: { shared } }],
+    });
+    const logger = mockServices.logger.mock();
+    const builtIn = new LlmAdapters(logger);
+    builtIn.add(returning('built-in'), { builtIn: true });
+    const fromModule = new LlmAdapters(logger);
+    fromModule.add(returning('module'));
+    const rawOf = (adapters: LlmAdapters) =>
+      adapters
+        .reader()
+        .readModelCalls(
+          { kind: 'activity', activityType: 'invokeModel' },
+          { result: {} },
+        )!.calls[0].raw as any;
+    expect(rawOf(builtIn).shared).toBe(shared);
+    expect(rawOf(fromModule).shared).not.toBe(shared);
+    expect(rawOf(fromModule).shared).toEqual(shared);
+  });
+
   it('takes more than 100 calls of one step as a failure', () => {
     const calls = (n: number) => ({
       id: `calls-${n}`,

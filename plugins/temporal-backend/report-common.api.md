@@ -723,6 +723,27 @@ export interface WorkflowDetail extends WorkflowSummary {
   searchAttributes?: JsonObject;
 }
 
+// @alpha
+export interface WorkflowEventGroup {
+  children: string[];
+  endTime?: string;
+  id: string;
+  key: string;
+  kind: WorkflowEventGroupKind;
+  labelUnreadable?: boolean;
+  llmCalls?: number;
+  name: string;
+  nodeIds: string[];
+  parent?: string;
+  sourceNodeId?: string;
+  startTime?: string;
+  status: WorkflowNodeStatus;
+  usage?: WorkflowLlmUsage;
+}
+
+// @alpha
+export type WorkflowEventGroupKind = 'label' | 'event' | 'update';
+
 // @public
 export interface WorkflowFailure {
   // (undocumented)
@@ -761,6 +782,7 @@ export interface WorkflowGraphNode {
   events: WorkflowNodeEvent[];
   // (undocumented)
   failure?: WorkflowFailure;
+  groups?: string[];
   id: string;
   input?: JsonValue;
   internal?: boolean;
@@ -797,6 +819,9 @@ export interface WorkflowGraphResponse {
   currentDeadline?: WorkflowDeadline;
   // (undocumented)
   edges: WorkflowGraphEdge[];
+  // Warning: (ae-incompatible-release-tags) The symbol "eventGroups" is marked as @public, but its signature references "WorkflowEventGroup" which is marked as @alpha
+  eventGroups?: WorkflowEventGroup[];
+  eventGroupsTruncated?: boolean;
   // Warning: (ae-incompatible-release-tags) The symbol "loops" is marked as @public, but its signature references "WorkflowLoopGroup" which is marked as @alpha
   loops?: WorkflowLoopGroup[];
   // (undocumented)
