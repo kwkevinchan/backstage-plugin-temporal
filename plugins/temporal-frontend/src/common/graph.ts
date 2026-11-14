@@ -18,6 +18,7 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import type { WorkflowEventGroup } from './eventGroups';
 import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
 import type { WorkflowLoopGroup, WorkflowLoopMarker } from './loops';
 import type { WorkflowFailure, WorkflowStatus } from './types';
@@ -184,6 +185,12 @@ export interface WorkflowGraphNode {
    * the first stable release.
    */
   tool?: WorkflowToolLink;
+  /**
+   * Keys of the Temporal event groups of the step, outer groups first, as
+   * the history lists them (see `WorkflowGraphResponse.eventGroups`).
+   * Experimental, like Event Groups in Temporal.
+   */
+  groups?: string[];
   /** The events of the step, oldest first. */
   events: WorkflowNodeEvent[];
 }
@@ -228,6 +235,16 @@ export interface WorkflowGraphResponse {
    * Experimental (`temporal.experimental.aiWorkflows`).
    */
   loops?: WorkflowLoopGroup[];
+  /**
+   * Temporal event groups of the run, in the order they started; left out
+   * when the history has none. Experimental, like Event Groups in Temporal.
+   */
+  eventGroups?: WorkflowEventGroup[];
+  /**
+   * True when the run has more event groups than the backend reads, or a
+   * step more groups than it reads for one step; the others are left out.
+   */
+  eventGroupsTruncated?: boolean;
 }
 
 /**

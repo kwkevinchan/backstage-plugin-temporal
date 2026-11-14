@@ -46,6 +46,7 @@ import {
   localActivityType,
   readLlmSteps,
 } from './llm/llm';
+import { EventGroupCollector } from './eventGroups';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   buildLoopGroups,
@@ -70,6 +71,10 @@ import {
  * - workflow task: Scheduled, Started, Completed, Failed, TimedOut by
  *   `scheduledEventId`, internal (hidden by default) unless it failed;
  * - start and close of the workflow; anything else is an internal event.
+ *
+ * Event groups: the markers on the event that starts a step (scheduled,
+ * started, initiated, recorded) are the groups of the step (see
+ * `eventGroups.ts`).
  *
  * Arrows: a step B follows a step A when B started after A ended (by event
  * ID). Only the closest such steps are linked (transitive reduction), so
@@ -227,6 +232,7 @@ export function buildWorkflowGraphWithLlm(
   const llmEntries: LlmStepEntry[] = [];
   const llmEntry = new Map<Building, LlmStepEntry>();
   const byKey = new Map<string, Building>();
+  const eventGroups = new EventGroupCollector();
   const payload = (value: JsonValue | undefined) =>
     options.includePayloads ? value : undefined;
 
@@ -249,6 +255,8 @@ export function buildWorkflowGraphWithLlm(
     ) {
       node.summary = summary;
     }
+    const groups = eventGroups.add(node.id, event);
+    if (groups) node.groups = groups;
     nodes.push(node);
     byKey.set(key, node);
     return node;
@@ -864,6 +872,8 @@ export function buildWorkflowGraphWithLlm(
     (options.llmAdapters ?? builtInOnlyLlmAdapters()).reader(),
     decodePayloads,
   );
+  // After the model calls: the groups add up their tokens.
+  const groups = eventGroups.build(nodes);
 
   const visible = nodes.filter(n => !n.internal);
   // A running workflow with nothing open waits for something outside.
@@ -937,6 +947,8 @@ export function buildWorkflowGraphWithLlm(
           })
         : undefined,
     loops,
+    eventGroups: groups.groups.length > 0 ? groups.groups : undefined,
+    eventGroupsTruncated: groups.truncated || undefined,
   };
   return { graph: dropUndefined(response), llm };
 }

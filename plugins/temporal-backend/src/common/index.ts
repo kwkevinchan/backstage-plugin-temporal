@@ -37,3 +37,5 @@ export * from './definition';
 // the model calls and tool calls.
 export * from './loops';
 export * from './llm';
+// Experimental, @alpha: Temporal Event Groups.
+export * from './eventGroups';

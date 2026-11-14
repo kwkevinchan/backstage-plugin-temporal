@@ -911,6 +911,11 @@ components:
           type: object
           additionalProperties: {}
           description: 'A tool call of a model call. Experimental: the shape changes before the first stable release.'
+        groups:
+          type: array
+          items:
+            type: string
+          description: 'Keys of the Temporal event groups of the step (`label:<id>`, `event:<event ID>`, `update:<update ID>`), outer groups first. Experimental, like Event Groups in Temporal.'
         events:
           type: array
           items:
@@ -971,6 +976,15 @@ components:
             type: object
             additionalProperties: {}
           description: 'Loops of the run, from loop markers; left out when there are none. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+        eventGroups:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          description: 'Temporal event groups of the run (`WorkflowEventGroup`: key, kind, name, steps, inferred parent and children, status, times, tokens), in the order they started; left out when there are none. Experimental, like Event Groups in Temporal: the shape may change.'
+        eventGroupsTruncated:
+          type: boolean
+          description: True when the run has more event groups than the backend reads (1000), or a step more than 32; the others are left out.
       additionalProperties: false
     WorkflowProgressResponse:
       type: object

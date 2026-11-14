@@ -98,6 +98,7 @@ change the format there first. The LLM adapters of the official Temporal AI
 integrations are tested against recorded histories in
 `test-fixtures/llm-integrations` (see its README; rename task queues,
 workflow types and IDs, worker identities and paths before adding one).
+The event groups are tested the same way against `test-fixtures/event-groups`.
 Large payloads use Temporal External
 Storage: the backend tests read payloads written by the official S3 driver
 (`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).
