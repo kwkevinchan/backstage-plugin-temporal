@@ -42,9 +42,7 @@ export interface ActivityStep {
   tool?: WorkflowToolLink;
 }
 
-// Warning: (ae-incompatible-release-tags) The symbol "addLlmUsage" is marked as @public, but its signature references "WorkflowLlmUsage" which is marked as @alpha
-//
-// @public
+// @alpha
 export function addLlmUsage(
   a: WorkflowLlmUsage | undefined,
   b: WorkflowLlmUsage | undefined,
@@ -190,28 +188,28 @@ export function isValidWorkflowIdPrefix(value: string): boolean;
 // @public (undocumented)
 export function isValidWorkflowTypeName(value: string): boolean;
 
-// @public
+// @alpha
 export const LLM_MARKER_PREFIX = 'llm';
 
-// @public
+// @alpha
 export const LLM_RECORD_KEY = 'temporal.llm';
 
-// @public
+// @alpha
 export const LLM_RECORD_VERSION = 1;
 
 // @alpha
 export const LLM_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev';
 
-// @public
+// @alpha
 export const LLM_TOOL_RESULT_KEY = 'temporal.llm.tool';
 
-// @public
+// @alpha
 export const LOOP_MARKER_MEMO_KEY = 'temporal.loop';
 
-// @public
+// @alpha
 export const LOOP_STATE_MEMO_KEY = 'temporal.loops';
 
-// @public
+// @alpha
 export const LOOP_STATE_QUERY = '__loop_state';
 
 // @public
@@ -685,7 +683,7 @@ export const temporalWorkflowTerminatePermission: ResourcePermission<'catalog-en
 // @public
 export const temporalWorkflowUpdatePermission: ResourcePermission<'catalog-entity'>;
 
-// @public
+// @alpha
 export const TOOL_MARKER_PREFIX = 'tool';
 
 // @public

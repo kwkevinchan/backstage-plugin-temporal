@@ -37,18 +37,18 @@ import type { ExternalPayload } from './types';
  * README.
  */
 
-/** First segment of the activity ID of a model call. @public */
+/** First segment of the activity ID of a model call. @alpha */
 export const LLM_MARKER_PREFIX = 'llm';
-/** First segment of the activity ID of a tool call. @public */
+/** First segment of the activity ID of a tool call. @alpha */
 export const TOOL_MARKER_PREFIX = 'tool';
-/** Key of the LLM record in the result of a model call. @public */
+/** Key of the LLM record in the result of a model call. @alpha */
 export const LLM_RECORD_KEY = 'temporal.llm';
 /**
  * Key of the tool marker in the result of a tool call, for local
- * activities, whose activity ID the backend cannot always read. @public
+ * activities, whose activity ID the backend cannot always read. @alpha
  */
 export const LLM_TOOL_RESULT_KEY = 'temporal.llm.tool';
-/** Version of the LLM record format. @public */
+/** Version of the LLM record format. @alpha */
 export const LLM_RECORD_VERSION = 1;
 /**
  * Version of the OpenTelemetry GenAI semantic conventions the record
@@ -337,7 +337,7 @@ export function buildLlmCallPath(nodeId: string): string {
   return `/llm-calls/${encodeURIComponent(eventId)}`;
 }
 
-/** Adds the token counts of `b` to `a`. @public */
+/** Adds the token counts of `b` to `a`. @alpha */
 export function addLlmUsage(
   a: WorkflowLlmUsage | undefined,
   b: WorkflowLlmUsage | undefined,
