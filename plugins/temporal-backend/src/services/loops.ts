@@ -101,6 +101,52 @@ const num = (v: unknown) =>
 const pos = (v: unknown) =>
   typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : undefined;
 
+const CHILD_MARKER_PATTERN =
+  /(?:^|\/)loop\/([^/]+)\/([1-9]\d*)\/([^/]+)(?:\/([1-9]\d*))?$/;
+
+/** `loop/...` at the start, or after the `llm/<call>/` or `tool/<call>/<id>/` of an LLM step. */
+const ACTIVITY_MARKER_PATTERN =
+  /^(?:llm\/[^/]+\/|tool\/[^/]+\/[^/]+\/)?loop\/([^/]+)\/([1-9]\d*)\/([^/]+)(?:\/([1-9]\d*))?$/;
+
+function readMarker(match: RegExpExecArray | null) {
+  if (!match) return undefined;
+  try {
+    const marker: WorkflowLoopMarker = {
+      loop: decodeURIComponent(match[1]),
+      iteration: Number(match[2]),
+      step: decodeURIComponent(match[3]),
+    };
+    if (match[4]) marker.occurrence = Number(match[4]);
+    return marker;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reads `loop/<loop>/<iteration>/<step>[/<occurrence>]` from the end of a
+ * child workflow ID. Names are percent-encoded.
+ */
+export function parseLoopMarker(
+  text: string | undefined,
+): WorkflowLoopMarker | undefined {
+  if (!text) return undefined;
+  return readMarker(CHILD_MARKER_PATTERN.exec(text));
+}
+
+/**
+ * Reads `loop/<loop>/<iteration>/<step>[/<occurrence>]` from an activity ID:
+ * at its start, or after the `llm/<call>/` or `tool/<call>/<toolCallId>/` of
+ * an LLM step. An ID that only ends with a marker (a custom ID such as
+ * `tenants/acme/loop/retry/2/charge`) is not in a loop.
+ */
+export function parseActivityLoopMarker(
+  text: string | undefined,
+): WorkflowLoopMarker | undefined {
+  if (!text) return undefined;
+  return readMarker(ACTIVITY_MARKER_PATTERN.exec(text));
+}
+
 /** A marker from a memo value (`temporal.loop` of a child workflow). */
 export function readLoopMarker(value: unknown): WorkflowLoopMarker | undefined {
   const v = value as Record<string, unknown> | undefined;

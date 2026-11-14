@@ -27,7 +27,10 @@ import {
   executionInfo,
   fakeTemporalServiceFactory,
   fakeScheduleClient,
+  checkoutEntity,
+  orderWorkflowEntity,
   ordersEntity,
+  otherEntity,
   scheduleSummary,
 } from './testUtils';
 
@@ -102,6 +105,8 @@ const ticketWorkflowEntity: Entity = {
 
 async function start(options?: {
   deny?: string[];
+  /** Permission names that get a conditional decision. */
+  conditional?: string[];
   entities?: Entity[];
   client?: unknown;
   /** The name of the entity reference search attribute. */
@@ -118,7 +123,16 @@ async function start(options?: {
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests => requests.map(decide)) as any,
     authorizeConditional: jest.fn(async requests =>
-      requests.map(decide),
+      requests.map((r: any) =>
+        options?.conditional?.includes(r.permission.name)
+          ? {
+              result: AuthorizeResult.CONDITIONAL,
+              pluginId: 'catalog',
+              resourceType: 'catalog-entity',
+              conditions: { rule: 'IS_ENTITY_OWNER', params: { claims: [] } },
+            }
+          : decide(r),
+      ),
     ) as any,
   });
   const auditor = mockServices.auditor.mock();
@@ -180,36 +194,65 @@ describe('query routes of the core plugin', () => {
     expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
-  it('answers 400 for a query when the entity search attribute is not a reference', async () => {
-    const { server, workflowService } = await start({
-      entityRefAttribute: 'BackstageEntityRef',
-    });
-    workflowService.describeWorkflowExecution.mockImplementation(
-      async (req: any) => ({
-        workflowExecutionInfo: {
-          ...executionInfo({
-            workflowId: req.execution.workflowId,
-            status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
-          }),
-          searchAttributes: {
-            indexedFields: {
-              // The JSON form of a payload, as the client library decodes it.
-              BackstageEntityRef: {
-                metadata: { encoding: b64('json/plain') },
-                data: b64(JSON.stringify('not a ref')),
+  it('treats an entity search attribute that is not a reference as no entity for a query', async () => {
+    const withBadAttribute = async (
+      options: { deny?: string[]; conditional?: string[] } = {},
+    ) => {
+      const started = await start({
+        entityRefAttribute: 'BackstageEntityRef',
+        ...options,
+      });
+      started.workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => ({
+          workflowExecutionInfo: {
+            ...executionInfo({
+              workflowId: req.execution.workflowId,
+              status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+            }),
+            searchAttributes: {
+              indexedFields: {
+                // The JSON form of a payload, as the client library decodes it.
+                BackstageEntityRef: {
+                  metadata: { encoding: b64('json/plain') },
+                  data: b64(JSON.stringify('not a ref')),
+                },
               },
             },
           },
-        },
-        pendingActivities: [],
-      }),
-    );
-    // From the Workflows page: the list permission, no entityRef.
-    const res = await request(server)
+          pendingActivities: [],
+        }),
+      );
+      return started;
+    };
+    // From the Workflows page: the list permission, no entityRef. With no
+    // entity, temporal.workflow.query must be allowed for every entity.
+    const allowed = await withBadAttribute();
+    const res = await request(allowed.server)
       .post(`${wf}/query`)
       .send({ name: 'state' });
-    expect(res.status).toBe(400);
-    expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(allowed.workflowService.queryWorkflow).toHaveBeenCalled();
+    const names = allowed.permissions.authorizeConditional.mock.calls.flatMap(
+      ([reqs]) => reqs.map((r: any) => r.permission.name),
+    );
+    expect(names).toContain('temporal.workflow.query');
+    const denied = await withBadAttribute({
+      deny: ['temporal.workflow.query'],
+    });
+    const refused = await request(denied.server)
+      .post(`${wf}/query`)
+      .send({ name: 'state' });
+    expect(refused.status).toBe(403);
+    expect(denied.workflowService.queryWorkflow).not.toHaveBeenCalled();
+    // A conditional decision does not allow it for every entity either.
+    const conditional = await withBadAttribute({
+      conditional: ['temporal.workflow.query'],
+    });
+    const conditionalRes = await request(conditional.server)
+      .post(`${wf}/query`)
+      .send({ name: 'state' });
+    expect(conditionalRes.status).toBe(403);
+    expect(conditional.workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
   it('lists the handlers with the read permission only', async () => {
@@ -317,6 +360,48 @@ describe('query routes of the core plugin', () => {
         )
       ).status,
     ).toBe(403);
+  });
+
+  it('operates the schedules its list shows, including those of a related workflow entity with a task queue', async () => {
+    const client = fakeScheduleClient(
+      [
+        scheduleSummary('nightly', 'orderWorkflow'),
+        scheduleSummary('weekly', 'reportWorkflow'),
+      ],
+      'orders',
+    );
+    const { server } = await start({
+      client,
+      entities: [checkoutEntity, orderWorkflowEntity],
+    });
+    const listed = await request(server).get(
+      '/api/temporal/entities/component/default/checkout/schedules',
+    );
+    expect(listed.body.items.map((s: any) => s.scheduleId)).toEqual([
+      'nightly',
+    ]);
+    const operate = (id: string) =>
+      request(server).post(
+        `/api/temporal/namespaces/default/schedules/${id}/pause?entityRef=component:default/checkout`,
+      );
+    expect((await operate('nightly')).status).toBe(202);
+    expect(client.handles.get('nightly')!.pause).toHaveBeenCalled();
+    expect((await operate('weekly')).status).toBe(404);
+  });
+
+  it('lists no schedules for an entity that has only a task queue', async () => {
+    const { server } = await start({
+      client: fakeScheduleClient(
+        [scheduleSummary('billing-run', 'billingWorkflow')],
+        'billing',
+      ),
+      entities: [otherEntity],
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/billing/schedules',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([]);
   });
 
   it('maps the Temporal errors of the schedule client', async () => {

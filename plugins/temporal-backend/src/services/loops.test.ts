@@ -15,7 +15,13 @@
  */
 
 import { buildWorkflowGraph, BuildGraphOptions } from './graph';
-import { readLoopState } from './loops';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  parseActivityLoopMarker,
+  parseLoopMarker,
+  readLoopState,
+} from './loops';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payload = (value: unknown) => ({
@@ -371,5 +377,59 @@ describe('readLoopState', () => {
     });
     expect(readLoopState('nope')).toBeUndefined();
     expect(readLoopState({ loops: 'x' })).toBeUndefined();
+  });
+});
+
+/**
+ * Shared examples of the marker format; the loop helpers of
+ * `@kwkevinchan/temporal-workflow-kit/loop` are tested against the same file.
+ * `applies` says whether a text is read as an activity ID or as a child
+ * workflow ID.
+ */
+const FIXTURE: { text: string; applies: string; marker: unknown }[] =
+  JSON.parse(
+    readFileSync(
+      resolve(__dirname, '../../../../test-fixtures/loop-markers.json'),
+      'utf8',
+    ),
+  ).examples;
+const examplesOf = (kind: 'activity' | 'child'): [string, unknown][] =>
+  FIXTURE.filter(e => e.applies === kind || e.applies === 'both').map(e => [
+    e.text,
+    e.marker ?? undefined,
+  ]);
+
+describe('parseLoopMarker (child workflow IDs)', () => {
+  it.each(examplesOf('child'))('parses %s', (text, marker) => {
+    expect(parseLoopMarker(text)).toEqual(marker);
+  });
+
+  it('ignores missing IDs', () => {
+    expect(parseLoopMarker(undefined)).toBeUndefined();
+    expect(parseLoopMarker('')).toBeUndefined();
+  });
+});
+
+describe('parseActivityLoopMarker', () => {
+  it.each(examplesOf('activity'))('parses %s', (text, marker) => {
+    expect(parseActivityLoopMarker(text)).toEqual(marker);
+  });
+
+  it('reads the marker after the prefix of an LLM step', () => {
+    const step = { loop: 'agent', iteration: 3, step: 'callModel' };
+    expect(
+      parseActivityLoopMarker('llm/plan%2F1/loop/agent/3/callModel'),
+    ).toEqual(step);
+    expect(
+      parseActivityLoopMarker('tool/r2/toolu_01/loop/agent/3/callModel'),
+    ).toEqual(step);
+    expect(
+      parseActivityLoopMarker('llm/agent-1/tenants/loop/agent/1/callModel'),
+    ).toBeUndefined();
+  });
+
+  it('ignores missing IDs', () => {
+    expect(parseActivityLoopMarker(undefined)).toBeUndefined();
+    expect(parseActivityLoopMarker('')).toBeUndefined();
   });
 });

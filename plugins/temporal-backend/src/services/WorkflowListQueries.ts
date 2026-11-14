@@ -39,6 +39,7 @@ import {
   buildNamespaceWorkflowQuery,
   NamespaceWorkflowFilter,
   matchingWorkflowEntity,
+  scheduleBelongsToSources,
 } from './query';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
@@ -73,8 +74,9 @@ export class WorkflowListQueries {
 
   /**
    * The schedules of a namespace, the first MAX_SCHEDULES of them; with
-   * `sources`, only those that start a workflow type of one of them (and on
-   * its task queue, when it has one: those schedules are described).
+   * `sources`, only those that belong to one of them
+   * (`scheduleBelongsToSources`; a schedule is described when its task queue
+   * decides).
    */
   async listSchedules(
     namespace: string,
@@ -82,9 +84,10 @@ export class WorkflowListQueries {
   ): Promise<TemporalScheduleListResponse> {
     this.sources.checkNamespace(namespace);
     const client = await this.temporal.getClient({ namespace });
+    const sources = filter?.sources;
     const items: TemporalSchedule[] = [];
-    /** Schedules whose task queue is checked, with the queues allowed. */
-    const toCheck: { schedule: TemporalSchedule; queues: string[] }[] = [];
+    /** Schedules that match only on a task queue, which the list lacks. */
+    const toCheck: TemporalSchedule[] = [];
     let truncated = false;
     let read = 0;
     try {
@@ -95,19 +98,16 @@ export class WorkflowListQueries {
           break;
         }
         const schedule = toTemporalSchedule(namespace, summary);
-        if (!filter?.sources) {
+        if (!sources) {
           items.push(schedule);
           continue;
         }
-        const type = schedule.workflowType ?? '';
-        const matching = filter.sources.filter(s =>
-          s.workflowTypes.includes(type),
-        );
-        if (matching.length === 0) continue;
-        if (matching.every(s => s.taskQueue)) {
-          toCheck.push({ schedule, queues: matching.map(s => s.taskQueue!) });
-        } else {
+        const workflowType = schedule.workflowType ?? '';
+        // The list has no task queue: a source without one decides alone.
+        if (scheduleBelongsToSources({ workflowType }, sources)) {
           items.push(schedule);
+        } else if (sources.some(s => s.workflowTypes.includes(workflowType))) {
+          toCheck.push(schedule);
         }
       }
     } catch (error) {
@@ -117,7 +117,7 @@ export class WorkflowListQueries {
     for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
       const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
       const queues = await Promise.all(
-        batch.map(({ schedule }) =>
+        batch.map(schedule =>
           client.schedule
             .getHandle(schedule.scheduleId)
             .describe()
@@ -129,8 +129,17 @@ export class WorkflowListQueries {
             }),
         ),
       );
-      batch.forEach(({ schedule, queues: allowed }, j) => {
-        if (queues[j] && allowed.includes(queues[j]!)) items.push(schedule);
+      batch.forEach((schedule, j) => {
+        const taskQueue = queues[j];
+        if (
+          taskQueue &&
+          scheduleBelongsToSources(
+            { workflowType: schedule.workflowType ?? '', taskQueue },
+            sources ?? [],
+          )
+        ) {
+          items.push(schedule);
+        }
       });
     }
     items.sort((a, b) => a.scheduleId.localeCompare(b.scheduleId));

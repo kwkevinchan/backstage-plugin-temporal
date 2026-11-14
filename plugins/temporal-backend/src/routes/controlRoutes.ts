@@ -28,7 +28,6 @@ import {
 import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
 import {
-  isValidControlActionId,
   TemporalScheduleOperation,
   isValidNamespaceName,
   isValidTaskQueueName,
@@ -39,7 +38,6 @@ import {
   temporalWorkflowStartPermission,
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
-  TemporalAnnotations,
   WorkflowDetail,
   WorkflowRef,
 } from '../common';
@@ -51,15 +49,15 @@ import {
 } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
-import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import { WorkflowCommands } from '../services/WorkflowCommands';
 import {
   EntityWorkflowSources,
   readEntityWorkflowFilter,
 } from '../services/EntityWorkflowSources';
-import { matchesSource } from '../services/query';
+import { matchesSource, scheduleBelongsToSources } from '../services/query';
 import {
   entityRefFromParams,
+  isValidControlActionId,
   parseArgs,
   parseEntityRefParam,
   parseMessageBody,
@@ -177,7 +175,7 @@ export function createControlRouter(
     permission: ResourcePermission<'catalog-entity'>,
     loaded: LoadedWorkflow,
   ): Promise<string | undefined> =>
-    authorizeOnWorkflow(access, permission, loaded, canonicalEntityRef);
+    authorizeOnWorkflow(access, permission, loaded);
 
   /** A namespace of the path or the body: a valid name that is allowed. */
   function checkNamespace(namespace: string) {
@@ -464,7 +462,9 @@ export function createControlRouter(
       const entityRef = parseEntityRefParam(req.query.entityRef);
       // The permission first: the schedule is only read for callers that
       // may start workflows, so its existence is not told to others.
-      let entitySources: TemporalAnnotations[] | undefined;
+      let entitySources:
+        | { taskQueue?: string; workflowTypes: string[] }[]
+        | undefined;
       if (entityRef) {
         const context = await access.loadEntity(
           entityRef,
@@ -476,17 +476,10 @@ export function createControlRouter(
             `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
           );
         }
-        // The entity and the related entities of the same namespace. The
-        // schedule must match one of them (matchesSource): an entity with
-        // only a task queue covers every schedule on that queue. This is
-        // not the rule of the entity's schedule list, which only shows the
-        // schedules of its workflow types.
-        const defaultNamespace = sources.defaultNamespace();
-        entitySources = [context.entity, ...context.relatedWorkflowEntities]
-          .map(readEntityWorkflowFilter)
-          .filter(
-            source => (source.namespace ?? defaultNamespace) === namespace,
-          );
+        // The sources of the entity and of its related entities, the same
+        // list as the entity's schedule list; the schedule must belong to one
+        // of them (scheduleBelongsToSources).
+        entitySources = sources.workflowSourcesOf(context);
       } else {
         await access.authorizeOn(
           temporalWorkflowStartPermission,
@@ -495,10 +488,7 @@ export function createControlRouter(
         );
       }
       const schedule = await commands.describeSchedule(namespace, scheduleId);
-      if (
-        entitySources &&
-        !entitySources.some(source => matchesSource(schedule, source))
-      ) {
+      if (entitySources && !scheduleBelongsToSources(schedule, entitySources)) {
         throw new NotFoundError(
           `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
         );

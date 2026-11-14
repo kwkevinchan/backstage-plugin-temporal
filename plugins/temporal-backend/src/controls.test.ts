@@ -747,6 +747,39 @@ describe('schedule controls', () => {
     expect(scheduleHandles.get('weekly')!.pause).not.toHaveBeenCalled();
   });
 
+  it('refuses the schedules on the task queue of an entity that names no workflow type', async () => {
+    // The billing entity only has a task queue: its schedule list is empty,
+    // so it owns no schedule, even one on its queue.
+    const { server, scheduleHandles } = await start({
+      schedules: [
+        {
+          scheduleId: 'billing-run',
+          workflowType: 'billingWorkflow',
+          taskQueue: 'billing',
+        },
+      ],
+    });
+    const res = await request(server).post(
+      '/api/temporal/namespaces/default/schedules/billing-run/pause?entityRef=component:default/billing',
+    );
+    expect(res.status).toBe(404);
+    expect(scheduleHandles.get('billing-run')!.pause).not.toHaveBeenCalled();
+  });
+
+  it("refuses a schedule of the entity's workflow type on another task queue", async () => {
+    const { server, scheduleHandles } = await start({
+      schedules: [
+        {
+          scheduleId: 'elsewhere',
+          workflowType: 'orderWorkflow',
+          taskQueue: 'billing',
+        },
+      ],
+    });
+    await request(server).post(path('elsewhere', 'pause')).expect(404);
+    expect(scheduleHandles.get('elsewhere')!.pause).not.toHaveBeenCalled();
+  });
+
   it('needs temporal.workflow.start', async () => {
     const { server, scheduleHandles } = await start({
       schedules,

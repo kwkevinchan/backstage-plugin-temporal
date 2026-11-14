@@ -15,11 +15,7 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import {
-  LOOP_MARKER_MEMO_KEY,
-  LOOP_STATE_MEMO_KEY,
-  parseLoopMarker,
-} from '../common';
+import { LOOP_MARKER_MEMO_KEY, LOOP_STATE_MEMO_KEY } from '../common';
 import type {
   PendingActivity,
   WorkflowFailure,
@@ -50,7 +46,12 @@ import {
   summarizeLlmCall,
   toolMarkerOf,
 } from './llm/llm';
-import { buildLoopGroups, readLoopMarker } from './loops';
+import {
+  buildLoopGroups,
+  parseActivityLoopMarker,
+  parseLoopMarker,
+  readLoopMarker,
+} from './loops';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows
@@ -408,7 +409,7 @@ export function buildWorkflowGraph(
         startTime: time,
         input: payload(decodePayloads(a.input)),
         maximumAttempts: max > 0 ? max : undefined,
-        loop: parseLoopMarker(a.activityId),
+        loop: parseActivityLoopMarker(a.activityId),
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
         }),

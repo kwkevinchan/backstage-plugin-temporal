@@ -49,37 +49,6 @@ export interface WorkflowLoopMarker {
   occurrence?: number;
 }
 
-const MARKER_PATTERN =
-  /(?:^|\/)loop\/([^/]+)\/([1-9]\d*)\/([^/]+)(?:\/([1-9]\d*))?$/;
-
-/**
- * Reads `loop/<loop>/<iteration>/<step>[/<occurrence>]` from an activity ID,
- * or from the end of a child workflow ID. Names are percent-encoded.
- *
- * Experimental (`temporal.experimental.aiWorkflows`); moves to a separate
- * package later.
- *
- * @alpha
- */
-export function parseLoopMarker(
-  text: string | undefined,
-): WorkflowLoopMarker | undefined {
-  if (!text) return undefined;
-  const match = MARKER_PATTERN.exec(text);
-  if (!match) return undefined;
-  try {
-    const marker: WorkflowLoopMarker = {
-      loop: decodeURIComponent(match[1]),
-      iteration: Number(match[2]),
-      step: decodeURIComponent(match[3]),
-    };
-    if (match[4]) marker.occurrence = Number(match[4]);
-    return marker;
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * State of a loop: a round runs (`running`), a round decided the result is
  * good enough (`done`), the last allowed round ended (`exhausted`), a

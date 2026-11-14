@@ -16,7 +16,8 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { parseLlmMarker, parseLoopMarker } from '../../common';
+import { parseLlmMarker } from '../../common';
+import { parseActivityLoopMarker } from '../loops';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
 import { normalizeLlmRecord, summarizeLlmCall } from './llm';
@@ -95,7 +96,7 @@ describe('LLM markers in the backend', () => {
       .filter(m => m.loop)
       .map((m: any): [string, any] => [m.text, m.loop]),
   )('reads the loop marker after %s', (text, loop) => {
-    expect(parseLoopMarker(text)).toEqual(loop);
+    expect(parseActivityLoopMarker(text)).toEqual(loop);
   });
 
   it.each(

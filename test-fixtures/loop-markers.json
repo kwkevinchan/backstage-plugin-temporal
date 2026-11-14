@@ -1,8 +1,9 @@
 {
-  "description": "Shared examples of the loop marker format (activity and child workflow IDs). Read by the tests of @kwkevinchan/temporal-workflow-kit (loop, writes and parses) and @kwkevinchan/backstage-plugin-temporal-backend (parses). A null marker means the text is not a loop marker.",
+  "description": "Shared examples of the loop marker format. `applies` says what the text is read as: `activity` (an activity ID: the marker is the whole ID, or the whole rest after `llm/<call>/` or `tool/<call>/<toolCallId>/`), `child` (a child workflow ID: the marker may end the ID, after any prefix) or `both`. Read by the tests of @kwkevinchan/temporal-workflow-kit (loop, writes and parses) and @kwkevinchan/backstage-plugin-temporal-backend (parses). A null marker means the text is not a loop marker for that kind.",
   "examples": [
     {
       "text": "loop/review/1/draft",
+      "applies": "both",
       "marker": {
         "loop": "review",
         "iteration": 1,
@@ -11,6 +12,7 @@
     },
     {
       "text": "loop/review/12/draft/2",
+      "applies": "both",
       "marker": {
         "loop": "review",
         "iteration": 12,
@@ -20,6 +22,7 @@
     },
     {
       "text": "loop/my%20loop/3/a%2Fb",
+      "applies": "both",
       "marker": {
         "loop": "my loop",
         "iteration": 3,
@@ -28,6 +31,7 @@
     },
     {
       "text": "order-1/loop/fix/2/childStep",
+      "applies": "child",
       "marker": {
         "loop": "fix",
         "iteration": 2,
@@ -35,27 +39,53 @@
       }
     },
     {
+      "text": "order-1/loop/fix/2/childStep",
+      "applies": "activity",
+      "marker": null
+    },
+    {
       "text": "loop/review/0/draft",
+      "applies": "both",
       "marker": null
     },
     {
       "text": "loop/review/x/draft",
+      "applies": "both",
       "marker": null
     },
     {
       "text": "loop/review/1",
+      "applies": "both",
       "marker": null
     },
     {
       "text": "myloop/review/1/draft",
+      "applies": "both",
       "marker": null
     },
     {
       "text": "loop/%E0%A4%A/1/draft",
+      "applies": "both",
       "marker": null
     },
     {
       "text": "5",
+      "applies": "both",
+      "marker": null
+    },
+    {
+      "text": "tenants/acme/loop/retry/2/charge",
+      "applies": "activity",
+      "marker": null
+    },
+    {
+      "text": "tool/c/loop/a/1/s",
+      "applies": "activity",
+      "marker": null
+    },
+    {
+      "text": "loop/a/loop/retry/2/charge",
+      "applies": "activity",
       "marker": null
     }
   ]

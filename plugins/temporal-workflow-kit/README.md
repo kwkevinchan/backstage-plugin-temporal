@@ -155,6 +155,12 @@ loop/<loop>/<iteration>/<step>[/<occurrence>]
 Examples: `loop/draft-review/3/llmDraft`, `loop/draft-review/3/llmDraft/2`,
 `loop/my%20loop/1/check`.
 
+An activity ID is a loop marker only as a whole: it starts with `loop/`, or
+`loop/...` is the whole rest after `llm/<call>/` or
+`tool/<call>/<toolCallId>/`. An ID such as `tenants/acme/loop/retry/2/charge`
+is not in a loop. Only the workflow ID of a child workflow may end with a
+marker (see below).
+
 The activity ID was chosen because it is the most robust place:
 
 - every SDK can set it (`activityId`, Go `ActivityOptions.ActivityID`, Python
@@ -396,8 +402,9 @@ tool/<call>/<toolCallId>[/<rest>]
 - `<toolCallId>`: the ID the model gave the tool call (OpenAI `call_...`,
   Anthropic `toolu_...`). The Ollama converter uses `call_<n>` (position in
   the message, from 1) when Ollama gives none.
-- `<rest>`: anything, for example a loop marker
-  (`loop/<loop>/<round>/<step>`) or a number that keeps IDs unique.
+- `<rest>`: anything, for example a number that keeps IDs unique. To put the
+  step in a loop round, the whole `<rest>` is the loop marker
+  (`loop/<loop>/<round>/<step>`); a marker after other text is not read.
 - `<call>` and `<toolCallId>` are percent-encoded like `encodeURIComponent`
   (Go `url.PathEscape`, Python `urllib.parse.quote(s, safe='')`).
 
