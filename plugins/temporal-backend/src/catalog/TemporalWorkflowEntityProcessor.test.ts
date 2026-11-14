@@ -21,10 +21,8 @@ import {
   catalogProcessingExtensionPoint,
   CatalogProcessorResult,
 } from '@backstage/plugin-catalog-node';
-import {
-  catalogModuleTemporalWorkflowKind,
-  TemporalWorkflowEntityProcessor,
-} from './index';
+import { catalogModuleTemporalWorkflowKind } from './index';
+import { TemporalWorkflowEntityProcessor } from './TemporalWorkflowEntityProcessor';
 
 const location = { type: 'url', target: 'http://example.com/catalog.yaml' };
 

@@ -101,7 +101,7 @@ first release and will move to a separate package. Turn them on with
 
 | Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension points (`./node`, `./alpha`) and the permissions and types (`./common`).                |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension points (`./alpha`) and the permissions and types (`./common`).                          |
 | [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions and sections; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                             |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                        |
@@ -1217,11 +1217,11 @@ another way, add your own factory for that ref to the backend; the default
 factory that the backend package brings is then skipped.
 
 Backend modules can add data to workflow summaries with
-`temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-backend/node`, and custom workflow
-actions with `temporalControlExtensionPoint.addControlAction()` from
-`@kwkevinchan/backstage-plugin-temporal-backend/alpha` (ignored, with a
-warning, when `temporal.control.enabled` is false). An action is served as
+`temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`, and custom
+workflow actions with `temporalControlExtensionPoint.addControlAction()`,
+both from `@kwkevinchan/backstage-plugin-temporal-backend/alpha`. The
+enricher extension point only adds enrichers; it cannot add actions. Actions
+are ignored, with a warning, when `temporal.control.enabled` is false. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
 call with the auditor and passes a Temporal client to `handle`. The client
@@ -1290,14 +1290,14 @@ the plugin itself. Importing a backend plugin package from a module makes
 the Backstage lint rule `@backstage/no-mixed-plugin-imports` print a
 warning; it does not fail the lint.
 
-| What                                                           | Import from                                              |
-| -------------------------------------------------------------- | -------------------------------------------------------- |
-| `temporalServiceRef`, `temporalExtensionPoint` and their types | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
-| `temporalAccessServiceRef`, `temporalControlExtensionPoint`, … | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
-| Permissions, API types and paths, annotations (backend code)   | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
-| Permissions, API types and paths, annotations (frontend code)  | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
-| `TemporalControlActionBlueprint`                               | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
-| `createTemporalControlActionDef`                               | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
+| What                                                          | Import from                                              |
+| ------------------------------------------------------------- | -------------------------------------------------------- |
+| `temporalServiceRef` and its type                             | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
+| `temporalAccessServiceRef`, the extension points, …           | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
+| Permissions, API types and paths, annotations (backend code)  | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
+| Permissions, API types and paths, annotations (frontend code) | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
+| `TemporalControlActionBlueprint`                              | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
+| `createTemporalControlActionDef`                              | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
 
 ## Security
 

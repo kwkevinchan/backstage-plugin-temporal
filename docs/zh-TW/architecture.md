@@ -15,7 +15,7 @@
 
 所有套件名稱都有 `@kwkevinchan/backstage-plugin-` 前綴（workflow kit 例外，它是 `@kwkevinchan/temporal-workflow-kit`）。青綠色是核心，紫色是選用模組。每個套件的角色表在 [README](../../README.md#packages)，裡面也有[該裝哪些](../../README.md#packages)。
 
-- **核心，後端**（`temporal-backend`）：提供 `/api/temporal`，讀取和操作流程、檢查存取權限、把 `TemporalWorkflow` kind 加進 catalog，並給其他後端程式共用的 Temporal client（`./node`）、擴充點（`./node`、`./alpha`）和共用定義（`./common`）。一行 `backend.add()` 就全部裝好。
+- **核心，後端**（`temporal-backend`）：提供 `/api/temporal`，讀取和操作流程、檢查存取權限、把 `TemporalWorkflow` kind 加進 catalog，並給其他後端程式共用的 Temporal client（`./node`）、擴充點（`./alpha`）和共用定義（`./common`）。一行 `backend.add()` 就全部裝好。
 - **核心，前端**（`temporal-frontend`）：實體分頁、詳細頁、Workflows 頁和各操作的按鈕，兩套前端系統都支援。它需要後端。
 - **Zigflow**（`temporal-module-zigflow`、`temporal-backend-module-zigflow`）：Definition 分頁。各自需要它那一邊的核心。
 - **Scaffolder**（`scaffolder-backend-module-temporal`、`scaffolder-module-temporal`）：範本 action 和選擇流程的表單欄位。
@@ -40,7 +40,7 @@
 
 代價：
 
-- **模組要匯入後端外掛套件。** 後端模組要匯入 `temporal-backend`：Zigflow 和 Scaffolder 的模組只匯入它的共用定義（`./common`），你自己寫的模組還會從 `./node`、`./alpha` 匯入 client 服務和擴充點。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依（例如 S3 用的 AWS SDK）。
+- **模組要匯入後端外掛套件。** 後端模組要匯入 `temporal-backend`：Zigflow 和 Scaffolder 的模組只匯入它的共用定義（`./common`），你自己寫的模組還會匯入 client 服務（`./node`）和擴充點（`./alpha`）。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依（例如 S3 用的 AWS SDK）。
 - **共用定義有兩份。** 前端外掛不能匯入後端外掛，所以 `temporal-frontend` 帶著 `temporal-backend/src/common` 的一份副本。副本是產生出來的（`yarn sync:common`），CI 會檢查；兩邊比對權限、服務和擴充點都是靠名稱或 ID，所以物件有兩份不會出問題。
 - **操作預設開著。** 外掛一裝好就能改動流程；誰能做由權限政策決定，或用設定鍵整個關掉（見 [Security](../../README.md#security)）。
 
@@ -74,7 +74,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 | 從其他後端程式呼叫 Temporal    | `temporalServiceRef`（`getClient()`）                                                                                                              | `temporal-backend/node`                    |
 | 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                   |
 | 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）            |
-| 替流程摘要補資料               | `temporalExtensionPoint.addWorkflowEnricher()`                                                                                                     | `temporal-backend/node`                    |
+| 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                   |
 | 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                   |
 | 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                       |
 | 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                   |

@@ -26,7 +26,7 @@ role of each package and [which ones to install](../README.md#packages).
 - **Core, backend** (`temporal-backend`): serves `/api/temporal`, reads and
   operates workflows, checks access, adds the `TemporalWorkflow` kind to the
   catalog, and gives other backend code the shared Temporal client
-  (`./node`), the extension points (`./node`, `./alpha`) and the shared
+  (`./node`), the extension points (`./alpha`) and the shared
   definitions (`./common`). One `backend.add()` installs all of it.
 - **Core, frontend** (`temporal-frontend`): the entity tab, the details page,
   the Workflows page and the buttons of the operations, for both frontend
@@ -68,8 +68,8 @@ The cost:
 
 - **Modules import a backend plugin package.** Backend modules import
   `temporal-backend`: the Zigflow and Scaffolder modules its definitions
-  (`./common`), and your own modules also the client service and the
-  extension points (`./node`, `./alpha`). Backstage's lint rule
+  (`./common`), and your own modules also the client service (`./node`)
+  and the extension points (`./alpha`). Backstage's lint rule
   `@backstage/no-mixed-plugin-imports` prints a warning for that; it does not
   fail the lint. Those entry points do not load the plugin itself (a test
   checks it), but installing a module brings the whole backend package and
@@ -131,7 +131,7 @@ You can extend the plugin without changing it. The usage and examples are in
 | Call Temporal from other backend code               | `temporalServiceRef` (`getClient()`)                                                                                                                                          | `temporal-backend/node`                 |
 | Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                |
 | Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)          |
-| Add data to workflow summaries                      | `temporalExtensionPoint.addWorkflowEnricher()`                                                                                                                                | `temporal-backend/node`                 |
+| Add data to workflow summaries                      | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`; it only adds enrichers, custom actions use `temporalControlExtensionPoint`                                    | `temporal-backend/alpha`                |
 | Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                |
 | Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                 |
 | Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                |

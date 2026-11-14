@@ -34,7 +34,7 @@ import {
   decodeJsonPayloads,
   encodeJsonPayloads,
   TemporalJsonPayload,
-} from '../node/alpha';
+} from './payloads';
 import {
   isScheduleNotFound,
   mapCommandError,

@@ -63,8 +63,6 @@ export interface TemporalService {
  * Authentication of the Temporal connection. `bearer` sends
  * `Authorization: Bearer <token>` with every call, as the JWT authorizer of a
  * self-hosted Temporal server expects. The connection does not use TLS.
- *
- * @public
  */
 export type TemporalConnectionAuth =
   | { type: 'none' }
@@ -72,8 +70,6 @@ export type TemporalConnectionAuth =
 
 /**
  * Options of {@link DefaultTemporalService}, mostly read from config.
- *
- * @public
  */
 export interface TemporalServiceOptions {
   address: string;
@@ -118,8 +114,6 @@ function readAuth(connection: Config): TemporalConnectionAuth {
 
 /**
  * Reads {@link TemporalServiceOptions} from the root config.
- *
- * @public
  */
 export function readTemporalServiceOptions(
   config: Config,
@@ -165,8 +159,6 @@ export function readTemporalServiceOptions(
 /**
  * Default implementation of {@link TemporalService}. The connection is opened
  * on first use and closed on shutdown.
- *
- * @public
  */
 export class DefaultTemporalService implements TemporalService {
   readonly #options: TemporalServiceOptions;

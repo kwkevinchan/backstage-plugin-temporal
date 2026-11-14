@@ -37,10 +37,7 @@ import { catalogModuleTemporalWorkflowKind } from './catalog';
 import { temporalPlugin } from './plugin';
 
 export { temporalPlugin } from './plugin';
-export {
-  catalogModuleTemporalWorkflowKind,
-  TemporalWorkflowEntityProcessor,
-} from './catalog';
+export { catalogModuleTemporalWorkflowKind } from './catalog';
 
 /**
  * The Temporal backend plugin, the default factory of its access service

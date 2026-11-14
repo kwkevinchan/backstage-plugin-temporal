@@ -59,12 +59,12 @@
 
 後端外掛本身會在 catalog 加一個 processor，讓 catalog 接受 `TemporalWorkflow` 實體並產生它們的關係；除非 `temporal.control.enabled` 是 false，它也提供圖一橘色那一欄的各種操作。
 
-| 模組                                                           | 接在哪一層        | 做什麼                                                                                                                |
-| -------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `scaffolder-backend-module-temporal`                           | Routes 的前面     | 範本步驟 `temporal:workflow:start`、`wait`、`signal` 以使用者的身分呼叫同樣的 HTTP 路由，所以權限和稽核都一樣。       |
-| `scaffolder-module-temporal`                                   | 瀏覽器            | Create 表單裡的 `TemporalWorkflowPicker` 欄位，資料來自外掛的路由。                                                   |
-| `temporal-module-zigflow` 和 `temporal-backend-module-zigflow` | 瀏覽器和 Routes   | 一個 **Definition** 分頁，和一條讀取實體 YAML 定義檔的路由。                                                          |
-| 你自己的 control action                                        | 改動流程的 Routes | 用 `temporalControlExtensionPoint` 註冊；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、自己的權限和稽核紀錄。 |
-| 你自己的 workflow enricher                                     | Services          | 用 `temporalExtensionPoint` 註冊；在回傳流程摘要和詳細資料之前補上欄位。                                              |
+| 模組                                                           | 接在哪一層        | 做什麼                                                                                                                                                    |
+| -------------------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scaffolder-backend-module-temporal`                           | Routes 的前面     | 範本步驟 `temporal:workflow:start`、`wait`、`signal` 以使用者的身分呼叫同樣的 HTTP 路由，所以權限和稽核都一樣。                                           |
+| `scaffolder-module-temporal`                                   | 瀏覽器            | Create 表單裡的 `TemporalWorkflowPicker` 欄位，資料來自外掛的路由。                                                                                       |
+| `temporal-module-zigflow` 和 `temporal-backend-module-zigflow` | 瀏覽器和 Routes   | 一個 **Definition** 分頁，和一條讀取實體 YAML 定義檔的路由。                                                                                              |
+| 你自己的 control action                                        | 改動流程的 Routes | 用 `temporalControlExtensionPoint` 註冊；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、自己的權限和稽核紀錄。                                     |
+| 你自己的 workflow enricher                                     | Services          | 用 `temporalWorkflowEnricherExtensionPoint` 註冊（它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`）；在回傳流程摘要和詳細資料之前補上欄位。 |
 
 回到[文件索引](README.md)，或繼續讀[架構](architecture.md)。

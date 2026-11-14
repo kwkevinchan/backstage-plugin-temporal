@@ -19,8 +19,11 @@ import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { createServiceFactory } from '@backstage/backend-plugin-api';
-import { temporalAccessServiceRef, TemporalAccessService } from './node/alpha';
-import { temporalExtensionPoint } from './node';
+import {
+  temporalAccessServiceRef,
+  TemporalAccessService,
+  temporalWorkflowEnricherExtensionPoint,
+} from './node/alpha';
 import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
@@ -104,7 +107,7 @@ async function start(
     moduleId: 'test-enricher',
     register(reg) {
       reg.registerInit({
-        deps: { temporal: temporalExtensionPoint },
+        deps: { temporal: temporalWorkflowEnricherExtensionPoint },
         async init({ temporal }) {
           temporal.addWorkflowEnricher({
             id: 'test',

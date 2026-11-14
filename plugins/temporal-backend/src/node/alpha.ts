@@ -15,8 +15,8 @@
  */
 
 // The alpha API for backend modules, exported from `./alpha`: the access
-// service that the plugin and its modules share, and the control extension
-// point.
+// service that the plugin and its modules share, and the extension points
+// for workflow actions and workflow enrichers.
 
 import {
   BackstageCredentials,
@@ -272,8 +272,55 @@ export const temporalControlExtensionPoint =
     id: 'temporal.control',
   });
 
-export {
-  decodeJsonPayloads,
-  encodeJsonPayloads,
-  type TemporalJsonPayload,
-} from './payloads';
+/**
+ * Context passed to a {@link TemporalWorkflowEnricher}.
+ *
+ * @alpha
+ */
+export interface TemporalWorkflowEnricherContext {
+  /**
+   * The entity whose workflows are shown. Enrichers should handle it being
+   * undefined: lists that span entities (the Workflows page) may run
+   * enrichers without one in a later version.
+   */
+  entity?: Entity;
+  namespace: string;
+  credentials: BackstageCredentials;
+}
+
+/**
+ * Adds data to workflow summaries before they are returned to the frontend.
+ * Enrichers run in the order they were added, on list results and on the
+ * workflow details. Put added data under `extensions[id]`.
+ *
+ * @alpha
+ */
+export interface TemporalWorkflowEnricher {
+  id: string;
+  enrich(
+    items: WorkflowSummary[],
+    context: TemporalWorkflowEnricherContext,
+  ): Promise<WorkflowSummary[]>;
+}
+
+/**
+ * Extension point for workflow enrichers. It only adds enrichers; custom
+ * workflow actions are added with {@link TemporalControlExtensionPoint}.
+ *
+ * @alpha
+ */
+export interface TemporalWorkflowEnricherExtensionPoint {
+  addWorkflowEnricher(enricher: TemporalWorkflowEnricher): void;
+}
+
+/**
+ * Extension point for workflow enrichers: `addWorkflowEnricher()` adds data
+ * to workflow summaries. It cannot add actions; use
+ * `temporalControlExtensionPoint` for those.
+ *
+ * @alpha
+ */
+export const temporalWorkflowEnricherExtensionPoint =
+  createExtensionPoint<TemporalWorkflowEnricherExtensionPoint>({
+    id: 'temporal.workflow-enrichers',
+  });

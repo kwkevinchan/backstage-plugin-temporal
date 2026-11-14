@@ -15,4 +15,3 @@
  */
 
 export { catalogModuleTemporalWorkflowKind } from './module';
-export { TemporalWorkflowEntityProcessor } from './TemporalWorkflowEntityProcessor';

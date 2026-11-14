@@ -18,8 +18,6 @@ import type { JsonValue } from '@backstage/types';
 
 /**
  * A Temporal payload, as the client sends it: metadata and data as bytes.
- *
- * @alpha
  */
 export interface TemporalJsonPayload {
   metadata: Record<string, Uint8Array>;
@@ -32,8 +30,6 @@ const JSON_ENCODING = Buffer.from('json/plain');
  * Encodes JSON values as `json/plain` payloads, like the default data
  * converter of the Temporal SDKs: the arguments of the signals, updates,
  * queries and starts the plugin and its modules send.
- *
- * @alpha
  */
 export function encodeJsonPayloads(args: JsonValue[] | undefined): {
   payloads: TemporalJsonPayload[];
@@ -76,8 +72,6 @@ function decodeJsonPayload(payload: any): JsonValue {
  * payload codec) is described by its encoding and size with
  * `undecodable: true`. Takes the payloads as the client gives them (bytes)
  * or in their protobuf JSON form (base64 text).
- *
- * @alpha
  */
 export function decodeJsonPayloads(payloads: unknown): JsonValue | undefined {
   const list: unknown[] = (payloads as any)?.payloads ?? [];

@@ -34,12 +34,11 @@ import {
 } from '../common';
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
-import { TemporalWorkflowEnricher } from '../node';
-import {
-  decodeJsonPayloads,
-  encodeJsonPayloads,
-  type TemporalEntityContext,
+import type {
+  TemporalEntityContext,
+  TemporalWorkflowEnricher,
 } from '../node/alpha';
+import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
 import {
   ConvertOptions,
   decodePageToken,

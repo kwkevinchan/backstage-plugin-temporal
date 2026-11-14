@@ -139,13 +139,13 @@ catalog accept `TemporalWorkflow` entities and emit their relations, and
 serves the operations of Figure 1's orange column unless
 `temporal.control.enabled` is false.
 
-| Module                                                          | Attaches at            | What it does                                                                                                                                               |
-| --------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scaffolder-backend-module-temporal`                            | in front of Routes     | The template steps `temporal:workflow:start`, `wait` and `signal` call the same HTTP routes as the user, so permissions and audit are the same.            |
-| `scaffolder-module-temporal`                                    | the browser            | The `TemporalWorkflowPicker` field in the Create form, fed by the plugin's routes.                                                                         |
-| `temporal-module-zigflow` and `temporal-backend-module-zigflow` | the browser and Routes | A **Definition** tab and a route that reads the YAML definition file of an entity.                                                                         |
-| Your control action                                             | the control Routes     | Registered with `temporalControlExtensionPoint`; served as `POST …/actions/:actionId`, with the same access check, its own permission and an audit record. |
-| Your workflow enricher                                          | Services               | Registered with `temporalExtensionPoint`; adds fields to workflow summaries and details before they are returned.                                          |
+| Module                                                          | Attaches at            | What it does                                                                                                                                                                                                   |
+| --------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scaffolder-backend-module-temporal`                            | in front of Routes     | The template steps `temporal:workflow:start`, `wait` and `signal` call the same HTTP routes as the user, so permissions and audit are the same.                                                                |
+| `scaffolder-module-temporal`                                    | the browser            | The `TemporalWorkflowPicker` field in the Create form, fed by the plugin's routes.                                                                                                                             |
+| `temporal-module-zigflow` and `temporal-backend-module-zigflow` | the browser and Routes | A **Definition** tab and a route that reads the YAML definition file of an entity.                                                                                                                             |
+| Your control action                                             | the control Routes     | Registered with `temporalControlExtensionPoint`; served as `POST …/actions/:actionId`, with the same access check, its own permission and an audit record.                                                     |
+| Your workflow enricher                                          | Services               | Registered with `temporalWorkflowEnricherExtensionPoint` (it only adds enrichers; custom actions use `temporalControlExtensionPoint`); adds fields to workflow summaries and details before they are returned. |
 
 Back to [the documentation index](README.md), or on to
 [Architecture](architecture.md).

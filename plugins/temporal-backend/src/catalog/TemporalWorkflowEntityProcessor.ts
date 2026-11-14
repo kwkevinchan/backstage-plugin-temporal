@@ -44,8 +44,6 @@ import {
  * (`temporal.io/v1alpha1`). It validates the spec against the JSON schema
  * and emits the `ownedBy`/`ownerOf`, `partOf`/`hasPart` (system) and
  * `dependsOn`/`dependencyOf` relations.
- *
- * @public
  */
 export class TemporalWorkflowEntityProcessor implements CatalogProcessor {
   readonly #validate = entityKindSchemaValidator(

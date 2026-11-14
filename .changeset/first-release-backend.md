@@ -38,10 +38,10 @@ catalog module with the `TemporalWorkflow` kind; the named exports
   in `./alpha` for policies.
 - For backend modules and other backend code: `./node` has
   `temporalServiceRef` (one shared Temporal client, with TLS and bearer token
-  authentication) and `temporalExtensionPoint` (workflow enrichers);
-  `./alpha` has `temporalAccessServiceRef`, `temporalControlExtensionPoint`
-  (custom actions), `temporalWorkflowPermissionResourceRef` and the JSON
-  payload helpers; `./common` has the permissions, the API types and paths,
+  authentication); `./alpha` has `temporalAccessServiceRef`,
+  `temporalControlExtensionPoint` (custom actions),
+  `temporalWorkflowEnricherExtensionPoint` (workflow enrichers, add only) and
+  `temporalWorkflowPermissionResourceRef`; `./common` has the permissions, the API types and paths,
   the annotation constants and the `TemporalWorkflow` schema. These entry
   points do not load the plugin itself. A new major of `@temporalio/client`
   is a new major of this package.

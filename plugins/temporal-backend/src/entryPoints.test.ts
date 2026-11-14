@@ -37,9 +37,7 @@ describe('entry points for backend modules', () => {
     jest.isolateModules(() => {
       const node = require('./node');
       expect(node.temporalServiceRef.id).toBe('temporal.client');
-      expect(node.temporalExtensionPoint.id).toBe(
-        'temporal.workflow-enrichers',
-      );
+      expect(Object.keys(node).sort()).toEqual(['temporalServiceRef']);
     });
   });
 
@@ -48,6 +46,19 @@ describe('entry points for backend modules', () => {
       const alpha = require('./alpha');
       expect(alpha.temporalAccessServiceRef.id).toBe('temporal.access');
       expect(alpha.temporalControlExtensionPoint.id).toBe('temporal.control');
+      expect(alpha.temporalWorkflowEnricherExtensionPoint.id).toBe(
+        'temporal.workflow-enrichers',
+      );
+      expect(Object.keys(alpha).sort()).toEqual([
+        'createTemporalWorkflowConditionalDecision',
+        'temporalAccessServiceFactory',
+        'temporalAccessServiceRef',
+        'temporalControlExtensionPoint',
+        'temporalWorkflowConditions',
+        'temporalWorkflowEnricherExtensionPoint',
+        'temporalWorkflowPermissionResourceRef',
+        'temporalWorkflowPermissionRules',
+      ]);
       expect(alpha.temporalWorkflowPermissionResourceRef.resourceType).toBe(
         'temporal-workflow',
       );
