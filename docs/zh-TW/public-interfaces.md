@@ -274,6 +274,8 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 所有路由都在後端外掛的 base URL `/api/temporal` 底下，需要 Backstage 的憑證：使用者 token，或其他後端外掛代表某個使用者取得的 token。
 
+HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema/openapi.yaml`](../../plugins/temporal-backend/src/schema/openapi.yaml)，隨後端套件一起發佈：每個參數、請求內容、回應，以及每條路由檢查的權限。路由的測試會拿請求和回應對照它，CI 也會驗證它（`yarn lint:openapi`）；見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)（英文）。下面的表格是總覽。
+
 > **服務身分不經過權限政策。** 用後端外掛自己的身分（`auth.getOwnServiceCredentials()`）呼叫時是 service principal，Backstage 對 service principal 的每個權限都直接允許，不會問權限政策（除非 token 帶有 `accessRestrictions`）。這樣的呼叫端可以讀取和操作允許的 namespace 裡的每個流程。只在「可以做外掛能做的所有事」的程式裡用它；要照使用者的權限，請用 `auth.getPluginRequestToken({ onBehalfOf: <使用者的憑證> })`（[範例](#從其他後端呼叫-http-api)）。
 
 `:wf` 代表 `namespaces/:namespace/workflows/:workflowId`，後面可以接 `/runs/:runId`（不帶 run ID 時是最新一次執行）。`:wf` 底下的每條路由和排程操作都收 `?entityRef=`，也就是流程顯示時所屬的實體。
@@ -284,7 +286,7 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 - 沒有：先用 list 權限判斷流程本身（`temporal.workflow.list`；history 層級還要 `temporal.workflow.history.list`），條件也會套用。不允許時，改對流程 `searchAttributes.entityRef` 屬性指的實體做上面的檢查；流程沒有這個屬性就拒絕（`403`）。
 - 操作接著檢查自己的權限：在讀取時用的實體上，否則在 search attribute 指的實體上；兩者都沒有時，這個權限必須無條件允許。
 
-錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`403` 拒絕、`404` 找不到、`409` 衝突（流程不在執行中、操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal 或沒有及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
+錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（流程不在執行中、操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
 
 讀取一定提供：
 
@@ -322,7 +324,7 @@ read 和 history 層級照[流程在哪個實體上檢查權限](#流程在哪�
 | `POST /:wf/actions/:actionId`                                                 | read 層級，再來是操作的 `permission`，再來是它的 `filter`；不認得的 `actionId` 回 `404`                    | 任何 JSON                                       | `WorkflowMessageResponse`（`{ result }` 或 `{}`） |
 | `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `?entityRef=` 實體上的 `temporal.workflow.start`（排程必須啟動它的流程），否則要無條件（不檢查 read 層級） | `TemporalScheduleNoteRequest`（`trigger` 不收） | `202` `{}`                                        |
 
-Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definition`（有 `spec.definition` 的 `TemporalWorkflow` 實體上的 `temporal.workflow.read`）。以上 25 條（讀取 15、操作 9、Zigflow 模組 1）是外掛自己的路由。因為外掛註冊了權限 resource type，權限框架也會在 `/api/temporal` 底下提供 `GET /.well-known/backstage/permissions/metadata` 和 `POST /.well-known/backstage/permissions/apply-conditions`；呼叫它們的是權限後端，不是你的程式。
+Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definition`（有 `spec.definition` 的 `TemporalWorkflow` 實體上的 `temporal.workflow.read`）。以上 25 條（讀取 15、操作 9、Zigflow 模組 1）是外掛自己的路由。因為外掛用了權限 registry（它的權限和 `temporal-workflow` resource type），後端也會掛上權限框架的路由，在 `/api/temporal` 底下提供 `GET /.well-known/backstage/permissions/metadata` 和 `POST /.well-known/backstage/permissions/apply-conditions`；呼叫它們的是權限後端，不是你的程式。
 
 `./common` 的路徑工具（`buildWorkflowPath`、`buildEntityWorkflowsPath`、`buildWorkflowOperationPath`、`buildWorkflowActionPath`…）可以組出這些路徑，請用它們而不要手寫。從瀏覽器請改用 `temporalApiRef`。
 
@@ -804,7 +806,7 @@ export async function listRunningWorkflows(
 yarn build:api-reports   # 型別檢查，再寫出 report
 ```
 
-把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
+把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。HTTP API 另有自己的合約：[OpenAPI 規格](../../plugins/temporal-backend/src/schema/openapi.yaml)，改路由時一起改它；路由的測試和 `yarn lint:openapi` 會檢查它。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
 
 有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal-frontend` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。大部分是預期的：一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。其餘是步驟圖型別上的實驗性欄位（`@public` 型別引用 `@alpha` 型別），會跟實驗性畫面一起改。
 

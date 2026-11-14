@@ -390,6 +390,14 @@ Every route is under the backend plugin's base URL, `/api/temporal`, and
 needs Backstage credentials: a user token, or a token of another backend
 plugin on behalf of a user.
 
+The contract of the HTTP API is the OpenAPI spec
+[`plugins/temporal-backend/src/schema/openapi.yaml`](../plugins/temporal-backend/src/schema/openapi.yaml),
+published with the backend package: every parameter, body and response,
+and the permissions of each route. The route tests check requests and
+responses against it, and CI validates it (`yarn lint:openapi`); see
+[OpenAPI spec](../plugins/temporal-backend/README.md#openapi-spec). The
+tables below are the overview.
+
 > **Service credentials skip the policy.** A request with the credentials of
 > a backend plugin itself (`auth.getOwnServiceCredentials()`) is a service
 > principal, and Backstage allows every permission to a service principal
@@ -419,10 +427,12 @@ workflow is shown for.
   through, else on the entity of its search attribute; a workflow with
   neither needs the permission allowed without conditions.
 
-Errors are Backstage error bodies: `400` input, `403` denied, `404` not
-found, `409` a conflict (the workflow is not running, the action's filter
-refused it, or Temporal refused it: a workflow ID already in use, a schedule
-in the wrong state), `503` Temporal not reachable or not answering in time.
+Errors are Backstage error bodies: `400` input, `401` no valid
+credentials, `403` denied, `404` not found, `409` a conflict (the workflow
+is not running, the action's filter refused it, or Temporal refused it: a
+workflow ID already in use, a schedule in the wrong state), `503` Temporal
+not reachable, Temporal refusing the backend's own credentials, or no
+worker answering a query or an update in time.
 Routes the backend does not serve answer `404` **without** a body: the
 operations when `temporal.control.enabled` is false, and the definition route
 without the Zigflow backend module. The two list routes take
@@ -473,8 +483,9 @@ The Zigflow backend module adds
 `GET /entities/:kind/:namespace/:name/definition` (`temporal.workflow.read`
 on a `TemporalWorkflow` entity with `spec.definition`). These 25 routes
 (15 reads, 9 operations, 1 of the Zigflow module) are the plugin's own.
-Because the plugin registers a permission resource type, the permission
-framework also serves `GET /.well-known/backstage/permissions/metadata` and
+Because the plugin uses the permissions registry (its permissions and the
+`temporal-workflow` resource type), the backend also mounts the permission
+framework's `GET /.well-known/backstage/permissions/metadata` and
 `POST /.well-known/backstage/permissions/apply-conditions` under
 `/api/temporal`; the permission backend calls them, not your code.
 
@@ -1060,7 +1071,11 @@ yarn build:api-reports   # type check, then write the reports
 ```
 
 and commit the changed reports with the code. A change of a public
-interface then shows up in the pull request as a diff of the report. Update
+interface then shows up in the pull request as a diff of the report. The
+HTTP API has its own contract, the
+[OpenAPI spec](../plugins/temporal-backend/src/schema/openapi.yaml): change
+it together with the routes; the route tests and `yarn lint:openapi` check
+it. Update
 this guide in the same pull request when the change adds, removes or
 renames a name listed here.
 
