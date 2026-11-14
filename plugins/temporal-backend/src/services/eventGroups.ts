@@ -24,7 +24,7 @@ import type {
   WorkflowStatus,
 } from '../common';
 import { decodePayload, dropUndefined, summaryText } from './convert';
-import { stepsStatus } from './stepStatus';
+import { FAILED_STATUSES, stepsStatus } from './stepStatus';
 
 /*
  * Temporal Event Groups in the graph. The history keeps the groups of a
@@ -188,18 +188,28 @@ export interface EventGroupRun {
   end?: EventGroupNode;
 }
 
+/** Run statuses that are final: a step left open will not end any more. */
+const ENDED_RUNS = new Set<WorkflowStatus>([
+  ...FAILED_RUNS,
+  'Completed',
+  'Canceled',
+  'ContinuedAsNew',
+]);
+
 /**
- * Status of a group: from its steps (`stepsStatus`) while the run runs.
- * After the run ended, a group whose steps did not all end is `Failed`
- * when the run failed, timed out or was terminated, else `Canceled`
- * (completed, canceled or continued as new with steps left open).
+ * Status of a group: from its steps (`stepsStatus`) while the run runs or
+ * its status is unknown. After the run ended (completed, failed, canceled,
+ * timed out, terminated or continued as new), a group whose steps did not
+ * all end is `Failed` when a step failed or the run failed, timed out or
+ * was terminated, else `Canceled`.
  */
 export function eventGroupStatus(
   steps: EventGroupNode[],
   run: EventGroupRun,
 ): WorkflowNodeStatus {
   const status = stepsStatus(steps);
-  if (status !== 'Running' || run.status === 'Running') return status;
+  if (status !== 'Running' || !ENDED_RUNS.has(run.status)) return status;
+  if (steps.some(s => FAILED_STATUSES.has(s.status))) return 'Failed';
   return FAILED_RUNS.has(run.status) ? 'Failed' : 'Canceled';
 }
 
