@@ -43,6 +43,7 @@
     "@backstage/backend-plugin-api": "backstage:^",
     "@backstage/catalog-model": "backstage:^",
     "@backstage/errors": "backstage:^",
+    "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-scaffolder-node": "backstage:^",
     "@backstage/types": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
@@ -50,7 +51,6 @@
   "devDependencies": {
     "@backstage/backend-test-utils": "backstage:^",
     "@backstage/cli": "backstage:^",
-    "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-scaffolder-node-test-utils": "backstage:^"
   },
   "files": [

@@ -19,6 +19,7 @@ import {
   mockServices,
   startTestBackend,
 } from '@backstage/backend-test-utils';
+import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import { scaffolderTemporalModule } from './module';
@@ -30,6 +31,7 @@ describe('scaffolderTemporalModule', () => {
       extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
       features: [
         scaffolderTemporalModule,
+        catalogServiceMock.factory({ entities: [] }),
         mockServices.rootConfig.factory({
           data: { app: { baseUrl: 'http://backstage' } },
         }),
@@ -49,6 +51,7 @@ describe('scaffolderTemporalModule', () => {
       extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
       features: [
         scaffolderTemporalModule,
+        catalogServiceMock.factory({ entities: [] }),
         mockServices.rootConfig.factory({
           data: {
             app: { baseUrl: 'http://backstage' },

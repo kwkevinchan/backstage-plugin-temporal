@@ -42,15 +42,23 @@ lasts about an hour from when the task is created, so `wait` is limited to
 | `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute` (a Bool search attribute that ends the wait when true), `timeoutSeconds` (600), `intervalSeconds` (5; the pause before the second look, doubled after each look), `maxIntervalSeconds` (30; the longest pause, equal to `intervalSeconds` for a fixed interval; a larger `intervalSeconds` wins), `failIfNotCompleted` (true), `includeResult` (false; needs the history permission) | `status`, `runId`, `searchAttributes`, `result`   |
 | `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                                                                                                                                                                                                                                                                                                               | `result` (of an update)                           |
 
-`args` is an array of arguments, or one value for one argument. Without a
-`namespace`, `start` uses the namespace of the entity or the default of the
-Temporal backend plugin, and `wait` and `signal` use that default: the
-`temporal.connection.defaultNamespace` (`default` when it is not set), read
-from the app-config of the backend that runs the Scaffolder, so it must be
-the same there when the Temporal plugin runs in another backend. Pass the
-`namespace` output of `start` to `wait` and `signal` for a workflow in another
-namespace. Starting, signals and updates are kept in a checkpoint, so a retried
-task does not start or send them again. Dry runs start and send nothing.
+`args` is an array of arguments, or one value for one argument. `start` with
+an `entityRef` uses the namespace of the entity (the `temporal.io/namespace`
+annotation, or `spec.namespace` of a `TemporalWorkflow`) and ignores the
+`namespace` input; without an `entityRef` it uses `namespace`, else the
+default. `wait` and `signal` use `namespace`; without it the namespace of the
+`entityRef`; without either the default. The default is the one of the
+Temporal backend plugin, `temporal.connection.defaultNamespace` (`default`
+when it is not set), read from the app-config of the backend that runs the
+Scaffolder, so it must be the same there when the Temporal plugin runs in
+another backend.
+
+`wait` and `signal` read the entity from the catalog as the user who runs the
+template; an entity that cannot be read is an error, not the default
+namespace. Pass the `namespace` output of `start` to `wait` and `signal`: it
+saves that read and cannot differ from where the workflow runs. Starting,
+signals and updates are kept in a checkpoint, so a retried task does not start
+or send them again. Dry runs start and send nothing.
 
 ## Example
 
@@ -71,6 +79,7 @@ steps:
     action: temporal:workflow:wait
     input:
       workflowId: ${{ steps.start.output.workflowId }}
+      namespace: ${{ steps.start.output.namespace }}
       untilSearchAttribute: ApprovalPending
 output:
   links:
