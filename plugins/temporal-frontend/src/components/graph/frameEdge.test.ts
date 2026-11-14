@@ -122,9 +122,23 @@ function arrows(result: GroupedLayout) {
       const t = rectOf(result, edge.target);
       const source = { x: s.right, y: (s.top + s.bottom) / 2 };
       const target = { x: t.left, y: (t.top + t.bottom) / 2 };
+      const path = frameEdgePath(
+        {
+          sourceX: source.x,
+          sourceY: source.y,
+          targetX: target.x,
+          targetY: target.y,
+        },
+        edge.data,
+      );
       return {
         edge,
         points: frameEdgePoints(source, target, edge.data!),
+        // The path as drawn, through the corners of its bends.
+        drawn: [...path.matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(m => ({
+          x: Number(m[1]),
+          y: Number(m[2]),
+        })),
         source,
         target,
       };
@@ -346,6 +360,80 @@ describe('arrows into and out of frames', () => {
       smooth(80),
     );
   });
+});
+
+/** Arrows that run through a box other than their two ends. */
+function throughBoxes(result: GroupedLayout) {
+  const found: string[] = [];
+  const boxes = result.graph.nodes.map(n => ({
+    id: n.id,
+    ...rectOf(result, n.id),
+  }));
+  for (const { edge, drawn } of arrows(result)) {
+    for (const [a, b] of segments(drawn)) {
+      const [x1, x2] = span(a.x, b.x);
+      const [y1, y2] = span(a.y, b.y);
+      for (const box of boxes) {
+        if (box.id === edge.source || box.id === edge.target) continue;
+        if (
+          x1 < box.right - 0.5 &&
+          x2 > box.left + 0.5 &&
+          y1 < box.bottom - 0.5 &&
+          y2 > box.top + 0.5
+        ) {
+          found.push(`${edge.id} through ${box.id}`);
+        }
+      }
+    }
+  }
+  return [...new Set(found)];
+}
+
+describe('arrows and the boxes on their way', () => {
+  it.each([
+    ['a loop with a signal', loopGraph],
+    ['groups in parallel', parallelGraph],
+  ] as const)('never run through other boxes in the run of %s', (_, graph) => {
+    for (const width of [undefined, 1400, 1000, 800]) {
+      const visible = visibleSteps(graph.nodes, graph.edges);
+      const result = layoutGroupedSteps(
+        visible.nodes.map(n => ({ id: n.id, size: stepSize(n) })),
+        visible.edges,
+        graph.eventGroups ?? [],
+        {},
+        width,
+      );
+      expect({ width, through: throughBoxes(result) }).toEqual({
+        width,
+        through: [],
+      });
+    }
+  });
+
+  it.each([
+    ['into', ['b', 'a3']],
+    ['out of', ['a1', 'b']],
+  ] as const)(
+    'never run through other boxes %s a frame above or below the other end',
+    (_, [from, to]) => {
+      // A frame around a1 to a3, and a step b next to it in parallel.
+      const { nodes, edges } = chain(3);
+      const extra: WorkflowGraphEdge[] = [
+        { id: 'start->b', source: 'start', target: 'b' },
+        { id: `${from}->${to}`, source: from, target: to },
+      ];
+      if (to === 'b') extra.push({ id: 'b->end', source: 'b', target: 'end' });
+      const result = layOut(
+        {
+          nodes: [...nodes, { ...nodes[1], id: 'b', name: 'b' }],
+          edges: [...edges, ...extra],
+        },
+        nested(['a1', 'a2', 'a3']),
+      );
+      expect(result.graph.frames).toHaveLength(1);
+      expect(throughBoxes(result)).toEqual([]);
+    },
+  );
 });
 
 describe('columns next to frames', () => {

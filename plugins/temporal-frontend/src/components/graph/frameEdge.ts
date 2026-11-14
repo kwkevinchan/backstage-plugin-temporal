@@ -45,9 +45,6 @@ const RADIUS = 5;
 /**
  * How far from its two ends an arrow turns, for the frames around one end
  * and not the other (`parentOf`: the frame around each box and frame).
- * When the frame around the source reaches past the turn before the
- * target (the target is above or below it, in a frame next to it), the
- * arrow runs back in the space between the two (`centerY`).
  */
 export function frameInsets(
   layout: StepLayout,
@@ -79,24 +76,21 @@ export function frameInsets(
     sourceInset: out ? right(out) - right(source) + FRAME_GAP : 0,
     targetInset: into ? left(target) - left(into) + FRAME_GAP : 0,
   };
-  let turnOut = right(source) + Math.max(insets.sourceInset, OFFSET);
-  let turnIn = left(target) - Math.max(insets.targetInset, OFFSET);
+  const firstTurn = right(source) + Math.max(insets.sourceInset, OFFSET);
+  const lastTurn = left(target) - Math.max(insets.targetInset, OFFSET);
 
-  // Where the arrow runs back: the gap below the row of the source (as
-  // `routeRowGaps` finds it), else, in one row without room between the
-  // frames of the two ends, the space between them.
-  let centerY = layout.rowGaps?.find(g => g > top(source) && g < top(target));
-  if (centerY === undefined && (out || into) && turnOut > turnIn) {
-    const around = out ?? source;
-    const toward = into ?? target;
-    if (bottom(toward) <= top(around)) {
-      centerY = (bottom(toward) + top(around)) / 2;
-    } else if (bottom(around) <= top(toward)) {
-      centerY = (bottom(around) + top(toward)) / 2;
-    }
-  }
+  // An arrow into a later row runs back in the gap below the row of its
+  // source (as `routeRowGaps` finds it).
+  const centerY = layout.rowGaps?.find(g => g > top(source) && g < top(target));
   if (centerY === undefined) {
-    return out || into ? insets : { sourceInset: 0, targetInset: 0 };
+    // In one row: straight across the borders, or turning once between
+    // the frames. Without room between them (the target is above or below
+    // the frame of the source, or the other way round) any way around the
+    // frames would cross other boxes: the smooth step it was.
+    if ((!out && !into) || firstTurn > lastTurn) {
+      return { sourceInset: 0, targetInset: 0 };
+    }
+    return insets;
   }
 
   // The two turns down (or up) stay clear of the borders of other frames
@@ -127,19 +121,16 @@ export function frameInsets(
     }
     return at;
   };
-  turnOut = clear(turnOut, middle(source), centerY, from, 1);
-  turnIn = clear(turnIn, centerY, middle(target), to, -1);
+  const turnOut = clear(firstTurn, middle(source), centerY, from, 1);
+  const turnIn = clear(lastTurn, centerY, middle(target), to, -1);
   const sourceInset = turnOut - right(source);
   const targetInset = left(target) - turnIn;
   if (!out && !into && sourceInset === OFFSET && targetInset === OFFSET) {
     // Nothing to keep clear of: the smooth step it was.
     return { sourceInset: 0, targetInset: 0 };
   }
-  // The centerY of an arrow into a later row comes from `routeRowGaps`.
-  const row = layout.rowGaps?.includes(centerY);
-  return row
-    ? { sourceInset, targetInset }
-    : { sourceInset, targetInset, centerY };
+  // The centerY itself comes from `routeRowGaps`.
+  return { sourceInset, targetInset };
 }
 
 /** A point of an arrow. */
