@@ -137,3 +137,38 @@ permission. The schedule operations take `?entityRef=` (the schedule must
 start one of the entity's workflow types) or, without it, need the
 permission without conditions; pause and unpause take an optional body
 `{ "note": "..." }`.
+
+### OpenAPI spec
+
+[`src/schema/openapi.yaml`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/src/schema/openapi.yaml),
+published with the package, describes this API in OpenAPI 3.1: the
+parameters, bodies and responses of every route and the error body. The
+paths are relative to `/api/temporal`. Extension fields list the permissions a
+route checks (`x-temporal-permissions`), the routes that
+`temporal.control.enabled: false` removes (`x-temporal-control`), the
+experimental routes (`x-temporal-experimental`; they and the experimental
+fields change before the first stable release) and the definition route of
+the Zigflow backend module (`x-temporal-module`). The tests of the routes
+check their requests and responses against it (the binary payload download
+excepted).
+
+To show it in the catalog, register an `API` entity that reads the file of
+the version you run (replace `main` with its release tag):
+
+```yaml
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: temporal-backend
+  title: Temporal backend API
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: group:default/team-a
+  definition:
+    $text: https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/src/schema/openapi.yaml
+```
+
+The plugin does not serve the spec at `/api/temporal/openapi.json`, so the
+catalog module `@backstage/plugin-catalog-backend-module-backstage-openapi`
+does not find it.

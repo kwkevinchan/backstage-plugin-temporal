@@ -37,6 +37,7 @@ import {
   ordersEntity,
   otherEntity,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 import { temporalPlugin } from './plugin';
 
 const json = (value: unknown) => ({
@@ -244,7 +245,8 @@ async function start(options?: {
   }
   const { server } = await startTestBackend({ features });
   return {
-    server,
+    server: await withOpenApiValidation(server),
+    backend: server,
     workflowService,
     permissions,
     auditor,
@@ -353,7 +355,7 @@ describe('workflow controls', () => {
   it('cancels and terminates with a reason', async () => {
     const { server, workflowService } = await start();
     expect(
-      (await request(server).post(`${wf}/cancel${withEntity}`)).status,
+      (await request(server).post(`${wf}/cancel${withEntity}`).send({})).status,
     ).toBe(202);
     expect(
       workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
@@ -380,9 +382,11 @@ describe('workflow controls', () => {
 
   it('reruns a closed run with its input and search attributes under a new ID', async () => {
     const { server, workflowService } = await start({ status: 'FAILED' });
-    const res = await request(server).post(
-      '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/rerun?entityRef=component:default/orders',
-    );
+    const res = await request(server)
+      .post(
+        '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/rerun?entityRef=component:default/orders',
+      )
+      .send({});
     expect(res.status).toBe(201);
     expect(res.body).toEqual({
       namespace: 'default',
@@ -730,11 +734,11 @@ describe('schedule controls', () => {
       }),
     );
     expect(auditEvent.success).toHaveBeenCalled();
-    await request(server).post(path('nightly', 'unpause')).expect(202);
+    await request(server).post(path('nightly', 'unpause')).send({}).expect(202);
     expect(scheduleHandles.get('nightly')!.unpause.mock.calls[0][0]).toMatch(
       /^Resumed from Backstage by user:default\/mock/,
     );
-    await request(server).post(path('nightly', 'trigger')).expect(202);
+    await request(server).post(path('nightly', 'trigger')).send({}).expect(202);
     // With the schedule's overlap policy.
     expect(scheduleHandles.get('nightly')!.trigger).toHaveBeenCalledWith(
       'SKIP',
@@ -743,7 +747,7 @@ describe('schedule controls', () => {
 
   it("refuses a schedule that starts another entity's workflows", async () => {
     const { server, scheduleHandles } = await start({ schedules });
-    await request(server).post(path('weekly', 'pause')).expect(404);
+    await request(server).post(path('weekly', 'pause')).send({}).expect(404);
     expect(scheduleHandles.get('weekly')!.pause).not.toHaveBeenCalled();
   });
 
@@ -759,9 +763,11 @@ describe('schedule controls', () => {
         },
       ],
     });
-    const res = await request(server).post(
-      '/api/temporal/namespaces/default/schedules/billing-run/pause?entityRef=component:default/billing',
-    );
+    const res = await request(server)
+      .post(
+        '/api/temporal/namespaces/default/schedules/billing-run/pause?entityRef=component:default/billing',
+      )
+      .send({});
     expect(res.status).toBe(404);
     expect(scheduleHandles.get('billing-run')!.pause).not.toHaveBeenCalled();
   });
@@ -776,7 +782,7 @@ describe('schedule controls', () => {
         },
       ],
     });
-    await request(server).post(path('elsewhere', 'pause')).expect(404);
+    await request(server).post(path('elsewhere', 'pause')).send({}).expect(404);
     expect(scheduleHandles.get('elsewhere')!.pause).not.toHaveBeenCalled();
   });
 
@@ -785,7 +791,7 @@ describe('schedule controls', () => {
       schedules,
       deny: ['temporal.workflow.start'],
     });
-    await request(server).post(path('nightly', 'trigger')).expect(403);
+    await request(server).post(path('nightly', 'trigger')).send({}).expect(403);
     // Refused before the schedule is read.
     expect(scheduleHandles.has('nightly')).toBe(false);
     // Without an entity, the permission must be allowed without conditions.
@@ -795,13 +801,15 @@ describe('schedule controls', () => {
     });
     await request(conditional.server)
       .post(path('nightly', 'trigger', false))
+      .send({})
       .expect(403);
   });
 
   it('answers 404 for an unknown schedule or operation, 400 for a bad note', async () => {
-    const { server } = await start({ schedules });
-    await request(server).post(path('missing', 'pause')).expect(404);
-    await request(server)
+    const { server, backend } = await start({ schedules });
+    await request(server).post(path('missing', 'pause')).send({}).expect(404);
+    // Not an operation of the spec.
+    await request(backend)
       .post('/api/temporal/namespaces/default/schedules/nightly/delete')
       .expect(404);
     await request(server)
@@ -827,16 +835,19 @@ describe('schedule controls', () => {
       schedules,
       scheduleErrors: { pause: grpc(14) },
     });
-    const res = await request(unavailable.server).post(
-      path('nightly', 'pause'),
-    );
+    const res = await request(unavailable.server)
+      .post(path('nightly', 'pause'))
+      .send({});
     expect(res.status).toBe(503);
     expect(unavailable.auditEvent.fail).toHaveBeenCalled();
     const refused = await start({
       schedules,
       scheduleErrors: { describe: grpc(7) },
     });
-    await request(refused.server).post(path('nightly', 'trigger')).expect(503);
+    await request(refused.server)
+      .post(path('nightly', 'trigger'))
+      .send({})
+      .expect(503);
     expect(
       refused.scheduleHandles.get('nightly')!.trigger,
     ).not.toHaveBeenCalled();
@@ -844,7 +855,10 @@ describe('schedule controls', () => {
       schedules,
       scheduleErrors: { pause: grpc(9) },
     });
-    await request(conflict.server).post(path('nightly', 'pause')).expect(409);
+    await request(conflict.server)
+      .post(path('nightly', 'pause'))
+      .send({})
+      .expect(409);
   });
 
   it('refuses a schedule of another namespace than the entity', async () => {
@@ -853,6 +867,7 @@ describe('schedule controls', () => {
       .post(
         '/api/temporal/namespaces/other/schedules/nightly/pause?entityRef=component:default/orders',
       )
+      .send({})
       .expect(404);
     expect(scheduleHandles.has('nightly')).toBe(false);
     await request(server)
@@ -888,9 +903,10 @@ describe('with temporal.control.enabled: false', () => {
   it.each(routesThatChange)(
     'serves no %s route (404)',
     async (_name, path, body) => {
-      const { server, workflowService, permissions, scheduleHandles } =
+      const { backend, workflowService, permissions, scheduleHandles } =
         await start({ control: disabled, schedules });
-      const res = await request(server).post(path).send(body);
+      // Not served: answered without a body, outside the spec.
+      const res = await request(backend).post(path).send(body);
       expect(res.status).toBe(404);
       expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
       expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
@@ -914,7 +930,7 @@ describe('with temporal.control.enabled: false', () => {
     const handle = jest.fn(async () => ({}));
     const logger = mockServices.logger.mock();
     logger.child.mockReturnValue(logger);
-    const { server } = await start({
+    const { backend } = await start({
       control: disabled,
       logger,
       action: {
@@ -928,7 +944,7 @@ describe('with temporal.control.enabled: false', () => {
         /Ignoring the control action escalate: temporal\.control\.enabled is false/,
       ),
     );
-    await request(server)
+    await request(backend)
       .post(`${wf}/actions/escalate${withEntity}`)
       .send({})
       .expect(404);

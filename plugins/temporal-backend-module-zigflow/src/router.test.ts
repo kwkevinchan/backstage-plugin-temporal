@@ -21,6 +21,7 @@ import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import request from 'supertest';
 import { createBackendPlugin } from '@backstage/backend-plugin-api';
 import { temporalModuleZigflow } from './module';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 // The module adds a route to the Temporal backend plugin; a stand-in plugin
 // with the same id is enough to mount it.
@@ -100,7 +101,7 @@ async function start(result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY) {
       mockServices.urlReader.mock({ readUrl }).factory,
     ],
   });
-  return { server, readUrl };
+  return { server: await withOpenApiValidation(server), readUrl };
 }
 
 const path = (name: string, kind = 'temporalworkflow') =>
