@@ -21,8 +21,10 @@ import type {
   WorkflowGraphNode,
   WorkflowLlmUsage,
   WorkflowNodeStatus,
+  WorkflowStatus,
 } from '../common';
-import { decodePayload, dropUndefined } from './convert';
+import { decodePayload, dropUndefined, summaryText } from './convert';
+import { stepsStatus } from './stepStatus';
 
 /*
  * Temporal Event Groups in the graph. The history keeps the groups of a
@@ -98,9 +100,10 @@ export function readEventGroupMarkers(event: Json): EventGroupMarker[] {
 }
 
 /**
- * The label of a group: its text, `unreadable` for a payload the backend
- * cannot decode (for example one encoded by a codec), or undefined for no
- * label or an empty one.
+ * The label of a group as a step summary shows (`summaryText`: the first
+ * line, trimmed), `unreadable` for a payload the backend cannot decode (for
+ * example one encoded by a codec), or undefined for no label or an empty
+ * one.
  */
 function readLabel(payload: Json): string | 'unreadable' | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
@@ -108,10 +111,10 @@ function readLabel(payload: Json): string | 'unreadable' | undefined {
     return undefined;
   }
   const decoded = decodePayload(payload);
-  if (!('value' in decoded)) return 'unreadable';
-  const value = decoded.value;
-  if (typeof value !== 'string') return 'unreadable';
-  return value === '' ? undefined : value;
+  if (!('value' in decoded) || typeof decoded.value !== 'string') {
+    return 'unreadable';
+  }
+  return summaryText(decoded.value);
 }
 
 /**
@@ -167,31 +170,37 @@ export function inferEventGroupParents(
   return parents;
 }
 
-const OPEN_STATUSES = new Set<WorkflowNodeStatus>([
-  'Scheduled',
-  'Running',
-  'Retrying',
-  'Waiting',
-]);
-
-const FAILED_STATUSES = new Set<WorkflowNodeStatus>([
-  'Failed',
-  'TimedOut',
-  'Terminated',
-  'Rejected',
-]);
-
 /** A graph node while the graph is built: `last` is unset while it runs. */
 export type EventGroupNode = WorkflowGraphNode & { last?: number };
 
-/** Status of a group from its steps. */
-export function eventGroupStatus(steps: EventGroupNode[]): WorkflowNodeStatus {
-  if (steps.some(s => s.last === undefined && OPEN_STATUSES.has(s.status))) {
-    return 'Running';
-  }
-  if (steps.some(s => FAILED_STATUSES.has(s.status))) return 'Failed';
-  if (steps.some(s => s.status === 'Canceled')) return 'Canceled';
-  return 'Completed';
+/** Run statuses after which a group left open failed. */
+const FAILED_RUNS = new Set<WorkflowStatus>([
+  'Failed',
+  'TimedOut',
+  'Terminated',
+]);
+
+/** How the run stands, for groups whose steps did not all end. */
+export interface EventGroupRun {
+  /** Status of the run from describe. */
+  status: WorkflowStatus;
+  /** The node of the closing event, when the history has it. */
+  end?: EventGroupNode;
+}
+
+/**
+ * Status of a group: from its steps (`stepsStatus`) while the run runs.
+ * After the run ended, a group whose steps did not all end is `Failed`
+ * when the run failed, timed out or was terminated, else `Canceled`
+ * (completed, canceled or continued as new with steps left open).
+ */
+export function eventGroupStatus(
+  steps: EventGroupNode[],
+  run: EventGroupRun,
+): WorkflowNodeStatus {
+  const status = stepsStatus(steps);
+  if (status !== 'Running' || run.status === 'Running') return status;
+  return FAILED_RUNS.has(run.status) ? 'Failed' : 'Canceled';
 }
 
 interface Draft {
@@ -254,7 +263,10 @@ export class EventGroupCollector {
   }
 
   /** The groups, in the order they started, from the finished steps. */
-  build(nodes: EventGroupNode[]): {
+  build(
+    nodes: EventGroupNode[],
+    run: EventGroupRun,
+  ): {
     groups: WorkflowEventGroup[];
     truncated: boolean;
   } {
@@ -282,9 +294,14 @@ export class EventGroupCollector {
       const steps = draft.nodeIds
         .map(id => byId.get(id))
         .filter((n): n is EventGroupNode => !!n);
-      const status = eventGroupStatus(steps);
+      const status = eventGroupStatus(steps, run);
       const starts = steps.map(s => s.startTime).filter(Boolean) as string[];
       const ends = steps.map(s => s.endTime).filter(Boolean) as string[];
+      let endTime: string | undefined;
+      if (stepsStatus(steps) === 'Running') {
+        // Steps left open when the run ended end with the run.
+        if (status !== 'Running') endTime = run.end?.endTime;
+      } else endTime = ends.sort()[ends.length - 1];
       let usage: WorkflowLlmUsage | undefined;
       let llmCalls = 0;
       for (const step of steps) {
@@ -305,8 +322,7 @@ export class EventGroupCollector {
         children: [],
         status,
         startTime: starts.sort()[0],
-        endTime:
-          status === 'Running' ? undefined : ends.sort()[ends.length - 1],
+        endTime,
         usage,
         llmCalls: llmCalls > 0 ? llmCalls : undefined,
       });

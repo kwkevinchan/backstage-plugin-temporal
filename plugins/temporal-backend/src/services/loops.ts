@@ -24,10 +24,10 @@ import type {
   WorkflowLoopStatus,
   WorkflowLoopStep,
   WorkflowNodeKind,
-  WorkflowNodeStatus,
   WorkflowStatus,
 } from '../common';
 import { dropUndefined } from './convert';
+import { stepsStatus } from './stepStatus';
 
 /*
  * Loops of a run, from the loop markers of its steps and the loop state in
@@ -71,20 +71,6 @@ export interface LoopStateValue {
 }
 
 const LOOP_STATUSES = new Set(['running', 'done', 'exhausted', 'failed']);
-
-const OPEN_STATUSES = new Set<WorkflowNodeStatus>([
-  'Scheduled',
-  'Running',
-  'Retrying',
-  'Waiting',
-]);
-
-const FAILED_STATUSES = new Set<WorkflowNodeStatus>([
-  'Failed',
-  'TimedOut',
-  'Terminated',
-  'Rejected',
-]);
 
 /** Steps that never belong to a round. */
 const OUTSIDE_KINDS = new Set<WorkflowNodeKind>([
@@ -224,16 +210,6 @@ export function readLoopState(value: unknown): LoopStateValue | undefined {
   });
 }
 
-/** Status of a round from its marked steps. */
-function roundStatus(steps: LoopNodeInput[]): WorkflowNodeStatus {
-  if (steps.some(s => s.last === undefined && OPEN_STATUSES.has(s.status))) {
-    return 'Running';
-  }
-  if (steps.some(s => FAILED_STATUSES.has(s.status))) return 'Failed';
-  if (steps.some(s => s.status === 'Canceled')) return 'Canceled';
-  return 'Completed';
-}
-
 function toStep(node: LoopNodeInput): WorkflowLoopStep {
   return dropUndefined({
     nodeId: node.id,
@@ -360,7 +336,7 @@ export function buildLoopGroups(
         (x, y) => x.first - y.first,
       );
       const record = recorded.get(iteration);
-      let status = roundStatus(steps);
+      let status = stepsStatus(steps);
       if (record?.status === 'failed') status = 'Failed';
       // A round with nothing open still runs until the workflow records it.
       const lastRound = iteration === iterations[iterations.length - 1];

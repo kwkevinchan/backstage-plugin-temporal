@@ -9,8 +9,10 @@ later): `eventGroups` lists each group with its key (`label:<id>`,
 `event:<event ID>`, `update:<update ID>`), name, steps, inferred parent and
 child groups, status, times and the tokens of its model calls, and
 `groups` on each step lists the keys of its groups, outer groups first. A
-label that a payload codec encoded is replaced by the group ID
-(`labelUnreadable`). The groups need the read permission only and do not
+label is cut like a step summary to its first line; one that a payload
+codec encoded is replaced by the group ID (`labelUnreadable`). A group
+with a step left open when the run ended is Failed (the run failed, timed
+out or was terminated) or Canceled. The groups need the read permission only and do not
 depend on `temporal.experimental.aiWorkflows`; runs without groups answer
 as before. The new types `WorkflowEventGroup` and `WorkflowEventGroupKind`
 in `./common` are `@alpha`.

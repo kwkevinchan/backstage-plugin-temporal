@@ -592,12 +592,21 @@ What the graph response has:
   key (`label:<id>`, `event:<event ID>` for the commands of a signal
   handler, `update:<update ID>` for those of an update handler; the same
   keys as the `groups` parameter of the Temporal UI), its name, its steps
-  (`nodeIds`), its parent and child groups, its status (Running while a
-  step is open, Failed when a step failed, else Completed), its start and
+  (`nodeIds`), its parent and child groups, its status, its start and
   end, and the tokens of the model calls in it.
 - `groups` on each step: the keys of its groups, outer groups first.
 
-The name is the label of the group, else its ID; a signal handler's group
+The steps of a group can include internal steps (for example a memo
+upsert or a cancel request to another workflow); the frontend decides
+which to show. A group is Running while a step of it is open, Failed when
+a step failed, Canceled when a step was canceled, else Completed. Once the
+run has ended, a group with a step left open (an activity abandoned by a
+timeout or a termination, a timer that had not fired) is Failed when the
+run failed, timed out or was terminated, else Canceled, and it ends when
+the run ended.
+
+The name is the label of the group, cut like the summary of a step to its
+first line, trimmed; else its ID; a signal handler's group
 is `<signal name> (<event ID>)`, an update handler's
 `<update name> (<update ID>)`, as in the Temporal UI. A payload codec
 encodes the label (not the ID): the backend cannot read it, so the group is
@@ -1021,19 +1030,19 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type       | Used for                                                                                       |
-| -------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph, progress, Zigflow definition                               |
-| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                              |
-| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                     |
-| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                            |
-| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                              |
-| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules |
-| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                  |
-| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                        |
-| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                               |
-| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                    |
-| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                          |
+| Permission                       | Resource type       | Used for                                                                                                      |
+| -------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph (with step summaries and event group labels), progress, Zigflow definition |
+| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                                             |
+| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                                    |
+| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                                           |
+| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                             |
+| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                |
+| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                                 |
+| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                                       |
+| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                                              |
+| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                                   |
+| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                                         |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
@@ -1516,7 +1525,9 @@ warning; it does not fail the lint.
   `temporal.control.enabled: false` to keep the plugin read-only.
 - **Inputs and results can contain personal or secret data.** They are part
   of the history and need `temporal.workflow.history.read`; without it the
-  graph is shown without them. Keep the list permissions
+  graph is shown without them. The summaries of the steps and the labels of
+  event groups are shown with `temporal.workflow.read` alone: do not put
+  secrets into them. Keep the list permissions
   (`temporal.workflow.list`, `.history.list`) for people who may read every
   workflow.
 - **Least privilege towards Temporal and S3.** The token only needs the read

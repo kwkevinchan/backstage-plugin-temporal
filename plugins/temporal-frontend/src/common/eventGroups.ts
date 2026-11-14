@@ -62,8 +62,9 @@ export interface WorkflowEventGroup {
   /** The group ID, the event ID of the signal or the update ID. */
   id: string;
   /**
-   * Display name: the label of a `label` group (its ID when it has no
-   * label or the label cannot be read), `<signal name> (<event ID>)`,
+   * Display name: the label of a `label` group, cut like a step summary to
+   * its first line, trimmed (its ID when it has no label or the label
+   * cannot be read); `<signal name> (<event ID>)`,
    * `<update name> (<update ID>)`.
    */
   name: string;
@@ -77,7 +78,11 @@ export interface WorkflowEventGroup {
    * `event` or `update` group, when the history has it.
    */
   sourceNodeId?: string;
-  /** Graph nodes of the steps in the group, oldest first. */
+  /**
+   * Graph nodes of the steps in the group, oldest first. They can include
+   * internal nodes (for example a memo upsert or a cancel request of
+   * another workflow); the frontend decides which to show.
+   */
   nodeIds: string[];
   /**
    * Key of the group this one is inside. Inferred: Temporal records no
@@ -88,11 +93,20 @@ export interface WorkflowEventGroup {
   parent?: string;
   /** Keys of the groups directly inside this one, in the order they started. */
   children: string[];
-  /** Running while a step is open, Failed when a step failed, else Completed (or Canceled). */
+  /**
+   * Running while a step is open, Failed when a step failed, Canceled
+   * when a step was canceled, else Completed. After the run ended, a group
+   * with a step left open is Failed when the run failed, timed out or was
+   * terminated, else Canceled.
+   */
   status: WorkflowNodeStatus;
   /** Start of the first step, ISO 8601. */
   startTime?: string;
-  /** End of the last step, ISO 8601; left out while the group runs. */
+  /**
+   * End of the last step, ISO 8601; left out while the group runs. For a
+   * group with a step left open when the run ended, the end of the run
+   * (left out when the history does not reach it).
+   */
   endTime?: string;
   /** Tokens of the model calls in the group; left out without any. */
   usage?: WorkflowLlmUsage;

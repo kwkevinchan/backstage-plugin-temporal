@@ -70,11 +70,15 @@ const label = (id: string, text?: string) => ({
   },
 });
 
+/** The time of event `id`, in protobuf JSON form: seconds after 2026. */
+const timeAt = (id: number) => ({ seconds: String(1767225600 + id) });
+
 /** A run of activities, each with the given markers, all completed. */
 function activities(...markerLists: unknown[][]): any[] {
   const events: any[] = [
     {
       eventId: '1',
+      eventTime: timeAt(1),
       eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
       workflowExecutionStartedEventAttributes: {},
     },
@@ -84,6 +88,7 @@ function activities(...markerLists: unknown[][]): any[] {
     events.push(
       {
         eventId: String(scheduled),
+        eventTime: timeAt(scheduled),
         eventType: 'EVENT_TYPE_ACTIVITY_TASK_SCHEDULED',
         eventGroupMarkers: markers,
         activityTaskScheduledEventAttributes: {
@@ -93,6 +98,7 @@ function activities(...markerLists: unknown[][]): any[] {
       },
       {
         eventId: String(scheduled + 1),
+        eventTime: timeAt(scheduled + 1),
         eventType: 'EVENT_TYPE_ACTIVITY_TASK_COMPLETED',
         activityTaskCompletedEventAttributes: {
           scheduledEventId: String(scheduled),
@@ -377,10 +383,25 @@ describe('event groups in the graph', () => {
     expect(noId.name).toBe('Group without id');
   });
 
-  it('keeps long labels whole', () => {
+  it('cuts a label like a step summary: first line, trimmed, no length limit', () => {
+    // One line of 4000 characters: summaries have no length limit either.
     expect(graphOf(fixture('long-label')).group('label-4000').name).toBe(
       'x'.repeat(4000),
     );
+    // The same label after a first line and blanks.
+    const events = fixture('long-label');
+    const marker = events.find((e: any) => e.eventGroupMarkers)
+      .eventGroupMarkers[0].label;
+    const long = JSON.parse(
+      Buffer.from(marker.label.data, 'base64').toString(),
+    );
+    marker.label.data = b64(JSON.stringify(`  Long label \n${long}\nmore`));
+    const group = graphOf(events).group('label-4000');
+    expect(group.name).toBe('Long label');
+    expect(group.labelUnreadable).toBeUndefined();
+    // A label of blanks names the group by its ID.
+    marker.label.data = b64(JSON.stringify(' \n '));
+    expect(graphOf(events).group('label-4000').name).toBe('label-4000');
   });
 
   it('names groups whose label a codec encoded by their ID', () => {
@@ -524,6 +545,181 @@ describe('event groups in the graph', () => {
     const { group } = graphOf(events, { status: 'Failed' });
     expect(group('ok').status).toBe('Completed');
     expect(group('bad').status).toBe('Failed');
+  });
+
+  it('ends the groups with steps left open when the run ended', () => {
+    // An activity that never closed, a timer that never fired.
+    const events = activities(
+      [label('done')],
+      [label('open')],
+      [label('open')],
+    );
+    events.splice(4, 1);
+    events.push({
+      eventId: '9',
+      eventType: 'EVENT_TYPE_TIMER_STARTED',
+      eventTime: timeAt(9),
+      eventGroupMarkers: [label('timer')],
+      timerStartedEventAttributes: { timerId: '1' },
+    });
+    const closing = (type: string, attributes: string) => ({
+      eventId: '10',
+      eventType: `EVENT_TYPE_WORKFLOW_EXECUTION_${type}`,
+      eventTime: timeAt(10),
+      [attributes]: {},
+    });
+    const timedOut = graphOf(
+      [
+        ...events,
+        closing('TIMED_OUT', 'workflowExecutionTimedOutEventAttributes'),
+      ],
+      { status: 'TimedOut' },
+    );
+    expect(timedOut.node('activity-4').status).toBe('Scheduled');
+    expect(timedOut.group('open')).toMatchObject({
+      status: 'Failed',
+      endTime: '2026-01-01T00:00:10.000Z',
+    });
+    expect(timedOut.group('timer').status).toBe('Failed');
+    expect(timedOut.group('done')).toMatchObject({
+      status: 'Completed',
+      startTime: '2026-01-01T00:00:02.000Z',
+      endTime: '2026-01-01T00:00:03.000Z',
+    });
+
+    const completed = graphOf(
+      [
+        ...events,
+        closing('COMPLETED', 'workflowExecutionCompletedEventAttributes'),
+      ],
+      { status: 'Completed' },
+    );
+    expect(completed.group('open')).toMatchObject({
+      status: 'Canceled',
+      endTime: '2026-01-01T00:00:10.000Z',
+    });
+    expect(completed.group('timer').status).toBe('Canceled');
+    expect(completed.group('done').status).toBe('Completed');
+
+    // A history cut before the end: no end time.
+    const cut = graphOf(events, { status: 'Terminated', truncated: true });
+    expect(cut.group('open').status).toBe('Failed');
+    expect(cut.group('open').endTime).toBeUndefined();
+
+    // While the run runs, nothing changes.
+    const running = graphOf(events, { status: 'Running' });
+    expect(running.group('open').status).toBe('Running');
+    expect(running.group('open').endTime).toBeUndefined();
+    expect(running.group('timer').status).toBe('Running');
+    expect(running.group('done').status).toBe('Completed');
+  });
+
+  it('nests a group opened in a signal handler in the handler group', () => {
+    const { group, node } = graphOf(
+      activities(
+        [label('loop')],
+        [{ inboundEvent: { inboundEventId: '1' } }, label('in-handler')],
+        [{ inboundEvent: { inboundEventId: '1' } }],
+      ),
+    );
+    expect(node('activity-4').groups).toEqual(['event:1', 'label:in-handler']);
+    expect(group('in-handler').parent).toBe('event:1');
+    expect(group('event:1').children).toEqual(['label:in-handler']);
+    expect(group('event:1').nodeIds).toEqual(['activity-4', 'activity-6']);
+    expect(group('loop').parent).toBeUndefined();
+  });
+
+  it('nests in each of two parallel branches', () => {
+    const { group } = graphOf(
+      activities(
+        [label('a'), label('a:1')],
+        [label('b'), label('b:1')],
+        [label('a'), label('a:1')],
+        [label('b'), label('b:2')],
+        [label('a'), label('a:2')],
+      ),
+    );
+    expect(group('a').children).toEqual(['label:a:1', 'label:a:2']);
+    expect(group('b').children).toEqual(['label:b:1', 'label:b:2']);
+    expect(group('a').parent).toBeUndefined();
+    expect(group('b').parent).toBeUndefined();
+    expect(group('b:2').parent).toBe('label:b');
+  });
+
+  it('keeps parents, children and members consistent', () => {
+    const histories: [string, any[]][] = [
+      ...[
+        'loop-ts-sdk-1.24',
+        'loop-ts-sdk-1.25',
+        'child-local-activity',
+        'child-local-activity.child',
+        'parallel',
+        'ambiguous',
+        'flat',
+        'no-label-ts-sdk-1.25',
+        'no-id-ts-sdk-1.24',
+        'long-label',
+        'continue-as-new',
+        'codec-loop',
+      ].map(name => [name, fixture(name)] as [string, any[]]),
+      ...['vercel-ai-sdk-agent', 'openai-agents-agent'].map(
+        name => [name, fixture(name, 'llm-integrations')] as [string, any[]],
+      ),
+      [
+        'too many groups',
+        activities(
+          ...Array.from({ length: MAX_EVENT_GROUPS + 5 }, (_, i) => [
+            label('all'),
+            label(`g-${i}`),
+          ]),
+        ),
+      ],
+      [
+        'too many groups of a step',
+        activities(
+          Array.from({ length: MAX_GROUPS_PER_STEP + 3 }, (_, i) =>
+            label(`d-${i}`),
+          ),
+          [label('d-0'), label('d-1')],
+        ),
+      ],
+    ];
+    for (const [name, events] of histories) {
+      const { graph, groups } = graphOf(events);
+      // Every broken link, as text: the list must stay empty.
+      const problems: string[] = [];
+      const byKey = new Map(groups.map(g => [g.key, g]));
+      const byId = new Map(graph.nodes.map(n => [n.id, n]));
+      for (const g of groups) {
+        if (g.parent && !byKey.get(g.parent)?.children.includes(g.key)) {
+          problems.push(`${g.key}: not a child of its parent ${g.parent}`);
+        }
+        for (const child of g.children) {
+          if (byKey.get(child)?.parent !== g.key) {
+            problems.push(`${g.key}: child ${child} has another parent`);
+          }
+        }
+        for (const id of g.nodeIds) {
+          const node = byId.get(id);
+          if (!node) problems.push(`${g.key}: no node ${id}`);
+          else if (!node.groups?.includes(g.key)) {
+            problems.push(`${g.key}: node ${id} lacks the group`);
+          }
+        }
+      }
+      for (const node of graph.nodes) {
+        for (const key of node.groups ?? []) {
+          if (!byKey.get(key)?.nodeIds.includes(node.id)) {
+            problems.push(`${node.id}: not a member of ${key}`);
+          }
+        }
+      }
+      expect({ name, groups: groups.length > 0, problems }).toEqual({
+        name,
+        groups: true,
+        problems: [],
+      });
+    }
   });
 
   it('reads at most a fixed number of groups', () => {

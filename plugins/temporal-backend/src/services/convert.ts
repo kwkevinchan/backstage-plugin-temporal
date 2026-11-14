@@ -495,7 +495,14 @@ export function summaryOf(event: Json): string | undefined {
   const payload = event.userMetadata?.summary;
   if (!payload) return undefined;
   const decoded = decodePayload(payload);
-  const value = 'value' in decoded ? decoded.value : undefined;
+  return summaryText('value' in decoded ? decoded.value : undefined);
+}
+
+/**
+ * The text a step summary or an event group label shows: the first line,
+ * trimmed, or undefined for anything else than a non-empty text.
+ */
+export function summaryText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const line = value.trim().split('\n')[0].trim();
   return line || undefined;

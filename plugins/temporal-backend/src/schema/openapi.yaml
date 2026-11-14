@@ -1719,7 +1719,7 @@ paths:
       operationId: getWorkflowGraph
       summary: Get the steps and arrows of a workflow run
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission. The `loop`, `llm`, `tool` and `loops` fields are experimental.
+        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `loop`, `llm`, `tool`, `groups`, `loops`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
@@ -2394,7 +2394,7 @@ paths:
       operationId: getWorkflowRunGraph
       summary: Get the steps and arrows of a workflow run (one run)
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission. The `loop`, `llm`, `tool` and `loops` fields are experimental.
+        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `loop`, `llm`, `tool`, `groups`, `loops`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:

@@ -47,6 +47,7 @@ import {
   readLlmSteps,
 } from './llm/llm';
 import { EventGroupCollector } from './eventGroups';
+import { FAILED_STATUSES, OPEN_STATUSES } from './stepStatus';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   buildLoopGroups,
@@ -115,20 +116,6 @@ const STEP_KINDS = new Set<WorkflowNodeKind>([
   'childWorkflow',
   'update',
   'signalSent',
-]);
-
-const OPEN_STATUSES = new Set<WorkflowNodeStatus>([
-  'Scheduled',
-  'Running',
-  'Retrying',
-  'Waiting',
-]);
-
-const FAILED_STATUSES = new Set<WorkflowNodeStatus>([
-  'Failed',
-  'TimedOut',
-  'Terminated',
-  'Rejected',
 ]);
 
 export interface BuildGraphOptions {
@@ -873,7 +860,10 @@ export function buildWorkflowGraphWithLlm(
     decodePayloads,
   );
   // After the model calls: the groups add up their tokens.
-  const groups = eventGroups.build(nodes);
+  const groups = eventGroups.build(nodes, {
+    status: options.status,
+    end: nodes.find(n => n.kind === 'workflowClosed'),
+  });
 
   const visible = nodes.filter(n => !n.internal);
   // A running workflow with nothing open waits for something outside.
