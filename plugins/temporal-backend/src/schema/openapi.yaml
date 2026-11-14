@@ -150,7 +150,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: Temporal namespace; defaults to the first configured one.
+      description: Temporal namespace; defaults to `temporal.connection.defaultNamespace`.
       schema:
         type: string
     workflowType:
@@ -1387,7 +1387,7 @@ paths:
       operationId: startWorkflow
       summary: Start a workflow from the Workflows page
       description: |-
-        `workflowType` and `taskQueue` are required; `namespace` defaults to the first configured one. 409 when the workflow ID is taken.
+        `workflowType` and `taskQueue` are required; `namespace` defaults to `temporal.connection.defaultNamespace`. 409 when the workflow ID is taken.
 
         Permission: `temporal.workflow.list` and `temporal.workflow.start`, both without conditions.
 
