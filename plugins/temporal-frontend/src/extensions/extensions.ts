@@ -133,8 +133,6 @@ export interface TemporalWorkflowSectionDef {
  * Workflow actions, list actions and sections contributed by other plugins
  * in the new frontend system. The entity tab and the Workflows page both
  * read it, so blueprint extensions show on every page.
- *
- * @public
  */
 export interface TemporalWorkflowExtensionsApi {
   getActions(): TemporalWorkflowActionDef[];

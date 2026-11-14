@@ -1171,7 +1171,6 @@ take it from the plugin with `getExtension()` and install the plugin with
 are `page:temporal`, `entity-content:temporal`,
 `entity-card:temporal/workflow-summary`,
 `entity-card:temporal/related-workflows`, `api:temporal`,
-`api:temporal/workflow-extensions`,
 `temporal-workflow-action:temporal/controls`,
 `temporal-workflow-list-action:temporal/start` and
 `temporal-schedule-action:temporal/controls`.
@@ -1207,7 +1206,10 @@ temporalPlugin.getExtension('api:temporal').override({
 });
 ```
 
-To remove an extension, disable it in `app.extensions`.
+To remove an extension, disable it in `app.extensions`. The shared mount
+point `api:temporal/workflow-extensions` is internal: it can be disabled, but
+its API is not exported, so it cannot be replaced with your own
+implementation.
 
 Backend modules that serve their own routes under `/api/temporal` use the
 plugin's access checks through `temporalAccessServiceRef`

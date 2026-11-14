@@ -87,7 +87,10 @@ that call the Temporal backend from their own components, use these exports.
   (props `workflowActions`, `workflowSections`, `workflowListActions` and
   `scheduleActions` of `EntityTemporalContent` and `TemporalPage`).
 - `useTemporalWorkflow()`: the workflow shown on the current page, as
-  `TemporalWorkflowExtensionProps` (the props of the action components).
+  `TemporalWorkflowExtensionProps` (the props of the action components). It
+  works only below the workflow details page; a component that is tested or
+  rendered on its own gets the values it needs as props (action and section
+  components receive `TemporalWorkflowExtensionProps` anyway).
 - `./alpha`: `TemporalWorkflowActionBlueprint`,
   `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
   and `TemporalWorkflowSectionBlueprint` for the new frontend system, and
