@@ -16,11 +16,13 @@
 
 /**
  * For backend modules and other backend plugins: the shared Temporal
- * connection service (`temporalServiceRef`) and the extension point for
- * workflow enrichers. This entry point does not load the plugin itself.
+ * connection service (`temporalServiceRef`). This entry point does not load the plugin itself.
  *
  * @packageDocumentation
  */
 
-export * from './TemporalService';
-export * from './extensions';
+export {
+  temporalServiceRef,
+  type TemporalSearchAttributeNames,
+  type TemporalService,
+} from './TemporalService';

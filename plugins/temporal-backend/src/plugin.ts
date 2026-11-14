@@ -22,12 +22,13 @@ import {
   parseTemporalWorkflowResourceRef,
   temporalPermissions,
 } from './common';
-import { temporalExtensionPoint, TemporalWorkflowEnricher } from './node';
 import { temporalServiceRef } from './node';
 import {
   TemporalControlAction,
   temporalAccessServiceRef,
   temporalControlExtensionPoint,
+  TemporalWorkflowEnricher,
+  temporalWorkflowEnricherExtensionPoint,
   temporalWorkflowPermissionResourceRef,
 } from './node/alpha';
 import { isValidControlActionId } from './routes/params';
@@ -58,7 +59,7 @@ export const temporalPlugin = createBackendPlugin({
   pluginId: 'temporal',
   register(env) {
     const enrichers: TemporalWorkflowEnricher[] = [];
-    env.registerExtensionPoint(temporalExtensionPoint, {
+    env.registerExtensionPoint(temporalWorkflowEnricherExtensionPoint, {
       addWorkflowEnricher(enricher) {
         if (enrichers.some(e => e.id === enricher.id)) {
           throw new Error(`Duplicate workflow enricher id: ${enricher.id}`);

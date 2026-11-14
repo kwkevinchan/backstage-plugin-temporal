@@ -1217,10 +1217,11 @@ another way, add your own factory for that ref to the backend; the default
 factory that the backend package brings is then skipped.
 
 Backend modules can add data to workflow summaries with
-`temporalExtensionPoint.addWorkflowEnricher()` from
-`@kwkevinchan/backstage-plugin-temporal-backend/node`, and custom workflow
-actions with `temporalControlExtensionPoint.addControlAction()` from
-`@kwkevinchan/backstage-plugin-temporal-backend/alpha` (ignored, with a
+`temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`, and custom
+workflow actions with `temporalControlExtensionPoint.addControlAction()`,
+both from `@kwkevinchan/backstage-plugin-temporal-backend/alpha`. The
+enricher extension point only adds enrichers; it cannot add actions. Actions
+are ignored, with a
 warning, when `temporal.control.enabled` is false). An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
@@ -1290,14 +1291,14 @@ the plugin itself. Importing a backend plugin package from a module makes
 the Backstage lint rule `@backstage/no-mixed-plugin-imports` print a
 warning; it does not fail the lint.
 
-| What                                                           | Import from                                              |
-| -------------------------------------------------------------- | -------------------------------------------------------- |
-| `temporalServiceRef`, `temporalExtensionPoint` and their types | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
-| `temporalAccessServiceRef`, `temporalControlExtensionPoint`, … | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
-| Permissions, API types and paths, annotations (backend code)   | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
-| Permissions, API types and paths, annotations (frontend code)  | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
-| `TemporalControlActionBlueprint`                               | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
-| `createTemporalControlActionDef`                               | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
+| What                                                          | Import from                                              |
+| ------------------------------------------------------------- | -------------------------------------------------------- |
+| `temporalServiceRef` and its type                             | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
+| `temporalAccessServiceRef`, the extension points, …           | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
+| Permissions, API types and paths, annotations (backend code)  | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
+| Permissions, API types and paths, annotations (frontend code) | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
+| `TemporalControlActionBlueprint`                              | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
+| `createTemporalControlActionDef`                              | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
 
 ## Security
 

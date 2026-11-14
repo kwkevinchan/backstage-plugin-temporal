@@ -37,7 +37,8 @@ import { createServer } from 'node:net';
 import Router from 'express-promise-router';
 import { temporalWorkflowUpdatePermission } from './common';
 import { temporalControlExtensionPoint } from './alpha';
-import { temporalExtensionPoint, temporalServiceRef } from './node';
+import { temporalWorkflowEnricherExtensionPoint } from './alpha';
+import { temporalServiceRef } from './node';
 import temporalBackend, { temporalPlugin } from './index';
 import {
   temporalAccessServiceFactory,
@@ -120,7 +121,7 @@ const extensionsModule = createBackendModule({
   register(reg) {
     reg.registerInit({
       deps: {
-        enrichers: temporalExtensionPoint,
+        enrichers: temporalWorkflowEnricherExtensionPoint,
         control: temporalControlExtensionPoint,
       },
       async init({ enrichers, control }) {

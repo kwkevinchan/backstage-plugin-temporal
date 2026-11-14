@@ -74,7 +74,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 | 從其他後端程式呼叫 Temporal    | `temporalServiceRef`（`getClient()`）                                                                                                              | `temporal-backend/node`                    |
 | 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                   |
 | 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）            |
-| 替流程摘要補資料               | `temporalExtensionPoint.addWorkflowEnricher()`                                                                                                     | `temporal-backend/node`                    |
+| 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                   |
 | 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                   |
 | 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                       |
 | 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                   |
