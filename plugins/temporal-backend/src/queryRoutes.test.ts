@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
@@ -26,12 +25,13 @@ import {
   createFakeWorkflowService,
   executionInfo,
   fakeTemporalServiceFactory,
-  fakeScheduleClient,
+  fakeScheduleService,
+  FakeSchedule,
+  grpcError,
   checkoutEntity,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
-  scheduleSummary,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
@@ -109,13 +109,17 @@ async function start(options?: {
   /** Permission names that get a conditional decision. */
   conditional?: string[];
   entities?: Entity[];
-  client?: unknown;
+  /** The schedules of the namespace. */
+  schedules?: FakeSchedule[];
   /** The name of the entity reference search attribute. */
   entityRefAttribute?: string;
   /** The `temporal.control` config. */
   control?: object;
 }) {
-  const workflowService = runningWorkflowService();
+  const workflowService = {
+    ...runningWorkflowService(),
+    ...fakeScheduleService(options?.schedules ?? []),
+  };
   const decide = (r: any) => ({
     result: options?.deny?.includes(r.permission.name)
       ? AuthorizeResult.DENY
@@ -147,7 +151,6 @@ async function start(options?: {
         entities: [ordersEntity, ...(options?.entities ?? [])],
       }),
       fakeTemporalServiceFactory(workflowService, {
-        client: options?.client,
         entityRefAttribute: options?.entityRefAttribute,
       }),
       permissions.factory,
@@ -320,11 +323,11 @@ describe('query routes of the core plugin', () => {
   });
 
   it('lists the schedules of the namespace with the list permission', async () => {
-    const client = fakeScheduleClient([
-      scheduleSummary('weekly', 'reportWorkflow', true),
-      scheduleSummary('nightly', 'orderWorkflow'),
-    ]);
-    const { server } = await start({ client });
+    const schedules = [
+      { scheduleId: 'weekly', workflowType: 'reportWorkflow', paused: true },
+      { scheduleId: 'nightly', workflowType: 'orderWorkflow' },
+    ];
+    const { server } = await start({ schedules });
     const res = await request(server).get('/api/temporal/schedules');
     expect(res.status).toBe(200);
     expect(res.body.truncated).toBe(false);
@@ -332,18 +335,26 @@ describe('query routes of the core plugin', () => {
       ['nightly', false],
       ['weekly', true],
     ]);
-    const denied = await start({ client, deny: ['temporal.workflow.list'] });
+    expect(res.body.items[0]).toMatchObject({
+      workflowType: 'orderWorkflow',
+      spec: ['every 1h', '02:00 on MONDAY-FRIDAY'],
+      nextActionTimes: ['2026-01-03T02:00:00.000Z'],
+    });
+    const denied = await start({
+      schedules,
+      deny: ['temporal.workflow.list'],
+    });
     expect(
       (await request(denied.server).get('/api/temporal/schedules')).status,
     ).toBe(403);
   });
 
   it('lists the schedules that start the workflow types of an entity', async () => {
-    const client = fakeScheduleClient([
-      scheduleSummary('weekly', 'reportWorkflow'),
-      scheduleSummary('nightly', 'orderWorkflow'),
-    ]);
-    const { server } = await start({ client });
+    const schedules = [
+      { scheduleId: 'weekly', workflowType: 'reportWorkflow' },
+      { scheduleId: 'nightly', workflowType: 'orderWorkflow' },
+    ];
+    const { server } = await start({ schedules });
     const res = await request(server).get(
       '/api/temporal/entities/component/default/orders/schedules',
     );
@@ -351,16 +362,19 @@ describe('query routes of the core plugin', () => {
     expect(res.body.items.map((s: any) => s.scheduleId)).toEqual(['nightly']);
     // The same workflow type on another task queue is another team's.
     const elsewhere = await start({
-      client: fakeScheduleClient(
-        [scheduleSummary('nightly', 'orderWorkflow')],
-        'billing',
-      ),
+      schedules: [
+        {
+          scheduleId: 'nightly',
+          workflowType: 'orderWorkflow',
+          taskQueue: 'billing',
+        },
+      ],
     });
     const other = await request(elsewhere.server).get(
       '/api/temporal/entities/component/default/orders/schedules',
     );
     expect(other.body.items).toEqual([]);
-    const denied = await start({ client, deny: ['temporal.workflow.read'] });
+    const denied = await start({ schedules, deny: ['temporal.workflow.read'] });
     expect(
       (
         await request(denied.server).get(
@@ -371,15 +385,11 @@ describe('query routes of the core plugin', () => {
   });
 
   it('operates the schedules its list shows, including those of a related workflow entity with a task queue', async () => {
-    const client = fakeScheduleClient(
-      [
-        scheduleSummary('nightly', 'orderWorkflow'),
-        scheduleSummary('weekly', 'reportWorkflow'),
+    const { server, workflowService } = await start({
+      schedules: [
+        { scheduleId: 'nightly', workflowType: 'orderWorkflow' },
+        { scheduleId: 'weekly', workflowType: 'reportWorkflow' },
       ],
-      'orders',
-    );
-    const { server } = await start({
-      client,
       entities: [checkoutEntity, orderWorkflowEntity],
     });
     const listed = await request(server).get(
@@ -395,16 +405,22 @@ describe('query routes of the core plugin', () => {
         )
         .send({});
     expect((await operate('nightly')).status).toBe(202);
-    expect(client.handles.get('nightly')!.pause).toHaveBeenCalled();
+    expect(workflowService.patchSchedule).toHaveBeenCalledWith(
+      expect.objectContaining({ scheduleId: 'nightly' }),
+    );
     expect((await operate('weekly')).status).toBe(404);
+    expect(workflowService.patchSchedule).toHaveBeenCalledTimes(1);
   });
 
   it('lists no schedules for an entity that has only a task queue', async () => {
     const { server } = await start({
-      client: fakeScheduleClient(
-        [scheduleSummary('billing-run', 'billingWorkflow')],
-        'billing',
-      ),
+      schedules: [
+        {
+          scheduleId: 'billing-run',
+          workflowType: 'billingWorkflow',
+          taskQueue: 'billing',
+        },
+      ],
       entities: [otherEntity],
     });
     const res = await request(server).get(
@@ -414,40 +430,95 @@ describe('query routes of the core plugin', () => {
     expect(res.body.items).toEqual([]);
   });
 
-  it('maps the Temporal errors of the schedule client', async () => {
-    // The schedule client wraps the gRPC error in a ServiceError.
-    const unreachable = new ServiceError('Failed to list schedules', {
-      cause: Object.assign(new Error('14 UNAVAILABLE'), {
-        code: 14,
-        details: 'connection refused',
-      }),
+  it('lists the other schedules and this one when a schedule has payloads that cannot be decoded', async () => {
+    // A worker with a payload codec (encryption) encodes the memo and the
+    // arguments of its schedules; the plugin cannot read them.
+    const { server } = await start({
+      schedules: [
+        { scheduleId: 'plain', workflowType: 'orderWorkflow' },
+        {
+          scheduleId: 'secret',
+          workflowType: 'orderWorkflow',
+          undecodable: true,
+        },
+      ],
     });
-    const down = fakeScheduleClient([]);
-    down.schedule.list = async function* list() {
-      yield* [];
-      throw unreachable;
-    };
-    const { server } = await start({ client: down });
-    const res = await request(server).get('/api/temporal/schedules');
+    const all = await request(server).get('/api/temporal/schedules');
+    expect(all.status).toBe(200);
+    expect(all.body.items.map((s: any) => s.scheduleId)).toEqual([
+      'plain',
+      'secret',
+    ]);
+    expect(all.body.items[1]).toMatchObject({
+      workflowType: 'orderWorkflow',
+      paused: false,
+      nextActionTimes: ['2026-01-03T02:00:00.000Z'],
+    });
+    // The entity's list describes the schedules for their task queue.
+    const entity = await request(server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(entity.status).toBe(200);
+    expect(entity.body.items.map((s: any) => s.scheduleId)).toEqual([
+      'plain',
+      'secret',
+    ]);
+  });
+
+  it('operates a schedule with payloads that cannot be decoded', async () => {
+    const { server, workflowService } = await start({
+      schedules: [
+        {
+          scheduleId: 'secret',
+          workflowType: 'orderWorkflow',
+          undecodable: true,
+        },
+      ],
+    });
+    for (const operation of ['pause', 'unpause', 'trigger']) {
+      const res = await request(server)
+        .post(
+          `/api/temporal/namespaces/default/schedules/secret/${operation}?entityRef=component:default/orders`,
+        )
+        .send({});
+      expect(res.status).toBe(202);
+    }
+    expect(workflowService.patchSchedule).toHaveBeenCalledTimes(3);
+  });
+
+  it('maps the Temporal errors of the schedule client', async () => {
+    const down = await start();
+    down.workflowService.listSchedules.mockRejectedValue(
+      grpcError(14, 'connection refused'),
+    );
+    const res = await request(down.server).get('/api/temporal/schedules');
     expect(res.status).toBe(503);
     expect(res.body.error.message).toContain('connection refused');
 
+    // An error that is not about a payload is not hidden by the lenient
+    // decoding.
+    const refused = await start({
+      schedules: [{ scheduleId: 'nightly', workflowType: 'orderWorkflow' }],
+    });
+    refused.workflowService.describeSchedule.mockRejectedValue(grpcError(7));
+    const forbidden = await request(refused.server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(forbidden.status).toBe(503);
+
     // A schedule deleted between the list and its describe is left out.
-    const client = fakeScheduleClient([
-      scheduleSummary('nightly', 'orderWorkflow'),
-      scheduleSummary('gone', 'orderWorkflow'),
-    ]);
-    const getHandle = client.schedule.getHandle;
-    client.schedule.getHandle = (id: string) => {
-      const handle = getHandle(id);
-      if (id === 'gone') {
-        handle.describe.mockRejectedValue(
-          new ScheduleNotFoundError('not found', id),
-        );
-      }
-      return handle;
-    };
-    const entity = await start({ client });
+    const entity = await start({
+      schedules: [
+        { scheduleId: 'nightly', workflowType: 'orderWorkflow' },
+        { scheduleId: 'gone', workflowType: 'orderWorkflow' },
+      ],
+    });
+    const describe =
+      entity.workflowService.describeSchedule.getMockImplementation()!;
+    entity.workflowService.describeSchedule.mockImplementation(async req => {
+      if (req.scheduleId === 'gone') throw grpcError(5, 'not found');
+      return describe(req);
+    });
     const listed = await request(entity.server).get(
       '/api/temporal/entities/component/default/orders/schedules',
     );

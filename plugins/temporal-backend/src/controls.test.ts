@@ -27,12 +27,14 @@ import {
   temporalControlExtensionPoint,
 } from './node/alpha';
 import { TemporalService, temporalServiceRef } from './node';
-import { ScheduleNotFoundError, ServiceError } from '@temporalio/client';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './alpha';
 import {
   createFakeWorkflowService,
   executionInfo,
+  fakeScheduleService,
+  FakeSchedule,
+  grpcError,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
@@ -124,15 +126,18 @@ async function start(options?: {
   entityAttribute?: string | null;
   action?: TemporalControlAction;
   /** Schedules of the fake client. */
-  schedules?: { scheduleId: string; workflowType: string; taskQueue: string }[];
-  /** Errors of the schedule handles' methods, by method name. */
-  scheduleErrors?: Record<string, unknown>;
+  schedules?: FakeSchedule[];
+  /** gRPC errors of the schedule calls, by method name. */
+  scheduleErrors?: { describeSchedule?: unknown; patchSchedule?: unknown };
   logger?: ReturnType<typeof mockServices.logger.mock>;
 }) {
-  const workflowService = createControlWorkflowService(
-    options?.status,
-    options?.entityAttribute,
-  );
+  const workflowService = {
+    ...createControlWorkflowService(options?.status, options?.entityAttribute),
+    ...fakeScheduleService(options?.schedules ?? []),
+  };
+  for (const [method, error] of Object.entries(options?.scheduleErrors ?? {})) {
+    (workflowService as any)[method].mockRejectedValue(error);
+  }
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
       requests.map((r: any) => ({
@@ -161,41 +166,13 @@ async function start(options?: {
   const auditor = mockServices.auditor.mock();
   const auditEvent = { success: jest.fn(), fail: jest.fn() };
   auditor.createEvent.mockResolvedValue(auditEvent);
-  const scheduleHandles = new Map<string, Record<string, jest.Mock>>();
-  const client = {
-    workflow: { getHandle: jest.fn() },
-    schedule: {
-      getHandle: (id: string) => {
-        const found = options?.schedules?.find(s => s.scheduleId === id);
-        const handle = {
-          describe: jest.fn(async () => {
-            if (options?.scheduleErrors?.describe) {
-              throw options.scheduleErrors.describe;
-            }
-            if (!found) throw new ScheduleNotFoundError('not found', id);
-            return {
-              scheduleId: id,
-              action: {
-                type: 'startWorkflow',
-                workflowType: found.workflowType,
-                taskQueue: found.taskQueue,
-              },
-              policies: { overlap: 'SKIP' },
-            };
-          }),
-          pause: jest.fn(async () => {
-            if (options?.scheduleErrors?.pause) {
-              throw options.scheduleErrors.pause;
-            }
-          }),
-          unpause: jest.fn(async () => undefined),
-          trigger: jest.fn(async () => undefined),
-        };
-        scheduleHandles.set(id, handle);
-        return handle;
-      },
-    },
-  };
+  const client = { workflow: { getHandle: jest.fn() } };
+  /** The patches sent to a schedule: `{ pause }`, `{ unpause }`, ... */
+  const patchesOf = (scheduleId: string) =>
+    workflowService.patchSchedule.mock.calls
+      .map(([req]) => req)
+      .filter(req => req.scheduleId === scheduleId)
+      .map(req => req.patch);
   const service: TemporalService = {
     getClient: async () => client as any,
     getConnection: async () => ({ workflowService } as any),
@@ -252,7 +229,7 @@ async function start(options?: {
     auditor,
     auditEvent,
     client,
-    scheduleHandles,
+    patchesOf,
   };
 }
 
@@ -714,16 +691,14 @@ describe('schedule controls', () => {
     }`;
 
   it('pauses, unpauses and triggers a schedule of the entity, with an audit record', async () => {
-    const { server, scheduleHandles, auditor, auditEvent } = await start({
+    const { server, patchesOf, auditor, auditEvent } = await start({
       schedules,
     });
     const paused = await request(server)
       .post(path('nightly', 'pause'))
       .send({ note: 'maintenance' });
     expect(paused.status).toBe(202);
-    expect(scheduleHandles.get('nightly')!.pause).toHaveBeenCalledWith(
-      'maintenance',
-    );
+    expect(patchesOf('nightly')).toEqual([{ pause: 'maintenance' }]);
     expect(auditor.createEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         eventId: 'schedule-pause',
@@ -735,26 +710,26 @@ describe('schedule controls', () => {
     );
     expect(auditEvent.success).toHaveBeenCalled();
     await request(server).post(path('nightly', 'unpause')).send({}).expect(202);
-    expect(scheduleHandles.get('nightly')!.unpause.mock.calls[0][0]).toMatch(
+    expect(patchesOf('nightly')[1].unpause).toMatch(
       /^Resumed from Backstage by user:default\/mock/,
     );
     await request(server).post(path('nightly', 'trigger')).send({}).expect(202);
     // With the schedule's overlap policy.
-    expect(scheduleHandles.get('nightly')!.trigger).toHaveBeenCalledWith(
-      'SKIP',
-    );
+    expect(patchesOf('nightly')[2]).toEqual({
+      triggerImmediately: { overlapPolicy: 1 }, // SKIP
+    });
   });
 
   it("refuses a schedule that starts another entity's workflows", async () => {
-    const { server, scheduleHandles } = await start({ schedules });
+    const { server, patchesOf } = await start({ schedules });
     await request(server).post(path('weekly', 'pause')).send({}).expect(404);
-    expect(scheduleHandles.get('weekly')!.pause).not.toHaveBeenCalled();
+    expect(patchesOf('weekly')).toEqual([]);
   });
 
   it('refuses the schedules on the task queue of an entity that names no workflow type', async () => {
     // The billing entity only has a task queue: its schedule list is empty,
     // so it owns no schedule, even one on its queue.
-    const { server, scheduleHandles } = await start({
+    const { server, patchesOf } = await start({
       schedules: [
         {
           scheduleId: 'billing-run',
@@ -769,11 +744,11 @@ describe('schedule controls', () => {
       )
       .send({});
     expect(res.status).toBe(404);
-    expect(scheduleHandles.get('billing-run')!.pause).not.toHaveBeenCalled();
+    expect(patchesOf('billing-run')).toEqual([]);
   });
 
   it("refuses a schedule of the entity's workflow type on another task queue", async () => {
-    const { server, scheduleHandles } = await start({
+    const { server, patchesOf } = await start({
       schedules: [
         {
           scheduleId: 'elsewhere',
@@ -783,17 +758,17 @@ describe('schedule controls', () => {
       ],
     });
     await request(server).post(path('elsewhere', 'pause')).send({}).expect(404);
-    expect(scheduleHandles.get('elsewhere')!.pause).not.toHaveBeenCalled();
+    expect(patchesOf('elsewhere')).toEqual([]);
   });
 
   it('needs temporal.workflow.start', async () => {
-    const { server, scheduleHandles } = await start({
+    const { server, workflowService } = await start({
       schedules,
       deny: ['temporal.workflow.start'],
     });
     await request(server).post(path('nightly', 'trigger')).send({}).expect(403);
     // Refused before the schedule is read.
-    expect(scheduleHandles.has('nightly')).toBe(false);
+    expect(workflowService.describeSchedule).not.toHaveBeenCalled();
     // Without an entity, the permission must be allowed without conditions.
     const conditional = await start({
       schedules,
@@ -823,17 +798,9 @@ describe('schedule controls', () => {
   });
 
   it('maps the Temporal errors of the schedule client', async () => {
-    // The schedule client wraps the gRPC error in a ServiceError.
-    const grpc = (code: number) =>
-      new ServiceError('Failed to pause schedule', {
-        cause: Object.assign(new Error(`code ${code}`), {
-          code,
-          details: `code ${code}`,
-        }),
-      });
     const unavailable = await start({
       schedules,
-      scheduleErrors: { pause: grpc(14) },
+      scheduleErrors: { patchSchedule: grpcError(14) },
     });
     const res = await request(unavailable.server)
       .post(path('nightly', 'pause'))
@@ -842,18 +809,16 @@ describe('schedule controls', () => {
     expect(unavailable.auditEvent.fail).toHaveBeenCalled();
     const refused = await start({
       schedules,
-      scheduleErrors: { describe: grpc(7) },
+      scheduleErrors: { describeSchedule: grpcError(7) },
     });
     await request(refused.server)
       .post(path('nightly', 'trigger'))
       .send({})
       .expect(503);
-    expect(
-      refused.scheduleHandles.get('nightly')!.trigger,
-    ).not.toHaveBeenCalled();
+    expect(refused.patchesOf('nightly')).toEqual([]);
     const conflict = await start({
       schedules,
-      scheduleErrors: { pause: grpc(9) },
+      scheduleErrors: { patchSchedule: grpcError(9) },
     });
     await request(conflict.server)
       .post(path('nightly', 'pause'))
@@ -861,15 +826,38 @@ describe('schedule controls', () => {
       .expect(409);
   });
 
+  it('operates a schedule whose payloads cannot be decoded', async () => {
+    // Its memo and arguments are encoded by a payload codec; the operation
+    // needs only its workflow type and task queue.
+    const { server, patchesOf } = await start({
+      schedules: [
+        {
+          scheduleId: 'secret',
+          workflowType: 'orderWorkflow',
+          taskQueue: 'orders',
+          undecodable: true,
+        },
+      ],
+    });
+    for (const op of ['pause', 'unpause', 'trigger']) {
+      await request(server).post(path('secret', op)).send({}).expect(202);
+    }
+    expect(patchesOf('secret').map(p => Object.keys(p)[0])).toEqual([
+      'pause',
+      'unpause',
+      'triggerImmediately',
+    ]);
+  });
+
   it('refuses a schedule of another namespace than the entity', async () => {
-    const { server, scheduleHandles } = await start({ schedules });
+    const { server, workflowService } = await start({ schedules });
     await request(server)
       .post(
         '/api/temporal/namespaces/other/schedules/nightly/pause?entityRef=component:default/orders',
       )
       .send({})
       .expect(404);
-    expect(scheduleHandles.has('nightly')).toBe(false);
+    expect(workflowService.describeSchedule).not.toHaveBeenCalled();
     await request(server)
       .post('/api/temporal/namespaces/secret/schedules/nightly/pause')
       .expect(400);
@@ -923,10 +911,10 @@ describe('operations without a request body', () => {
       route: 'schedule pause',
       path: '/api/temporal/namespaces/default/schedules/nightly/pause?entityRef=component:default/orders',
       status: 202,
-      check: ({ scheduleHandles }: Awaited<ReturnType<typeof start>>) =>
-        expect(scheduleHandles.get('nightly')!.pause).toHaveBeenCalledWith(
-          'Paused from Backstage by user:default/mock',
-        ),
+      check: ({ patchesOf }: Awaited<ReturnType<typeof start>>) =>
+        expect(patchesOf('nightly')).toEqual([
+          { pause: 'Paused from Backstage by user:default/mock' },
+        ]),
     },
   ])('$route uses its defaults', async ({ path, status, check }) => {
     const started = await start({ schedules });
@@ -963,15 +951,18 @@ describe('with temporal.control.enabled: false', () => {
   it.each(routesThatChange)(
     'serves no %s route (404)',
     async (_name, path, body) => {
-      const { backend, workflowService, permissions, scheduleHandles } =
-        await start({ control: disabled, schedules });
+      const { backend, workflowService, permissions } = await start({
+        control: disabled,
+        schedules,
+      });
       // Not served: answered without a body, outside the spec.
       const res = await request(backend).post(path).send(body);
       expect(res.status).toBe(404);
       expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
       expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
       expect(permissions.authorize).not.toHaveBeenCalled();
-      expect(scheduleHandles.size).toBe(0);
+      expect(workflowService.describeSchedule).not.toHaveBeenCalled();
+      expect(workflowService.patchSchedule).not.toHaveBeenCalled();
     },
   );
 

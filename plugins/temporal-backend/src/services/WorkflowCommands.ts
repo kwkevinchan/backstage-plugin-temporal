@@ -30,6 +30,7 @@ import type {
   WorkflowStartResponse,
 } from '../common';
 import { TemporalService } from '../node';
+import { scheduleClientOf } from './scheduleClient';
 import {
   decodeJsonPayloads,
   encodeJsonPayloads,
@@ -331,8 +332,10 @@ export class WorkflowCommands {
     namespace: string,
     scheduleId: string,
   ): Promise<ScheduleTarget> {
-    const client = await this.temporal.getClient({ namespace });
-    const handle = client.schedule.getHandle(scheduleId);
+    const handle = scheduleClientOf(
+      await this.temporal.getConnection(),
+      namespace,
+    ).getHandle(scheduleId);
     const description = await handle.describe().catch(error => {
       if (isScheduleNotFound(error)) {
         throw new NotFoundError(`No schedule ${scheduleId}`);
@@ -359,10 +362,10 @@ export class WorkflowCommands {
     operation: TemporalScheduleOperation,
     options: { note?: string; requestedBy: string },
   ): Promise<void> {
-    const client = await this.temporal.getClient({
-      namespace: schedule.namespace,
-    });
-    const handle = client.schedule.getHandle(schedule.scheduleId);
+    const handle = scheduleClientOf(
+      await this.temporal.getConnection(),
+      schedule.namespace,
+    ).getHandle(schedule.scheduleId);
     const { note, requestedBy } = options;
     try {
       if (operation === 'pause') {

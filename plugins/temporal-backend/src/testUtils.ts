@@ -16,6 +16,7 @@
 
 import { createServiceFactory } from '@backstage/backend-plugin-api';
 import { Entity } from '@backstage/catalog-model';
+import { msToTs } from '@temporalio/common/lib/time';
 import { TemporalService, temporalServiceRef } from './node';
 
 export const ordersEntity: Entity = {
@@ -216,13 +217,10 @@ export function fakeTemporalServiceFactory(
   options?: {
     entityRefAttribute?: string;
     initiatorAttribute?: string;
-    /** A fake client, for schedules. */
-    client?: unknown;
   },
 ) {
   const service: TemporalService = {
     getClient: async () => {
-      if (options?.client) return options.client as any;
       throw new Error('not used');
     },
     getConnection: async () =>
@@ -289,40 +287,117 @@ export function scheduleSummary(
   };
 }
 
-/** A fake client with schedules, and handles that record their calls. */
-export function fakeScheduleClient(
-  schedules: ReturnType<typeof scheduleSummary>[],
-  taskQueue = 'orders',
-) {
-  const handles = new Map<string, Record<string, jest.Mock>>();
-  return {
-    handles,
-    schedule: {
-      list: async function* list() {
-        for (const s of schedules) yield s;
-      },
-      getHandle: (id: string) => {
-        const found = schedules.find(s => s.scheduleId === id);
-        const handle = {
-          describe: jest.fn(async () => {
-            if (!found) {
-              const { ScheduleNotFoundError } = await import(
-                '@temporalio/client'
-              );
-              throw new ScheduleNotFoundError('not found', id);
-            }
-            return {
-              ...found,
-              action: { ...found.action, taskQueue },
-            };
-          }),
-          pause: jest.fn(async () => undefined),
-          unpause: jest.fn(async () => undefined),
-          trigger: jest.fn(async () => undefined),
-        };
-        handles.set(id, handle);
-        return handle;
-      },
+/** A schedule of {@link fakeScheduleService}. */
+export interface FakeSchedule {
+  scheduleId: string;
+  workflowType: string;
+  taskQueue?: string;
+  paused?: boolean;
+  /**
+   * Its memo and action arguments are encoded by a payload codec that the
+   * plugin does not know (`binary/encrypted`).
+   */
+  undecodable?: boolean;
+}
+
+/** A gRPC error, as the client's connection throws it. */
+export function grpcError(code: number, details = `code ${code}`) {
+  return Object.assign(new Error(`${code} ${details}`), {
+    code,
+    details,
+    metadata: { get: () => [] },
+  });
+}
+
+const timestamp = (iso: string) => msToTs(Date.parse(iso));
+
+const encryptedPayload = {
+  metadata: { encoding: Buffer.from('binary/encrypted') },
+  data: Buffer.from([0xde, 0xad, 0xbe, 0xef]),
+};
+
+const rawSpec = {
+  interval: [{ interval: msToTs(3600_000), phase: msToTs(0) }],
+  structuredCalendar: [
+    {
+      second: [{ start: 0, end: 0, step: 1 }],
+      minute: [{ start: 0, end: 0, step: 1 }],
+      hour: [{ start: 2, end: 2, step: 1 }],
+      dayOfMonth: [{ start: 1, end: 31, step: 1 }],
+      month: [{ start: 1, end: 12, step: 1 }],
+      year: [],
+      dayOfWeek: [{ start: 1, end: 5, step: 1 }],
     },
+  ],
+  timezoneName: 'Asia/Taipei',
+};
+
+const rawRecentActions = (scheduleId: string) =>
+  [1, 2].map(n => ({
+    scheduleTime: timestamp(`2026-01-0${n}T02:00:00Z`),
+    actualTime: timestamp(`2026-01-0${n}T02:00:01Z`),
+    startWorkflowResult: {
+      workflowId: `${scheduleId}-${n}`,
+      runId: `run-${n}`,
+    },
+  }));
+
+/**
+ * The schedule calls of Temporal's workflow service (`listSchedules`,
+ * `describeSchedule`, `patchSchedule`) over some schedules, as the gRPC
+ * client answers them. Spread into the fake workflow service. A schedule
+ * that is not there is a NOT_FOUND error.
+ */
+export function fakeScheduleService(schedules: FakeSchedule[]) {
+  return {
+    listSchedules: jest.fn(async (_req: any) => ({
+      schedules: schedules.map(s => ({
+        scheduleId: s.scheduleId,
+        memo: s.undecodable ? { fields: { owner: encryptedPayload } } : {},
+        info: {
+          spec: rawSpec,
+          workflowType: { name: s.workflowType },
+          paused: s.paused ?? false,
+          notes: s.paused ? 'maintenance' : '',
+          recentActions: rawRecentActions(s.scheduleId),
+          futureActionTimes: [timestamp('2026-01-03T02:00:00Z')],
+        },
+      })),
+      nextPageToken: new Uint8Array(),
+    })),
+    describeSchedule: jest.fn(async (req: any) => {
+      const s = schedules.find(f => f.scheduleId === req.scheduleId);
+      if (!s) throw grpcError(5, 'schedule not found');
+      return {
+        memo: s.undecodable ? { fields: { owner: encryptedPayload } } : {},
+        schedule: {
+          spec: rawSpec,
+          action: {
+            startWorkflow: {
+              workflowId: `${s.scheduleId}-workflow`,
+              workflowType: { name: s.workflowType },
+              taskQueue: { name: s.taskQueue ?? 'orders' },
+              input: s.undecodable ? { payloads: [encryptedPayload] } : {},
+              memo: s.undecodable
+                ? { fields: { owner: encryptedPayload } }
+                : {},
+            },
+          },
+          policies: { overlapPolicy: 1 },
+          state: { paused: s.paused ?? false },
+        },
+        info: {
+          createTime: timestamp('2026-01-01T00:00:00Z'),
+          recentActions: rawRecentActions(s.scheduleId),
+          futureActionTimes: [timestamp('2026-01-03T02:00:00Z')],
+        },
+      };
+    }),
+    patchSchedule: jest.fn(async (req: any) => {
+      if (!schedules.some(f => f.scheduleId === req.scheduleId)) {
+        throw grpcError(5, 'schedule not found');
+      }
+      return {};
+    }),
   };
 }
