@@ -18,11 +18,10 @@ import { createBackendModule } from '@backstage/backend-plugin-api';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
+import { readHistoryFixture } from './__testUtils__/fixtures';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import {
   TemporalLlmAdapter,
@@ -323,15 +322,7 @@ const path = (rest: string) =>
 
 /** The events of a history of `test-fixtures/llm-integrations`. */
 function integrationEvents(name: string): any[] {
-  return JSON.parse(
-    readFileSync(
-      resolve(
-        __dirname,
-        `../../../test-fixtures/llm-integrations/${name}.json`,
-      ),
-      'utf8',
-    ),
-  ).events;
+  return readHistoryFixture('llm-integrations', name).events;
 }
 
 const decoded = (payload: any) =>

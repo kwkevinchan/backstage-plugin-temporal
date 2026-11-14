@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import type { WorkflowEventGroup, WorkflowGraphResponse } from '../common';
+import { readHistoryFixture } from '../__testUtils__/fixtures';
 import {
   inferEventGroupParents,
   MAX_EVENT_GROUPS,
@@ -27,12 +26,7 @@ import { buildWorkflowGraph, BuildGraphOptions } from './graph';
 
 /** A history of `test-fixtures/<dir>`. */
 function fixture(name: string, dir = 'event-groups'): any[] {
-  return JSON.parse(
-    readFileSync(
-      resolve(__dirname, `../../../../test-fixtures/${dir}/${name}.json`),
-      'utf8',
-    ),
-  ).events;
+  return readHistoryFixture(dir, name).events;
 }
 
 const options: BuildGraphOptions = {
@@ -265,8 +259,24 @@ describe('event groups in the graph', () => {
     expect(node('timer-11').groups).toEqual(node('activity-5').groups);
     // Started and ended with its steps.
     const round1 = group('loop:draft-review:1');
+    expect(round1.startTime).toBeDefined();
+    expect(round1.endTime).toBeDefined();
     expect(round1.startTime).toBe(node('activity-5').startTime);
     expect(round1.endTime).toBe(node('activity-16').endTime);
+    // Each round starts before it ends, and after the round before it.
+    const times = [1, 2, 3].map(n => {
+      const r = group(`loop:draft-review:${n}`);
+      return [Date.parse(r.startTime!), Date.parse(r.endTime!)];
+    });
+    for (const [start, end] of times) {
+      expect(start).not.toBeNaN();
+      expect(end).toBeGreaterThan(start);
+    }
+    expect(times[1][0]).toBeGreaterThanOrEqual(times[0][1]);
+    expect(times[2][0]).toBeGreaterThanOrEqual(times[1][1]);
+    expect(group('loop:draft-review').startTime).toBe(round1.startTime);
+    // The timer of a round has the length of its fixture.
+    expect(node('timer-11').name).toBe('Timer 2s');
     expect(round1.usage).toBeUndefined();
     expect(round1.llmCalls).toBeUndefined();
     // Not nested, and the steps outside any group have none.
@@ -612,6 +622,53 @@ describe('event groups in the graph', () => {
     expect(running.group('open').endTime).toBeUndefined();
     expect(running.group('timer').status).toBe('Running');
     expect(running.group('done').status).toBe('Completed');
+  });
+
+  it('keeps a failed step of a group whose other step was left open', () => {
+    // One activity failed, the next never closed, in the same group.
+    const events = activities([label('mixed')], [label('mixed')]);
+    events[2] = {
+      eventId: '3',
+      eventTime: timeAt(3),
+      eventType: 'EVENT_TYPE_ACTIVITY_TASK_FAILED',
+      activityTaskFailedEventAttributes: {
+        scheduledEventId: '2',
+        failure: { message: 'boom' },
+      },
+    };
+    events.splice(4, 1);
+    const closing = (type: string, attributes: string) => ({
+      eventId: '10',
+      eventType: `EVENT_TYPE_WORKFLOW_EXECUTION_${type}`,
+      eventTime: timeAt(10),
+      [attributes]: {},
+    });
+    const ended = [
+      ['COMPLETED', 'workflowExecutionCompletedEventAttributes', 'Completed'],
+      ['CANCELED', 'workflowExecutionCanceledEventAttributes', 'Canceled'],
+      ['FAILED', 'workflowExecutionFailedEventAttributes', 'Failed'],
+    ] as const;
+    for (const [type, attributes, status] of ended) {
+      const { group, node } = graphOf([...events, closing(type, attributes)], {
+        status,
+      });
+      expect(node('activity-2').status).toBe('Failed');
+      expect(node('activity-4').status).toBe('Scheduled');
+      expect(group('mixed').status).toBe('Failed');
+    }
+    // While the run runs, the open step decides.
+    expect(graphOf(events, { status: 'Running' }).group('mixed').status).toBe(
+      'Running',
+    );
+  });
+
+  it('leaves the status of a group to its steps when the run status is unknown', () => {
+    const events = activities([label('done')], [label('open')]);
+    events.splice(4, 1);
+    const { group } = graphOf(events, { status: 'Unknown' });
+    expect(group('open').status).toBe('Running');
+    expect(group('open').endTime).toBeUndefined();
+    expect(group('done').status).toBe('Completed');
   });
 
   it('nests a group opened in a signal handler in the handler group', () => {

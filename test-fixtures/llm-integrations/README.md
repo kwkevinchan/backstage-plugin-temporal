@@ -8,6 +8,13 @@ read them. The models and the MCP server were fakes: no model service was
 called. Task queues, workflow types, workflow IDs and worker identities
 were renamed, and stack traces cut to their first line.
 
+The files are left as the CLI wrote them, where times are ISO strings
+(`"eventTime": "2026-…Z"`) and durations are strings like `"2s"`. The plugin
+reads `HistoryEvent.toJSON()`, where both are `{ seconds, nanos }`, so the
+tests read the files through `readHistoryFixture`
+(`plugins/temporal-backend/src/__testUtils__/fixtures.ts`), which converts
+the time and duration fields and leaves payloads alone.
+
 | File                                | Integration and versions                                                                      | What runs                                                                                                                                                                                                                                                 | Model calls (input/output tokens)                                                          |
 | ----------------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `vercel-ai-sdk-agent.json`          | `@temporalio/vercel-ai-sdk` 1.0.0, `ai` 7.0.159, TypeScript SDK 1.24.0                        | Two rounds of `generateText`, three `invokeModel` calls each: asks for `search_docs` (a tool defined in the workflow that runs the `searchDocs` activity), asks for `read_file` (an MCP tool, `docs-callTool`, which fails once and is retried), answers. | 6: 121/30, 201/18, 321/42, 122/30, 202/18, 322/42; reasoning 12 and 12; cache read 20 each |

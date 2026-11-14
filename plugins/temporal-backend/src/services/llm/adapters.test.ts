@@ -15,25 +15,16 @@
  */
 
 import { mockServices } from '@backstage/backend-test-utils';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import type { WorkflowGraphNode, WorkflowLlmRecord } from '../../common';
 import type { TemporalLlmAdapter } from '../../node/alpha';
+import { readHistoryFixture } from '../../__testUtils__/fixtures';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph, buildWorkflowGraphWithLlm } from '../graph';
 import { LlmAdapters } from './LlmAdapters';
 
 /** A history of `test-fixtures/llm-integrations`. */
 function fixture(name: string): any[] {
-  return JSON.parse(
-    readFileSync(
-      resolve(
-        __dirname,
-        `../../../../../test-fixtures/llm-integrations/${name}.json`,
-      ),
-      'utf8',
-    ),
-  ).events;
+  return readHistoryFixture('llm-integrations', name).events;
 }
 
 const options = {
@@ -75,6 +66,10 @@ describe('Vercel AI SDK adapter', () => {
       [202, 18],
       [322, 42],
     ]);
+    // The length of each call is read from the times of its activity.
+    for (const c of calls) {
+      expect(c.llm!.durationMs).toBeGreaterThan(0);
+    }
     expect(calls.map(c => c.llm!.usage?.reasoningTokens)).toEqual([
       12, 0, 0, 12, 0, 0,
     ]);

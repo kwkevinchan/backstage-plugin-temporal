@@ -17,8 +17,6 @@
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
@@ -28,6 +26,7 @@ import {
   fakeTemporalServiceFactory,
   ordersEntity,
 } from './testUtils';
+import { readHistoryFixture } from './__testUtils__/fixtures';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
 const ref = 'component:default/orders';
@@ -35,12 +34,7 @@ const graphPath = `/api/temporal/namespaces/default/workflows/wf-1/graph?entityR
 
 /** The events of a history of `test-fixtures/<dir>`. */
 function fixture(name: string, dir = 'event-groups'): any[] {
-  return JSON.parse(
-    readFileSync(
-      resolve(__dirname, `../../../test-fixtures/${dir}/${name}.json`),
-      'utf8',
-    ),
-  ).events;
+  return readHistoryFixture(dir, name).events;
 }
 
 async function start(options: {

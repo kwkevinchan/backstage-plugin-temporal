@@ -7,6 +7,13 @@ Temporal server 1.32.1. The backend tests of the event groups
 `plugins/temporal-backend/src/eventGroupRoutes.test.ts`) read them. Task
 queues, workflow types, workflow IDs and worker identities were renamed.
 
+The files are left as the CLI wrote them, where times are ISO strings
+(`"eventTime": "2026-…Z"`) and durations are strings like `"2s"`. The plugin
+reads `HistoryEvent.toJSON()`, where both are `{ seconds, nanos }`, so the
+tests read the files through `readHistoryFixture`
+(`plugins/temporal-backend/src/__testUtils__/fixtures.ts`), which converts
+the time and duration fields and leaves payloads alone.
+
 | File                              | SDK  | What runs                                                                                                                                                                                                                                                             | Groups                                                                            |
 | --------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | `loop-ts-sdk-1.24.json`           | 1.24 | A loop of three rounds in a group, each round in a nested group: `draft`, a 2 second timer, `review` (with a summary). In round 2 the signal `hint` runs `notify` in its handler. Then a `notify` with the group given as an activity option, and one without groups. | `loop:draft-review`, `loop:draft-review:1` to `:3`, `wrap-up`, the signal's group |

@@ -601,9 +601,10 @@ upsert or a cancel request to another workflow); the frontend decides
 which to show. A group is Running while a step of it is open, Failed when
 a step failed, Canceled when a step was canceled, else Completed. Once the
 run has ended, a group with a step left open (an activity abandoned by a
-timeout or a termination, a timer that had not fired) is Failed when the
-run failed, timed out or was terminated, else Canceled, and it ends when
-the run ended.
+timeout or a termination, a timer that had not fired) is Failed when a
+step of it failed or the run failed, timed out or was terminated, else
+Canceled, and it ends when the run ended. While the status of the run is
+unknown, the status comes from the steps.
 
 The name is the label of the group, cut like the summary of a step to its
 first line, trimmed; else its ID; a signal handler's group
