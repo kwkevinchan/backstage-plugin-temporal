@@ -110,7 +110,11 @@ export function parseStorageReference(
   return { driverName: v.driverName, bucket, key, sha256: hash, sizeBytes };
 }
 
-/** Error thrown when a stored object does not match its reference. */
+/**
+ * Error thrown when a stored object fails the backend's checks: its size,
+ * its SHA-256 or its encoding. The message is about the object only, so it
+ * is shown to users.
+ */
 export class StorageIntegrityError extends Error {
   readonly name = 'StorageIntegrityError';
 }

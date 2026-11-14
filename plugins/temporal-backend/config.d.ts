@@ -113,7 +113,9 @@ export interface Config {
       /**
        * The S3 driver (`@temporalio/external-storage-s3` and the drivers of
        * the other SDKs). Without it, stored payloads are shown as stored
-       * externally, with their key and size.
+       * externally, with their key and size. The credentials are the
+       * plugin's own, from exactly one of `credentials`, `accountId` and
+       * `defaultCredentials`; do not use those of `integrations.awsS3`.
        */
       s3?: {
         /**
@@ -131,18 +133,37 @@ export interface Config {
          * `http://localhost:9100`. Leave it out for AWS S3.
          */
         endpoint?: string;
-        /** Region. Defaults to `us-east-1`. */
+        /** Region of the bucket. Defaults to `us-east-1`. */
         region?: string;
         /** Bucket in the path instead of the host name. */
         forcePathStyle?: boolean;
-        /** Access key with read access (`s3:GetObject`) to the bucket. */
-        credentials: {
+        /**
+         * An access key of the plugin with read access (`s3:GetObject`) to
+         * the bucket.
+         */
+        credentials?: {
+          /** @visibility secret */
           accessKeyId: string;
           /** @visibility secret */
           secretAccessKey: string;
           /** @visibility secret */
           sessionToken?: string;
         };
+        /**
+         * An AWS account of Backstage's `aws.accounts`, whose credentials
+         * (access key, profile or role) are used. The entry needs its own role,
+         * access key or profile; without them the backend does not start.
+         * Write it as a string.
+         */
+        accountId?: string;
+        /**
+         * Read with the AWS SDK's default credential chain (environment
+         * variables, profile, the role of the instance or pod). Without `aws.mainAccount`, Backstage's
+         * URL reader also reads with this identity, so use it only when the
+         * identity of the machine should let Backstage read this bucket; the
+         * backend logs a warning.
+         */
+        defaultCredentials?: boolean;
         /**
          * JSON payloads up to this many bytes are downloaded and shown like
          * payloads in the history. Larger ones show their size and a
