@@ -207,8 +207,8 @@ export const TemporalScheduleActionBlueprint = createExtensionBlueprint({
 });
 
 /**
- * Adds a tab to the workflow details page, next to Steps, Events and
- * Details.
+ * Adds a tab to the workflow details page, after Steps, Timeline, Events
+ * and Details.
  *
  * @alpha
  */

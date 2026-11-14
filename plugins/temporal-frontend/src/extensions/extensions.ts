@@ -113,7 +113,8 @@ export interface TemporalScheduleActionDef {
 }
 
 /**
- * A tab on the workflow details page, next to Steps, Events and Details.
+ * A tab on the workflow details page, after Steps, Timeline, Events and
+ * Details.
  * Used directly by the legacy frontend system (`workflowSections` prop of
  * `EntityTemporalContent`); the new frontend system uses
  * `TemporalWorkflowSectionBlueprint`.

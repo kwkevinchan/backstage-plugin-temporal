@@ -55,7 +55,9 @@ export const temporalPlugin = createPlugin({
  * Entity tab with the entity's Temporal workflows and the workflow details,
  * with the operations that change workflows (unless
  * `temporal.control.enabled` is false). Pass `workflowActions` and
- * `workflowSections` to extend the details page.
+ * `workflowSections` to extend the details page, `workflowListActions` to
+ * add controls above the workflow list and `scheduleActions` to add
+ * controls to each schedule.
  *
  * @public
  */
