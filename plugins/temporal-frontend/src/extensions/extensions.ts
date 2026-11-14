@@ -32,10 +32,8 @@ export interface TemporalWorkflowExtensionProps {
   /**
    * Link of the details page of another workflow on the same page (entity
    * tab or Workflows page), for example a run that was just started.
-   * Optional, as hosts that render these components themselves may not have
-   * one.
    */
-  workflowHref?(ref: WorkflowRef): string;
+  workflowHref(ref: WorkflowRef): string;
 }
 
 /**

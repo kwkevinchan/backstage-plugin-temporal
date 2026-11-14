@@ -14,4 +14,6 @@ function marked. The backend module (a module of
 (`GET /api/temporal/entities/:kind/:namespace/:name/definition`), read with
 the URL reader of the configured integrations, at most
 `temporal.definitions.maxBytes`. Without the backend module the tab says
-that the backend serves no workflow definitions.
+that the backend serves no workflow definitions. The frontend module's package
+root exports `EntityTemporalDefinitionContent` for the legacy frontend system;
+the new frontend system uses `./alpha`.

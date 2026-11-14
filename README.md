@@ -1159,9 +1159,8 @@ TemporalWorkflowActionBlueprint.make({
 `TemporalWorkflowSectionBlueprint` adds a tab in the same way, and
 `TemporalWorkflowListActionBlueprint` a control above the workflow lists
 (its `filter` gets the entity, absent on the Workflows page). They attach to
-the shared mount point `api:temporal/workflow-extensions`
-(`temporalWorkflowExtensionsApiRef`), so they show on the pages of the
-entity tab and of the Workflows page. In the legacy system, pass
+the shared mount point `api:temporal/workflow-extensions`, so they show on
+the pages of the entity tab and of the Workflows page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
 `scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`.

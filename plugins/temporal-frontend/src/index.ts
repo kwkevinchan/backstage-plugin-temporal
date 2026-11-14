@@ -19,8 +19,8 @@
  * frontend system). The new frontend system uses the `./alpha` entry point,
  * which also has the blueprints for workflow actions and sections.
  *
- * The package also exports the frontend extension points (the API refs, the
- * workflow context and the props of actions, list actions and sections) and
+ * The package also exports the frontend extension points (the API ref, the
+ * workflow hook and the props of actions, list actions and sections) and
  * the conditions for entity pages. The permissions, annotations and response
  * types of the backend API are in `./common`.
  *
@@ -41,7 +41,17 @@ export type {
 export { TemporalClient } from './api';
 export { createTemporalControlActionDef } from './control';
 export type { TemporalControlActionButtonOptions } from './control';
-export * from './extensions';
+export { temporalApiRef, useTemporalWorkflow } from './extensions';
+export type {
+  TemporalApi,
+  TemporalWorkflowExtensionProps,
+  TemporalWorkflowActionDef,
+  TemporalWorkflowListActionProps,
+  TemporalWorkflowListActionDef,
+  TemporalScheduleActionProps,
+  TemporalScheduleActionDef,
+  TemporalWorkflowSectionDef,
+} from './extensions';
 // Conditions for the EntitySwitch of a legacy entity page; the rest of the
 // shared definitions is imported from `./common`.
 export {

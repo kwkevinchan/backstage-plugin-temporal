@@ -49,7 +49,14 @@ function renderWithApi(payload: unknown, downloadPayload = jest.fn()) {
   render(
     <TestApiProvider apis={[[temporalApiRef, { downloadPayload } as any]]}>
       <TemporalWorkflowProvider
-        value={{ workflow, entity: undefined, reload: () => {} } as any}
+        value={
+          {
+            workflow,
+            entity: undefined,
+            reload: () => {},
+            workflowHref: () => '/x',
+          } as any
+        }
       >
         <PayloadView payload={payload as any} />
       </TemporalWorkflowProvider>

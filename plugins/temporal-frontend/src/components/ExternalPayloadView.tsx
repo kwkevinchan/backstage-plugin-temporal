@@ -21,7 +21,7 @@ import { Button, Flex, Text } from '@backstage/ui';
 import type { ExternalPayload } from '../common';
 import {
   temporalApiRef,
-  TemporalWorkflowContextValue,
+  TemporalWorkflowExtensionProps,
   useTemporalWorkflow,
 } from '../extensions';
 import {
@@ -65,7 +65,7 @@ function fileName(external: ExternalPayload): string {
 }
 
 /** The workflow of the details page, or undefined outside of it. */
-function useOptionalWorkflow(): TemporalWorkflowContextValue | undefined {
+function useOptionalWorkflow(): TemporalWorkflowExtensionProps | undefined {
   try {
     // The hook reads a context and throws when there is none.
     return useTemporalWorkflow();
