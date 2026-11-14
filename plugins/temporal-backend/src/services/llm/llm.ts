@@ -14,231 +14,147 @@
  * limitations under the License.
  */
 
-import type { JsonObject, JsonValue } from '@backstage/types';
-import {
-  LLM_RECORD_KEY,
-  LLM_TOOL_RESULT_KEY,
-  parseLlmMarker,
-} from '../../common';
+import type { JsonValue } from '@backstage/types';
+import { addLlmUsage } from '../../common';
 import type {
   WorkflowGraphNode,
-  WorkflowLlmMessage,
-  WorkflowLlmPart,
   WorkflowLlmRecord,
   WorkflowLlmSummary,
-  WorkflowLlmToolExecution,
-  WorkflowLlmUsage,
+  WorkflowLlmToolCallRef,
   WorkflowNodeStatus,
-  WorkflowToolLink,
 } from '../../common';
+import type {
+  TemporalLlmModelCall,
+  TemporalLlmStep,
+  TemporalLlmStepPayloads,
+} from '../../node/alpha';
+import { canonicalJson, isObject, Json, str } from './json';
+import type { LlmModelCalls, LlmStepReader } from './LlmAdapters';
 
 /*
- * Records of model calls. A model call activity (activity ID `llm/...`)
- * returns `{ "temporal.llm": <record>, "value": <anything> }`; the record
- * holds OpenTelemetry GenAI attributes (`gen_ai.*`) under `attributes`.
- * The backend reads the record without knowing the rest of the result.
+ * Model calls and tool calls of a run. The LLM adapters (`LlmAdapters`)
+ * read each step; this file turns what they read into the summaries of the
+ * graph and links tool calls to the model calls that asked for them:
+ *
+ * 1. A step that records a tool call ID (an adapter says so) is linked to
+ *    the latest model call before it whose output asked for that ID.
+ * 2. Other tool calls of a model call's output are matched to the steps
+ *    scheduled after the call ended and before the next call of the same
+ *    agent was scheduled (the call whose input answers that tool call ID,
+ *    else the next model call), by tool name, then arguments, then order.
+ *    These links are marked `inferred`: two calls of one tool with the same
+ *    arguments are matched in the order they were scheduled.
  */
 
-type Json = any;
-
-function isObject(value: unknown): value is Record<string, Json> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+/** A step of a run with what the LLM reading needs. */
+export interface LlmLinkNode extends WorkflowGraphNode {
+  /** Event ID of the first and of the closing event. */
+  first: number;
+  last?: number;
 }
 
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' && value !== '' ? value : undefined;
+/** A step to read with the adapters, and its payloads (protobuf JSON). */
+export interface LlmStepEntry {
+  node: LlmLinkNode;
+  step: TemporalLlmStep;
+  /** `{ payloads }` of the input. */
+  input?: Json;
+  /** `{ payloads }` of the result, when the step completed with one. */
+  result?: Json;
+  /** Failures of failed attempts, newest first. */
+  failures: Json[];
+  /** Decoded result of a local activity (from its marker). */
+  localResult?: unknown;
 }
 
-function int(value: unknown): number | undefined {
-  const n = typeof value === 'string' ? Number(value) : value;
-  return typeof n === 'number' && Number.isFinite(n) && n >= 0
-    ? Math.round(n)
-    : undefined;
-}
-
-/** A JSON attribute that may be stored as a JSON string. */
-function structured(value: unknown): unknown {
-  if (typeof value !== 'string') return value;
-  const text = value.trim();
-  if (!text.startsWith('[') && !text.startsWith('{')) return value;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return value;
+/** The values of decoded payloads, or undefined when one is not readable. */
+function values(decoded: unknown): JsonValue[] | undefined {
+  const list = Array.isArray(decoded) ? decoded : [decoded];
+  const out: JsonValue[] = [];
+  for (const d of list) {
+    if (!isObject(d) || !('value' in d)) return undefined;
+    out.push(d.value as JsonValue);
   }
+  return out;
+}
+
+/** Decodes `{ payloads }` (protobuf JSON) like `decodePayloads` of convert. */
+export type DecodePayloads = (raw: Json) => JsonValue | undefined;
+
+/** The failure details of a failure and its causes. */
+function failureDetails(failure: Json, decodePayloads: DecodePayloads) {
+  const out: JsonValue[] = [];
+  for (let f = failure, depth = 0; f && depth < 5; f = f.cause, depth++) {
+    const decoded = decodePayloads(f.applicationFailureInfo?.details);
+    if (decoded === undefined) continue;
+    out.push(...(values(decoded) ?? []));
+  }
+  return out;
+}
+
+/** Defines a property that is computed on first read, then kept. */
+function lazy<T extends object, K extends keyof T>(
+  target: T,
+  key: K,
+  compute: () => T[K] | undefined,
+) {
+  let done = false;
+  let value: T[K] | undefined;
+  Object.defineProperty(target, key, {
+    enumerable: true,
+    get() {
+      if (!done) {
+        value = compute();
+        done = true;
+      }
+      return value;
+    },
+  });
 }
 
 /**
- * The record in a decoded result (`{ "temporal.llm": {...} }`), or
- * undefined. Accepts version 1 and records without a version.
+ * The decoded payloads of a step for the adapters. Each payload is decoded
+ * when it is first read: most steps are read by no adapter.
  */
-export function llmRecordOf(value: unknown): JsonObject | undefined {
-  if (!isObject(value)) return undefined;
-  const record = value[LLM_RECORD_KEY];
-  if (!isObject(record) || !isObject(record.attributes)) return undefined;
-  if (record.v !== undefined && record.v !== 1) return undefined;
-  return record as JsonObject;
-}
-
-/** The tool marker in a decoded result of a tool call (local activities). */
-export function toolMarkerOf(
-  value: unknown,
-): { call: string; toolCallId: string } | undefined {
-  if (!isObject(value)) return undefined;
-  const marker = value[LLM_TOOL_RESULT_KEY];
-  if (!isObject(marker)) return undefined;
-  const call = str(marker.call);
-  const toolCallId = str(marker.toolCallId);
-  return call && toolCallId ? { call, toolCallId } : undefined;
-}
-
-function toPart(value: unknown): WorkflowLlmPart {
-  if (isObject(value) && typeof value.type === 'string') {
-    const part = { ...value } as WorkflowLlmPart;
-    if (part.type === 'tool_call')
-      part.arguments = structured(part.arguments) as JsonValue;
-    return part;
-  }
-  return {
-    type: 'text',
-    content: typeof value === 'string' ? value : JSON.stringify(value ?? null),
-  };
-}
-
-function toParts(value: unknown): WorkflowLlmPart[] {
-  const parsed = structured(value);
-  if (Array.isArray(parsed)) return parsed.map(toPart);
-  if (parsed === undefined || parsed === null) return [];
-  return [toPart(parsed)];
-}
-
-function toMessages(value: unknown): WorkflowLlmMessage[] {
-  const parsed = structured(value);
-  if (!Array.isArray(parsed)) return [];
-  return parsed.map(m => {
-    if (!isObject(m)) {
-      return { role: 'user', parts: toParts(m) };
+export function stepPayloads(
+  entry: LlmStepEntry,
+  decodePayloads: DecodePayloads,
+): {
+  payloads: TemporalLlmStepPayloads;
+  /** The decoded result, also when it is not readable. */
+  decodedResult: () => unknown;
+} {
+  const payloads: TemporalLlmStepPayloads = {};
+  let decoded: unknown;
+  let decodedOnce = false;
+  const decodedResult = () => {
+    if (!decodedOnce && entry.step.kind === 'activity' && entry.result) {
+      decoded = decodePayloads(entry.result) ?? null;
     }
-    const message: WorkflowLlmMessage = {
-      role: str(m.role) ?? 'user',
-      parts: toParts(m.parts ?? m.content),
-    };
-    if (str(m.name)) message.name = m.name;
-    if (str(m.finish_reason)) message.finishReason = m.finish_reason;
-    return message;
-  });
-}
-
-function usageOf(attributes: Record<string, Json>): WorkflowLlmUsage {
-  const usage: WorkflowLlmUsage = {};
-  const set = (key: keyof WorkflowLlmUsage, attribute: string) => {
-    const n = int(attributes[attribute]);
-    if (n !== undefined) usage[key] = n;
+    decodedOnce = true;
+    return decoded;
   };
-  set('inputTokens', 'gen_ai.usage.input_tokens');
-  set('outputTokens', 'gen_ai.usage.output_tokens');
-  set('reasoningTokens', 'gen_ai.usage.reasoning.output_tokens');
-  set('cacheReadInputTokens', 'gen_ai.usage.cache_read.input_tokens');
-  set('cacheWriteInputTokens', 'gen_ai.usage.cache_write.input_tokens');
-  return usage;
-}
-
-function errorOf(value: unknown, type?: unknown) {
-  if (isObject(value)) {
-    const message = str(value.message) ?? str(value.type) ?? 'Error';
-    const error: { type?: string; message: string } = { message };
-    if (str(value.type)) error.type = value.type;
-    return error;
+  if (entry.input) {
+    lazy(payloads, 'input', () => {
+      const input = decodePayloads(entry.input);
+      return input === undefined ? undefined : values(input);
+    });
   }
-  if (str(value)) {
-    return str(type)
-      ? { type: type as string, message: value as string }
-      : { message: value as string };
-  }
-  return str(type)
-    ? { type: type as string, message: type as string }
-    : undefined;
-}
-
-function toolExecutionsOf(value: unknown): WorkflowLlmToolExecution[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isObject).map(t => {
-    const execution: WorkflowLlmToolExecution = {
-      name: str(t['gen_ai.tool.name']) ?? 'tool',
-    };
-    if (str(t['gen_ai.tool.call.id'])) execution.id = t['gen_ai.tool.call.id'];
-    if (t['gen_ai.tool.call.arguments'] !== undefined) {
-      execution.arguments = structured(
-        t['gen_ai.tool.call.arguments'],
-      ) as JsonValue;
+  if (entry.step.kind === 'localActivity') {
+    if (entry.localResult !== undefined) {
+      payloads.result = entry.localResult as JsonValue;
     }
-    if (t['gen_ai.tool.call.result'] !== undefined) {
-      execution.result = structured(t['gen_ai.tool.call.result']) as JsonValue;
-    }
-    const error = errorOf(t.error, t['error.type']);
-    if (error) execution.error = error;
-    const ms = int(t.durationMs);
-    if (ms !== undefined) execution.durationMs = ms;
-    return execution;
-  });
-}
-
-const KNOWN_ATTRIBUTES = new Set([
-  'gen_ai.operation.name',
-  'gen_ai.provider.name',
-  'gen_ai.request.model',
-  'gen_ai.response.model',
-  'gen_ai.response.id',
-  'gen_ai.response.finish_reasons',
-  'gen_ai.conversation.id',
-  'gen_ai.system_instructions',
-  'gen_ai.input.messages',
-  'gen_ai.output.messages',
-  'gen_ai.tool.definitions',
-]);
-
-/** Reads a record (`llmRecordOf`) into the shape the frontend shows. */
-export function normalizeLlmRecord(record: JsonObject): WorkflowLlmRecord {
-  const a = record.attributes as Record<string, Json>;
-  const out: WorkflowLlmRecord = {
-    usage: usageOf(a),
-    systemInstructions: toParts(a['gen_ai.system_instructions']),
-    inputMessages: toMessages(a['gen_ai.input.messages']),
-    outputMessages: toMessages(a['gen_ai.output.messages']),
-    toolExecutions: toolExecutionsOf(record.toolExecutions),
-  };
-  const set = <K extends keyof WorkflowLlmRecord>(
-    key: K,
-    value: WorkflowLlmRecord[K] | undefined,
-  ) => {
-    if (value !== undefined) out[key] = value;
-  };
-  set('operation', str(a['gen_ai.operation.name']));
-  set('provider', str(a['gen_ai.provider.name']));
-  set('requestModel', str(a['gen_ai.request.model']));
-  set('responseModel', str(a['gen_ai.response.model']));
-  set('responseId', str(a['gen_ai.response.id']));
-  set('conversationId', str(a['gen_ai.conversation.id']));
-  const reasons = structured(a['gen_ai.response.finish_reasons']);
-  if (Array.isArray(reasons)) {
-    set(
-      'finishReasons',
-      reasons.filter(r => typeof r === 'string'),
+  } else if (entry.result) {
+    lazy(payloads, 'result', () => {
+      const result = values(decodedResult());
+      return result && result.length === 1 ? result[0] : result;
+    });
+  } else if (entry.failures.length > 0) {
+    lazy(payloads, 'failureDetails', () =>
+      entry.failures.flatMap(f => failureDetails(f, decodePayloads)),
     );
-  } else if (str(reasons)) set('finishReasons', [reasons as string]);
-  const definitions = structured(a['gen_ai.tool.definitions']);
-  if (Array.isArray(definitions)) set('toolDefinitions', definitions);
-  const parameters: JsonObject = {};
-  for (const [key, value] of Object.entries(a)) {
-    if (key.startsWith('gen_ai.request.') && !KNOWN_ATTRIBUTES.has(key)) {
-      parameters[key.slice('gen_ai.request.'.length)] = value as JsonValue;
-    }
   }
-  if (Object.keys(parameters).length > 0) set('parameters', parameters);
-  set('startTime', str(record.startTime));
-  set('durationMs', int(record.durationMs));
-  set('error', errorOf(record.error, a['error.type']));
-  return out;
+  return { payloads, decodedResult };
 }
 
 function hasReasoning(record: WorkflowLlmRecord): boolean {
@@ -250,22 +166,37 @@ function hasReasoning(record: WorkflowLlmRecord): boolean {
   );
 }
 
+/** A tool call in the output of a model call. */
+interface ToolRequest {
+  ref: WorkflowLlmToolCallRef;
+  arguments?: JsonValue;
+}
+
 /** Tool calls in the output of a record, in order. */
-export function outputToolCalls(
-  record: WorkflowLlmRecord,
-): { id?: string; name: string }[] {
-  const calls: { id?: string; name: string }[] = [];
+function outputToolCalls(record: WorkflowLlmRecord): ToolRequest[] {
+  const calls: ToolRequest[] = [];
   for (const message of record.outputMessages) {
     for (const part of message.parts) {
       if (part.type !== 'tool_call') continue;
-      const call: { id?: string; name: string } = {
-        name: str(part.name) ?? 'tool',
-      };
-      if (str(part.id)) call.id = part.id as string;
-      calls.push(call);
+      const ref: WorkflowLlmToolCallRef = { name: str(part.name) ?? 'tool' };
+      if (str(part.id)) ref.id = part.id as string;
+      calls.push({ ref, arguments: part.arguments });
     }
   }
   return calls;
+}
+
+/** IDs of the tool calls the input of a record answers. */
+function answeredToolCalls(record: WorkflowLlmRecord): Set<string> {
+  const ids = new Set<string>();
+  for (const message of record.inputMessages) {
+    for (const part of message.parts) {
+      if (part.type === 'tool_call_response' && str(part.id)) {
+        ids.add(part.id as string);
+      }
+    }
+  }
+  return ids;
 }
 
 /** Milliseconds between two ISO times, when both are set. */
@@ -275,133 +206,288 @@ function between(start?: string, end?: string): number | undefined {
   return Number.isFinite(ms) && ms >= 0 ? ms : undefined;
 }
 
+const OPEN = ['Scheduled', 'Running', 'Retrying', 'Waiting'];
+
 /**
- * The summary of a model call from its decoded result. `result` is the
- * decoded payload (`{ encoding, value }`, a stored payload, or undecodable).
+ * The summary of the model calls of one step. `decodedResult` is the
+ * decoded result payload (`{ encoding, value }`, a stored payload, or
+ * undecodable), for the state of a call without a record.
  */
-export function summarizeLlmCall(
+export function summarizeModelCalls(
   node: Pick<
     WorkflowGraphNode,
     'status' | 'startTime' | 'endTime' | 'attempts'
   >,
-  call: string,
-  result: unknown,
-): WorkflowLlmSummary {
+  read: LlmModelCalls,
+  decodedResult: unknown,
+): { summary: WorkflowLlmSummary; requests: ToolRequest[] } {
+  const { calls, framework } = read;
   const summary: WorkflowLlmSummary = {
-    call,
+    framework,
     record: 'pending',
     toolCalls: [],
     reasoning: false,
   };
+  if (calls[0]?.name) summary.call = calls[0].name;
+  if (calls.length > 1) summary.callCount = calls.length;
   const startedTime = node.attempts?.[node.attempts.length - 1]?.startedTime;
   const activityMs = between(startedTime ?? node.startTime, node.endTime);
   if (activityMs !== undefined && node.endTime) summary.durationMs = activityMs;
-  const decoded = isObject(result) ? result : undefined;
-  const value = decoded && 'value' in decoded ? decoded.value : undefined;
-  const record = llmRecordOf(value);
-  if (!record) {
-    if (decoded) {
-      summary.record = 'value' in decoded ? 'missing' : 'unreadable';
-    } else if (
-      !['Scheduled', 'Running', 'Retrying', 'Waiting'].includes(node.status)
-    ) {
+  const records = calls
+    .map(c => c.record)
+    .filter((r): r is WorkflowLlmRecord => r !== undefined);
+  if (records.length === 0) {
+    if (isObject(decodedResult)) {
+      summary.record = 'value' in decodedResult ? 'missing' : 'unreadable';
+    } else if (!OPEN.includes(node.status)) {
       summary.record = 'missing';
     }
-    return summary;
+    return { summary, requests: [] };
   }
-  const normalized = normalizeLlmRecord(record);
   summary.record = 'available';
-  if (normalized.operation) summary.operation = normalized.operation;
-  if (normalized.provider) summary.provider = normalized.provider;
-  const model = normalized.responseModel ?? normalized.requestModel;
+  const last = records[records.length - 1];
+  if (records[0].operation) summary.operation = records[0].operation;
+  const providers = new Set(records.map(r => r.provider));
+  if (providers.size === 1 && last.provider) summary.provider = last.provider;
+  const model = last.responseModel ?? last.requestModel;
   if (model) summary.model = model;
-  if (Object.keys(normalized.usage).length > 0)
-    summary.usage = normalized.usage;
-  if (normalized.durationMs !== undefined)
-    summary.durationMs = normalized.durationMs;
-  if (normalized.finishReasons?.length)
-    summary.finishReasons = normalized.finishReasons;
-  if (normalized.error) {
-    summary.error = normalized.error.type ?? normalized.error.message;
+  let usage = undefined as WorkflowLlmSummary['usage'];
+  for (const r of records) {
+    if (Object.keys(r.usage).length > 0) usage = addLlmUsage(usage, r.usage);
   }
-  summary.reasoning = hasReasoning(normalized);
-  summary.toolCalls = outputToolCalls(normalized).map(c => ({ ...c }));
-  for (const execution of normalized.toolExecutions) {
-    const status: WorkflowNodeStatus = execution.error ? 'Failed' : 'Completed';
-    const listed = summary.toolCalls.find(
-      c => c.id !== undefined && c.id === execution.id,
-    );
-    if (listed) {
-      listed.inActivity = true;
-      listed.status = status;
-    } else {
-      summary.toolCalls.push({
-        ...(execution.id ? { id: execution.id } : {}),
-        name: execution.name,
-        inActivity: true,
-        status,
-      });
+  if (usage) summary.usage = usage;
+  if (records.length === 1 && last.durationMs !== undefined)
+    summary.durationMs = last.durationMs;
+  if (last.finishReasons?.length) summary.finishReasons = last.finishReasons;
+  const error = [...records].reverse().find(r => r.error)?.error;
+  if (error) summary.error = error.type ?? error.message;
+  summary.reasoning = records.some(hasReasoning);
+  const requests = records.flatMap(outputToolCalls);
+  summary.toolCalls = requests.map(r => r.ref);
+  for (const record of records) {
+    for (const execution of record.toolExecutions) {
+      const status: WorkflowNodeStatus = execution.error
+        ? 'Failed'
+        : 'Completed';
+      const listed = summary.toolCalls.find(
+        c => c.id !== undefined && c.id === execution.id,
+      );
+      if (listed) {
+        listed.inActivity = true;
+        listed.status = status;
+      } else {
+        summary.toolCalls.push({
+          ...(execution.id ? { id: execution.id } : {}),
+          name: execution.name,
+          inActivity: true,
+          status,
+        });
+      }
     }
   }
-  return summary;
+  return { summary, requests };
 }
 
-/** Steps of a run, with what the LLM marker linking needs. */
-export interface LlmLinkNode extends WorkflowGraphNode {
-  first: number;
+/** A tool name in a form that ignores case and separators. */
+function nameKey(name: string | undefined): string {
+  return (name ?? '').toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+interface ModelStep {
+  entry: LlmStepEntry;
+  calls: TemporalLlmModelCall[];
+  requests: ToolRequest[];
+  answered: Set<string>;
+}
+
+interface ToolStep {
+  entry: LlmStepEntry;
+  /** Read for the arguments only when the step is a candidate. */
+  payloads: TemporalLlmStepPayloads;
+  toolName?: string;
+  toolCallId?: string;
+  modelCall?: string;
+}
+
+/** The result of reading the steps of a run. */
+export interface LlmSteps {
+  /** The model calls of each model call step, by node ID. */
+  calls: Map<string, LlmModelCalls>;
 }
 
 /**
- * Links tool calls to their model calls: each tool step gets the node ID of
- * the latest model call with the same call name that started before it,
- * and each model call lists the steps of its tool calls.
+ * Reads the steps of a run with the adapters: sets `llm` on the model
+ * calls and `tool` on the tool calls, and links them.
  */
-export function linkLlmSteps(nodes: LlmLinkNode[]) {
-  const calls = nodes.filter(n => n.llm).sort((a, b) => a.first - b.first);
-  if (calls.length === 0 && !nodes.some(n => n.tool)) return;
-  for (const tool of nodes.filter(n => n.tool)) {
-    const link = tool.tool as WorkflowToolLink;
-    const owner = [...calls]
-      .reverse()
-      .find(c => c.llm!.call === link.call && c.first < tool.first);
-    if (!owner) continue;
-    link.llmNodeId = owner.id;
-    const summary = owner.llm!;
-    let ref = summary.toolCalls.find(
-      c => c.id === link.toolCallId && !c.nodeId,
-    );
-    if (!ref) {
-      // A tool call the record does not list (unreadable record).
-      ref = { id: link.toolCallId, name: tool.name };
-      summary.toolCalls.push(ref);
+export function readLlmSteps(
+  entries: LlmStepEntry[],
+  reader: LlmStepReader,
+  decodePayloads: DecodePayloads,
+): LlmSteps {
+  const calls = new Map<string, LlmModelCalls>();
+  const models: ModelStep[] = [];
+  const tools: ToolStep[] = [];
+  const plain: ToolStep[] = [];
+  for (const entry of [...entries].sort(
+    (a, b) => a.node.first - b.node.first,
+  )) {
+    const { payloads, decodedResult } = stepPayloads(entry, decodePayloads);
+    const read =
+      entry.step.kind === 'activity'
+        ? reader.readModelCalls(entry.step, payloads)
+        : undefined;
+    if (read) {
+      const { summary, requests } = summarizeModelCalls(
+        entry.node,
+        read,
+        decodedResult(),
+      );
+      entry.node.llm = summary;
+      calls.set(entry.node.id, read);
+      const answered = new Set<string>();
+      for (const c of read.calls) {
+        if (c.record)
+          answeredToolCalls(c.record).forEach(id => answered.add(id));
+      }
+      models.push({ entry, calls: read.calls, requests, answered });
+      continue;
     }
-    ref.nodeId = tool.id;
-    ref.status = tool.status;
-    if (!link.name && ref.name) link.name = ref.name;
-    delete ref.inActivity;
+    const tool = reader.readToolCall(entry.step, payloads)?.tool;
+    const step: ToolStep = { entry, payloads, ...tool };
+    // A local activity that ran a tool is shown by its activity type.
+    if (tool && entry.step.kind === 'localActivity' && entry.step.activityType)
+      entry.node.name = entry.step.activityType;
+    (tool ? tools : plain).push(step);
+  }
+  linkByToolCallId(models, tools);
+  linkByInference(models, [
+    ...tools.filter(t => !t.toolCallId && !t.entry.node.tool),
+    ...plain.filter(p => p.entry.step.kind === 'activity'),
+  ]);
+  return { calls };
+}
+
+function link(
+  tool: ToolStep,
+  owner: ModelStep | undefined,
+  ref: WorkflowLlmToolCallRef | undefined,
+  inferred: boolean,
+) {
+  const node = tool.entry.node;
+  node.tool = {};
+  const call = tool.modelCall ?? owner?.entry.node.llm?.call;
+  if (call !== undefined) node.tool.call = call;
+  const toolCallId = tool.toolCallId ?? ref?.id;
+  if (toolCallId !== undefined) node.tool.toolCallId = toolCallId;
+  if (owner) node.tool.llmNodeId = owner.entry.node.id;
+  const name = tool.toolName ?? ref?.name;
+  if (name !== undefined && (owner || tool.toolName)) node.tool.name = name;
+  if (inferred) node.tool.inferred = true;
+  if (!ref) return;
+  ref.nodeId = node.id;
+  ref.status = node.status;
+  delete ref.inActivity;
+  if (inferred) ref.inferred = true;
+}
+
+/** Steps that record a tool call ID: the model call that asked for it. */
+function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
+  for (const tool of tools) {
+    const before = models
+      .filter(m => m.entry.node.first < tool.entry.node.first)
+      .reverse();
+    const id = tool.toolCallId;
+    const refOf = (m: ModelStep | undefined) =>
+      m?.entry.node.llm!.toolCalls.find(c => c.id === id && !c.nodeId);
+    let owner =
+      id === undefined ? undefined : before.find(m => refOf(m) !== undefined);
+    let ref = refOf(owner);
+    if (!owner && tool.modelCall !== undefined) {
+      // The model call by its name, when its record is not readable.
+      owner = before.find(m => m.entry.node.llm?.call === tool.modelCall);
+      if (owner && id !== undefined) {
+        ref = refOf(owner);
+        if (!ref) {
+          ref = { id, name: tool.entry.node.name };
+          owner.entry.node.llm!.toolCalls.push(ref);
+        }
+      }
+    }
+    if (owner || id !== undefined) link(tool, owner, ref, false);
   }
 }
 
-/** The LLM marker of a step from its activity ID, as node fields. */
-export function llmFieldsOf(
-  activityId: string | undefined,
-): { llmCall: string } | { tool: WorkflowToolLink } | undefined {
-  const marker = parseLlmMarker(activityId);
-  if (!marker) return undefined;
-  if (marker.kind === 'llm') return { llmCall: marker.call };
-  return { tool: { call: marker.call, toolCallId: marker.toolCallId } };
+/** Tool calls without an ID on their step: by name, arguments and order. */
+function linkByInference(models: ModelStep[], candidates: ToolStep[]) {
+  const used = new Set<ToolStep>();
+  models.forEach((model, i) => {
+    const start = model.entry.node.last;
+    if (start === undefined) return;
+    for (const request of model.requests) {
+      const { ref } = request;
+      if (ref.nodeId || ref.inActivity) continue;
+      const next =
+        (ref.id !== undefined
+          ? models.slice(i + 1).find(m => m.answered.has(ref.id!))
+          : undefined) ??
+        models.slice(i + 1).find(m => m.entry.node.first > start);
+      const end = next?.entry.node.first ?? Infinity;
+      const key = nameKey(ref.name);
+      const matching = candidates.filter(c => {
+        const { node, step } = c.entry;
+        return (
+          !used.has(c) &&
+          node.first > start &&
+          node.first < end &&
+          [c.toolName, step.activityType, step.summary].some(
+            n => n !== undefined && nameKey(n) === key,
+          )
+        );
+      });
+      const args =
+        request.arguments === undefined
+          ? undefined
+          : canonicalJson(request.arguments);
+      const found =
+        matching.find(c => {
+          const input = c.payloads.input;
+          return (
+            args !== undefined &&
+            input?.length === 1 &&
+            canonicalJson(input[0]) === args
+          );
+        }) ?? matching[0];
+      if (!found) continue;
+      used.add(found);
+      link(found, model, ref, true);
+    }
+  });
 }
 
 /** Activity ID of a local activity from its marker details, when readable. */
 export function localActivityId(details: unknown): string | undefined {
+  return localActivityData(details, 'activity_id', 'activityId');
+}
+
+/** Activity type of a local activity from its marker details, when readable. */
+export function localActivityType(details: unknown): string | undefined {
+  return localActivityData(details, 'activity_type', 'activityType');
+}
+
+function localActivityData(
+  details: unknown,
+  ...keys: string[]
+): string | undefined {
   if (!isObject(details)) return undefined;
   for (const key of ['data', 'meta']) {
     const decoded = details[key];
     const value =
       isObject(decoded) && 'value' in decoded ? decoded.value : undefined;
     if (isObject(value)) {
-      const id = str(value.activity_id) ?? str(value.activityId);
-      if (id) return id;
+      for (const k of keys) {
+        const found = str(value[k]);
+        if (found) return found;
+      }
     }
   }
   return undefined;

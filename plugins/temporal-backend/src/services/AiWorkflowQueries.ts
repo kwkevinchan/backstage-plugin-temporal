@@ -26,10 +26,8 @@ import {
   ExternalPayload,
   WorkflowLlmCallResponse,
 } from '../common';
-import type { JsonObject } from '@backstage/types';
 import { decodePayloads } from './convert';
-import { buildWorkflowGraph } from './graph';
-import { llmRecordOf, normalizeLlmRecord } from './llm/llm';
+import { buildWorkflowGraphWithLlm } from './graph';
 import { readLoopState } from './loops';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
@@ -55,43 +53,47 @@ function externalReason(external: ExternalPayload): string {
   return 'The record stored in S3 is larger than the backend reads.';
 }
 
-/** The LLM record in a result or failure (protobuf JSON, resolved). */
-function findLlmRecord(root: any): {
-  record?: JsonObject;
+/**
+ * The payload in External Storage a result or failure was read from, and
+ * why a model call would have no record from it.
+ */
+function readState(roots: unknown[]): {
   external?: ExternalPayload;
-  reason?: string;
+  reason: string;
 } {
   const candidates: unknown[] = [];
-  if (root?.payloads) candidates.push(decodePayloads(root));
-  for (let f = root, depth = 0; f && depth < 5; f = f.cause, depth++) {
-    const details = decodePayloads(f.applicationFailureInfo?.details);
-    if (Array.isArray(details)) candidates.push(...details);
-    else if (details !== undefined) candidates.push(details);
+  for (const root of roots as any[]) {
+    if (root?.payloads) {
+      const decoded = decodePayloads(root);
+      candidates.push(...(Array.isArray(decoded) ? decoded : [decoded]));
+    }
+    for (let f = root, depth = 0; f && depth < 5; f = f.cause, depth++) {
+      const details = decodePayloads(f.applicationFailureInfo?.details);
+      if (Array.isArray(details)) candidates.push(...details);
+      else if (details !== undefined) candidates.push(details);
+    }
   }
-  let external: ExternalPayload | undefined;
-  for (const c of candidates) {
-    const decoded = c as any;
-    if (decoded?.external) external = decoded.external;
-    const record = llmRecordOf(decoded?.value);
-    if (record) return { record, external };
-  }
+  const external = candidates
+    .map(c => (c as any)?.external as ExternalPayload | undefined)
+    .find(e => e !== undefined);
   if (external && external.state !== 'inline') {
     return { external, reason: externalReason(external) };
   }
   if (candidates.some(c => (c as any)?.undecodable)) {
     return {
+      external,
       reason:
         'The result is encoded by a payload codec (for example encryption); the backend cannot read it.',
     };
   }
-  return { reason: 'The result has no LLM record (`temporal.llm`).' };
+  return { external, reason: 'The result has no record of the model call.' };
 }
 
 /**
- * The use cases of the experimental AI views: loops of a workflow and the
- * records of its model calls. Callers check permissions first (see
- * `access/`); every method fails with NotFoundError unless
- * `temporal.experimental.aiWorkflows` is on.
+ * The use cases of the experimental AI views: loops of a workflow, which
+ * fail with NotFoundError unless `temporal.experimental.aiWorkflows` is on,
+ * and the records of its model calls. Callers check permissions first (see
+ * `access/`).
  */
 export class AiWorkflowQueries {
   constructor(
@@ -254,93 +256,113 @@ export class AiWorkflowQueries {
   }
 
   /**
-   * The full record of one model call (activity ID `llm/...`) of a run,
-   * by the event ID of its `ActivityTaskScheduled` event. A record stored
-   * in S3 is downloaded and verified, up to {@link MAX_LLM_RECORD_BYTES}.
+   * The full record of one model call of a run, by the event ID of its
+   * `ActivityTaskScheduled` event, and for a step with several model calls
+   * by its position (`index`, from 0). The payloads of the step stored in
+   * S3 are downloaded and verified, up to {@link MAX_LLM_RECORD_BYTES}.
    */
   async llmCall(
     workflow: WorkflowDetail,
     scheduledEventId: string,
+    index = 0,
   ): Promise<WorkflowLlmCallResponse> {
-    this.assertAiWorkflows();
     const ref = {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
       runId: workflow.runId,
     };
     const { events } = await this.queries.readEvents(ref, MAX_STEP_EVENTS);
-    const graph = buildWorkflowGraph(events, {
-      namespace: workflow.namespace,
-      workflowId: workflow.workflowId,
-      status: workflow.status,
-      truncated: false,
-      pendingActivities: workflow.pendingActivities,
-      includePayloads: false,
-    });
-    const nodeId = `activity-${scheduledEventId}`;
-    const node = graph.nodes.find(n => n.id === nodeId);
-    if (!node?.llm) {
-      throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
-    }
-    // The result, else the failure details of the last failed attempt.
-    let root: unknown;
-    let fromFailure = false;
+    // The input, the result and the failures of the step.
+    const roots: unknown[] = [];
+    let result: unknown;
+    const failures: unknown[] = [];
     for (const event of events as any[]) {
+      const scheduled = event.activityTaskScheduledEventAttributes;
+      if (scheduled && String(event.eventId) === scheduledEventId) {
+        if (scheduled.input) roots.push(scheduled.input);
+      }
       const completed = event.activityTaskCompletedEventAttributes;
       if (
-        completed &&
+        completed?.result &&
         String(completed.scheduledEventId) === scheduledEventId
       ) {
-        root = completed.result;
-        fromFailure = false;
+        result = completed.result;
+      }
+      const started = event.activityTaskStartedEventAttributes;
+      if (
+        started?.lastFailure &&
+        String(started.scheduledEventId) === scheduledEventId
+      ) {
+        failures.push(started.lastFailure);
       }
       for (const key of [
         'activityTaskFailedEventAttributes',
         'activityTaskTimedOutEventAttributes',
       ]) {
         const closed = event[key];
-        if (closed && String(closed.scheduledEventId) === scheduledEventId) {
-          root = closed.failure;
-          fromFailure = true;
+        if (
+          closed?.failure &&
+          String(closed.scheduledEventId) === scheduledEventId
+        ) {
+          failures.push(closed.failure);
         }
       }
-      const started = event.activityTaskStartedEventAttributes;
-      if (
-        started &&
-        String(started.scheduledEventId) === scheduledEventId &&
-        started.lastFailure &&
-        root === undefined
-      ) {
-        root = started.lastFailure;
-        fromFailure = true;
-      }
+    }
+    roots.push(...(result ? [result] : []), ...failures);
+    await this.queries.payloads.resolve(roots, {
+      maxInlineBytes: MAX_LLM_RECORD_BYTES,
+    });
+    const { graph, llm } = buildWorkflowGraphWithLlm(events, {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      status: workflow.status,
+      truncated: false,
+      pendingActivities: workflow.pendingActivities,
+      includePayloads: false,
+      llmAdapters: this.queries.llmAdapters,
+    });
+    const nodeId = `activity-${scheduledEventId}`;
+    const node = graph.nodes.find(n => n.id === nodeId);
+    const read = llm.calls.get(nodeId);
+    if (!node?.llm || !read) {
+      throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
+    }
+    const call = read.calls[index];
+    if (!call) {
+      throw new NotFoundError(
+        `No model call ${index} in step ${scheduledEventId}`,
+      );
     }
     const response: WorkflowLlmCallResponse = {
       nodeId,
       activityId: node.stepId ?? '',
       activityType: node.name,
-      call: node.llm.call,
+      framework: read.framework,
       status: node.status,
     };
-    if (root === undefined) {
+    if (call.name !== undefined) response.call = call.name;
+    if (read.calls.length > 1) {
+      response.index = index;
+      response.callCount = read.calls.length;
+    }
+    if (call.record) {
+      response.record = call.record;
+      if (call.raw !== undefined) response.raw = call.raw;
+      if (!result && failures.length > 0) response.fromFailure = true;
+      const { external } = readState(result ? [result] : []);
+      if (external) response.external = external;
+      return response;
+    }
+    if (!result && failures.length === 0) {
       response.unavailable =
         node.llm.record === 'pending'
           ? 'The model call has not ended yet.'
           : 'The model call has no result.';
       return response;
     }
-    await this.queries.payloads.resolve(root, {
-      maxInlineBytes: MAX_LLM_RECORD_BYTES,
-    });
-    const found = findLlmRecord(root);
-    if (found.external) response.external = found.external;
-    if (!found.record) {
-      response.unavailable = found.reason;
-      return response;
-    }
-    response.raw = found.record;
-    response.record = normalizeLlmRecord(found.record);
-    if (fromFailure) response.fromFailure = true;
+    const { external, reason } = readState(result ? [result] : failures);
+    if (external) response.external = external;
+    response.unavailable = reason;
     return response;
   }
 }

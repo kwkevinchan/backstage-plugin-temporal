@@ -27,6 +27,8 @@ import {
   TemporalControlAction,
   temporalAccessServiceRef,
   temporalControlExtensionPoint,
+  TemporalLlmAdapter,
+  temporalLlmAdapterExtensionPoint,
   TemporalWorkflowEnricher,
   temporalWorkflowEnricherExtensionPoint,
   temporalWorkflowPermissionResourceRef,
@@ -38,6 +40,7 @@ import { createControlRouter } from './routes/controlRoutes';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
+import { builtInLlmAdapters, LlmAdapters } from './services/llm/LlmAdapters';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';
@@ -76,6 +79,16 @@ export const temporalPlugin = createBackendPlugin({
           throw new Error(`Duplicate control action id: ${action.id}`);
         }
         actions.push(action);
+      },
+    });
+    // LLM adapters of modules, asked before the built-in ones.
+    const llmAdapters: TemporalLlmAdapter[] = [];
+    env.registerExtensionPoint(temporalLlmAdapterExtensionPoint, {
+      addLlmAdapter(adapter) {
+        if (llmAdapters.some(a => a.id === adapter.id)) {
+          throw new Error(`Duplicate LLM adapter id: ${adapter.id}`);
+        }
+        llmAdapters.push(adapter);
       },
     });
 
@@ -139,6 +152,13 @@ export const temporalPlugin = createBackendPlugin({
         const aiWorkflows =
           config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
           false;
+        // The built-in adapters go through the same registration; an ID a
+        // module took fails the start.
+        const adapters = new LlmAdapters(logger);
+        for (const adapter of llmAdapters) adapters.add(adapter);
+        for (const adapter of builtInLlmAdapters()) {
+          adapters.add(adapter, { builtIn: true });
+        }
         const queries = new WorkflowQueries(
           temporal,
           enrichers,
@@ -146,7 +166,7 @@ export const temporalPlugin = createBackendPlugin({
           sources,
           PayloadStore.fromConfig(config, logger),
           temporalReads,
-          { aiWorkflows },
+          { aiWorkflows, llmAdapters: adapters },
         );
         const lists = new WorkflowListQueries(
           temporal,

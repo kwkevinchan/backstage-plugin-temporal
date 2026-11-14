@@ -28,7 +28,6 @@ import {
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
-  parseLlmMarker,
   WorkflowHandler,
   WorkflowHandlersResponse,
 } from '../common';
@@ -43,11 +42,13 @@ import {
   ConvertOptions,
   decodePageToken,
   encodePageToken,
+  summaryOf,
   toHistoryEvent,
   toWorkflowDetail,
   toWorkflowSteps,
 } from './convert';
 import { buildWorkflowGraph } from './graph';
+import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   findReferencePayloads,
   PayloadStore,
@@ -81,17 +82,14 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
 export const MAX_PARENT_DEPTH = 3;
 
 /**
- * A graph without the data of the experimental AI views: loop markers and
- * groups, model call summaries and tool links. The steps stay, as plain
- * activities.
+ * A graph without the data of the experimental loop views: loop markers
+ * and groups. The steps stay, as plain steps.
  */
-function withoutAiData(graph: WorkflowGraphResponse): WorkflowGraphResponse {
+function withoutLoops(graph: WorkflowGraphResponse): WorkflowGraphResponse {
   const { loops: _loops, ...rest } = graph;
   return {
     ...rest,
-    nodes: graph.nodes.map(
-      ({ loop: _loop, llm: _llm, tool: _tool, ...node }) => node,
-    ),
+    nodes: graph.nodes.map(({ loop: _loop, ...node }) => node),
   };
 }
 
@@ -102,16 +100,30 @@ export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
 ];
 
 /**
- * Payloads with the results (and failure details) of model calls in a
- * history, for reading their records from S3 without the other payloads.
+ * Payloads with the inputs, results (and failure details) of the steps
+ * that the LLM adapters take for model calls, for reading them from S3
+ * without the other payloads.
  */
-export function llmResultPayloads(events: unknown[]): unknown[] {
+export function llmPayloads(
+  events: unknown[],
+  adapters: LlmAdapters = builtInOnlyLlmAdapters(),
+): unknown[] {
+  const reader = adapters.reader();
   const calls = new Set<string>();
   const roots: unknown[] = [];
   for (const event of events as any[]) {
     const scheduled = event.activityTaskScheduledEventAttributes;
-    if (scheduled && parseLlmMarker(scheduled.activityId)?.kind === 'llm') {
+    if (
+      scheduled &&
+      reader.isModelCall({
+        kind: 'activity',
+        activityType: scheduled.activityType?.name ?? '',
+        activityId: scheduled.activityId || undefined,
+        summary: summaryOf(event),
+      })
+    ) {
       calls.add(String(event.eventId));
+      if (scheduled.input) roots.push(scheduled.input);
       continue;
     }
     const completed = event.activityTaskCompletedEventAttributes;
@@ -139,6 +151,8 @@ const described = new WeakMap<WorkflowDetail, Described>();
 export class WorkflowQueries {
   /** `temporal.experimental.aiWorkflows`; `AiWorkflowQueries` reads it too. */
   readonly aiWorkflows: boolean;
+  /** The LLM adapters; `AiWorkflowQueries` reads them too. */
+  readonly llmAdapters: LlmAdapters;
 
   constructor(
     private readonly temporal: TemporalService,
@@ -151,13 +165,16 @@ export class WorkflowQueries {
     ),
     options: {
       /**
-       * `temporal.experimental.aiWorkflows`: AI loops and LLM steps. Without
-       * it, graphs and steps carry no loop or model call data.
+       * `temporal.experimental.aiWorkflows`: the loops. Without it, graphs
+       * carry no loop data.
        */
       aiWorkflows?: boolean;
+      /** The LLM adapters that read model calls; the built-in ones by default. */
+      llmAdapters?: LlmAdapters;
     } = {},
   ) {
     this.aiWorkflows = options.aiWorkflows === true;
+    this.llmAdapters = options.llmAdapters ?? builtInOnlyLlmAdapters();
   }
 
   /** The conversion options of a namespace; the list queries use them too. */
@@ -355,7 +372,7 @@ export class WorkflowQueries {
     } while (nextPageToken && events.length < max);
     if (options.payloads) await this.payloads.resolve(events);
     else if (options.llmPayloads) {
-      await this.payloads.resolve(llmResultPayloads(events));
+      await this.payloads.resolve(llmPayloads(events, this.llmAdapters));
     }
     return { events, truncated: Boolean(nextPageToken) };
   }
@@ -367,14 +384,7 @@ export class WorkflowQueries {
     const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS, {
       payloads: true,
     });
-    const steps = toWorkflowSteps(events, truncated);
-    if (this.aiWorkflows) return steps;
-    return {
-      ...steps,
-      activities: steps.activities.map(
-        ({ llm: _llm, tool: _tool, ...activity }) => activity,
-      ),
-    };
+    return toWorkflowSteps(events, truncated, this.llmAdapters);
   }
 
   /**
@@ -403,8 +413,8 @@ export class WorkflowQueries {
       includePayloads: boolean;
       maxEvents?: number;
       /**
-       * False skips reading the records of model calls stored in S3, for
-       * lists. Their summaries then say `unreadable`.
+       * False skips reading the payloads of model calls stored in S3, for
+       * lists.
        */
       llm?: boolean;
     },
@@ -419,7 +429,7 @@ export class WorkflowQueries {
       options.maxEvents ?? MAX_STEP_EVENTS,
       {
         payloads: options.includePayloads,
-        llmPayloads: options.llm !== false && this.aiWorkflows,
+        llmPayloads: options.llm !== false,
       },
     );
     const graph = buildWorkflowGraph(events, {
@@ -433,8 +443,9 @@ export class WorkflowQueries {
       failure: workflow.failure,
       memo: workflow.memo,
       aiWorkflows: this.aiWorkflows,
+      llmAdapters: this.llmAdapters,
     });
-    return this.aiWorkflows ? graph : withoutAiData(graph);
+    return this.aiWorkflows ? graph : withoutLoops(graph);
   }
 
   /**

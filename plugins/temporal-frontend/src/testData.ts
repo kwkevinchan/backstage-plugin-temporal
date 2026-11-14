@@ -494,6 +494,7 @@ export const llmGraphResponse: WorkflowGraphResponse = {
       loop: { loop: 'agent', iteration: 1, step: 'callModel' },
       llm: {
         call: 'r1',
+        framework: 'temporal-workflow-kit',
         record: 'available',
         operation: 'chat',
         provider: 'openai',
@@ -542,6 +543,7 @@ export const llmGraphResponse: WorkflowGraphResponse = {
       loop: { loop: 'agent', iteration: 2, step: 'callModel' },
       llm: {
         call: 'r2',
+        framework: 'temporal-workflow-kit',
         record: 'available',
         model: 'fake-reasoner-1',
         usage: { inputTokens: 1500, outputTokens: 300 },
@@ -627,6 +629,7 @@ export const llmGraphResponse: WorkflowGraphResponse = {
 
 /** The full record of the first model call of {@link llmGraphResponse}. */
 export const llmCallResponse: WorkflowLlmCallResponse = {
+  framework: 'temporal-workflow-kit',
   nodeId: 'activity-5',
   activityId: 'llm/r1/loop/agent/1/callModel',
   activityType: 'callModel',

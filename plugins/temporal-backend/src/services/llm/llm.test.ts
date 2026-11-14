@@ -20,7 +20,9 @@ import { parseLlmMarker } from '../../common';
 import { parseActivityLoopMarker } from '../loops';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
-import { normalizeLlmRecord, summarizeLlmCall } from './llm';
+import type { WorkflowNodeStatus } from '../../common';
+import { summarizeModelCalls } from './llm';
+import { normalizeLlmRecord, workflowKitAdapter } from './workflowKit';
 
 const fixture = JSON.parse(
   readFileSync(
@@ -35,6 +37,30 @@ const payload = (value: unknown) => ({
   data: b64(JSON.stringify(value)),
 });
 const payloads = (value: unknown) => ({ payloads: [payload(value)] });
+
+/**
+ * The summary of a step with the activity ID `llm/<call>`, read by the
+ * workflow kit's adapter. `result` is the decoded result payload.
+ */
+function summarizeLlmCall(
+  node: { status: WorkflowNodeStatus },
+  call: string,
+  result: any,
+) {
+  const step = {
+    kind: 'activity' as const,
+    activityType: 'callModel',
+    activityId: `llm/${call}`,
+  };
+  const calls = workflowKitAdapter.readModelCalls(step, {
+    ...(result && 'value' in result ? { result: result.value } : {}),
+  });
+  return summarizeModelCalls(
+    node,
+    { framework: 'temporal-workflow-kit', calls },
+    result,
+  ).summary;
+}
 const record = (attributes: object, extra: object = {}) => ({
   'temporal.llm': { v: 1, semconv: fixture.semconv, attributes, ...extra },
   value: { raw: true },
@@ -116,6 +142,7 @@ describe('LLM records', () => {
     });
     expect(summary).toEqual({
       call: 'c1',
+      framework: 'temporal-workflow-kit',
       record: 'available',
       operation: 'chat',
       ...example.summary,
@@ -448,6 +475,7 @@ describe('LLM steps in the graph', () => {
     });
     expect(graph.nodes.find(n => n.id === `activity-${open}`)!.llm).toEqual({
       call: 'c',
+      framework: 'temporal-workflow-kit',
       record: 'pending',
       toolCalls: [],
       reasoning: false,

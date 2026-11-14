@@ -7,7 +7,7 @@ info:
 
     The paths are relative to the base URL of the plugin, `/api/temporal` in a default backend (the discovery service gives the URL of an installation). Every route needs Backstage credentials: a user token from the identity API, or a service token.
 
-    The routes that change workflows (tag `Operations`, `x-temporal-control: true`) exist unless `temporal.control.enabled` is false. Routes and fields marked experimental (`x-temporal-experimental: true`, tag `Experimental`) belong to `temporal.experimental.aiWorkflows` and change before the first stable release. `x-temporal-permissions` lists the permissions a route checks; the description says on what, and the permission policy decides.
+    The routes that change workflows (tag `Operations`, `x-temporal-control: true`) exist unless `temporal.control.enabled` is false. Routes and fields marked experimental (`x-temporal-experimental: true`, tag `Experimental`) change before the first stable release; the loops are only served with `temporal.experimental.aiWorkflows`. `x-temporal-permissions` lists the permissions a route checks; the description says on what, and the permission policy decides.
 
     Paths take the entity kind, namespace and name in lowercase. Errors have the body of the Backstage backend (`Error`). A route that is not served (the operations with `temporal.control.enabled: false`, the definition route without its module) answers 404 without a body.
   license:
@@ -24,7 +24,7 @@ tags:
   - name: Operations
     description: Routes that change workflows; absent when `temporal.control.enabled` is false.
   - name: Experimental
-    description: 'Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+    description: 'Experimental: the shape changes before the first stable release. The loops need `temporal.experimental.aiWorkflows`; the model calls do not.'
   - name: Definitions
     description: Served by `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`.
 security:
@@ -235,6 +235,16 @@ components:
       schema:
         type: string
         pattern: ^[0-9]{1,19}$
+    llmCallIndex:
+      name: index
+      in: query
+      required: false
+      allowReserved: true
+      description: Position of the model call in a step that made several, from 0.
+      schema:
+        type: string
+        pattern: ^[0-9]{1,4}$
+        default: '0'
   responses:
     BadRequest:
       description: Invalid parameters or body (`InputError`).
@@ -707,11 +717,11 @@ components:
         llm:
           type: object
           additionalProperties: {}
-          description: 'A model call (activity ID `llm/...`). Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+          description: 'A model call, recognized by an LLM adapter. Experimental: the shape changes before the first stable release.'
         tool:
           type: object
           additionalProperties: {}
-          description: 'A tool call of a model call (activity ID `tool/...`). Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+          description: 'A tool call of a model call. Experimental: the shape changes before the first stable release.'
       additionalProperties: false
     WorkflowStepsResponse:
       type: object
@@ -896,11 +906,11 @@ components:
         llm:
           type: object
           additionalProperties: {}
-          description: 'A model call (activity ID `llm/...`): model, tokens and tool calls. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+          description: 'A model call, recognized by an LLM adapter: model, tokens and tool calls (names and numbers). Experimental: the shape changes before the first stable release.'
         tool:
           type: object
           additionalProperties: {}
-          description: 'A tool call of a model call (activity ID `tool/...`). Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+          description: 'A tool call of a model call. Experimental: the shape changes before the first stable release.'
         events:
           type: array
           items:
@@ -1179,12 +1189,12 @@ components:
       additionalProperties: {}
     WorkflowLlmCallResponse:
       type: object
-      description: 'The full record of one model call. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
+      description: 'The full record of one model call. Experimental: the shape changes before the first stable release.'
       required:
         - nodeId
         - activityId
         - activityType
-        - call
+        - framework
         - status
       properties:
         nodeId:
@@ -1195,6 +1205,18 @@ components:
           type: string
         call:
           type: string
+          description: Name of the call, when the step records one.
+        framework:
+          type: string
+          description: The LLM adapter that read the step, for example `vercel-ai-sdk`.
+        index:
+          type: integer
+          minimum: 0
+          description: Position of the call among the model calls of the step, when it made several.
+        callCount:
+          type: integer
+          minimum: 2
+          description: Model calls in the step, when it made several.
         status:
           $ref: '#/components/schemas/WorkflowNodeStatus'
         record:
@@ -1793,7 +1815,7 @@ paths:
       description: |-
         Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
 
-        Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.
+        Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
       tags:
         - Experimental
       x-temporal-permissions:
@@ -1805,6 +1827,7 @@ paths:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
         - $ref: '#/components/parameters/eventId'
+        - $ref: '#/components/parameters/llmCallIndex'
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':
@@ -2470,7 +2493,7 @@ paths:
       description: |-
         Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
 
-        Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.
+        Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
       tags:
         - Experimental
       x-temporal-permissions:
@@ -2483,6 +2506,7 @@ paths:
         - $ref: '#/components/parameters/workflowId'
         - $ref: '#/components/parameters/runId'
         - $ref: '#/components/parameters/eventId'
+        - $ref: '#/components/parameters/llmCallIndex'
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':

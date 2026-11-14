@@ -42,7 +42,13 @@ import { FailureView } from '../FailureView';
 import { CopyButton, JsonView, PayloadView } from '../PayloadView';
 import { WorkflowStatusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
-import { formatCallDuration, formatTokens, modelText } from './llmText';
+import {
+  formatCallDuration,
+  formatTokens,
+  INFERRED_LINK_TEXT,
+  llmCallName,
+  modelText,
+} from './llmText';
 
 /** Text longer than this (characters or lines) starts collapsed. */
 const CLAMP_CHARS = 600;
@@ -367,6 +373,15 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
               {card.execution && !card.node && (
                 <span className={tp('tp-llm-tag')}>In the activity</span>
               )}
+              {card.node && card.ref?.inferred && (
+                <span
+                  className={tp('tp-llm-tag')}
+                  title="Matched by the tool name, the arguments and the order of the steps: the step recorded no tool call ID"
+                  data-testid="llm-tool-inferred"
+                >
+                  {INFERRED_LINK_TEXT}
+                </span>
+              )}
               {card.node && card.node.attempt && card.node.attempt > 1 && (
                 <span className={tp('tp-llm-tag')}>
                   Attempt {card.node.attempt}
@@ -537,7 +552,7 @@ export function LlmPanel(props: {
   return (
     <div data-testid="llm-panel">
       <Flex align="center" gap="2" style={{ flexWrap: 'wrap' }}>
-        <span className={tp('tp-llm-tag')}>LLM call {summary.call}</span>
+        <span className={tp('tp-llm-tag')}>LLM call {llmCallName(step)}</span>
         <Text variant="body-small" color="secondary">
           {facts.join(' · ')}
         </Text>

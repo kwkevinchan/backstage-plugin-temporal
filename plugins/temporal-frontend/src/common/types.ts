@@ -298,9 +298,9 @@ export interface ActivityStep {
   /** Decoded result of a completed activity. */
   result?: JsonValue;
   failure?: WorkflowFailure;
-  /** A model call (activity ID `llm/...`). */
+  /** A model call, recognized by an LLM adapter. Experimental. */
   llm?: WorkflowLlmSummary;
-  /** A tool call of a model call (activity ID `tool/...`). */
+  /** A tool call of a model call. Experimental. */
   tool?: WorkflowToolLink;
 }
 

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { createBackendModule } from '@backstage/backend-plugin-api';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
@@ -21,6 +22,10 @@ import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
+import {
+  TemporalLlmAdapter,
+  temporalLlmAdapterExtensionPoint,
+} from './node/alpha';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
@@ -183,10 +188,71 @@ function events() {
   ];
 }
 
+/** A module of the temporal plugin that adds LLM adapters. */
+function adapterModule(...adapters: TemporalLlmAdapter[]) {
+  return createBackendModule({
+    pluginId: 'temporal',
+    moduleId: 'test-llm-adapters',
+    register(env) {
+      env.registerInit({
+        deps: { llm: temporalLlmAdapterExtensionPoint },
+        async init({ llm }) {
+          for (const adapter of adapters) llm.addLlmAdapter(adapter);
+        },
+      });
+    },
+  });
+}
+
+/** A record of the plugin's shape. */
+const record = (model: string, inputTokens: number) => ({
+  requestModel: model,
+  usage: { inputTokens },
+  systemInstructions: [],
+  inputMessages: [
+    { role: 'user', parts: [{ type: 'text', content: `ask ${model}` }] },
+  ],
+  outputMessages: [],
+  toolExecutions: [],
+});
+
+/** Runs a whole agent in one step (`runAgent`): two model calls. */
+const wholeAgent: TemporalLlmAdapter = {
+  id: 'whole-agent',
+  isModelCall: step => step.activityType === 'runAgent',
+  readModelCalls: (_step, payloads) =>
+    payloads.result === undefined
+      ? []
+      : [
+          { name: 'plan', record: record('model-a', 10) },
+          { name: 'answer', record: record('model-b', 20) },
+        ],
+};
+
+const agentEvents = () => [
+  { eventId: '1', workflowExecutionStartedEventAttributes: {} },
+  {
+    eventId: '2',
+    activityTaskScheduledEventAttributes: {
+      activityId: '1',
+      activityType: { name: 'runAgent' },
+    },
+  },
+  {
+    eventId: '3',
+    activityTaskCompletedEventAttributes: {
+      scheduledEventId: '2',
+      result: { payloads: [plain({ done: true })] },
+    },
+  },
+];
+
 async function start(options: {
   history: boolean;
   s3?: boolean;
   ai?: boolean;
+  events?: () => unknown[];
+  features?: any[];
 }) {
   const workflowService = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
@@ -201,7 +267,7 @@ async function start(options: {
   workflowService.getWorkflowExecutionHistory.mockImplementation(
     async () =>
       ({
-        history: { events: events() },
+        history: { events: (options.events ?? events)() },
         nextPageToken: new Uint8Array(),
       } as any),
   );
@@ -242,6 +308,7 @@ async function start(options: {
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
       mockServices.rootConfig.factory({ data: config }),
+      ...(options.features ?? []),
     ],
   });
   return { server: await withOpenApiValidation(server) };
@@ -258,29 +325,95 @@ describe('LLM routes', () => {
     }
   });
 
-  it('serves no model call records unless the AI views are enabled', async () => {
+  it('shows model calls without the experimental switch', async () => {
     const { server } = await start({ history: true, ai: false });
     const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
-    // The model and tool calls are still there, as plain activities.
-    expect(
-      graph.body.nodes.some((n: { stepId?: string }) =>
-        n.stepId?.startsWith('llm/'),
-      ),
-    ).toBe(true);
-    for (const node of graph.body.nodes) {
-      expect(node.llm).toBeUndefined();
-      expect(node.tool).toBeUndefined();
-    }
+    const small = graph.body.nodes.find(
+      (n: { stepId?: string }) => n.stepId === 'llm/small',
+    );
+    expect(small.llm).toMatchObject({
+      framework: 'temporal-workflow-kit',
+      model: 'gpt-small',
+    });
     const steps = await request(server).get(path('/steps'));
     expect(steps.status).toBe(200);
-    for (const activity of steps.body.activities) {
-      expect(activity.llm).toBeUndefined();
-      expect(activity.tool).toBeUndefined();
-    }
-    const res = await request(server).get(path('/llm-calls/5'));
-    expect(res.status).toBe(404);
-    expect(res.body.error.message).toMatch(/temporal.experimental.aiWorkflows/);
+    expect(
+      steps.body.activities.find(
+        (a: { activityId: string }) => a.activityId === 'llm/small',
+      ).llm,
+    ).toMatchObject({ model: 'gpt-small' });
+    const res = await request(server).get(path('/llm-calls/4'));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      framework: 'temporal-workflow-kit',
+      call: 'small',
+      record: { requestModel: 'gpt-small' },
+    });
+  });
+
+  it('reads the model calls of a module adapter, several in one step', async () => {
+    const reader = await start({
+      history: false,
+      events: agentEvents,
+      features: [adapterModule(wholeAgent)],
+    });
+    const graph = await request(reader.server).get(path('/graph'));
+    expect(graph.status).toBe(200);
+    const node = graph.body.nodes.find((n: any) => n.id === 'activity-2');
+    // Names and numbers only without the history permission.
+    expect(node.llm).toEqual({
+      call: 'plan',
+      framework: 'whole-agent',
+      callCount: 2,
+      record: 'available',
+      model: 'model-b',
+      usage: { inputTokens: 30 },
+      toolCalls: [],
+      reasoning: false,
+    });
+    expect(node.result).toBeUndefined();
+    expect(
+      (await request(reader.server).get(path('/llm-calls/2'))).status,
+    ).toBe(403);
+
+    const { server } = await start({
+      history: true,
+      events: agentEvents,
+      features: [adapterModule(wholeAgent)],
+    });
+    const first = await request(server).get(path('/llm-calls/2'));
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({
+      nodeId: 'activity-2',
+      activityType: 'runAgent',
+      framework: 'whole-agent',
+      call: 'plan',
+      index: 0,
+      callCount: 2,
+      record: { requestModel: 'model-a', usage: { inputTokens: 10 } },
+    });
+    const second = await request(server).get(`${path('/llm-calls/2')}&index=1`);
+    expect(second.body).toMatchObject({
+      call: 'answer',
+      index: 1,
+      record: { requestModel: 'model-b' },
+    });
+    expect(
+      (await request(server).get(`${path('/llm-calls/2')}&index=2`)).status,
+    ).toBe(404);
+    expect(
+      (await request(server).get(`${path('/llm-calls/2')}&index=x`)).status,
+    ).toBe(400);
+  });
+
+  it('fails to start when a module takes the ID of an adapter', async () => {
+    await expect(
+      start({
+        history: true,
+        features: [adapterModule({ ...wholeAgent, id: 'vercel-ai-sdk' })],
+      }),
+    ).rejects.toThrow('Duplicate LLM adapter id: vercel-ai-sdk');
   });
 
   it('restores a record stored in S3 that is larger than the inline limit', async () => {
