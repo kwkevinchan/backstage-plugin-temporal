@@ -51,12 +51,14 @@ It needs the catalog and the permission framework, and
 rules to use `TemporalWorkflow` entities. In a backend without the catalog
 plugin the catalog module is skipped. Payloads that workers store in S3
 with Temporal External Storage are shown when `temporal.externalStorage.s3`
-is configured; allow `blob:` in `backend.csp.img-src` for their image
+is configured, with the S3 connection and credentials of an entry of
+`integrations.awsS3`; allow `blob:` in `backend.csp.img-src` for their image
 thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
 permission policy.
 
 The backend reads the External Storage references and the S3 objects behind
-them with its own code and the AWS SDK; it does not depend on the
+them with its own code and the AWS SDK (not with Backstage's URL reader,
+which has no size limit); it does not depend on the
 experimental driver packages of the Temporal SDK or on the workflow kit (a
 worker package).
 

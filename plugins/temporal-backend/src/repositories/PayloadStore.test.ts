@@ -214,12 +214,20 @@ describe('PayloadStore', () => {
             s3: {
               bucket: 'b',
               driverName: 'reports',
-              endpoint: 'http://localhost:9100',
-              forcePathStyle: true,
-              credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+              integrationHost: 'localhost:9100',
               maxInlineBytes: 10,
             },
           },
+        },
+        integrations: {
+          awsS3: [
+            {
+              endpoint: 'http://localhost:9100',
+              s3ForcePathStyle: true,
+              accessKeyId: 'a',
+              secretAccessKey: 's',
+            },
+          ],
         },
       }),
     );
@@ -232,10 +240,7 @@ describe('PayloadStore', () => {
         new ConfigReader({
           temporal: {
             externalStorage: {
-              s3: {
-                bucket: 'b',
-                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
-              },
+              s3: { bucket: 'b' },
             },
           },
         }),
@@ -246,15 +251,31 @@ describe('PayloadStore', () => {
         new ConfigReader({
           temporal: {
             externalStorage: {
-              s3: {
-                bucket: 'b',
-                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
-                maxInlineBytes: -1,
-              },
+              s3: { bucket: 'b', maxInlineBytes: -1 },
             },
           },
         }),
       ),
     ).toThrow(/maxInlineBytes/);
+  });
+
+  it('refuses S3 connection settings outside of integrations.awsS3', () => {
+    expect(() =>
+      PayloadStore.fromConfig(
+        new ConfigReader({
+          temporal: {
+            externalStorage: {
+              s3: {
+                bucket: 'b',
+                endpoint: 'http://localhost:9100',
+                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+              },
+            },
+          },
+        }),
+      ),
+    ).toThrow(
+      /^Unsupported config temporal\.externalStorage\.s3\.endpoint, temporal\.externalStorage\.s3\.credentials: .*integrations\.awsS3/,
+    );
   });
 });

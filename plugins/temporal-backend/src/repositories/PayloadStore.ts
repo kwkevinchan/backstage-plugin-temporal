@@ -255,26 +255,15 @@ export class PayloadStore {
   }
 
   /**
-   * Reads `temporal.externalStorage.s3`. Without it, stored payloads are
-   * shown as "stored externally (not configured)".
+   * Reads `temporal.externalStorage.s3`, and the S3 connection and
+   * credentials from `integrations.awsS3` (see `S3PayloadReader.fromConfig`).
+   * Without it, stored payloads are shown as "stored externally (not
+   * configured)".
    */
   static fromConfig(config: Config, logger?: LoggerService): PayloadStore {
     const s3 = config.getOptionalConfig('temporal.externalStorage.s3');
     if (!s3) return new PayloadStore({ logger });
-    const credentials = s3.getOptionalConfig('credentials');
-    const store = new S3PayloadReader({
-      bucket: s3.getString('bucket'),
-      endpoint: s3.getOptionalString('endpoint'),
-      region: s3.getOptionalString('region'),
-      forcePathStyle: s3.getOptionalBoolean('forcePathStyle'),
-      credentials: credentials
-        ? {
-            accessKeyId: credentials.getString('accessKeyId'),
-            secretAccessKey: credentials.getString('secretAccessKey'),
-            sessionToken: credentials.getOptionalString('sessionToken'),
-          }
-        : undefined,
-    });
+    const store = S3PayloadReader.fromConfig(config, s3);
     const maxInlineBytes = s3.getOptionalNumber('maxInlineBytes');
     const previewBytes = s3.getOptionalNumber('previewBytes');
     for (const [name, value] of [

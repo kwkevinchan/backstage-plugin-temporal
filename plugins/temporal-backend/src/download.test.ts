@@ -98,13 +98,18 @@ async function start(options: {
     ? {
         temporal: {
           externalStorage: {
-            s3: {
-              bucket: 'payloads',
-              endpoint: 'http://localhost:9100',
-              forcePathStyle: true,
-              credentials: { accessKeyId: 'a', secretAccessKey: 's' },
-            },
+            s3: { bucket: 'payloads', integrationHost: 'localhost:9100' },
           },
+        },
+        integrations: {
+          awsS3: [
+            {
+              endpoint: 'http://localhost:9100',
+              s3ForcePathStyle: true,
+              accessKeyId: 'a',
+              secretAccessKey: 's',
+            },
+          ],
         },
       }
     : {};

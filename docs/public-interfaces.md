@@ -554,23 +554,26 @@ keys below except `definitions`), [`temporal-frontend`](../plugins/temporal-fron
 [`temporal-backend-module-zigflow`](../plugins/temporal-backend-module-zigflow/config.d.ts).
 Defaults and meanings are in the [README](../README.md#configuration).
 
-| Key                                                                                                                       | Read by                                                             | Visible in the browser |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
-| `connection.address`                                                                                                      | backend (`temporalServiceRef`)                                      |                        |
-| `connection.namespaces`, `connection.tls`, `connection.auth.type`                                                         | backend                                                             |                        |
-| `connection.auth.token`                                                                                                   | backend; secret                                                     |                        |
-| `connection.defaultNamespace`                                                                                             | backend, frontend, Scaffolder backend module                        | yes                    |
-| `webUi.baseUrl`                                                                                                           | backend, frontend                                                   | yes                    |
-| `searchAttributes.entityRef`, `searchAttributes.initiator`                                                                | backend                                                             |                        |
-| `control.enabled`                                                                                                         | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
-| `control.allowedSignals`, `control.allowedUpdates`                                                                        | backend (rejects), frontend (offers)                                | yes                    |
-| `externalStorage.s3.bucket`, `.driverName`, `.endpoint`, `.region`, `.forcePathStyle`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
-| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; the last two secret                                        |                        |
-| `definitions.maxBytes`, `definitions.readFileLocations`                                                                   | Zigflow backend module                                              |                        |
-| `experimental.aiWorkflows`                                                                                                | backend. **Experimental**                                           |                        |
+| Key                                                                                                           | Read by                                                             | Visible in the browser |
+| ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `connection.address`                                                                                          | backend (`temporalServiceRef`)                                      |                        |
+| `connection.namespaces`, `connection.tls`, `connection.auth.type`                                             | backend                                                             |                        |
+| `connection.auth.token`                                                                                       | backend; secret                                                     |                        |
+| `connection.defaultNamespace`                                                                                 | backend, frontend, Scaffolder backend module                        | yes                    |
+| `webUi.baseUrl`                                                                                               | backend, frontend                                                   | yes                    |
+| `searchAttributes.entityRef`, `searchAttributes.initiator`                                                    | backend                                                             |                        |
+| `control.enabled`                                                                                             | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
+| `control.allowedSignals`, `control.allowedUpdates`                                                            | backend (rejects), frontend (offers)                                | yes                    |
+| `externalStorage.s3.bucket`, `.driverName`, `.integrationHost`, `.region`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
+| `definitions.maxBytes`, `definitions.readFileLocations`                                                       | Zigflow backend module                                              |                        |
+| `experimental.aiWorkflows`                                                                                    | backend. **Experimental**                                           |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
-the `workflowUrl` output.
+the `workflowUrl` output. The backend reads the entry of Backstage's
+`integrations.awsS3` that `externalStorage.s3.integrationHost` selects (its
+`endpoint`, `s3ForcePathStyle`, `accessKeyId`, `secretAccessKey`, `roleArn`
+and `externalId`), and `aws.mainAccount` when that entry has no access key;
+those keys belong to Backstage.
 
 ## Catalog: annotations and the `TemporalWorkflow` kind
 

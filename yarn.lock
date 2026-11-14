@@ -5575,6 +5575,7 @@ __metadata:
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend@workspace:plugins/temporal-backend"
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.350.0"
+    "@aws-sdk/credential-providers": "npm:^3.350.0"
     "@backstage/backend-defaults": "backstage:^"
     "@backstage/backend-openapi-utils": "backstage:^"
     "@backstage/backend-plugin-api": "backstage:^"
@@ -5583,6 +5584,8 @@ __metadata:
     "@backstage/cli": "backstage:^"
     "@backstage/config": "backstage:^"
     "@backstage/errors": "backstage:^"
+    "@backstage/integration": "backstage:^"
+    "@backstage/integration-aws-node": "backstage:^"
     "@backstage/plugin-catalog-backend": "backstage:^"
     "@backstage/plugin-catalog-node": "backstage:^"
     "@backstage/plugin-permission-backend": "backstage:^"

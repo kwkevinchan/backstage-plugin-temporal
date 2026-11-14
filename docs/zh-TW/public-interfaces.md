@@ -367,22 +367,21 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 所有鍵都在 `temporal` 底下。schema 是三個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表除了 `definitions` 的全部）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）和 [`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)。預設值和意思見 [README](../../README.md#configuration)。
 
-| 鍵                                                                                                                        | 誰讀                                   | 瀏覽器看得到 |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------ |
-| `connection.address`                                                                                                      | 後端（`temporalServiceRef`）           |              |
-| `connection.namespaces`、`connection.tls`、`connection.auth.type`                                                         | 後端                                   |              |
-| `connection.auth.token`                                                                                                   | 後端；secret                           |              |
-| `connection.defaultNamespace`                                                                                             | 後端、前端、Scaffolder 後端模組        | 是           |
-| `webUi.baseUrl`                                                                                                           | 後端、前端                             | 是           |
-| `searchAttributes.entityRef`、`searchAttributes.initiator`                                                                | 後端                                   |              |
-| `control.enabled`                                                                                                         | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
-| `control.allowedSignals`、`control.allowedUpdates`                                                                        | 後端（拒絕）、前端（提供選項）         | 是           |
-| `externalStorage.s3.bucket`、`.driverName`、`.endpoint`、`.region`、`.forcePathStyle`、`.maxInlineBytes`、`.previewBytes` | 後端                                   |              |
-| `externalStorage.s3.credentials.accessKeyId`、`.secretAccessKey`、`.sessionToken`                                         | 後端；後兩個是 secret                  |              |
-| `definitions.maxBytes`、`definitions.readFileLocations`                                                                   | Zigflow 後端模組                       |              |
-| `experimental.aiWorkflows`                                                                                                | 後端。**實驗性**                       |              |
+| 鍵                                                                                                            | 誰讀                                   | 瀏覽器看得到 |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------ |
+| `connection.address`                                                                                          | 後端（`temporalServiceRef`）           |              |
+| `connection.namespaces`、`connection.tls`、`connection.auth.type`                                             | 後端                                   |              |
+| `connection.auth.token`                                                                                       | 後端；secret                           |              |
+| `connection.defaultNamespace`                                                                                 | 後端、前端、Scaffolder 後端模組        | 是           |
+| `webUi.baseUrl`                                                                                               | 後端、前端                             | 是           |
+| `searchAttributes.entityRef`、`searchAttributes.initiator`                                                    | 後端                                   |              |
+| `control.enabled`                                                                                             | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
+| `control.allowedSignals`、`control.allowedUpdates`                                                            | 後端（拒絕）、前端（提供選項）         | 是           |
+| `externalStorage.s3.bucket`、`.driverName`、`.integrationHost`、`.region`、`.maxInlineBytes`、`.previewBytes` | 後端                                   |              |
+| `definitions.maxBytes`、`definitions.readFileLocations`                                                       | Zigflow 後端模組                       |              |
+| `experimental.aiWorkflows`                                                                                    | 後端。**實驗性**                       |              |
 
-Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
+Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。後端讀 Backstage 的 `integrations.awsS3` 裡、由 `externalStorage.s3.integrationHost` 選中的那一筆（它的 `endpoint`、`s3ForcePathStyle`、`accessKeyId`、`secretAccessKey`、`roleArn`、`externalId`），那一筆沒有存取金鑰時再讀 `aws.mainAccount`；這些鍵屬於 Backstage。
 
 ## Catalog：標註和 `TemporalWorkflow` kind
 

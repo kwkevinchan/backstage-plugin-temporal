@@ -113,7 +113,8 @@ export interface Config {
       /**
        * The S3 driver (`@temporalio/external-storage-s3` and the drivers of
        * the other SDKs). Without it, stored payloads are shown as stored
-       * externally, with their key and size.
+       * externally, with their key and size. The endpoint, path style and
+       * credentials come from an entry of `integrations.awsS3`.
        */
       s3?: {
         /**
@@ -127,22 +128,15 @@ export interface Config {
          */
         driverName?: string;
         /**
-         * Endpoint of an S3-compatible service, for example
-         * `http://localhost:9100`. Leave it out for AWS S3.
+         * Host of the `integrations.awsS3` entry to read with: the host and
+         * port of its `endpoint`, for example `localhost:9100` for
+         * `http://localhost:9100`. Defaults to `amazonaws.com`, the AWS S3
+         * entry, which Backstage adds with the default AWS credentials when
+         * there is none.
          */
-        endpoint?: string;
-        /** Region. Defaults to `us-east-1`. */
+        integrationHost?: string;
+        /** Region of the bucket. Defaults to `us-east-1`. */
         region?: string;
-        /** Bucket in the path instead of the host name. */
-        forcePathStyle?: boolean;
-        /** Access key with read access (`s3:GetObject`) to the bucket. */
-        credentials: {
-          accessKeyId: string;
-          /** @visibility secret */
-          secretAccessKey: string;
-          /** @visibility secret */
-          sessionToken?: string;
-        };
         /**
          * JSON payloads up to this many bytes are downloaded and shown like
          * payloads in the history. Larger ones show their size and a
