@@ -160,7 +160,11 @@ describe('PayloadStore', () => {
     const events = [elsewhere, driver, missing].map(s =>
       startedEvent(s.payload),
     );
-    await new PayloadStore({ store: s3.store() }).resolve(events);
+    const logger = { warn: jest.fn() };
+    await new PayloadStore({
+      store: s3.store(),
+      logger: logger as any,
+    }).resolve(events);
     const [a, b, c] = events.map(
       e => (toWorkflowSteps([e], false).input as any).external,
     );
@@ -173,10 +177,17 @@ describe('PayloadStore', () => {
       error:
         'Stored with the storage driver reports; Backstage reads aws.s3driver',
     });
+    // The error of S3 stays in the backend log.
     expect(c).toMatchObject({
       state: 'error',
-      error: `NoSuchKey ${missing.key}`,
+      error: 'Could not read the stored payload from S3; see the backend log',
+      downloadable: false,
     });
+    expect(JSON.stringify(c)).not.toContain('NoSuchKey');
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Could not read the stored payload ${missing.key} from S3: Error: NoSuchKey ${missing.key}`,
+    );
   });
 
   it('finds references anywhere in the events', async () => {
@@ -214,20 +225,12 @@ describe('PayloadStore', () => {
             s3: {
               bucket: 'b',
               driverName: 'reports',
-              integrationHost: 'localhost:9100',
+              endpoint: 'http://localhost:9100',
+              forcePathStyle: true,
+              credentials: { accessKeyId: 'a', secretAccessKey: 's' },
               maxInlineBytes: 10,
             },
           },
-        },
-        integrations: {
-          awsS3: [
-            {
-              endpoint: 'http://localhost:9100',
-              s3ForcePathStyle: true,
-              accessKeyId: 'a',
-              secretAccessKey: 's',
-            },
-          ],
         },
       }),
     );
@@ -240,7 +243,10 @@ describe('PayloadStore', () => {
         new ConfigReader({
           temporal: {
             externalStorage: {
-              s3: { bucket: 'b' },
+              s3: {
+                bucket: 'b',
+                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+              },
             },
           },
         }),
@@ -251,31 +257,22 @@ describe('PayloadStore', () => {
         new ConfigReader({
           temporal: {
             externalStorage: {
-              s3: { bucket: 'b', maxInlineBytes: -1 },
-            },
-          },
-        }),
-      ),
-    ).toThrow(/maxInlineBytes/);
-  });
-
-  it('refuses S3 connection settings outside of integrations.awsS3', () => {
-    expect(() =>
-      PayloadStore.fromConfig(
-        new ConfigReader({
-          temporal: {
-            externalStorage: {
               s3: {
                 bucket: 'b',
-                endpoint: 'http://localhost:9100',
                 credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+                maxInlineBytes: -1,
               },
             },
           },
         }),
       ),
-    ).toThrow(
-      /^Unsupported config temporal\.externalStorage\.s3\.endpoint, temporal\.externalStorage\.s3\.credentials: .*integrations\.awsS3/,
-    );
+    ).toThrow(/maxInlineBytes/);
+    expect(() =>
+      PayloadStore.fromConfig(
+        new ConfigReader({
+          temporal: { externalStorage: { s3: { bucket: 'b' } } },
+        }),
+      ),
+    ).toThrow(/needs exactly one source of S3 credentials/);
   });
 });

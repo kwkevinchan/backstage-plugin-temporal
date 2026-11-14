@@ -396,11 +396,12 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 | `control.enabled`                                                                                                         | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
 | `control.allowedSignals`、`control.allowedUpdates`                                                                        | 後端（拒絕）、前端（提供選項）         | 是           |
 | `externalStorage.s3.bucket`、`.driverName`、`.endpoint`、`.region`、`.forcePathStyle`、`.maxInlineBytes`、`.previewBytes` | 後端                                   |              |
-| `externalStorage.s3.credentials.accessKeyId`、`.secretAccessKey`、`.sessionToken`                                         | 後端；後兩個是 secret                  |              |
+| `externalStorage.s3.credentials.accessKeyId`、`.secretAccessKey`、`.sessionToken`                                         | 後端；secret                           |              |
+| `externalStorage.s3.accountId`、`.defaultCredentials`                                                                     | 後端（搭配 Backstage 的 `aws` 設定）   |              |
 | `definitions.maxBytes`、`definitions.readFileLocations`                                                                   | Zigflow 後端模組                       |              |
 | `experimental.aiWorkflows`                                                                                                | 後端，迴圈。**實驗性**                 |              |
 
-Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。後端讀 Backstage 的 `integrations.awsS3` 裡、由 `externalStorage.s3.integrationHost` 選中的那一筆（它的 `endpoint`、`s3ForcePathStyle`、`accessKeyId`、`secretAccessKey`、`roleArn`、`externalId`），那一筆沒有存取金鑰時再讀 `aws.mainAccount`；這些鍵屬於 Backstage。
+Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。設了 `externalStorage.s3.accountId` 時，後端另外讀 Backstage 的 `aws` 設定（`aws.accounts`、`aws.accountDefaults`、`aws.mainAccount`）取得那個帳號的憑證；這些鍵屬於 Backstage。
 
 ## Catalog：標註和 `TemporalWorkflow` kind
 

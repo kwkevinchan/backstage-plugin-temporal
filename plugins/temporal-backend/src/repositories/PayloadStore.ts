@@ -24,6 +24,7 @@ import {
   Payload,
   REFERENCE_ENCODING,
   REFERENCE_MESSAGE_TYPE,
+  StorageIntegrityError,
   StorageReference,
   verifyAndDecode,
 } from './storageReference';
@@ -216,6 +217,17 @@ async function runLimited<T>(
   await Promise.all(workers);
 }
 
+/**
+ * S3 could not be read (a missing object, refused credentials, a network
+ * error). The details are in the backend log only.
+ */
+export class StoredPayloadReadError extends Error {
+  readonly name = 'StoredPayloadReadError';
+  constructor() {
+    super('Could not read the stored payload from S3; see the backend log');
+  }
+}
+
 /** A stored payload, downloaded and verified. */
 export interface StoredPayload {
   payload: Payload;
@@ -255,15 +267,14 @@ export class PayloadStore {
   }
 
   /**
-   * Reads `temporal.externalStorage.s3`, and the S3 connection and
-   * credentials from `integrations.awsS3` (see `S3PayloadReader.fromConfig`).
+   * Reads `temporal.externalStorage.s3` (see `S3PayloadReader.fromConfig`).
    * Without it, stored payloads are shown as "stored externally (not
    * configured)".
    */
   static fromConfig(config: Config, logger?: LoggerService): PayloadStore {
     const s3 = config.getOptionalConfig('temporal.externalStorage.s3');
     if (!s3) return new PayloadStore({ logger });
-    const store = S3PayloadReader.fromConfig(config, s3);
+    const store = S3PayloadReader.fromConfig(config, s3, { logger });
     const maxInlineBytes = s3.getOptionalNumber('maxInlineBytes');
     const previewBytes = s3.getOptionalNumber('previewBytes');
     for (const [name, value] of [
@@ -370,17 +381,47 @@ export class PayloadStore {
       }
       return preview;
     } catch (error) {
-      this.logger?.warn(
-        `Could not read the stored payload ${reference.key}: ${
-          (error as Error)?.message ?? error
-        }`,
-      );
+      if (!(error instanceof StoredPayloadReadError)) {
+        this.logger?.warn(
+          `Could not read the stored payload ${reference.key}: ${
+            (error as Error)?.message ?? error
+          }`,
+        );
+      }
       return {
         ...info,
         state: 'error',
-        error: String((error as Error)?.message ?? error),
+        // Only the backend's own messages; the rest is in the log.
+        error:
+          error instanceof StorageIntegrityError ||
+          error instanceof StoredPayloadReadError
+            ? error.message
+            : new StoredPayloadReadError().message,
         downloadable: false,
       };
+    }
+  }
+
+  /**
+   * The S3 object of a reference. The errors of S3 and of the credentials
+   * are logged and replaced by a {@link StoredPayloadReadError}, so that
+   * their details stay in the backend.
+   */
+  private async download(
+    store: NonNullable<PayloadStoreOptions['store']>,
+    reference: StorageReference,
+  ): Promise<Uint8Array> {
+    try {
+      return await store.get(reference.key, MAX_STORED_BYTES);
+    } catch (error) {
+      if (error instanceof StorageIntegrityError) throw error;
+      const e = error as Error;
+      this.logger?.warn(
+        `Could not read the stored payload ${reference.key} from S3: ${
+          e?.name ?? 'Error'
+        }: ${e?.message ?? error}`,
+      );
+      throw new StoredPayloadReadError();
     }
   }
 
@@ -390,8 +431,7 @@ export class PayloadStore {
     const problem = this.notReadable(reference);
     if (problem) throw new Error(problem);
     const cached = this.cache.get(reference.sha256);
-    const object =
-      cached ?? (await this.store.get(reference.key, MAX_STORED_BYTES));
+    const object = cached ?? (await this.download(this.store, reference));
     const payload = verifyAndDecode(reference, object);
     // Cached once verified, so the cache holds correct objects only.
     if (!cached) this.cache.set(reference.sha256, object);

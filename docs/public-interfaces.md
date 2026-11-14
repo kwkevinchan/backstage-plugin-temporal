@@ -604,16 +604,15 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `control.enabled`                                                                                                         | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
 | `control.allowedSignals`, `control.allowedUpdates`                                                                        | backend (rejects), frontend (offers)                                | yes                    |
 | `externalStorage.s3.bucket`, `.driverName`, `.endpoint`, `.region`, `.forcePathStyle`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
-| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; the last two secret                                        |                        |
+| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; secret                                                     |                        |
+| `externalStorage.s3.accountId`, `.defaultCredentials`                                                                     | backend (with Backstage's `aws` config)                             |                        |
 | `definitions.maxBytes`, `definitions.readFileLocations`                                                                   | Zigflow backend module                                              |                        |
 | `experimental.aiWorkflows`                                                                                                | backend, the loops. **Experimental**                                |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
-the `workflowUrl` output. The backend reads the entry of Backstage's
-`integrations.awsS3` that `externalStorage.s3.integrationHost` selects (its
-`endpoint`, `s3ForcePathStyle`, `accessKeyId`, `secretAccessKey`, `roleArn`
-and `externalId`), and `aws.mainAccount` when that entry has no access key;
-those keys belong to Backstage.
+the `workflowUrl` output. With `externalStorage.s3.accountId`, the backend
+also reads Backstage's `aws` config (`aws.accounts`, `aws.accountDefaults`,
+`aws.mainAccount`) for that account; those keys belong to Backstage.
 
 ## Catalog: annotations and the `TemporalWorkflow` kind
 

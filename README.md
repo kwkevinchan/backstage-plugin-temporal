@@ -138,8 +138,7 @@ Which ones to install:
   Temporal workers (not in Backstage; not published yet). Model calls of the
   official Temporal AI integrations need nothing more.
 - **With large payloads in External Storage:** nothing more; the backend
-  reads the references itself and only needs `temporal.externalStorage.s3`
-  and, for the S3 connection, Backstage's `integrations.awsS3`.
+  reads the references itself and only needs `temporal.externalStorage.s3`.
 
 The catalog module of the backend package is skipped when the backend has no
 catalog plugin; a split deployment adds `catalogModuleTemporalWorkflowKind` to
@@ -629,13 +628,15 @@ temporal:
     allowedSignals: [addNote, close]
     allowedUpdates: [setPriority]
   # Optional: large payloads in Temporal External Storage, see Large payloads.
-  # The S3 connection and credentials are an entry of integrations.awsS3.
   externalStorage:
     s3:
       bucket: temporal-payloads
-      driverName: aws.s3driver
-      integrationHost: amazonaws.com
-      region: eu-central-1
+      endpoint: http://rustfs.storage.svc:9000
+      region: us-east-1
+      forcePathStyle: true
+      credentials:
+        accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
+        secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
       maxInlineBytes: 262144
       previewBytes: 2048
   # Optional (Zigflow backend module): limits of the Definition tab.
@@ -647,36 +648,37 @@ temporal:
     aiWorkflows: false
 ```
 
-| Key                                 | Default              | Meaning                                                                                                                                                                                   |
-| ----------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connection.address`                | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                   |
-| `connection.namespaces`             | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                         |
-| `connection.defaultNamespace`       | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                |
-| `connection.tls`                    | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication). |
-| `connection.auth.type`              | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                              |
-| `connection.auth.token`             |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                       |
-| `webUi.baseUrl`                     |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                        |
-| `searchAttributes.entityRef`        |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                         |
-| `searchAttributes.initiator`        |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                  |
-| `control.enabled`                   | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).   |
-| `control.allowedSignals`            | (all)                | Signal names that may be sent.                                                                                                                                                            |
-| `control.allowedUpdates`            | (all)                | Update names that may be sent.                                                                                                                                                            |
-| `externalStorage.s3.bucket`         | (required)           | Bucket the workers store payloads in.                                                                                                                                                     |
-| `externalStorage.s3.driverName`     | `aws.s3driver`       | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                                                                                                            |
-| `externalStorage.s3.endpoint`       | AWS S3               | Endpoint of an S3-compatible service.                                                                                                                                                     |
-| `externalStorage.s3.region`         | `us-east-1`          | Region.                                                                                                                                                                                   |
-| `externalStorage.s3.forcePathStyle` | `false`              | Bucket in the path instead of the host name (most self-hosted services).                                                                                                                  |
-| `externalStorage.s3.credentials`    | (required)           | `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`).                                                                                          |
-| `externalStorage.s3.maxInlineBytes` | `262144`             | JSON payloads up to this size are shown like payloads in the history.                                                                                                                     |
-| `externalStorage.s3.previewBytes`   | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                   |
-| `definitions.maxBytes`              | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                   |
-| `definitions.readFileLocations`     | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                          |
-| `experimental.aiWorkflows`          | `false`              | Show the loops (experimental, no compatibility promise). Model calls are shown without it.                                                                                                |
+| Key                                     | Default              | Meaning                                                                                                                                                                                               |
+| --------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.address`                    | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                               |
+| `connection.namespaces`                 | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                     |
+| `connection.defaultNamespace`           | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                            |
+| `connection.tls`                        | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).             |
+| `connection.auth.type`                  | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                          |
+| `connection.auth.token`                 |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                   |
+| `webUi.baseUrl`                         |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                    |
+| `searchAttributes.entityRef`            |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                     |
+| `searchAttributes.initiator`            |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                              |
+| `control.enabled`                       | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).               |
+| `control.allowedSignals`                | (all)                | Signal names that may be sent.                                                                                                                                                                        |
+| `control.allowedUpdates`                | (all)                | Update names that may be sent.                                                                                                                                                                        |
+| `externalStorage.s3.bucket`             | (required)           | Bucket the workers store payloads in.                                                                                                                                                                 |
+| `externalStorage.s3.driverName`         | `aws.s3driver`       | Driver name the workers' S3 driver writes (`driverName` of `S3StorageDriver`).                                                                                                                        |
+| `externalStorage.s3.endpoint`           | AWS S3               | Endpoint of an S3-compatible service.                                                                                                                                                                 |
+| `externalStorage.s3.region`             | `us-east-1`          | Region of the bucket.                                                                                                                                                                                 |
+| `externalStorage.s3.forcePathStyle`     | `false`              | Bucket in the path instead of the host name (most self-hosted services).                                                                                                                              |
+| `externalStorage.s3.credentials`        |                      | An access key of the plugin: `accessKeyId`, `secretAccessKey` and optional `sessionToken`, with read access (`s3:GetObject`). One of `credentials`, `accountId` and `defaultCredentials` is required. |
+| `externalStorage.s3.accountId`          |                      | An AWS account of Backstage's `aws.accounts` (as a string), whose access key, profile or role the plugin reads with.                                                                                  |
+| `externalStorage.s3.defaultCredentials` | `false`              | `true`: read with the AWS SDK's default credential chain (environment, profile, instance or pod role).                                                                                                |
+| `externalStorage.s3.maxInlineBytes`     | `262144`             | JSON payloads up to this size are shown like payloads in the history.                                                                                                                                 |
+| `externalStorage.s3.previewBytes`       | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                               |
+| `definitions.maxBytes`                  | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                               |
+| `definitions.readFileLocations`         | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                      |
+| `experimental.aiWorkflows`              | `false`              | Show the loops (experimental, no compatibility promise). Model calls are shown without it.                                                                                                            |
 
 All keys are under `temporal`. `maxInlineBytes` and `previewBytes` must be
 non-negative integers. The frontend reads `connection.defaultNamespace`,
-`webUi` and `control`; the token and the S3 credentials (in
-`integrations.awsS3`) stay in the backend.
+`webUi` and `control`; the token and the S3 credentials stay in the backend.
 
 ### Authentication
 
@@ -749,83 +751,83 @@ fails with "type must be a Type", and a `protobufjs@^8` dependency in the
 root package fixes the layout.
 
 To show the stored data in Backstage, give the backend read access to the
-same bucket (and allow `blob:` images, see [Installation](#backend)). The
-plugin's own keys, `temporal.externalStorage.s3`, say which bucket and
-driver to read and how to show the data; the endpoint, the path style and
-the credentials come from an entry of Backstage's
-[`integrations.awsS3`](https://backstage.io/docs/integrations/aws-s3/locations),
-the same that Backstage's URL reader uses. An administrator sets them once
-for every plugin, with what Backstage supports there: an access key, a role
-to assume (`roleArn`, `externalId`), the default AWS credentials (the AWS
-SDK's default chain, or `aws.mainAccount`) and the `endpoint` of an
-S3-compatible service. `integrationHost` selects the entry by its host, the
-host and port of its `endpoint`; the default, `amazonaws.com`, is the AWS S3
-entry, which Backstage adds with the default AWS credentials when the
-config has none.
-
-AWS S3, with the credentials of the backend's environment (for example an
-instance or pod role) and nothing in `integrations`:
+same bucket (and allow `blob:` images, see [Installation](#backend)). An
+S3-compatible service (RustFS, MinIO), with an access key of the plugin:
 
 ```yaml
 temporal:
   externalStorage:
     s3:
       bucket: temporal-payloads
-      # The region of the bucket. Default: us-east-1.
-      region: eu-central-1
+      # Leave out for AWS S3.
+      endpoint: http://rustfs.storage.svc:9000
+      region: us-east-1
+      forcePathStyle: true
+      credentials:
+        accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
+        secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
       # JSON payloads up to this size are shown like any other payload.
       maxInlineBytes: 262144
       # Bytes of text shown as the preview of a larger payload.
       previewBytes: 2048
 ```
 
-To assume a role instead, add the AWS S3 entry with it:
+The credentials come from exactly one of three sources; the backend does
+not start with none or with two:
 
-```yaml
-integrations:
-  awsS3:
-    - roleArn: arn:aws:iam::123456789012:role/temporal-payload-reader
-```
+- `credentials`: an access key of the plugin, as above.
+- `accountId`: an AWS account that Backstage's `aws` config manages
+  (`@backstage/integration-aws-node`), with its access key, profile or role
+  (`roleName`, `externalId`, `webIdentityTokenFile`). Use an account entry
+  of its own, as the TechDocs publisher does with
+  `techdocs.publisher.awsS3.accountId`:
 
-An S3-compatible service (RustFS, MinIO), with an access key:
+  ```yaml
+  aws:
+    accounts:
+      - accountId: '123456789012'
+        roleName: temporal-payload-reader
+  temporal:
+    externalStorage:
+      s3:
+        bucket: temporal-payloads
+        region: eu-central-1
+        # A string: unquoted, YAML reads it as a number.
+        accountId: '123456789012'
+  ```
 
-```yaml
-integrations:
-  awsS3:
-    - endpoint: http://rustfs.storage.svc:9000
-      s3ForcePathStyle: true
-      accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
-      secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
-temporal:
-  externalStorage:
-    s3:
-      bucket: temporal-payloads
-      # The host and port of the endpoint above.
-      integrationHost: rustfs.storage.svc:9000
-```
+- `defaultCredentials: true`: the AWS SDK's default credential chain, for
+  example the role of the instance or pod. The plugin never falls back to
+  it on its own, so that a configuration with a missing key does not read
+  with the identity of the machine.
 
-The backend needs `s3:GetObject` on the objects of the bucket
-(`arn:aws:s3:::temporal-payloads/*`), and nothing else. It does not start
-when `integrationHost` names no entry of `integrations.awsS3`, or when
-`temporal.externalStorage.s3` has `endpoint`, `forcePathStyle` or
-`credentials`: those settings belong to the integration. The region is a
-key of the plugin because an integration has none: Backstage's URL reader
-takes it from the URL, and the plugin only has the bucket and the key. It
-is also the region of the STS requests for `roleArn`.
+At startup the backend logs one line with the bucket, the endpoint, the
+region and which source it reads with (never a secret). It warns when the
+`accountId` is not in `aws.accounts` (so it can only be the main account)
+or is the account of a `roleArn` in `integrations.awsS3`: Backstage's URL
+reader reads with those (see [Security](#security)). Temporary
+credentials (a role) are renewed before they expire.
 
-The credentials of an integration are shared with Backstage's URL reader,
-so whoever can have Backstage read a URL of that host (by registering a
-catalog location, or with a Scaffolder template that fetches a URL) can
-have it read the objects those credentials allow, outside of the
-permission checks of this plugin. Give the entry read access to the
-payload bucket only.
+When S3 cannot be read (a missing object, refused credentials), the step
+panel and the download say "Could not read the stored payload from S3";
+the error of S3 is in the backend log, with the key of the object.
 
-The plugin reads the objects itself, with the AWS SDK and the S3 client
-built from the integration, instead of through Backstage's URL reader: the
-URL reader downloads a whole object into memory before it returns, and has
-no way to stop at a size. The objects are written by the workers, at sizes
-Backstage does not control, so the backend asks for no more than 50 MiB
-(an HTTP `Range`) and stops when the object is larger.
+**Why not `integrations.awsS3`.** Backstage's URL reader reads every host
+of `integrations.awsS3` with the credentials of that entry, and the AWS
+entry (`amazonaws.com`) with the main AWS account when it has none. The
+catalog (locations), the Scaffolder (templates that fetch a URL) and the
+Definition tab of the Zigflow module read URLs that users give. With the
+same credentials, anyone who can have Backstage read a URL could read the
+stored payloads without `temporal.workflow.history.read`. There is also
+only one AWS entry in Backstage, so a role on it would change the
+credentials of every S3 read. The plugin's credentials are therefore its
+own.
+
+**Why the plugin reads the objects itself.** Backstage's URL reader
+downloads a whole object into memory before it returns, and cannot stop at
+a size. The objects are written by the workers, at sizes Backstage does not
+control, so the backend asks S3 for no more than 50 MiB (an HTTP `Range`)
+and stops when the object is larger.
 
 The step panel then shows, for the input and output of each step:
 
@@ -1452,8 +1454,19 @@ warning; it does not fail the lint.
   workflow.
 - **Least privilege towards Temporal and S3.** The token only needs the read
   role on the namespaces in `connection.namespaces` (plus the write role if
-  you use the operations); the S3 key only needs `s3:GetObject` on the
-  payload bucket. List only the namespaces Backstage should see.
+  you use the operations). List only the namespaces Backstage should see.
+- **The S3 credentials of External Storage are only for the plugin.** Give
+  them `s3:GetObject` on the payload bucket
+  (`arn:aws:s3:::temporal-payloads/*`) and nothing else; not
+  `s3:ListBucket`, which would let a holder find the keys. Do not put the
+  same access key or role in `integrations.awsS3`, and do not make it the
+  main AWS account (`aws.mainAccount`, or the machine's role when that is
+  unset): Backstage's URL reader reads with those, and the catalog, the
+  Scaffolder and the Definition tab of the Zigflow module use it to read
+  URLs that users give, without the permission checks of this plugin. The
+  same holds for `defaultCredentials: true` when the URL reader also reads
+  with the machine's role. A codec that encrypts payloads in the workers
+  limits what a leaked object shows.
 - **TLS is off by default.** Without `connection.tls: true`, a bearer token
   (`auth.type: bearer`) is sent without TLS, for a Temporal server inside a
   private network. Turn TLS on for any server across an untrusted network.

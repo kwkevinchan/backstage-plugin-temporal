@@ -296,20 +296,12 @@ async function start(options: {
             externalStorage: {
               s3: {
                 bucket: 'payloads',
-                integrationHost: 'localhost:9100',
+                endpoint: 'http://localhost:9100',
+                forcePathStyle: true,
                 maxInlineBytes: 1000,
+                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
               },
             },
-          },
-          integrations: {
-            awsS3: [
-              {
-                endpoint: 'http://localhost:9100',
-                s3ForcePathStyle: true,
-                accessKeyId: 'a',
-                secretAccessKey: 's',
-              },
-            ],
           },
         };
   const { server } = await startTestBackend({

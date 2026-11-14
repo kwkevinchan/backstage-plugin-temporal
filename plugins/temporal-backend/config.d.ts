@@ -113,8 +113,9 @@ export interface Config {
       /**
        * The S3 driver (`@temporalio/external-storage-s3` and the drivers of
        * the other SDKs). Without it, stored payloads are shown as stored
-       * externally, with their key and size. The endpoint, path style and
-       * credentials come from an entry of `integrations.awsS3`.
+       * externally, with their key and size. The credentials are the
+       * plugin's own, from exactly one of `credentials`, `accountId` and
+       * `defaultCredentials`; do not use those of `integrations.awsS3`.
        */
       s3?: {
         /**
@@ -128,15 +129,36 @@ export interface Config {
          */
         driverName?: string;
         /**
-         * Host of the `integrations.awsS3` entry to read with: the host and
-         * port of its `endpoint`, for example `localhost:9100` for
-         * `http://localhost:9100`. Defaults to `amazonaws.com`, the AWS S3
-         * entry, which Backstage adds with the default AWS credentials when
-         * there is none.
+         * Endpoint of an S3-compatible service, for example
+         * `http://localhost:9100`. Leave it out for AWS S3.
          */
-        integrationHost?: string;
+        endpoint?: string;
         /** Region of the bucket. Defaults to `us-east-1`. */
         region?: string;
+        /** Bucket in the path instead of the host name. */
+        forcePathStyle?: boolean;
+        /**
+         * An access key of the plugin with read access (`s3:GetObject`) to
+         * the bucket.
+         */
+        credentials?: {
+          /** @visibility secret */
+          accessKeyId: string;
+          /** @visibility secret */
+          secretAccessKey: string;
+          /** @visibility secret */
+          sessionToken?: string;
+        };
+        /**
+         * An AWS account of Backstage's `aws.accounts`, whose credentials
+         * (access key, profile or role) are used. Write it as a string.
+         */
+        accountId?: string;
+        /**
+         * Read with the AWS SDK's default credential chain (environment
+         * variables, profile, the role of the instance or pod).
+         */
+        defaultCredentials?: boolean;
         /**
          * JSON payloads up to this many bytes are downloaded and shown like
          * payloads in the history. Larger ones show their size and a

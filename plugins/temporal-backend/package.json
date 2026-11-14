@@ -69,7 +69,6 @@
     "@backstage/catalog-model": "backstage:^",
     "@backstage/config": "backstage:^",
     "@backstage/errors": "backstage:^",
-    "@backstage/integration": "backstage:^",
     "@backstage/integration-aws-node": "backstage:^",
     "@backstage/plugin-catalog-node": "backstage:^",
     "@backstage/plugin-permission-common": "backstage:^",

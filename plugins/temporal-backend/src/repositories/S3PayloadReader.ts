@@ -15,103 +15,175 @@
  */
 
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Config } from '@backstage/config';
-import {
-  AwsS3Integration,
-  type AwsS3IntegrationConfig,
-} from '@backstage/integration';
 import {
   type AwsCredentialProvider,
   type AwsCredentialsManager,
   DefaultAwsCredentialsManager,
 } from '@backstage/integration-aws-node';
+import { StorageIntegrityError } from './storageReference';
 
-/**
- * Host of the AWS S3 entry of `integrations.awsS3`. Backstage adds this
- * entry, with the default AWS credentials, when the config has none.
- */
-export const AWS_S3_HOST = 'amazonaws.com';
-/** Region of the bucket when `region` is not set, as in Backstage. */
+/** Region of the bucket when `region` is not set. */
 const DEFAULT_REGION = 'us-east-1';
-/** Session name of the role sessions the backend starts. */
-const ROLE_SESSION_NAME = 'backstage-plugin-temporal';
-
-/**
- * Keys of `temporal.externalStorage.s3` whose settings belong to
- * `integrations.awsS3`, with the keys they correspond to there.
- */
-const INTEGRATION_KEYS: Record<string, string> = {
-  endpoint: 'endpoint',
-  forcePathStyle: 's3ForcePathStyle',
-  credentials: 'accessKeyId and secretAccessKey (or roleArn)',
-};
+const KEY = 'temporal.externalStorage.s3';
 
 type CredentialProvider = AwsCredentialProvider['sdkCredentialProvider'];
 
 /**
- * The credentials of an `integrations.awsS3` entry, chosen as Backstage's
- * S3 URL reader does: its access key, a role assumed with that key or with
- * the main AWS account (`aws.mainAccount`, by default the AWS SDK's
- * default credential chain), or the main account itself.
+ * Where the backend's S3 credentials come from: exactly one of
+ * `credentials` (an access key of the plugin), `accountId` (an account of
+ * Backstage's `aws` config) and `defaultCredentials` (the AWS SDK's default
+ * credential chain).
  */
-export async function integrationCredentials(
-  integration: AwsS3IntegrationConfig,
-  region: string,
-  credentialsManager: AwsCredentialsManager,
-): Promise<CredentialProvider> {
-  const { accessKeyId, secretAccessKey, roleArn, externalId } = integration;
-  const assumeRole = (masterCredentials: CredentialProvider) =>
-    fromTemporaryCredentials({
-      masterCredentials,
-      params: {
-        RoleSessionName: ROLE_SESSION_NAME,
-        RoleArn: roleArn!,
-        ExternalId: externalId,
-      },
-      clientConfig: { region },
-    });
-  if (accessKeyId && secretAccessKey) {
-    const accessKey = async () => ({ accessKeyId, secretAccessKey });
-    return roleArn ? assumeRole(accessKey) : accessKey;
+export type S3CredentialSource =
+  | {
+      type: 'accessKey';
+      accessKeyId: string;
+      secretAccessKey: string;
+      sessionToken?: string;
+    }
+  | { type: 'account'; accountId: string }
+  | { type: 'default' };
+
+/** Reads the credential source of `temporal.externalStorage.s3`. */
+export function readCredentialSource(s3: Config): S3CredentialSource {
+  const credentials = s3.getOptionalConfig('credentials');
+  const accountId = s3.getOptionalString('accountId');
+  const defaultCredentials = s3.getOptionalBoolean('defaultCredentials');
+  const set = [
+    credentials && 'credentials',
+    accountId !== undefined && 'accountId',
+    defaultCredentials && 'defaultCredentials',
+  ].filter(Boolean);
+  if (set.length !== 1) {
+    throw new Error(
+      `${KEY} needs exactly one source of S3 credentials, ${
+        set.length === 0 ? 'and has none' : `and has ${set.join(', ')}`
+      }: credentials (an access key with accessKeyId and secretAccessKey), accountId (an account of aws.accounts) or defaultCredentials: true (the AWS SDK's default credential chain)`,
+    );
   }
-  if (roleArn) {
-    const master = await credentialsManager
-      .getCredentialProvider({ arn: roleArn })
-      .catch(() => credentialsManager.getCredentialProvider());
-    return assumeRole(master.sdkCredentialProvider);
+  if (credentials) {
+    return {
+      type: 'accessKey',
+      accessKeyId: credentials.getString('accessKeyId'),
+      secretAccessKey: credentials.getString('secretAccessKey'),
+      sessionToken: credentials.getOptionalString('sessionToken'),
+    };
   }
-  return (await credentialsManager.getCredentialProvider())
-    .sdkCredentialProvider;
+  if (accountId !== undefined) {
+    if (!/^\d{12}$/.test(accountId)) {
+      throw new Error(
+        `${KEY}.accountId must be an AWS account ID of 12 digits`,
+      );
+    }
+    return { type: 'account', accountId };
+  }
+  return { type: 'default' };
 }
 
 /**
- * An S3 client with the endpoint, path style and credentials of an
- * `integrations.awsS3` entry. The credentials are looked up on the first
- * request.
+ * Why an account of `accountId` may also be used by Backstage's S3 URL
+ * reader, which reads with the main AWS account and with the accounts of
+ * the `roleArn` of `integrations.awsS3`; undefined when it is not.
+ */
+export function sharedAccountWarning(
+  config: Config,
+  accountId: string,
+): string | undefined {
+  const accounts = config.getOptionalConfigArray('aws.accounts') ?? [];
+  const listed = accounts.some(
+    a => a.getOptionalString('accountId') === accountId,
+  );
+  const roleDefaults = config.getOptionalString('aws.accountDefaults.roleName');
+  if (!listed && !roleDefaults) {
+    return `${KEY}.accountId ${accountId} is not in aws.accounts, so it can only be the main AWS account (aws.mainAccount), whose credentials Backstage's URL reader also uses. Add an entry for the account to aws.accounts`;
+  }
+  const integrations =
+    config.getOptionalConfigArray('integrations.awsS3') ?? [];
+  const shared = integrations.some(
+    i => i.getOptionalString('roleArn')?.split(':')[4] === accountId,
+  );
+  if (shared) {
+    return `${KEY}.accountId ${accountId} is the account of a roleArn in integrations.awsS3, whose credentials Backstage's URL reader also uses. Use an account of its own for External Storage`;
+  }
+  return undefined;
+}
+
+/** One line on the S3 connection, without secrets, for the startup log. */
+function describeConnection(
+  bucket: string,
+  endpoint: string | undefined,
+  region: string,
+  source: S3CredentialSource,
+): string {
+  const credentials = {
+    accessKey: `the access key of ${KEY}.credentials`,
+    account: `the AWS account ${
+      source.type === 'account' ? source.accountId : ''
+    } of aws.accounts`,
+    default: "the AWS SDK's default credential chain",
+  }[source.type];
+  return `External Storage reads bucket ${bucket} from ${
+    endpoint ?? 'AWS S3'
+  } (region ${region}) with ${credentials}`;
+}
+
+/**
+ * The credentials of a source. Temporary credentials (a role, a session)
+ * carry their expiry; the S3 client asks for new ones before it.
+ */
+export async function sourceCredentials(
+  source: S3CredentialSource,
+  region: string,
+  credentialsManager?: AwsCredentialsManager,
+): Promise<CredentialProvider> {
+  switch (source.type) {
+    case 'accessKey': {
+      const { accessKeyId, secretAccessKey, sessionToken } = source;
+      return async () => ({ accessKeyId, secretAccessKey, sessionToken });
+    }
+    case 'account':
+      if (!credentialsManager) throw new Error('No AWS credentials manager');
+      return (
+        await credentialsManager.getCredentialProvider({
+          accountId: source.accountId,
+        })
+      ).sdkCredentialProvider;
+    default:
+      return fromNodeProviderChain({ clientConfig: { region } });
+  }
+}
+
+/**
+ * An S3 client for the bucket's endpoint and region, with the credentials
+ * of `source`, looked up on the first request.
  */
 export function createS3Client(options: {
-  integration: AwsS3IntegrationConfig;
+  endpoint?: string;
   region: string;
-  credentialsManager: AwsCredentialsManager;
+  forcePathStyle: boolean;
+  source: S3CredentialSource;
+  /** Required for an `account` source. */
+  credentialsManager?: AwsCredentialsManager;
 }): S3Client {
-  const { integration, region, credentialsManager } = options;
+  const { endpoint, region, forcePathStyle, source, credentialsManager } =
+    options;
   let provider: Promise<CredentialProvider> | undefined;
   const credentials = async () => {
-    provider ??= integrationCredentials(
-      integration,
-      region,
-      credentialsManager,
-    ).catch(error => {
-      provider = undefined;
-      throw error;
-    });
+    provider ??= sourceCredentials(source, region, credentialsManager).catch(
+      error => {
+        provider = undefined;
+        throw error;
+      },
+    );
     return (await provider)();
   };
   return new S3Client({
+    endpoint,
     region,
-    endpoint: integration.endpoint,
-    forcePathStyle: integration.s3ForcePathStyle ?? false,
+    forcePathStyle,
     credentials,
     // Checksums are only sent when the operation requires them, which
     // more S3-compatible services understand.
@@ -130,7 +202,9 @@ export interface S3PayloadReaderOptions {
 
 /**
  * Reads payload data from one bucket of S3 or an S3-compatible service.
- * The backend only reads; the workers write.
+ * The backend only reads; the workers write. Its credentials are its own:
+ * they are not those of `integrations.awsS3`, which Backstage's URL reader
+ * uses to read any URL that users give it.
  */
 export class S3PayloadReader {
   readonly bucket: string;
@@ -143,47 +217,38 @@ export class S3PayloadReader {
   }
 
   /**
-   * Reads `temporal.externalStorage.s3` (`s3`) and the `integrations.awsS3`
-   * entry whose host is its `integrationHost` (default `amazonaws.com`).
-   * The connection and the credentials come from that entry.
+   * Reads `temporal.externalStorage.s3` (`s3`) of the root config. An
+   * `accountId` takes its credentials from Backstage's `aws` config.
    */
   static fromConfig(
     config: Config,
     s3: Config,
-    credentialsManager: AwsCredentialsManager = DefaultAwsCredentialsManager.fromConfig(
-      config,
-    ),
+    options: {
+      logger?: LoggerService;
+      credentialsManager?: AwsCredentialsManager;
+    } = {},
   ): S3PayloadReader {
-    const moved = Object.keys(INTEGRATION_KEYS).filter(key => s3.has(key));
-    if (moved.length > 0) {
-      const keys = moved.map(key => `temporal.externalStorage.s3.${key}`);
-      const targets = moved.map(key => INTEGRATION_KEYS[key]);
-      throw new Error(
-        `Unsupported config ${keys.join(
-          ', ',
-        )}: the S3 connection and credentials of External Storage come from integrations.awsS3. ` +
-          `Set ${targets.join(
-            '; ',
-          )} in an entry of integrations.awsS3, and temporal.externalStorage.s3.integrationHost to the host of its endpoint (leave it out for AWS S3)`,
-      );
+    const bucket = s3.getString('bucket');
+    const endpoint = s3.getOptionalString('endpoint') || undefined;
+    const region = s3.getOptionalString('region') || DEFAULT_REGION;
+    const source = readCredentialSource(s3);
+    if (source.type === 'account') {
+      const warning = sharedAccountWarning(config, source.accountId);
+      if (warning) options.logger?.warn(warning);
     }
-    const host = s3.getOptionalString('integrationHost') ?? AWS_S3_HOST;
-    const integrations = AwsS3Integration.factory({ config });
-    const integration = integrations.byHost(host);
-    if (!integration) {
-      const hosts = integrations.list().map(i => i.config.host);
-      throw new Error(
-        `temporal.externalStorage.s3.integrationHost is ${host}, but no entry of integrations.awsS3 has this host (the host and port of its endpoint, for example localhost:9000 for http://localhost:9000). Hosts: ${hosts.join(
-          ', ',
-        )}`,
-      );
-    }
+    options.logger?.info(describeConnection(bucket, endpoint, region, source));
     return new S3PayloadReader({
-      bucket: s3.getString('bucket'),
+      bucket,
       client: createS3Client({
-        integration: integration.config,
-        region: s3.getOptionalString('region') ?? DEFAULT_REGION,
-        credentialsManager,
+        endpoint,
+        region,
+        forcePathStyle: s3.getOptionalBoolean('forcePathStyle') ?? false,
+        source,
+        credentialsManager:
+          source.type === 'account'
+            ? options.credentialsManager ??
+              DefaultAwsCredentialsManager.fromConfig(config)
+            : undefined,
       }),
     });
   }
@@ -211,7 +276,9 @@ export class S3PayloadReader {
     if (!response) return new Uint8Array();
     if (!response.Body) throw new Error(`S3 object ${key} has no body`);
     const tooLarge = () =>
-      new Error(`S3 object ${key} is larger than ${maxBytes} bytes`);
+      new StorageIntegrityError(
+        `S3 object ${key} is larger than ${maxBytes} bytes`,
+      );
     // The whole size: after the slash of `Content-Range`, or the length
     // when the service sent the whole object.
     const total = response.ContentRange

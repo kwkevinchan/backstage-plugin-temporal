@@ -15,7 +15,7 @@
  */
 
 import { S3Client } from '@aws-sdk/client-s3';
-import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { ConfigReader } from '@backstage/config';
 import type { AwsCredentialsManager } from '@backstage/integration-aws-node';
 import { S3PayloadReader } from './S3PayloadReader';
@@ -27,9 +27,9 @@ jest.mock('@aws-sdk/client-s3', () => ({
 
 jest.mock('@aws-sdk/credential-providers', () => ({
   ...jest.requireActual('@aws-sdk/credential-providers'),
-  fromTemporaryCredentials: jest.fn(() => async () => ({
-    accessKeyId: 'assumed',
-    secretAccessKey: 'assumed-secret',
+  fromNodeProviderChain: jest.fn(() => async () => ({
+    accessKeyId: 'machine',
+    secretAccessKey: 'machine-secret',
   })),
 }));
 
@@ -115,209 +115,210 @@ describe('S3PayloadReader', () => {
 
 describe('S3PayloadReader.fromConfig', () => {
   const MockS3Client = S3Client as unknown as jest.Mock;
-  const assume = fromTemporaryCredentials as jest.Mock;
+  const defaultChain = fromNodeProviderChain as jest.Mock;
+  const accountId = '123456789012';
 
   beforeEach(() => {
     MockS3Client.mockClear();
-    assume.mockClear();
+    defaultChain.mockClear();
   });
 
-  /** The options of the S3 client made from this config. */
-  function clientOptions(
+  function logger() {
+    return { info: jest.fn(), warn: jest.fn() };
+  }
+
+  /** Reads this config; returns the options of the S3 client and the log. */
+  function read(
     data: { s3: object; [key: string]: unknown },
     credentialsManager?: AwsCredentialsManager,
   ) {
+    MockS3Client.mockClear();
     const { s3, ...rest } = data;
     const config = new ConfigReader({
       ...rest,
       temporal: { externalStorage: { s3 } },
     });
+    const log = logger();
     const reader = S3PayloadReader.fromConfig(
       config,
       config.getConfig('temporal.externalStorage.s3'),
-      credentialsManager,
+      { logger: log as any, credentialsManager },
     );
     expect(MockS3Client).toHaveBeenCalledTimes(1);
-    return { reader, options: MockS3Client.mock.calls[0][0] };
+    return { reader, options: MockS3Client.mock.calls[0][0], log };
   }
 
-  /** A credentials manager whose main account has this access key. */
+  /** A credentials manager with one account. */
   function fakeManager() {
-    const main = async () => ({ accessKeyId: 'main', secretAccessKey: 'm' });
-    const getCredentialProvider = jest.fn(async (opts?: { arn?: string }) => {
-      if (opts?.arn) throw new Error('No AWS account of the ARN');
-      return { sdkCredentialProvider: main };
+    const account = async () => ({
+      accessKeyId: 'account',
+      secretAccessKey: 'account-secret',
+      sessionToken: 'token',
+      expiration: new Date(Date.now() + 3600_000),
     });
-    return { manager: { getCredentialProvider }, main };
+    return {
+      getCredentialProvider: jest.fn(async () => ({
+        accountId,
+        sdkCredentialProvider: account,
+      })),
+    };
   }
 
-  it('uses the AWS S3 entry and the main AWS account by default', async () => {
-    const { reader, options } = clientOptions({
-      aws: { mainAccount: { accessKeyId: 'main', secretAccessKey: 'm' } },
-      s3: { bucket: 'payloads' },
+  it('reads with the access key of the plugin', async () => {
+    const { reader, options, log } = read({
+      s3: {
+        bucket: 'payloads',
+        endpoint: 'http://localhost:9100',
+        forcePathStyle: true,
+        credentials: {
+          accessKeyId: 'a',
+          secretAccessKey: 's',
+          sessionToken: 't',
+        },
+      },
     });
     expect(reader.bucket).toBe('payloads');
     expect(options).toMatchObject({
+      endpoint: 'http://localhost:9100',
       region: 'us-east-1',
+      forcePathStyle: true,
+    });
+    await expect(options.credentials()).resolves.toEqual({
+      accessKeyId: 'a',
+      secretAccessKey: 's',
+      sessionToken: 't',
+    });
+    expect(defaultChain).not.toHaveBeenCalled();
+    expect(log.info).toHaveBeenCalledWith(
+      'External Storage reads bucket payloads from http://localhost:9100 (region us-east-1) with the access key of temporal.externalStorage.s3.credentials',
+    );
+    expect(JSON.stringify(log.info.mock.calls)).not.toMatch(/"s"|"t"/);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('reads with an account of aws.accounts, once, on the first request', async () => {
+    const manager = fakeManager();
+    const { options, log } = read(
+      {
+        aws: { accounts: [{ accountId, roleName: 'payload-reader' }] },
+        s3: { bucket: 'b', region: 'eu-central-1', accountId },
+      },
+      manager,
+    );
+    expect(options).toMatchObject({
       endpoint: undefined,
+      region: 'eu-central-1',
       forcePathStyle: false,
     });
-    await expect(options.credentials()).resolves.toEqual({
-      accessKeyId: 'main',
-      secretAccessKey: 'm',
-    });
-  });
-
-  it('looks up the credentials once, on the first request', async () => {
-    const { manager } = fakeManager();
-    const { options } = clientOptions({ s3: { bucket: 'b' } }, manager);
     expect(manager.getCredentialProvider).not.toHaveBeenCalled();
+    const first = await options.credentials();
     await options.credentials();
-    await options.credentials();
+    expect(first).toMatchObject({
+      accessKeyId: 'account',
+      sessionToken: 'token',
+    });
+    // Temporary credentials keep their expiry, for the client to refresh.
+    expect(first.expiration).toBeInstanceOf(Date);
     expect(manager.getCredentialProvider).toHaveBeenCalledTimes(1);
-    expect(manager.getCredentialProvider).toHaveBeenCalledWith();
-  });
-
-  it('reads with the access key of the entry, in the region of the bucket', async () => {
-    const { manager } = fakeManager();
-    const { options } = clientOptions(
-      {
-        integrations: { awsS3: [{ accessKeyId: 'a', secretAccessKey: 's' }] },
-        s3: { bucket: 'b', region: 'eu-central-1' },
-      },
-      manager,
+    expect(manager.getCredentialProvider).toHaveBeenCalledWith({ accountId });
+    expect(log.info).toHaveBeenCalledWith(
+      `External Storage reads bucket b from AWS S3 (region eu-central-1) with the AWS account ${accountId} of aws.accounts`,
     );
-    expect(options.region).toBe('eu-central-1');
-    expect(options.endpoint).toBeUndefined();
-    await expect(options.credentials()).resolves.toEqual({
-      accessKeyId: 'a',
-      secretAccessKey: 's',
-    });
-    expect(manager.getCredentialProvider).not.toHaveBeenCalled();
-    expect(assume).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
-  it('assumes the role of the entry with its access key', async () => {
-    const { options } = clientOptions(
+  it("takes the account from Backstage's aws config", async () => {
+    const { options } = read({
+      aws: {
+        accounts: [{ accountId, accessKeyId: 'acc', secretAccessKey: 'acc-s' }],
+      },
+      s3: { bucket: 'b', accountId },
+    });
+    await expect(options.credentials()).resolves.toEqual({
+      accessKeyId: 'acc',
+      secretAccessKey: 'acc-s',
+    });
+  });
+
+  it('warns when the account is shared with the URL reader', () => {
+    const notListed = read(
+      { s3: { bucket: 'b', accountId } },
+      fakeManager(),
+    ).log;
+    expect(notListed.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /^temporal\.externalStorage\.s3\.accountId 123456789012 is not in aws\.accounts, so it can only be the main AWS account/,
+      ),
+    );
+    const roleArn = read(
       {
+        aws: { accounts: [{ accountId, roleName: 'reader' }] },
         integrations: {
-          awsS3: [
-            {
-              accessKeyId: 'a',
-              secretAccessKey: 's',
-              roleArn: 'arn:aws:iam::123456789012:role/payload-reader',
-              externalId: 'ext',
-            },
-          ],
+          awsS3: [{ roleArn: `arn:aws:iam::${accountId}:role/catalog-reader` }],
         },
-        s3: { bucket: 'b', region: 'eu-central-1' },
+        s3: { bucket: 'b', accountId },
       },
-      fakeManager().manager,
+      fakeManager(),
+    ).log;
+    expect(roleArn.warn).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /is the account of a roleArn in integrations\.awsS3/,
+      ),
     );
-    await expect(options.credentials()).resolves.toEqual({
-      accessKeyId: 'assumed',
-      secretAccessKey: 'assumed-secret',
-    });
-    expect(assume).toHaveBeenCalledTimes(1);
-    const [{ masterCredentials, ...rest }] = assume.mock.calls[0];
-    expect(rest).toEqual({
-      params: {
-        RoleSessionName: 'backstage-plugin-temporal',
-        RoleArn: 'arn:aws:iam::123456789012:role/payload-reader',
-        ExternalId: 'ext',
-      },
-      clientConfig: { region: 'eu-central-1' },
-    });
-    await expect(masterCredentials()).resolves.toEqual({
-      accessKeyId: 'a',
-      secretAccessKey: 's',
-    });
-  });
-
-  it('assumes the role with the AWS account of its ARN, or else the main account', async () => {
-    const { manager, main } = fakeManager();
-    const roleArn = 'arn:aws:iam::123456789012:role/payload-reader';
-    const { options } = clientOptions(
-      { integrations: { awsS3: [{ roleArn }] }, s3: { bucket: 'b' } },
-      manager,
-    );
-    await options.credentials();
-    expect(manager.getCredentialProvider).toHaveBeenNthCalledWith(1, {
-      arn: roleArn,
-    });
-    expect(manager.getCredentialProvider).toHaveBeenNthCalledWith(2);
-    expect(assume.mock.calls[0][0]).toMatchObject({
-      masterCredentials: main,
-      params: { RoleArn: roleArn, ExternalId: undefined },
-      clientConfig: { region: 'us-east-1' },
-    });
-  });
-
-  it('connects to an S3-compatible service by the host of its entry', async () => {
-    const integrations = {
-      awsS3: [
-        {
-          endpoint: 'http://localhost:9100',
-          s3ForcePathStyle: true,
-          accessKeyId: 'a',
-          secretAccessKey: 's',
+    const own = read(
+      {
+        aws: { accounts: [{ accountId, roleName: 'reader' }] },
+        integrations: {
+          awsS3: [{ roleArn: 'arn:aws:iam::210987654321:role/catalog-reader' }],
         },
-      ],
-    };
-    const { options } = clientOptions({
-      integrations,
-      s3: { bucket: 'b', integrationHost: 'localhost:9100' },
+        s3: { bucket: 'b', accountId },
+      },
+      fakeManager(),
+    ).log;
+    expect(own.warn).not.toHaveBeenCalled();
+  });
+
+  it('reads with the default credential chain only when asked to', async () => {
+    const { options, log } = read({
+      s3: { bucket: 'b', region: 'ap-northeast-1', defaultCredentials: true },
     });
-    expect(options).toMatchObject({
-      endpoint: 'http://localhost:9100',
-      forcePathStyle: true,
-      region: 'us-east-1',
-    });
+    expect(defaultChain).not.toHaveBeenCalled();
     await expect(options.credentials()).resolves.toEqual({
-      accessKeyId: 'a',
-      secretAccessKey: 's',
+      accessKeyId: 'machine',
+      secretAccessKey: 'machine-secret',
     });
-
-    // Without integrationHost: the AWS S3 entry that Backstage adds.
-    MockS3Client.mockClear();
-    const aws = clientOptions({ integrations, s3: { bucket: 'b' } }).options;
-    expect(aws.endpoint).toBeUndefined();
-    expect(aws.forcePathStyle).toBe(false);
-  });
-
-  it('fails without an entry of integrations.awsS3 with the host', () => {
-    expect(() =>
-      clientOptions({
-        integrations: { awsS3: [{ endpoint: 'http://localhost:9100' }] },
-        s3: { bucket: 'b', integrationHost: 'localhost:9000' },
-      }),
-    ).toThrow(
-      'temporal.externalStorage.s3.integrationHost is localhost:9000, but no entry of integrations.awsS3 has this host (the host and port of its endpoint, for example localhost:9000 for http://localhost:9000). Hosts: localhost:9100, amazonaws.com',
+    expect(defaultChain).toHaveBeenCalledWith({
+      clientConfig: { region: 'ap-northeast-1' },
+    });
+    expect(log.info).toHaveBeenCalledWith(
+      "External Storage reads bucket b from AWS S3 (region ap-northeast-1) with the AWS SDK's default credential chain",
     );
-    expect(MockS3Client).not.toHaveBeenCalled();
   });
 
-  it('refuses the keys whose settings belong to integrations.awsS3', () => {
+  it('needs exactly one source of credentials', () => {
+    const none =
+      "temporal.externalStorage.s3 needs exactly one source of S3 credentials, and has none: credentials (an access key with accessKeyId and secretAccessKey), accountId (an account of aws.accounts) or defaultCredentials: true (the AWS SDK's default credential chain)";
+    expect(() => read({ s3: { bucket: 'b' } })).toThrow(none);
     expect(() =>
-      clientOptions({
+      read({ s3: { bucket: 'b', defaultCredentials: false } }),
+    ).toThrow(none);
+    expect(() =>
+      read({
         s3: {
           bucket: 'b',
           credentials: { accessKeyId: 'a', secretAccessKey: 's' },
+          accountId,
         },
       }),
-    ).toThrow(
-      'Unsupported config temporal.externalStorage.s3.credentials: the S3 connection and credentials of External Storage come from integrations.awsS3. Set accessKeyId and secretAccessKey (or roleArn) in an entry of integrations.awsS3, and temporal.externalStorage.s3.integrationHost to the host of its endpoint (leave it out for AWS S3)',
-    );
+    ).toThrow(/and has credentials, accountId:/);
     expect(() =>
-      clientOptions({
-        s3: {
-          bucket: 'b',
-          endpoint: 'http://localhost:9100',
-          forcePathStyle: true,
-        },
-      }),
-    ).toThrow(
-      /^Unsupported config temporal\.externalStorage\.s3\.endpoint, temporal\.externalStorage\.s3\.forcePathStyle: .* Set endpoint; s3ForcePathStyle in an entry of integrations\.awsS3/,
+      read({ s3: { bucket: 'b', accountId, defaultCredentials: true } }),
+    ).toThrow(/and has accountId, defaultCredentials:/);
+    expect(() =>
+      read({ s3: { bucket: 'b', credentials: { accessKeyId: 'a' } } }),
+    ).toThrow(/secretAccessKey/);
+    expect(() => read({ s3: { bucket: 'b', accountId: '1234' } })).toThrow(
+      'temporal.externalStorage.s3.accountId must be an AWS account ID of 12 digits',
     );
     expect(MockS3Client).not.toHaveBeenCalled();
   });

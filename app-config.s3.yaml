@@ -1,22 +1,20 @@
 # Temporal External Storage: large payloads that the workers store in S3 with
 # the S3 driver of the Temporal SDK (@temporalio/external-storage-s3).
-# Local development with RustFS (examples/docker-compose.rustfs.yaml), whose
-# S3 API listens on localhost:9100:
+# Local development with RustFS (examples/docker-compose.rustfs.yaml):
 #
 #   yarn workspace backend start --config ../../app-config.yaml --config ../../app-config.s3.yaml
 #
-# The connection and the credentials are a Backstage AWS S3 integration; the
-# access key comes from the environment, and the backend only needs read
-# access. integrationHost selects that integration by the host of its
-# endpoint.
-integrations:
-  awsS3:
-    - endpoint: http://localhost:9100
-      s3ForcePathStyle: true
-      accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
-      secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
+# The same PAYLOAD_S3_* variables as the example worker (ENDPOINT, BUCKET,
+# ACCESS_KEY, SECRET_KEY); the region is the worker's default. Locally the
+# backend uses the worker's access key; elsewhere give it a key of its own
+# with read access only (see Security in the README).
 temporal:
   externalStorage:
     s3:
+      endpoint: ${PAYLOAD_S3_ENDPOINT}
       bucket: ${PAYLOAD_S3_BUCKET}
-      integrationHost: localhost:9100
+      region: us-east-1
+      forcePathStyle: true
+      credentials:
+        accessKeyId: ${PAYLOAD_S3_ACCESS_KEY}
+        secretAccessKey: ${PAYLOAD_S3_SECRET_KEY}
