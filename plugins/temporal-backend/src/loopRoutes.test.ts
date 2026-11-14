@@ -25,6 +25,7 @@ import {
   fakeTemporalServiceFactory,
   ordersEntity,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payload = (value: unknown) => ({
@@ -150,7 +151,7 @@ async function start(query: 'answers' | 'fails', ai = true) {
       }),
     ],
   });
-  return { server, workflowService };
+  return { server: await withOpenApiValidation(server), workflowService };
 }
 
 describe('loops route', () => {

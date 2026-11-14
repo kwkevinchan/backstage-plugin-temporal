@@ -49,6 +49,10 @@ catalog module with the `TemporalWorkflow` kind; the named exports
   three levels). The workflow lists take a `searchAttribute` filter (a Bool
   search attribute that is true). Graph steps carry the summary of their
   event (Temporal user metadata).
+- An OpenAPI 3.1 spec of the HTTP API, `src/schema/openapi.yaml`, published
+  with the package: every route with its parameters, bodies, responses and
+  permission, the routes of `temporal.control` and the experimental ones
+  marked. The route tests check the requests and responses against it.
 - Experimental, off by default (`temporal.experimental.aiWorkflows`), no
   compatibility promise: loops of AI workflows (`GET .../loops`) and LLM
   steps (`GET .../llm-calls/:eventId`). When off, graphs and steps carry no

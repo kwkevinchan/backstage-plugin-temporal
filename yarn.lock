@@ -5549,6 +5549,7 @@ __metadata:
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow"
   dependencies:
     "@backstage/backend-defaults": "backstage:^"
+    "@backstage/backend-openapi-utils": "backstage:^"
     "@backstage/backend-plugin-api": "backstage:^"
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
@@ -5575,6 +5576,7 @@ __metadata:
   dependencies:
     "@aws-sdk/client-s3": "npm:^3.350.0"
     "@backstage/backend-defaults": "backstage:^"
+    "@backstage/backend-openapi-utils": "backstage:^"
     "@backstage/backend-plugin-api": "backstage:^"
     "@backstage/backend-test-utils": "backstage:^"
     "@backstage/catalog-model": "backstage:^"
@@ -5597,6 +5599,7 @@ __metadata:
     express: "npm:^4.22.0"
     express-promise-router: "npm:^4.1.0"
     supertest: "npm:^6.2.4"
+    yaml: "npm:^2.7.0"
     zod: "npm:^4.2.0"
   languageName: unknown
   linkType: soft
@@ -11411,6 +11414,11 @@ __metadata:
     prettier: "npm:^2.3.2"
     protobufjs: "npm:^8.8.1"
     typescript: "npm:~5.8.0"
+  dependenciesMeta:
+    "@openapitools/openapi-generator-cli":
+      built: false
+    "@scarf/scarf":
+      built: false
   languageName: unknown
   linkType: soft
 

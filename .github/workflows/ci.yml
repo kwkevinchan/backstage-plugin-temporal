@@ -100,6 +100,11 @@ jobs:
       - name: Prettier
         run: yarn prettier:check
 
+      # Lint and validate the OpenAPI spec of the backend plugin. The route
+      # tests check the requests and responses against it.
+      - name: OpenAPI spec
+        run: yarn lint:openapi
+
       - name: Type check
         run: yarn tsc:full
 

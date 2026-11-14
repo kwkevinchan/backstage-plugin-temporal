@@ -36,6 +36,7 @@ import {
   ordersEntity,
   otherEntity,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 /** Objects of the mocked S3 service, by key. */
 const mockObjects = new Map<string, Buffer>();
@@ -151,7 +152,7 @@ async function start(
       }),
     ],
   });
-  return { server, workflowService };
+  return { server: await withOpenApiValidation(server), workflowService };
 }
 
 describe('opening one workflow', () => {

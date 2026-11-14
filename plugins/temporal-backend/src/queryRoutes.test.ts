@@ -33,6 +33,7 @@ import {
   otherEntity,
   scheduleSummary,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 const json = (value: unknown) => ({
   metadata: { encoding: Buffer.from('json/plain') },
@@ -156,7 +157,14 @@ async function start(options?: {
       }),
     ],
   });
-  return { server, workflowService, permissions, auditor, auditEvent };
+  return {
+    server: await withOpenApiValidation(server),
+    backend: server,
+    workflowService,
+    permissions,
+    auditor,
+    auditEvent,
+  };
 }
 
 const wf = '/api/temporal/namespaces/default/workflows/wf-1';
@@ -381,9 +389,11 @@ describe('query routes of the core plugin', () => {
       'nightly',
     ]);
     const operate = (id: string) =>
-      request(server).post(
-        `/api/temporal/namespaces/default/schedules/${id}/pause?entityRef=component:default/checkout`,
-      );
+      request(server)
+        .post(
+          `/api/temporal/namespaces/default/schedules/${id}/pause?entityRef=component:default/checkout`,
+        )
+        .send({});
     expect((await operate('nightly')).status).toBe(202);
     expect(client.handles.get('nightly')!.pause).toHaveBeenCalled();
     expect((await operate('weekly')).status).toBe(404);
@@ -485,10 +495,11 @@ describe('query routes of the core plugin', () => {
   });
 
   it('serves no routes that change workflows when control is turned off', async () => {
-    const { server, workflowService } = await start({
+    const { backend, workflowService } = await start({
       control: { enabled: false },
     });
-    const res = await request(server)
+    // Not served: answered without a body, outside the spec.
+    const res = await request(backend)
       .post(`${wf}/signal${withEntity}`)
       .send({ name: 'addNote' });
     expect(res.status).toBe(404);

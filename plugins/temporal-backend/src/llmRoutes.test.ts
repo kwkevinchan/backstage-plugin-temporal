@@ -28,6 +28,7 @@ import {
   fakeTemporalServiceFactory,
   ordersEntity,
 } from './testUtils';
+import { withOpenApiValidation } from './__testUtils__/openapi';
 
 /** Objects of the mocked S3 service, by key. */
 const mockObjects = new Map<string, Buffer>();
@@ -243,7 +244,7 @@ async function start(options: {
       mockServices.rootConfig.factory({ data: config }),
     ],
   });
-  return { server };
+  return { server: await withOpenApiValidation(server) };
 }
 
 const path = (rest: string) =>

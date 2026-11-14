@@ -13,6 +13,7 @@ discuss larger changes before sending a pull request.
    ```sh
    yarn tsc && yarn lint:all && yarn test && yarn build:all
    yarn constraints && yarn boundaries && yarn sync:common:check
+   yarn lint:openapi
    ```
 
 5. If a published package (`plugins/*`) changes, add a changeset with
@@ -38,7 +39,8 @@ takes every published package from `0.0.0` to `0.1.0`: the six packages
    `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
 3. Check what each package will contain:
    `yarn workspace <package> pack --dry-run` lists the files: `dist/`, its
-   `README.md`, `LICENSE` and, where it has one, `config.d.ts`. Then
+   `README.md`, `LICENSE`, where it has one, `config.d.ts`, and for the
+   backend plugin `src/schema/openapi.yaml`. Then
    `yarn workspace <package> pack` and look at the `package.json` inside the
    tarball: `main`/`types` (and `exports`) point at `dist/`, and the
    `workspace:^` ranges are replaced by version ranges.
@@ -139,6 +141,29 @@ directly until a separate write connection needs a gateway of its own.
 
 The one interface is `TemporalAccessService` in `src/node/alpha.ts`: the
 contract between the plugin and its modules (`temporalAccessServiceRef`).
+
+## HTTP API spec
+
+`plugins/temporal-backend/src/schema/openapi.yaml` (OpenAPI 3.1, where the
+Backstage tooling looks for it) describes every route under
+`/api/temporal`, including the definition route of the Zigflow backend
+module. Change it together with the routes and the types in `src/common`:
+
+- `yarn lint:openapi` lints it with the Backstage rules
+  (`backstage-repo-tools repo schema openapi lint --strict`) and validates it
+  (`package schema openapi validate`).
+- `src/schema/openapi.test.ts` compares the routes the routers mount with the
+  operations of the spec, and `x-temporal-control` with the routes of
+  `createControlRouter`; the Zigflow module has the same test for its route.
+- The route tests send their requests through the validating proxy of
+  `@backstage/backend-openapi-utils` (`withOpenApiValidation` in
+  `src/__testUtils__/openapi.ts`): a parameter, body, status code or
+  response field that the spec does not describe fails the test. Requests to
+  paths that are not in the spec (other plugins, routes that are switched
+  off) go to the test backend directly. The payload download is not
+  checked: the proxy only reads JSON responses.
+
+The routers are plain Express routers; nothing is generated from the spec.
 
 ## Git hooks and boundary checks
 
