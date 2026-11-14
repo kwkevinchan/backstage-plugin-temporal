@@ -333,7 +333,11 @@ export const temporalWorkflowEnricherExtensionPoint =
  * @alpha
  */
 export interface TemporalLlmStep {
-  /** An activity, or a local activity (a marker in the history). */
+  /**
+   * An activity, or a local activity (a marker in the history). Model calls
+   * are read from activities only; local activities are only asked
+   * `readToolCall`.
+   */
   kind: 'activity' | 'localActivity';
   activityType: string;
   /** Activity ID; for local activities only when the SDK records it. */
@@ -399,8 +403,11 @@ export interface TemporalLlmToolStep {
  * history and turns them into the plugin's format. The backend asks the
  * adapters in order (the ones modules added, then the built-in ones); the
  * first that reads a step decides. An adapter that throws, or returns
- * something that is not of these types, makes the step a plain step, and
- * the backend logs a warning.
+ * something that is not of these types or not plain JSON (cycles,
+ * functions, class instances), makes the step a plain step, and the
+ * backend logs a warning with the adapter ID, the event ID of the step and
+ * the name of the error, once per adapter each time a run is read. The
+ * message of the error is neither logged nor returned.
  *
  * Steps are matched by plain names that anyone can give their activities,
  * so check the shape of the payloads before you read a step as yours.
@@ -416,13 +423,16 @@ export interface TemporalLlmAdapter {
   /**
    * True when the step may be a model call of this framework, from what
    * the history says without payloads (usually the activity type). The
-   * backend then reads the step's input and result, also from External
-   * Storage, and calls `readModelCalls`.
+   * backend then calls `readModelCalls`. For the graph it reads the result
+   * from External Storage, not the input: an input stored there is left
+   * out, and only the full record route (`/llm-calls`) passes it. True for
+   * a local activity has no effect, and is logged once.
    */
   isModelCall(step: TemporalLlmStep): boolean;
   /**
    * The model calls of a step that `isModelCall` accepted, in order:
-   * usually one, several when the step runs a whole agent. An empty list
+   * usually one, several when the step runs a whole agent (at most 100;
+   * more make the step a plain step). An empty list
    * when the payloads do not have the framework's shape (the step is then
    * offered to the next adapter, and is otherwise a plain step).
    */

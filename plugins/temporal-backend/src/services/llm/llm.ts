@@ -298,6 +298,8 @@ interface ModelStep {
   calls: TemporalLlmModelCall[];
   requests: ToolRequest[];
   answered: Set<string>;
+  /** False: its tool calls are linked by tool call ID only. */
+  infer: boolean;
 }
 
 interface ToolStep {
@@ -332,10 +334,8 @@ export function readLlmSteps(
     (a, b) => a.node.first - b.node.first,
   )) {
     const { payloads, decodedResult } = stepPayloads(entry, decodePayloads);
-    const read =
-      entry.step.kind === 'activity'
-        ? reader.readModelCalls(entry.step, payloads)
-        : undefined;
+    const eventId = String(entry.node.first);
+    const read = reader.readModelCalls(entry.step, payloads, eventId);
     if (read) {
       const { summary, requests } = summarizeModelCalls(
         entry.node,
@@ -349,10 +349,16 @@ export function readLlmSteps(
         if (c.record)
           answeredToolCalls(c.record).forEach(id => answered.add(id));
       }
-      models.push({ entry, calls: read.calls, requests, answered });
+      models.push({
+        entry,
+        calls: read.calls,
+        requests,
+        answered,
+        infer: read.inferToolCalls,
+      });
       continue;
     }
-    const tool = reader.readToolCall(entry.step, payloads)?.tool;
+    const tool = reader.readToolCall(entry.step, payloads, eventId)?.tool;
     const step: ToolStep = { entry, payloads, ...tool };
     // A local activity that ran a tool is shown by its activity type.
     if (tool && entry.step.kind === 'localActivity' && entry.step.activityType)
@@ -422,7 +428,7 @@ function linkByInference(models: ModelStep[], candidates: ToolStep[]) {
   const used = new Set<ToolStep>();
   models.forEach((model, i) => {
     const start = model.entry.node.last;
-    if (start === undefined) return;
+    if (start === undefined || !model.infer) return;
     for (const request of model.requests) {
       const { ref } = request;
       if (ref.nodeId || ref.inActivity) continue;

@@ -57,7 +57,7 @@ function summarizeLlmCall(
   });
   return summarizeModelCalls(
     node,
-    { framework: 'temporal-workflow-kit', calls },
+    { framework: 'temporal-workflow-kit', calls, inferToolCalls: false },
     result,
   ).summary;
 }

@@ -271,19 +271,20 @@ integrations (`vercel-ai-sdk`, `openai-agents`, see the
 [README](../README.md#model-calls-and-tool-calls)). A `TemporalLlmAdapter`
 has:
 
-| Member                           | Meaning                                                                                                                                                                                                                                                                  |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                             | Unique; shown as the `framework` of the calls it reads. A taken ID (also a built-in one) fails the startup                                                                                                                                                               |
-| `isModelCall(step)`              | From `TemporalLlmStep` (`kind`, `activityType`, `activityId?`, `summary?`; no payloads): may the step be one of your model calls? The backend then reads its input and result, also from External Storage                                                                |
-| `readModelCalls(step, payloads)` | The model calls of the step, usually one, several when the step runs a whole agent: `{ name?, record?, raw? }`, `record` a `WorkflowLlmRecord` of `./common`. Check the shape of `payloads` (`input?`, `result?`, `failureDetails?`); return `[]` when it does not match |
-| `readToolCall?(step, payloads)`  | Whether the step ran a tool a model call asked for: `{ toolName?, toolCallId?, modelCall? }`, else undefined                                                                                                                                                             |
+| Member                           | Meaning                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                             | Unique; shown as the `framework` of the calls it reads. A taken ID (also a built-in one) fails the startup                                                                                                                                                                                                                                                                          |
+| `isModelCall(step)`              | From `TemporalLlmStep` (`kind`, `activityType`, `activityId?`, `summary?`; no payloads): may the step be one of your model calls? Only activities are read as model calls; true for a local activity is logged and has no effect. For the graph the backend reads the result from External Storage, not the input (an input stored there is left out); the record route passes both |
+| `readModelCalls(step, payloads)` | The model calls of the step, usually one, several when the step runs a whole agent (at most 100): `{ name?, record?, raw? }`, `record` a `WorkflowLlmRecord` of `./common`. Check the shape of `payloads` (`input?`, `result?`, `failureDetails?`); return `[]` when it does not match                                                                                              |
+| `readToolCall?(step, payloads)`  | Whether the step ran a tool a model call asked for: `{ toolName?, toolCallId?, modelCall? }`, else undefined                                                                                                                                                                                                                                                                        |
 
 The adapters of modules are asked first, in the order they were added, then
 the built-in ones; the first that reads a step decides, and an adapter that
 returns `[]` passes the step on. An adapter that throws, or returns
-something that is not of these types, makes that step a plain step and logs
-a warning (once per adapter and request); nothing of the error reaches the
-browser. Anyone can give an activity any name, so check the payloads before
+something that is not of these types or not plain JSON (cycles, functions,
+class instances), makes that step a plain step and logs a warning with the
+adapter ID, the event ID and the error name, once per adapter each time a
+run is read; the error message is neither logged nor returned. Anyone can give an activity any name, so check the payloads before
 you read a step as yours.
 
 Tool calls are linked by the backend: a step whose adapter returns a
@@ -291,8 +292,8 @@ Tool calls are linked by the backend: a step whose adapter returns a
 steps scheduled after the model call and before the next call of the agent
 are matched by the tool name and the arguments, and marked `inferred`
 (`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The graph gets names and
-numbers only (`WorkflowLlmSummary`); the records need the history level
-(`GET /:wf/llm-calls/:eventId`). [Example](#add-an-llm-adapter).
+numbers only (`WorkflowLlmSummary`), at the read level; the records need
+the history level (`GET /:wf/llm-calls/:eventId`). [Example](#add-an-llm-adapter).
 
 ### Feature loader and catalog module
 

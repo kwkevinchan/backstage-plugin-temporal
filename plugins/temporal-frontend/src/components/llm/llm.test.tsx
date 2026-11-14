@@ -286,6 +286,54 @@ describe('Model calls without a call name', () => {
   });
 });
 
+describe('A step with several model calls', () => {
+  it('shows one call, labeled, with its own model', async () => {
+    const step = {
+      ...node('activity-5'),
+      llm: {
+        ...node('activity-5').llm!,
+        call: undefined,
+        callCount: 2,
+        model: 'model-b',
+        usage: { inputTokens: 30 },
+      },
+    };
+    const api = mockTemporalApi();
+    api.getLlmCall.mockResolvedValue({
+      ...llmCallResponse,
+      call: undefined,
+      index: 0,
+      callCount: 2,
+      record: {
+        ...llmCallResponse.record!,
+        requestModel: 'model-a',
+        responseModel: undefined,
+        usage: { inputTokens: 10 },
+      },
+    });
+    await renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <StepDrawer
+          step={step}
+          payloadsHidden={false}
+          workflowHref={() => '/x'}
+          onClose={() => {}}
+          nodes={llmGraphResponse.nodes}
+          workflowRef={ref}
+          entityRef="component:default/agents"
+        />
+      </TestApiProvider>,
+    );
+    expect(await screen.findByTestId('llm-call-of')).toHaveTextContent(
+      'Call 1 of 2',
+    );
+    const panel = screen.getByTestId('llm-panel');
+    await waitFor(() => expect(panel).toHaveTextContent('model-a'));
+    expect(panel).not.toHaveTextContent('model-b');
+    expect(screen.getByTestId('llm-usage-tiles')).toHaveTextContent('10');
+  });
+});
+
 describe('LLM steps in the Loops tab', () => {
   it('adds the tokens of each round and of the loop', async () => {
     const api = mockTemporalApi();

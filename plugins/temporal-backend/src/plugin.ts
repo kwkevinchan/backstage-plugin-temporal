@@ -40,7 +40,7 @@ import { createControlRouter } from './routes/controlRoutes';
 import { createRouter } from './routes/router';
 import { PayloadStore } from './repositories/PayloadStore';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
-import { builtInLlmAdapters, LlmAdapters } from './services/llm/LlmAdapters';
+import { LlmAdapters } from './services/llm/LlmAdapters';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';
@@ -156,9 +156,7 @@ export const temporalPlugin = createBackendPlugin({
         // module took fails the start.
         const adapters = new LlmAdapters(logger);
         for (const adapter of llmAdapters) adapters.add(adapter);
-        for (const adapter of builtInLlmAdapters()) {
-          adapters.add(adapter, { builtIn: true });
-        }
+        adapters.addBuiltIns();
         const queries = new WorkflowQueries(
           temporal,
           enrichers,

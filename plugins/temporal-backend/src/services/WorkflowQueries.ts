@@ -100,15 +100,19 @@ export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
 ];
 
 /**
- * Payloads with the inputs, results (and failure details) of the steps
- * that the LLM adapters take for model calls, for reading them from S3
- * without the other payloads.
+ * Payloads with the results (and failure details) of the steps that the
+ * LLM adapters take for model calls, for reading them from S3 without the
+ * other payloads. Inputs are left out: a model call's input is the whole
+ * conversation, and the graph needs names and numbers only. The adapters
+ * still get inputs stored in the history itself; the full record route
+ * reads the rest.
  */
 export function llmPayloads(
   events: unknown[],
   adapters: LlmAdapters = builtInOnlyLlmAdapters(),
 ): unknown[] {
-  const reader = adapters.reader();
+  // The graph reads the steps again and logs what fails there.
+  const reader = adapters.reader({ silent: true });
   const calls = new Set<string>();
   const roots: unknown[] = [];
   for (const event of events as any[]) {
@@ -123,7 +127,6 @@ export function llmPayloads(
       })
     ) {
       calls.add(String(event.eventId));
-      if (scheduled.input) roots.push(scheduled.input);
       continue;
     }
     const completed = event.activityTaskCompletedEventAttributes;

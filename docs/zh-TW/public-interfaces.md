@@ -201,16 +201,16 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `./alpha`，`@alpha`，實驗性。`addLlmAdapter(adapter)` 讓後端認得某個框架的模型呼叫：轉接器讀得出的步驟顯示成模型呼叫（訊息、tool call、token），其他步驟就是一般步驟。後端內建了 Temporal 官方 AI 整合的轉接器（`vercel-ai-sdk`、`openai-agents`，見 [README](../../README.md#model-calls-and-tool-calls)）。`TemporalLlmAdapter` 有：
 
-| 成員                             | 意思                                                                                                                                                                                                                       |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                             | 不可重複，顯示成它讀出的呼叫的 `framework`。用了已有的 id（包括內建的）會讓啟動失敗                                                                                                                                        |
-| `isModelCall(step)`              | 只看 `TemporalLlmStep`（`kind`、`activityType`、`activityId?`、`summary?`，不含 payload）：這個步驟可能是你的模型呼叫嗎？是的話後端會讀它的輸入和結果，存在 External Storage 的也會讀                                      |
-| `readModelCalls(step, payloads)` | 這個步驟的模型呼叫，通常一次，一個步驟跑完整個 agent 時是多次：`{ name?, record?, raw? }`，`record` 是 `./common` 的 `WorkflowLlmRecord`。先檢查 `payloads`（`input?`、`result?`、`failureDetails?`）的形狀，不符就回 `[]` |
-| `readToolCall?(step, payloads)`  | 這個步驟是不是執行了某次模型呼叫要求的工具：`{ toolName?, toolCallId?, modelCall? }`，不是就回 undefined                                                                                                                   |
+| 成員                             | 意思                                                                                                                                                                                                                                                                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                             | 不可重複，顯示成它讀出的呼叫的 `framework`。用了已有的 id（包括內建的）會讓啟動失敗                                                                                                                                                                                                                       |
+| `isModelCall(step)`              | 只看 `TemporalLlmStep`（`kind`、`activityType`、`activityId?`、`summary?`，不含 payload）：這個步驟可能是你的模型呼叫嗎？只有 activity 會被當成模型呼叫；對 local activity 回 true 沒有效果，會記一筆警告。流程圖只從 External Storage 讀結果、不讀輸入（存在那裡的輸入會被略過）；完整紀錄的路由兩者都給 |
+| `readModelCalls(step, payloads)` | 這個步驟的模型呼叫，通常一次，一個步驟跑完整個 agent 時是多次（最多 100 次）：`{ name?, record?, raw? }`，`record` 是 `./common` 的 `WorkflowLlmRecord`。先檢查 `payloads`（`input?`、`result?`、`failureDetails?`）的形狀，不符就回 `[]`                                                                 |
+| `readToolCall?(step, payloads)`  | 這個步驟是不是執行了某次模型呼叫要求的工具：`{ toolName?, toolCallId?, modelCall? }`，不是就回 undefined                                                                                                                                                                                                  |
 
-模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別時，那個步驟就是一般步驟，並記一筆警告（每個轉接器每次請求一筆）；錯誤內容不會傳到瀏覽器。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
+模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別或不是單純的 JSON（循環結構、函式、class 實例）時，那個步驟就是一般步驟，並記一筆警告，只含轉接器 id、事件 id 和錯誤名稱，每讀一次 run 每個轉接器一筆；錯誤訊息不會被記錄，也不會傳回去。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
 
-tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。流程圖只拿到名稱和數字（`WorkflowLlmSummary`）；完整紀錄要 history 層級（`GET /:wf/llm-calls/:eventId`）。[範例](#加一個-llm-轉接器)。
+tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。流程圖只拿到名稱和數字（`WorkflowLlmSummary`），read 層級就看得到；完整紀錄要 history 層級（`GET /:wf/llm-calls/:eventId`）。[範例](#加一個-llm-轉接器)。
 
 ### Feature loader 和 catalog 模組
 

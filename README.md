@@ -528,17 +528,27 @@ are marked **Inferred link**. Two calls of one tool with the same arguments
 in parallel cannot be told apart; they are paired in the order the steps
 were scheduled.
 
-The graph and the timeline need the read permission and show names and
-numbers only (model, tokens, tool names). The messages, the thinking and
-tool arguments and results need `temporal.workflow.history.read`, like
-inputs and results (`GET .../llm-calls/:eventId`; `?index=` picks a later
-call of a step that made several).
+The graph and the timeline need the read permission only, and show names
+and numbers the backend reads from the payloads of a model call: the
+framework, the model, the token counts (input, output, reasoning, cached),
+the finish reason, the names and tool call IDs of the tools it asked for,
+and the type or message of an error. No setting turns this on: whoever may
+read a workflow sees it wherever the history has model calls. The
+messages, the thinking and tool arguments and results need
+`temporal.workflow.history.read`, like inputs and results
+(`GET .../llm-calls/:eventId`; `?index=` picks a later call of a step that
+made several).
 
 Known limits:
 
 - a payload codec (for example encryption) encodes the inputs and results:
   the backend cannot read them, and the model calls are plain steps.
 - tool links of tools that record no tool call ID are inferred (above).
+- the graph does not download the input of a model call from External
+  Storage (it is the whole conversation). When the input is stored there,
+  the graph lacks what only the input has: the model of an OpenAI Agents
+  call, and the end of the inference window, which then is the next model
+  call. The panel reads the full record, input included.
 - only the TypeScript integrations were checked against recorded histories.
   The streamed calls show their result; the stream itself
   (`__temporal_workflow_stream_publish` signals) stays a list of signals.

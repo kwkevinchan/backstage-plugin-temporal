@@ -444,8 +444,14 @@ function UsageTiles(props: {
     ['Duration', formatCallDuration(duration)],
   ];
   const shown = items.filter(([, v]) => v !== '');
+  const count = summary.callCount ?? 1;
   return (
     <>
+      {count > 1 && !props.record && shown.length > 0 && (
+        <Text as="p" variant="body-small" color="secondary">
+          Totals of the {count} model calls of this step.
+        </Text>
+      )}
       <div className={tp('tp-llm-usage')} data-testid="llm-usage-tiles">
         {shown.map(([label, value]) => (
           <div key={label}>
@@ -541,8 +547,17 @@ export function LlmPanel(props: {
       : []),
     ...(record?.inputMessages ?? []),
   ];
+  // A step with several model calls: the summary adds them all up, the
+  // record is one of them (the first). Name and model come from that one.
+  const count = data?.callCount ?? summary.callCount ?? 1;
+  const index = data?.index ?? 0;
+  const callModel = record?.responseModel ?? record?.requestModel;
+  const name =
+    count > 1
+      ? data?.call ?? summary.call ?? step.summary ?? callModel ?? step.name
+      : llmCallName(step);
   const facts = [
-    modelText(summary),
+    count > 1 ? callModel : modelText(summary),
     summary.provider,
     record?.finishReasons?.length
       ? `finish: ${record.finishReasons.join(', ')}`
@@ -552,7 +567,12 @@ export function LlmPanel(props: {
   return (
     <div data-testid="llm-panel">
       <Flex align="center" gap="2" style={{ flexWrap: 'wrap' }}>
-        <span className={tp('tp-llm-tag')}>LLM call {llmCallName(step)}</span>
+        <span className={tp('tp-llm-tag')}>LLM call {name}</span>
+        {count > 1 && (
+          <span className={tp('tp-llm-tag')} data-testid="llm-call-of">
+            Call {index + 1} of {count}
+          </span>
+        )}
         <Text variant="body-small" color="secondary">
           {facts.join(' · ')}
         </Text>
