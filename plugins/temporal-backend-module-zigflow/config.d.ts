@@ -29,6 +29,28 @@ export interface Config {
        * below it. Defaults to false.
        */
       readFileLocations?: boolean;
+      /**
+       * Hosts and optional path prefixes from which absolute `http(s)`
+       * `spec.definition.target` URLs may be read, in the same shape as
+       * `backend.reading.allow`. Relative targets inside the repository of
+       * the entity are allowed without this list; absolute URLs are rejected
+       * unless they match an entry here (and are readable by the backend's
+       * URL reader).
+       */
+      allow?: {
+        /**
+         * Host name, with an optional leading `*.` subdomain wildcard and an
+         * optional `:port` or `:start-end` port range (for example
+         * `github.com`, `*.example.com`, `git.example.com:8443`).
+         */
+        host: string;
+        /**
+         * Path prefixes on that host (for example `['/my-org/workflows/']`).
+         * Each entry matches the exact path or paths below it at a `/`
+         * boundary. When omitted, all paths on the host are allowed.
+         */
+        paths?: string[];
+      }[];
     };
   };
 }

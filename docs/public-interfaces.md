@@ -607,7 +607,7 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `externalStorage.s3.bucket`, `.driverName`, `.endpoint`, `.region`, `.forcePathStyle`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
 | `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; secret                                                     |                        |
 | `externalStorage.s3.accountId`, `.defaultCredentials`                                                                     | backend (with Backstage's `aws` config)                             |                        |
-| `definitions.maxBytes`, `definitions.readFileLocations`                                                                   | Zigflow backend module                                              |                        |
+| `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations`                                              | Zigflow backend module                                              |                        |
 | `experimental.aiWorkflows`                                                                                                | backend, the loops. **Experimental**                                |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for

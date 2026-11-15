@@ -100,11 +100,11 @@ spec:
 
 `spec.definition` has two required fields and one optional:
 
-| Field    | Meaning                                                                                                                                           |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` | `serverless-workflow` (a YAML workflow, drawn as a graph), or `source` (the source code of a workflow written in code).                           |
-| `target` | A path relative to the file the entity was read from (`backstage.io/managed-by-location`), or an absolute `http(s)` URL. At most 2048 characters. |
-| `symbol` | `source` only: the function of the workflow, marked in the file (`orderWorkflow`, `OrderWorkflow.run`). Defaults to the workflow type.            |
+| Field    | Meaning                                                                                                                                                                             |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format` | `serverless-workflow` (a YAML workflow, drawn as a graph), or `source` (the source code of a workflow written in code).                                                             |
+| `target` | A relative path within the entity's repository (`backstage.io/managed-by-location`), or an absolute `http(s)` URL allowed by `temporal.definitions.allow`. At most 2048 characters. |
+| `symbol` | `source` only: the function of the workflow, marked in the file (`orderWorkflow`, `OrderWorkflow.run`). Defaults to the workflow type.                                              |
 
 Why this shape: `target` means the same as `spec.target` of Backstage
 `Location` entities (relative or absolute), and an object with a `format`
@@ -138,10 +138,17 @@ also show above the source.
 
 ## Reading the file
 
-- The backend reads the file with Backstage's URL reader, so only hosts of a
-  configured integration (or `backend.reading.allow`) are read. A relative
-  `target` is resolved against the entity's location with the integration's
-  rules. Other URL schemes are rejected.
+- A relative `target` is resolved against the entity's
+  `backstage.io/managed-by-location` with the integration's rules and must stay
+  in the same repository (same integration, repository, and ref); paths climbing
+  above the repository root with `..` or resolving to another repository are
+  rejected.
+- An absolute `http(s)` URL is rejected by default and read only when its host
+  (and optional `paths` prefix) matches `temporal.definitions.allow`. Other URL
+  schemes are rejected.
+- The backend still reads remote URLs through Backstage's URL reader, so the
+  host must also be allowed by a configured integration (or
+  `backend.reading.allow`).
 - Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
   are not read; the backend stops reading at the limit.
 - The YAML is parsed without running anything: YAML 1.2 core schema, no
@@ -214,9 +221,14 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
+    # allow:
+    #   - host: raw.githubusercontent.com
+    #     paths:
+    #       - /my-org/my-workflows/
 ```
 
-| Key                             | Default   | Description                                                                      |
-| ------------------------------- | --------- | -------------------------------------------------------------------------------- |
-| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                          |
-| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs). |
+| Key                             | Default   | Description                                                                                                                              |
+| ------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port`) and optional `paths` prefixes allowed for absolute `http(s)` `target` URLs. |
+| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                  |
+| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                         |

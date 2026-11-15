@@ -175,6 +175,7 @@ function SourceView(props: {
           icon
           title={errorTitle(definition.error)}
           description={definition.error.message}
+          data-testid="definition-error"
         />
       ) : null}
       {definition.content !== undefined ? (
