@@ -129,9 +129,13 @@ jobs:
         run: yarn backstage-cli repo lint
 
       - name: Test
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            yarn backstage-cli repo test --since "origin/${{ github.base_ref }}"
+          if [ "$EVENT_NAME" = "pull_request" ] && \
+            ! git diff --name-only "origin/$BASE_REF...HEAD" | grep -Eq '^(test-fixtures/|package\.json$|tsconfig\.json$|yarn\.lock$)'; then
+            yarn backstage-cli repo test --since "origin/$BASE_REF"
           else
             yarn backstage-cli repo test
           fi
