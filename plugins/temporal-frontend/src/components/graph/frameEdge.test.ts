@@ -20,7 +20,7 @@ import type {
   WorkflowGraphEdge,
   WorkflowGraphNode,
 } from '../../common';
-import { routeRowGaps } from './GraphCanvas';
+import { routeRowGaps } from './frameEdge';
 import { GroupedLayout, layoutGroupedSteps } from './eventGroups';
 import {
   FrameEdgeData,
