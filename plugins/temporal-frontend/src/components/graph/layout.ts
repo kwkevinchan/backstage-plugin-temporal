@@ -212,7 +212,7 @@ export const FRAME_PADDING = 12;
  */
 export const FRAME_GAP = 20;
 /** Space between two arrows that run side by side between two rows. */
-export const EDGE_LANE_GAP = 6;
+export const EDGE_LANE_GAP = 10;
 /**
  * Space between two rows of a wrapped graph with frames: the arrows into
  * the next row run in it side by side, `FRAME_GAP` clear of the frames.
@@ -287,6 +287,7 @@ export function layoutGraph(
     wrapped: false,
   };
   if (compound) {
+    alignFrameRows(positions, nodes, frames, sizeOf);
     layout.width += spreadFrameColumns(positions, nodes, frames, sizeOf);
     placeFrames(layout, nodes, frames, sizes);
   }
@@ -316,6 +317,49 @@ function frameSpacing(frames: LayoutFrame[]) {
     ranksep: Math.max(16, Math.ceil(COLUMN_GAP / factor)),
     edgesep: 2 * FRAME_TOP - ROW_GAP,
   };
+}
+
+/**
+ * Lines up the boxes of each frame that holds one row of boxes: no frame in
+ * it, and no two of its boxes in one column. dagre can move a box of such a
+ * row down to make room for a box outside the frame in its column (a signal
+ * above the frame), which leaves a step in the row. The boxes share the
+ * middle of the first one, moved as little as needed to keep every box
+ * within the top and bottom of the row as dagre laid it out, so the frame
+ * never gets larger.
+ */
+function alignFrameRows(
+  positions: Map<string, { x: number; y: number }>,
+  nodes: { id: string; size?: NodeSize; parent?: string }[],
+  frames: LayoutFrame[],
+  sizeOf: (node: { size?: NodeSize }) => NodeSize,
+) {
+  const holdsFrames = new Set(frames.map(f => f.parent));
+  for (const frame of frames) {
+    if (holdsFrames.has(frame.id)) continue;
+    const row = nodes
+      .filter(n => n.parent === frame.id)
+      .sort((a, b) => positions.get(a.id)!.x - positions.get(b.id)!.x);
+    if (row.length < 2) continue;
+    const centers = row.map(n =>
+      Math.round(positions.get(n.id)!.x + sizeOf(n).width / 2),
+    );
+    if (new Set(centers).size !== row.length) continue;
+    const top = Math.min(...row.map(n => positions.get(n.id)!.y));
+    const bottom = Math.max(
+      ...row.map(n => positions.get(n.id)!.y + sizeOf(n).height),
+    );
+    const tallest = Math.max(...row.map(n => sizeOf(n).height));
+    const first = positions.get(row[0].id)!.y + sizeOf(row[0]).height / 2;
+    const middle = Math.min(
+      Math.max(first, top + tallest / 2),
+      bottom - tallest / 2,
+    );
+    for (const node of row) {
+      const p = positions.get(node.id)!;
+      positions.set(node.id, { x: p.x, y: middle - sizeOf(node).height / 2 });
+    }
+  }
 }
 
 /** How many frames are around each frame: 0 for an outermost one. */

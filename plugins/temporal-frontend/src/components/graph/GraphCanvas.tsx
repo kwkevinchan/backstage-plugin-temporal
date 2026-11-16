@@ -46,10 +46,11 @@ import {
   FRAME_WRAP_GAP,
   initialViewport,
   keepInGraph,
+  MARGIN,
   panIntoView,
   StepLayout,
 } from './layout';
-import { FrameEdgeData, frameEdgePath } from './frameEdge';
+import { FrameEdgeData, frameEdgePath, OFFSET } from './frameEdge';
 
 /*
  * The canvas shared by the step graph of a run and the graph of a workflow
@@ -91,10 +92,21 @@ function FrameEdge(props: EdgeProps<Edge<FrameEdgeData>>) {
 const edgeTypes: EdgeTypes = { rowGap: FrameEdge, frameEdge: FrameEdge };
 
 /**
+ * Space kept between the side of the graph and the turns of arrows that are
+ * spread out side by side. An arrow that turns `FRAME_GAP` outside a frame at
+ * the side of a row turns `MARGIN` from the side of the graph, which leaves
+ * room for one more turn `EDGE_LANE_GAP` farther out.
+ */
+const EDGE_SIDE = MARGIN - EDGE_LANE_GAP;
+
+/**
  * The edges of a wrapped graph: a smooth step into a later row turns in the
  * gap below the row of its source. The arrows of a graph with frames
  * (`frameEdge`) that run in the same gap are spread out side by side,
- * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows.
+ * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows. So are
+ * their turns down out of different sources (and into different targets)
+ * at one x, nested so that they do not cross: the arrow from the higher
+ * source turns farther right, the one into the lower target farther left.
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const gaps = layout.rowGaps;
@@ -108,23 +120,68 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     if (!source || !target) return undefined;
     return gaps.find(g => g > source.y && g < target.y);
   };
-  // The arrows with frames in each gap, from the leftmost source: the
-  // first one runs at the top, so the arrows cross as little as possible.
+  const left = (id: string) => layout.positions.get(id)?.x ?? 0;
+  const right = (id: string) => left(id) + boxSize(layout, id).width;
+  const middle = (id: string) =>
+    (layout.positions.get(id)?.y ?? 0) + boxSize(layout, id).height / 2;
+  const data = (edge: Edge) => (edge.data ?? {}) as FrameEdgeData;
+  // Where an arrow turns down out of its source, and down into its target.
+  const turnOut = (edge: Edge) =>
+    Math.round(
+      right(edge.source) + Math.max(data(edge).sourceInset ?? 0, OFFSET),
+    );
+  const turnIn = (edge: Edge) =>
+    Math.round(
+      left(edge.target) - Math.max(data(edge).targetInset ?? 0, OFFSET),
+    );
+
+  // The arrows with frames in each gap, from the one that turns down first:
+  // it runs at the top, so the arrows cross as little as possible. Of the
+  // arrows that turn down at one x, the one from the lower source runs
+  // higher, inside the turns of the others.
   const lanes = new Map<Edge, number>();
+  const turns = new Map<Edge, FrameEdgeData>();
   const inGap = new Map<number, Edge[]>();
   for (const edge of edges) {
     const gap = edge.type === 'frameEdge' ? gapOf(edge) : undefined;
     if (gap !== undefined) inGap.set(gap, [...(inGap.get(gap) ?? []), edge]);
   }
-  const x = (id: string) => layout.positions.get(id)?.x ?? 0;
   const widest = FRAME_WRAP_GAP / 2 - FRAME_GAP;
   for (const shared of inGap.values()) {
     shared.sort(
-      (a, b) => x(a.source) - x(b.source) || x(a.target) - x(b.target),
+      (a, b) =>
+        turnOut(a) - turnOut(b) ||
+        middle(b.source) - middle(a.source) ||
+        turnIn(a) - turnIn(b) ||
+        middle(b.target) - middle(a.target),
     );
     shared.forEach((edge, i) => {
       const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
       lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
+    });
+    spreadTurns(shared, {
+      turn: turnOut,
+      end: edge => edge.source,
+      innerFirst: (a, b) => middle(b) - middle(a),
+      direction: 1,
+      limit: layout.width - EDGE_SIDE,
+      set: (edge, at) =>
+        turns.set(edge, {
+          ...turns.get(edge),
+          sourceInset: at - right(edge.source),
+        }),
+    });
+    spreadTurns(shared, {
+      turn: turnIn,
+      end: edge => edge.target,
+      innerFirst: (a, b) => middle(a) - middle(b),
+      direction: -1,
+      limit: EDGE_SIDE,
+      set: (edge, at) =>
+        turns.set(edge, {
+          ...turns.get(edge),
+          targetInset: left(edge.target) - at,
+        }),
     });
   }
   return edges.map(edge => {
@@ -132,10 +189,48 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     if (centerY === undefined) return edge;
     if (edge.type === 'frameEdge') {
       const lane = lanes.get(edge) ?? 0;
-      return { ...edge, data: { ...edge.data, centerY: centerY + lane } };
+      return {
+        ...edge,
+        data: { ...edge.data, ...turns.get(edge), centerY: centerY + lane },
+      };
     }
     return { ...edge, type: 'rowGap', data: { ...edge.data, centerY } };
   });
+}
+
+/**
+ * Spreads out the turns of arrows that turn down at one x, for different
+ * ends (sources or targets): the arrows of one end share a turn. The turn of
+ * the innermost end stays; each next one is `EDGE_LANE_GAP` farther in
+ * `direction`, closer together when that would pass `limit`, so no arrow
+ * leaves the graph.
+ */
+function spreadTurns(
+  edges: Edge[],
+  options: {
+    turn(edge: Edge): number;
+    end(edge: Edge): string;
+    innerFirst(a: string, b: string): number;
+    direction: 1 | -1;
+    limit: number;
+    set(edge: Edge, at: number): void;
+  },
+) {
+  const { turn, end, direction } = options;
+  const byTurn = new Map<number, Edge[]>();
+  for (const edge of edges) {
+    byTurn.set(turn(edge), [...(byTurn.get(turn(edge)) ?? []), edge]);
+  }
+  for (const [at, shared] of byTurn) {
+    const ends = [...new Set(shared.map(end))].sort(options.innerFirst);
+    if (ends.length < 2) continue;
+    const room = Math.max(0, (options.limit - at) * direction);
+    const step = Math.min(EDGE_LANE_GAP, room / (ends.length - 1));
+    for (const edge of shared) {
+      const k = ends.indexOf(end(edge));
+      if (k > 0) options.set(edge, at + direction * k * step);
+    }
+  }
 }
 
 /**

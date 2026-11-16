@@ -29,7 +29,13 @@ import {
   frameInsets,
   Point,
 } from './frameEdge';
-import { boxSize, stepSize, visibleSteps } from './layout';
+import {
+  boxSize,
+  EDGE_LANE_GAP,
+  StepLayout,
+  stepSize,
+  visibleSteps,
+} from './layout';
 import { agentGraph } from '../../testGraphs/agentGraph';
 import { loopGraph } from '../../testGraphs/loopGraph';
 import { parallelGraph } from '../../testGraphs/parallelGraph';
@@ -152,6 +158,69 @@ const segments = (points: Point[]): Segment[] =>
 const vertical = ([a, b]: Segment) => a.x === b.x;
 const span = (a: number, b: number) => [Math.min(a, b), Math.max(a, b)];
 const overlaps = ([a1, a2]: number[], [b1, b2]: number[]) => a1 < b2 && b1 < a2;
+
+/** How two parts of arrows meet: on top of each other, or across. */
+function clashOf(p: Segment, q: Segment): string | undefined {
+  const length = ([a, b]: Segment) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+  if (length(p) === 0 || length(q) === 0) return undefined;
+  if (vertical(p) === vertical(q)) {
+    const axis = vertical(p) ? 'y' : 'x';
+    const across = vertical(p) ? 'x' : 'y';
+    const onTop =
+      Math.abs(p[0][across] - q[0][across]) < 1 &&
+      overlaps(span(p[0][axis], p[1][axis]), span(q[0][axis], q[1][axis]));
+    return onTop ? 'runs on' : undefined;
+  }
+  const [v, h] = vertical(p) ? [p, q] : [q, p];
+  const [y1, y2] = span(v[0].y, v[1].y);
+  const [x1, x2] = span(h[0].x, h[1].x);
+  const across = v[0].x > x1 && v[0].x < x2 && h[0].y > y1 && h[0].y < y2;
+  return across ? 'crosses' : undefined;
+}
+
+/**
+ * Arrows in one gap between two rows, of different sources and targets,
+ * that run on top of each other or cross.
+ */
+function clashes(
+  list: { edge: Edge<FrameEdgeData>; points: Point[] }[],
+  layout: StepLayout,
+) {
+  const gapOf = (edge: Edge) => {
+    const source = layout.positions.get(edge.source)!.y;
+    const target = layout.positions.get(edge.target)!.y;
+    return layout.rowGaps?.find(g => g > source && g < target);
+  };
+  const found: string[] = [];
+  list.forEach((a, i) => {
+    for (const b of list.slice(i + 1)) {
+      if (
+        a.edge.source === b.edge.source ||
+        a.edge.target === b.edge.target ||
+        gapOf(a.edge) === undefined ||
+        gapOf(a.edge) !== gapOf(b.edge)
+      ) {
+        continue;
+      }
+      for (const p of segments(a.points)) {
+        for (const q of segments(b.points)) {
+          const clash = clashOf(p, q);
+          if (clash) found.push(`${a.edge.id} ${clash} ${b.edge.id}`);
+        }
+      }
+    }
+  });
+  return [...new Set(found)];
+}
+
+/** Corners of arrows outside the width of the graph. */
+function outside(list: { edge: Edge; points: Point[] }[], width: number) {
+  return list.flatMap(({ edge, points }) =>
+    points
+      .filter(p => p.x < 0 || p.x > width)
+      .map(p => `${edge.id} at x ${p.x}`),
+  );
+}
 
 /** The four borders of a frame. */
 function borders(r: Rect): Segment[] {
@@ -517,7 +586,7 @@ describe('arrows that share the gap between two rows', () => {
     const shared = arrows(result).filter(a => a.edge.target === 'a3');
     expect(shared).toHaveLength(2);
     const ys = shared.map(a => a.edge.data!.centerY!);
-    expect(Math.abs(ys[0] - ys[1])).toBe(6);
+    expect(Math.abs(ys[0] - ys[1])).toBe(10);
     expect(problems(result)).toEqual([]);
     // Both stay CLEAR of the boxes of the rows above and below.
     const gap = result.layout.rowGaps![0];
@@ -530,6 +599,119 @@ describe('arrows that share the gap between two rows', () => {
     const below = Math.min(...boxes.filter(r => r.top > gap).map(r => r.top));
     expect(Math.min(...ys) - above).toBeGreaterThanOrEqual(CLEAR);
     expect(below - Math.max(...ys)).toBeGreaterThanOrEqual(CLEAR);
+  });
+
+  it('turn down at different x out of the loop and into the groups below', () => {
+    for (const width of [1000, 800]) {
+      const visible = visibleSteps(loopGraph.nodes, loopGraph.edges);
+      const result = layoutGroupedSteps(
+        visible.nodes.map(n => ({ id: n.id, size: stepSize(n) })),
+        visible.edges,
+        loopGraph.eventGroups ?? [],
+        {},
+        width,
+      );
+      const across = arrows(result).filter(
+        a => a.edge.data?.centerY !== undefined,
+      );
+      // The last round into the step after the loop, and the signal into
+      // the step it started, both run below the loop.
+      const pair = ['group:label:loop:draft-review:3', 'signal-29'].map(
+        source => across.find(a => a.edge.source === source),
+      );
+      expect(pair.every(Boolean)).toBe(true);
+      expect({ width, clashes: clashes(across, result.layout) }).toEqual({
+        width,
+        clashes: [],
+      });
+      expect(outside(across, result.layout.width)).toEqual([]);
+    }
+  });
+
+  /**
+   * `count` arrows into the next row from sources one above the other at
+   * the end of a row, each into a target one above the other at the start
+   * of the next row, all turning `FRAME_GAP` outside frames at the sides.
+   */
+  function stacked(count: number) {
+    const width = 928;
+    const positions = new Map<string, { x: number; y: number }>();
+    const edges: Edge<FrameEdgeData>[] = [];
+    for (let i = 0; i < count; i++) {
+      positions.set(`s${i}`, { x: width - 280, y: 40 + 90 * i });
+      positions.set(`t${i}`, { x: 48, y: 500 + 90 * i });
+      edges.push({
+        id: `s${i}->t${i}`,
+        source: `s${i}`,
+        target: `t${i}`,
+        type: 'frameEdge',
+        // The turns are 16 from the sides of the graph.
+        data: { sourceInset: 44, targetInset: 32 },
+      });
+    }
+    const layout = { positions, width, height: 900, wrapped: true };
+    return { layout: { ...layout, rowGaps: [460] }, edges };
+  }
+
+  /** The arrows routed in the gap, with their corners. */
+  function routed(layout: StepLayout, edges: Edge<FrameEdgeData>[]) {
+    return (routeRowGaps(layout, edges) as Edge<FrameEdgeData>[]).map(edge => {
+      const end = (id: string, side: 'left' | 'right') => {
+        const p = layout.positions.get(id)!;
+        const size = boxSize(layout, id);
+        return {
+          x: side === 'left' ? p.x : p.x + size.width,
+          y: p.y + size.height / 2,
+        };
+      };
+      return {
+        edge,
+        points: frameEdgePoints(
+          end(edge.source, 'right'),
+          end(edge.target, 'left'),
+          edge.data!,
+        ),
+      };
+    });
+  }
+
+  it.each([2, 3, 4])(
+    'spread %i arrows that turn at one x, nested and inside the graph',
+    count => {
+      const { layout, edges } = stacked(count);
+      const result = routed(layout, edges);
+      expect(clashes(result, layout)).toEqual([]);
+      expect(outside(result, layout.width)).toEqual([]);
+      const turnsOut = result.map(a => a.points[1].x);
+      const turnsIn = result.map(a => a.points[3].x);
+      expect(new Set(turnsOut).size).toBe(count);
+      expect(new Set(turnsIn).size).toBe(count);
+      // The arrow from the higher source turns farther right, the one into
+      // the lower target farther left.
+      expect([...turnsOut].sort((a, b) => b - a)).toEqual(turnsOut);
+      expect([...turnsIn].sort((a, b) => b - a)).toEqual(turnsIn);
+    },
+  );
+
+  it('turns two arrows the full space apart at the sides of the graph', () => {
+    const { layout, edges } = stacked(2);
+    const [a, b] = routed(layout, edges).map(({ points }) => points);
+    expect(a[1].x - b[1].x).toBe(EDGE_LANE_GAP);
+    expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
+  });
+
+  it('keeps one turn for the arrows out of one source', () => {
+    const { layout, edges } = stacked(2);
+    const fork = [
+      { ...edges[0], id: 's0->t1', target: 't1' },
+      edges[0],
+      edges[1],
+    ];
+    const result = routed(layout, fork);
+    const turnOut = (id: string) =>
+      result.find(a => a.edge.id === id)!.points[1].x;
+    expect(turnOut('s0->t0')).toBe(turnOut('s0->t1'));
+    expect(turnOut('s0->t0')).not.toBe(turnOut('s1->t1'));
   });
 
   it('leaves the arrows of a graph without frames as they were', () => {

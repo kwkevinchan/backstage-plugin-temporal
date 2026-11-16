@@ -40,7 +40,7 @@ export type FrameEdgeData = {
 };
 
 /** How far a smooth step goes out of a box before it turns. */
-const OFFSET = 20;
+export const OFFSET = 20;
 /** Radius of the corners, as a smooth step has them. */
 const RADIUS = 5;
 

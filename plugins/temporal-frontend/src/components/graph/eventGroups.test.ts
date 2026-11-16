@@ -21,8 +21,13 @@ import type {
 } from '../../common';
 import {
   boxSize,
+  FRAME_PADDING,
+  FRAME_TOP,
   layoutGraph,
   layoutSteps,
+  LLM_NODE_HEIGHT,
+  LLM_NODE_WIDTH,
+  NODE_HEIGHT,
   StepLayout,
   wrapColumns,
   stepSize,
@@ -674,6 +679,118 @@ describe('planGroups', () => {
       false,
       false,
     ]);
+  });
+});
+
+describe('boxes of a frame in one row', () => {
+  const middle = (layout: StepLayout, id: string) =>
+    layout.positions.get(id)!.y + boxSize(layout, id).height / 2;
+  const height = (layout: StepLayout, id: string) => boxSize(layout, id).height;
+  const rounds = [1, 2, 3].map(i =>
+    groupNodeId(`label:loop:draft-review:${i}`),
+  );
+
+  it('line up the rounds of a loop next to the signal received in it', () => {
+    for (const width of [undefined, 1400, 1000, 800]) {
+      const { layout } = laidOut(loopGraph, {}, width);
+      const middles = rounds.map(id => middle(layout, id));
+      expect({ width, middles }).toEqual({
+        width,
+        middles: [middles[0], middles[0], middles[0]],
+      });
+      // The frame is no taller than the row.
+      expect(height(layout, groupNodeId('label:loop:draft-review'))).toBe(
+        FRAME_TOP + height(layout, rounds[0]) + FRAME_PADDING,
+      );
+    }
+  });
+
+  it.each([[[1, 2, 3]], [[1]], [[2]], [[3]]])(
+    'line up the steps of each open round of a loop (open: %j)',
+    open => {
+      const views = Object.fromEntries(
+        open.map(i => [`label:loop:draft-review:${i}`, true]),
+      );
+      for (const width of [undefined, 1400, 1000]) {
+        const result = laidOut(loopGraph, views, width);
+        for (const round of open.map(i => rounds[i - 1])) {
+          const steps = result.graph.nodes.filter(n => n.parent === round);
+          expect(steps.length).toBeGreaterThan(1);
+          const middles = steps.map(n => middle(result.layout, n.id));
+          expect({ width, round, middles }).toEqual({
+            width,
+            round,
+            middles: middles.map(() => middles[0]),
+          });
+        }
+        expectCleanFrames(result);
+      }
+    },
+  );
+
+  // r1 → r2 → r3 in a frame, and r2 → s outside it: dagre puts s in the
+  // column of r3, below the frame, and moves r3 up to make room for it.
+  const signalNextToRow = (tall: string[]) => {
+    const ids = ['start', 'r1', 'r2', 'r3', 's', 't1', 't2'];
+    const pairs = [
+      ['start', 'r1'],
+      ['r1', 'r2'],
+      ['r2', 'r3'],
+      ['r2', 's'],
+      ['s', 't1'],
+      ['r3', 't2'],
+    ];
+    return layoutGraph(
+      ids.map(id => ({
+        id,
+        ...(tall.includes(id)
+          ? { size: { width: LLM_NODE_WIDTH, height: LLM_NODE_HEIGHT } }
+          : {}),
+        ...(id.startsWith('r') ? { parent: 'F' } : {}),
+      })),
+      pairs.map(([source, target]) => ({ source, target })),
+      undefined,
+      { frames: [{ id: 'F' }] },
+    );
+  };
+
+  it.each([[[]], [['r1']], [['r2']], [['r3']], [['r1', 'r3']]])(
+    'line up at their middles, without a larger frame (taller: %j)',
+    tall => {
+      const layout = signalNextToRow(tall);
+      const row = ['r1', 'r2', 'r3'];
+      const middles = row.map(id => middle(layout, id));
+      expect(middles).toEqual([middles[0], middles[0], middles[0]]);
+      const tallest = Math.max(...row.map(id => height(layout, id)));
+      expect(height(layout, 'F')).toBe(FRAME_TOP + tallest + FRAME_PADDING);
+      // The other box stays clear of the frame.
+      const frameBottom = layout.positions.get('F')!.y + height(layout, 'F');
+      expect(layout.positions.get('s')!.y).toBeGreaterThan(frameBottom);
+    },
+  );
+
+  it('keep the two rows of a frame with steps in parallel', () => {
+    const ids = ['start', 'a', 'b', 'c', 'end'];
+    const pairs = [
+      ['start', 'a'],
+      ['start', 'b'],
+      ['a', 'c'],
+      ['b', 'c'],
+      ['c', 'end'],
+    ];
+    const layout = layoutGraph(
+      ids.map(id => ({
+        id,
+        ...(['a', 'b', 'c'].includes(id) ? { parent: 'F' } : {}),
+      })),
+      pairs.map(([source, target]) => ({ source, target })),
+      undefined,
+      { frames: [{ id: 'F' }] },
+    );
+    const a = layout.positions.get('a')!;
+    const b = layout.positions.get('b')!;
+    expect(a.x).toBe(b.x);
+    expect(Math.abs(a.y - b.y)).toBeGreaterThanOrEqual(NODE_HEIGHT);
   });
 });
 
