@@ -141,7 +141,6 @@ jobs:
 
       - name: Clean working tree
         run: |
-          touch plugins/temporal-backend/uncommitted-check.tmp
           if [ -n "$(git status --porcelain)" ]; then
             echo "Working tree is not clean after Verify:" >&2
             git status --short >&2
