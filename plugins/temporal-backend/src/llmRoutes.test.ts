@@ -454,7 +454,7 @@ describe('LLM routes', () => {
     const sealed = await request(server).get(path('/llm-calls/8'));
     expect(sealed.status).toBe(200);
     expect(sealed.body.record).toBeUndefined();
-    expect(sealed.body.unavailable).toMatch(/codec|record|result/i);
+    expect(sealed.body.unavailable).toMatch(/codec/);
     expect((await request(server).get(path('/llm-calls/6'))).status).toBe(404);
     expect((await request(server).get(path('/llm-calls/99'))).status).toBe(404);
     expect((await request(server).get(path('/llm-calls/x2'))).status).toBe(400);
@@ -486,6 +486,7 @@ describe('LLM routes', () => {
     expect(byId('activity-4').result).toBeUndefined();
     // Larger than the inline limit: the summary needs the record route.
     expect(byId('activity-2').llm.record).toBe('unreadable');
+    expect(byId('activity-8').llm.record).toBe('unreadable');
     expect(byId('activity-6').llm).toBeUndefined();
   });
 

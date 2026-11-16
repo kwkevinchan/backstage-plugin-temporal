@@ -20,7 +20,7 @@ import { expect, Page, test } from '@playwright/test';
 
 /*
  * The Timeline tab: a failed run with retries, a running run whose bars
- * grow until now, and the rounds of a loop. Hover, select, drag to zoom.
+ * grow until now, and a generate/check/revise run. Hover, select, drag to zoom.
  * Screenshots in the light and the dark theme.
  */
 
@@ -99,7 +99,7 @@ async function smallestFont(page: Page): Promise<number> {
 }
 
 for (const theme of ['light', 'dark']) {
-  test(`timeline: bars, hover, panel, zoom, live and loops (${theme})`, async ({
+  test(`timeline: bars, hover, panel, zoom, live and a draft-review run (${theme})`, async ({
     page,
   }) => {
     if (theme === 'dark') {

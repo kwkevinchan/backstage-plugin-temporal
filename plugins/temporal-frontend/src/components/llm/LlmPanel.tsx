@@ -17,7 +17,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
-
 import type {
   WorkflowGraphNode,
   WorkflowLlmCallResponse,

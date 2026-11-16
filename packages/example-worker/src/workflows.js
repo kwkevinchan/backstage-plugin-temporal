@@ -279,8 +279,9 @@ async function draftReviewWorkflow(request) {
   let draft;
   let review;
   const maxRounds = request.maxRounds ?? 5;
-  let round = 1;
-  for (; round <= maxRounds; round++) {
+  let rounds = 0;
+  for (let round = 1; round <= maxRounds; round++) {
+    rounds = round;
     draft = await llmDraft({
       topic: request.topic,
       round,
@@ -300,9 +301,9 @@ async function draftReviewWorkflow(request) {
   const published = await publishDraft({
     topic: request.topic,
     status,
-    rounds: round,
+    rounds,
   });
-  return { status, iterations: round, value: draft, published };
+  return { status, iterations: rounds, value: draft, published };
 }
 
 /**

@@ -163,10 +163,6 @@ function jsonCopy(value: unknown, path: object[] = []): unknown {
 export interface LlmModelCalls {
   framework: string;
   calls: TemporalLlmModelCall[];
-  /**
-   * False when tool calls of these calls must not be linked by inference.
-   */
-  inferToolCalls: boolean;
 }
 
 /** The tool call of a step and the adapter that read it. */
@@ -206,8 +202,6 @@ class AdapterFailure extends Error {}
 export class LlmAdapters {
   private readonly added: TemporalLlmAdapter[] = [];
   private readonly builtIn: TemporalLlmAdapter[] = [];
-  /** Adapters whose tool calls are not linked by inference. */
-  private readonly noInference = new Set<string>();
 
   constructor(private readonly logger?: LoggerService) {}
 
@@ -258,7 +252,6 @@ export class LlmAdapters {
     // The built-in adapters return plain JSON: copying them would copy
     // whole conversations (`raw`) on every graph.
     const builtIn = new Set(this.builtIn);
-    const noInference = this.noInference;
     const warned = new Set<string>();
     const warn = (
       adapter: TemporalLlmAdapter,
@@ -368,11 +361,7 @@ export class LlmAdapters {
               isModelCallList,
             );
             if (calls.length > 0) {
-              return {
-                framework: adapter.id,
-                calls,
-                inferToolCalls: !noInference.has(adapter.id),
-              };
+              return { framework: adapter.id, calls };
             }
           }
           return undefined;

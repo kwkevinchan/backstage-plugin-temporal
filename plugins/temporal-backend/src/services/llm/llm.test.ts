@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import type { TemporalLlmAdapter } from '../../node/alpha';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
+import { LlmAdapters } from './LlmAdapters';
+import { summarizeModelCalls } from './llm';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payload = (value: unknown) => ({
@@ -70,7 +73,13 @@ function history() {
   const activity = (
     type: string,
     activityId: string,
-    end: { input?: unknown; result?: unknown; open?: boolean },
+    end: {
+      input?: unknown;
+      result?: unknown;
+      rawResult?: unknown;
+      failure?: unknown;
+      open?: boolean;
+    },
   ) => {
     const id = add('ActivityTaskScheduled', {
       activityId,
@@ -79,9 +88,21 @@ function history() {
     });
     add('ActivityTaskStarted', { scheduledEventId: String(id), attempt: 1 });
     if (end.open) return id;
+    if (end.failure) {
+      add('ActivityTaskFailed', {
+        scheduledEventId: String(id),
+        failure: end.failure,
+      });
+      return id;
+    }
     add('ActivityTaskCompleted', {
       scheduledEventId: String(id),
-      result: end.result === undefined ? undefined : payloads(end.result),
+      result:
+        end.rawResult !== undefined
+          ? { payloads: [end.rawResult] }
+          : end.result === undefined
+          ? undefined
+          : payloads(end.result),
     });
     return id;
   };
@@ -157,6 +178,156 @@ describe('LLM steps in the graph', () => {
     expect(graph.nodes.find(n => n.kind === 'marker')!.name).toBe(
       'Local activity',
     );
+  });
+});
+
+describe('the state of a model call without a record', () => {
+  const sealed = {
+    metadata: { encoding: b64('binary/encrypted') },
+    data: b64('sealed'),
+  };
+
+  it('is pending while the call is open, missing once it ended without a result, and unreadable when the result cannot be decoded', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const open = h.activity('invokeModel', 'open', {
+      input: vercelInput,
+      open: true,
+    });
+    const empty = h.activity('invokeModel', 'empty', { input: vercelInput });
+    const hidden = h.activity('invokeModel', 'hidden', {
+      input: vercelInput,
+      rawResult: sealed,
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      status: 'Running',
+    });
+    const llm = (id: number) =>
+      graph.nodes.find(n => n.id === `activity-${id}`)!.llm;
+    expect(llm(open)).toEqual({
+      framework: 'vercel-ai-sdk',
+      record: 'pending',
+      toolCalls: [],
+      reasoning: false,
+    });
+    expect(llm(empty)).toMatchObject({ record: 'missing' });
+    expect(llm(hidden)).toMatchObject({ record: 'unreadable' });
+  });
+
+  it('is decided by the status of the step and by the decoded result', () => {
+    const read = { framework: 'x', calls: [{}] };
+    const record = (status: string, decoded: unknown) =>
+      summarizeModelCalls({ status } as any, read, decoded).summary.record;
+    expect(record('Running', undefined)).toBe('pending');
+    expect(record('Retrying', undefined)).toBe('pending');
+    expect(record('Completed', undefined)).toBe('missing');
+    expect(record('TimedOut', undefined)).toBe('missing');
+    expect(record('Completed', { encoding: 'json/plain', value: 'text' })).toBe(
+      'missing',
+    );
+    expect(
+      record('Completed', {
+        encoding: 'binary/encrypted',
+        size: 9,
+        undecodable: true,
+      }),
+    ).toBe('unreadable');
+    expect(
+      record('Completed', { encoding: 'json/protobuf', external: {} }),
+    ).toBe('unreadable');
+  });
+});
+
+describe('failure details of a model call', () => {
+  /** An adapter that reads the record a failed call put in its failure. */
+  const failureAdapter: TemporalLlmAdapter = {
+    id: 'failure-details',
+    isModelCall: step => step.activityType === 'callModel',
+    readModelCalls: (_step, payloads) => {
+      const details: any = payloads.failureDetails?.[0];
+      if (!details) return [{}];
+      return [
+        {
+          record: {
+            requestModel: details.model,
+            usage: {},
+            systemInstructions: [],
+            inputMessages: [],
+            outputMessages: [],
+            toolExecutions: [],
+            error: details.error,
+          },
+        },
+      ];
+    },
+  };
+
+  it('gives the record of a failed call to the adapter', () => {
+    const adapters = new LlmAdapters();
+    adapters.add(failureAdapter);
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const id = h.activity('callModel', 'call-1', {
+      failure: {
+        message: 'wrapped',
+        cause: {
+          message: 'rate limited',
+          applicationFailureInfo: {
+            details: payloads({
+              model: 'm',
+              error: { type: 'RateLimit', message: 'rate limited' },
+            }),
+          },
+        },
+      },
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      status: 'Failed',
+      llmAdapters: adapters,
+    });
+    expect(graph.nodes.find(n => n.id === `activity-${id}`)!.llm).toMatchObject(
+      {
+        framework: 'failure-details',
+        record: 'available',
+        model: 'm',
+        error: 'RateLimit',
+      },
+    );
+  });
+
+  it('has no failure details for a step that completed', () => {
+    const seen: unknown[] = [];
+    const adapters = new LlmAdapters();
+    adapters.add({
+      ...failureAdapter,
+      readModelCalls: (_step, payloads) => {
+        seen.push(payloads.failureDetails);
+        return [{}];
+      },
+    });
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    h.activity('callModel', 'call-1', { result: { ok: true } });
+    buildWorkflowGraph(h.events, { ...options, llmAdapters: adapters });
+    expect(seen).toEqual([undefined]);
+  });
+});
+
+describe('tool calls without a model call', () => {
+  it('keeps the tool call ID of an MCP tool step that no model call asked for', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const tool = h.activity('files-callTool', 'tool-1', {
+      input: { name: 'read', input: {}, options: { toolCallId: 'orphan' } },
+      result: 'ok',
+    });
+    const graph = buildWorkflowGraph(h.events, options);
+    expect(graph.nodes.find(n => n.id === `activity-${tool}`)!.tool).toEqual({
+      name: 'read',
+      toolCallId: 'orphan',
+    });
   });
 });
 

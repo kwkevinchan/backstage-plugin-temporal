@@ -653,86 +653,12 @@
   overflow: auto;
 }
 
-/* A collapsed loop: a stack of rounds. An expanded one: a header with a
-   double border on the left, followed by the steps of one round. */
-.tp-node[data-loop='true'][data-expanded='false'] {
-  box-shadow: 4px 4px 0 -1.5px var(--bui-bg-neutral-2),
-    4px 4px 0 0 var(--tp-border), 8px 8px 0 -1.5px var(--bui-bg-neutral-2),
-    8px 8px 0 0 var(--tp-border);
-}
-.tp-node[data-loop='true'][data-expanded='false'][data-selected='true'] {
-  box-shadow: 0 0 0 2px var(--bui-ring),
-    4px 4px 0 -1.5px var(--bui-bg-neutral-2), 4px 4px 0 0 var(--tp-border);
-}
-.tp-node[data-loop='true'][data-expanded='true'] {
-  border-left-style: double;
-  border-left-width: 6px;
-}
-/*
- * Frame of one round of an expanded loop, under its steps: a title bar
- * and a light body, so the arrows between the steps show through.
- */
-.tp-round {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  border: 1.5px solid var(--tp-border);
-  border-radius: var(--bui-radius-3, 8px);
-  background: color-mix(in srgb, var(--bui-bg-neutral-2) 45%, transparent);
-  font-family: var(--bui-font-regular);
-  cursor: default;
-}
-.tp-round[data-status='Running'],
-.tp-round[data-status='Failed'] {
-  border-width: 2px;
-}
-.tp-round[data-active='true'] {
-  animation: tp-pulse 1.6s ease-in-out infinite;
-}
-.tp-round[data-focused='true'] {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bui-ring) 60%, transparent);
-}
-.tp-round-title {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: var(--bui-space-2, 8px);
-  height: 32px;
-  padding: 0 var(--bui-space-3, 12px);
-  border-bottom: 1px solid var(--tp-border);
-  border-radius: var(--bui-radius-3, 8px) var(--bui-radius-3, 8px) 0 0;
-  background: var(--tp-bg);
-  color: var(--bui-fg-primary);
-  /* At least 12px at the smallest zoom the graph opens with. */
-  font-size: 13px;
-  font-weight: var(--bui-font-weight-bold, 600);
-}
-.tp-round-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tp-round-empty {
-  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
-  color: var(--bui-fg-secondary);
-  font-size: 13px;
-}
-.tp-round-note {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 0 var(--bui-space-3, 12px);
-  color: var(--bui-fg-secondary);
-  font-family: var(--bui-font-regular);
-  font-size: 13px;
-  white-space: nowrap;
-}
 /*
  * Temporal event groups. An expanded group is a frame under its steps: a
  * thin border, a faint body in the color of the group (nested frames add
  * up to a slightly darker one) and a title bar without a fill, so the
  * steps stay in front. The border takes the status color only while the
- * group runs or after it failed, like a round frame.
+ * group runs or after it failed.
  */
 .tp-group-frame {
   container-type: inline-size;

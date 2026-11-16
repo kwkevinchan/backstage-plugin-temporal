@@ -87,7 +87,9 @@ async function agentWorkflow(request) {
   ];
   let answer;
   const maxRounds = request.maxRounds ?? 6;
+  let rounds = 0;
   for (let round = 1; round <= maxRounds; round++) {
+    rounds = round;
     const result = await invokeModel({
       modelId: 'fake-reasoner-1',
       options: {
@@ -114,7 +116,7 @@ async function agentWorkflow(request) {
       });
     }
   }
-  return { rounds: maxRounds, answer };
+  return { rounds, answer };
 }
 
 const { loadTicket, postAnswer } = proxyActivities({
