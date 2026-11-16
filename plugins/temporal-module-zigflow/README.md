@@ -145,11 +145,14 @@ also show above the source.
   shapes is recognized only on hosts of its own integration type (and on hosts
   without an integration). On other hosts, such as Gerrit, AWS CodeCommit and
   Harness, and for other URL shapes, such as S3 objects, the target must stay
-  in the folder of the entity file or below it (for a file at the root of a
-  bucket host, such as
-  `https://my-bucket.s3.us-east-1.amazonaws.com/catalog-info.yaml`, that folder
-  is the bucket). Paths climbing out with `..` or resolving to another
-  repository are rejected.
+  in the folder of the entity file or below it. For an entity file at the root
+  of a host without an integration, that folder is the whole host: the bucket
+  for an S3 virtual-hosted URL such as
+  `https://my-bucket.s3.us-east-1.amazonaws.com/catalog-info.yaml`, and every
+  path of any other host. To narrow it, give the host `paths` in
+  `backend.reading.allow`. S3 path-style hosts, where the first path segment
+  is the bucket, are excluded. Paths climbing out with `..` or resolving to
+  another repository are rejected.
 - An absolute `http(s)` URL is rejected by default and read only when its host
   (and optional `paths` prefix) matches `temporal.definitions.allow`. Other URL
   schemes are rejected.

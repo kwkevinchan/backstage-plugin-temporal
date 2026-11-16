@@ -441,8 +441,10 @@ function parseRepoUrl(
 
   // Other URL shapes (e.g. Gerrit, CodeCommit, Harness): bound relative
   // targets to the folder of the entity file. A file at the root of a host
-  // without an integration (an S3 bucket in the host name) is bounded by the
-  // host root; on S3 path-style hosts that root holds every bucket.
+  // without an integration is bounded by the host root: the bucket of an S3
+  // virtual-hosted URL, the whole host otherwise. On S3 path-style hosts that
+  // root holds every bucket, so they are left out. The catalog reads no entity
+  // file from a one-segment URL of such a host; the check is a second guard.
   if (
     allSegments.length >= 2 ||
     (allSegments.length === 1 &&
