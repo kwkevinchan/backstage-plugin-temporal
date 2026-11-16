@@ -70,6 +70,10 @@ function history() {
     });
     return events.length;
   };
+  const resultPayloads = (end: { result?: unknown; rawResult?: unknown }) => {
+    if (end.rawResult !== undefined) return { payloads: [end.rawResult] };
+    return end.result === undefined ? undefined : payloads(end.result);
+  };
   const activity = (
     type: string,
     activityId: string,
@@ -97,12 +101,7 @@ function history() {
     }
     add('ActivityTaskCompleted', {
       scheduledEventId: String(id),
-      result:
-        end.rawResult !== undefined
-          ? { payloads: [end.rawResult] }
-          : end.result === undefined
-          ? undefined
-          : payloads(end.result),
+      result: resultPayloads(end),
     });
     return id;
   };
@@ -244,8 +243,8 @@ describe('failure details of a model call', () => {
   const failureAdapter: TemporalLlmAdapter = {
     id: 'failure-details',
     isModelCall: step => step.activityType === 'callModel',
-    readModelCalls: (_step, payloads) => {
-      const details: any = payloads.failureDetails?.[0];
+    readModelCalls: (_step, stepPayloads) => {
+      const details: any = stepPayloads.failureDetails?.[0];
       if (!details) return [{}];
       return [
         {
@@ -302,8 +301,8 @@ describe('failure details of a model call', () => {
     const adapters = new LlmAdapters();
     adapters.add({
       ...failureAdapter,
-      readModelCalls: (_step, payloads) => {
-        seen.push(payloads.failureDetails);
+      readModelCalls: (_step, stepPayloads) => {
+        seen.push(stepPayloads.failureDetails);
         return [{}];
       },
     });
