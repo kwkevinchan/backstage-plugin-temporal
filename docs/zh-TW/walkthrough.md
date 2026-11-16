@@ -165,21 +165,15 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 這個分頁屬於兩個選用的套件；見 [Workflow definitions](../../README.md#workflow-definitions)。
 
-## 7. AI 流程（實驗性）
+## 7. AI 流程（實驗性形狀）
 
-開發用 app 打開了 `temporal.experimental.aiWorkflows`；在你自己的 app 裡迴圈畫面預設是關的，之後會移到獨立套件，也不承諾相容性。模型呼叫不需要這個設定就會顯示。範例 Worker 啟動的是假的 AI 流程，不會呼叫任何模型。
+範例 Worker 啟動的是假的 AI 流程，不會呼叫任何模型。模型呼叫用 Vercel AI SDK 整合的 activity 類型和 payload 形狀，所以外掛不需要任何設定就會顯示。
 
-1. **迴圈。** `draftReviewWorkflow` 產生、檢查、修改，直到分數夠高（在第 4 輪、最多 5 輪中完成）。流程圖把迴圈收成一個方塊；展開後一輪一個框。**Loops** 分頁（只有含迴圈的流程才有）由新到舊列出每一輪的決定和分數。`longRefineWorkflow` 跑 25 輪、每 10 輪 Continue-As-New 一次，所以它的輪次跨三個 Run 計算（`Run 3 of 3`）；它最後顯示 `Round 25 of 25 · Out of rounds`，因為範例永遠達不到目標。
+1. **LLM 步驟。** 打開 `example-agent-…`。每次模型呼叫（`invokeModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
 
-   ![展開的迴圈，一輪一個框。](../images/loop.png)
+**為什麼：** Temporal 只看到一串 Activity。官方 AI 整合寫出已知的 payload 形狀，外掛的轉接器讀它。見 [LLM steps](../../README.md#model-calls-and-tool-calls)。
 
-2. **LLM 步驟。** 在 `example-agent-…` 裡，迴圈是一個方塊（`agent`），按 **Expand** 展開。每次模型呼叫（`callModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試，`glossary` 則是 local activity。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
-
-   ![一次模型呼叫和它的 tool call。](../images/llm-graph.png)
-
-**為什麼：** Temporal 只看到一串 Activity。這些標記由 workflow kit 寫入、外掛讀回。見 [Loops](../../README.md#loops) 和 [LLM steps](../../README.md#llm-steps)。
-
-用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要這個設定：流程圖把箱子巢狀排好，迴圈的每一輪收成一排小方塊（`×3`），**Event Groups** 分頁列出所有群組。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
+用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要設定：流程圖把箱子巢狀排好，迴圈的每一輪收成一排小方塊（`×3`），**Event Groups** 分頁列出所有群組。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
 
 ## 8. 從 Temporal 這一側看
 

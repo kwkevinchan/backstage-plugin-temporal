@@ -25,11 +25,10 @@ import type {
 import { isObject } from './json';
 import { openaiAgentsAdapter } from './openaiAgents';
 import { vercelAiSdkAdapter } from './vercelAiSdk';
-import { workflowKitAdapter } from './workflowKit';
 
 /** The built-in adapters, in the order they are asked. */
 export function builtInLlmAdapters(): TemporalLlmAdapter[] {
-  return [vercelAiSdkAdapter, openaiAgentsAdapter, workflowKitAdapter];
+  return [vercelAiSdkAdapter, openaiAgentsAdapter];
 }
 
 /** Most model calls one step may report; more make the step a plain step. */
@@ -164,11 +163,6 @@ function jsonCopy(value: unknown, path: object[] = []): unknown {
 export interface LlmModelCalls {
   framework: string;
   calls: TemporalLlmModelCall[];
-  /**
-   * False when tool calls of these calls must not be linked by inference
-   * (the workflow kit's format marks every tool step).
-   */
-  inferToolCalls: boolean;
 }
 
 /** The tool call of a step and the adapter that read it. */
@@ -208,8 +202,6 @@ class AdapterFailure extends Error {}
 export class LlmAdapters {
   private readonly added: TemporalLlmAdapter[] = [];
   private readonly builtIn: TemporalLlmAdapter[] = [];
-  /** Adapters whose tool calls are not linked by inference. */
-  private readonly noInference = new Set<string>();
 
   constructor(private readonly logger?: LoggerService) {}
 
@@ -239,15 +231,11 @@ export class LlmAdapters {
     (options.builtIn ? this.builtIn : this.added).push(adapter);
   }
 
-  /**
-   * Adds the built-in adapters, after the ones added so far. The workflow
-   * kit's tool steps all carry markers, so its calls get no inferred links.
-   */
+  /** Adds the built-in adapters, after the ones added so far. */
   addBuiltIns() {
     for (const adapter of builtInLlmAdapters()) {
       this.add(adapter, { builtIn: true });
     }
-    this.noInference.add(workflowKitAdapter.id);
   }
 
   /** All adapters, in the order they are asked. */
@@ -264,7 +252,6 @@ export class LlmAdapters {
     // The built-in adapters return plain JSON: copying them would copy
     // whole conversations (`raw`) on every graph.
     const builtIn = new Set(this.builtIn);
-    const noInference = this.noInference;
     const warned = new Set<string>();
     const warn = (
       adapter: TemporalLlmAdapter,
@@ -374,11 +361,7 @@ export class LlmAdapters {
               isModelCallList,
             );
             if (calls.length > 0) {
-              return {
-                framework: adapter.id,
-                calls,
-                inferToolCalls: !noInference.has(adapter.id),
-              };
+              return { framework: adapter.id, calls };
             }
           }
           return undefined;

@@ -16,12 +16,12 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its two modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions. The workflow kit belongs to the workers, outside Backstage.](images/package-map.svg)
+![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its two modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
 
-All names carry the prefix `@kwkevinchan/backstage-plugin-` (except the workflow
-kit, `@kwkevinchan/temporal-workflow-kit`). Teal is the core, purple the
-optional modules. The [README](../README.md#packages) has the table with the
-role of each package and [which ones to install](../README.md#packages).
+All names carry the prefix `@kwkevinchan/backstage-plugin-`. Teal is the
+core, purple the optional modules. The [README](../README.md#packages) has
+the table with the role of each package and
+[which ones to install](../README.md#packages).
 
 - **Core, backend** (`temporal-backend`): serves `/api/temporal`, reads and
   operates workflows, checks access, adds the `TemporalWorkflow` kind to the
@@ -35,8 +35,6 @@ role of each package and [which ones to install](../README.md#packages).
   Definition tab. Each one needs the core of its side.
 - **Scaffolder** (`scaffolder-backend-module-temporal`,
   `scaffolder-module-temporal`): template actions and the workflow picker field.
-- **`temporal-workflow-kit`**: for your Workers, not Backstage. Experimental,
-  `private`, not published; it goes with the experimental AI views.
 - **Development only** (never published): `packages/app`, `packages/app-next`,
   `packages/backend` and `packages/example-worker`.
 
@@ -104,7 +102,8 @@ there is no repository interface and no dependency-injection container inside
 the plugin. The routes that change workflows are their own router
 (`routes/controlRoutes.ts`), mounted by `plugin.ts` unless
 `temporal.control.enabled` is false; `WorkflowCommands` calls Temporal
-directly. The parsing of the experimental LLM records is in `services/llm/`.
+directly. The LLM adapters of the official Temporal AI integrations are in
+`services/llm/`.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query
@@ -189,12 +188,14 @@ false` removes the routes that change workflows (404, not 403) and their
   1.x; a new major of it is a new major of the plugin packages
   ([Compatibility](../README.md#compatibility)).
 - **Optional packages stay out of apps that do not need them.** The Zigflow tab is
-  two packages, so apps without Zigflow carry no YAML editor; the AI views are
-  behind a flag (the LLM views are in `components/llm/` and `services/llm/`,
-  to move to a package of their own) and their worker-side kit is not
-  published.
-- **Formats written by workers are tested on both sides.** The workflow kit writes
-  the loop markers and LLM records, and the backend reads them with its own code;
-  both are tested against shared fixtures (`test-fixtures/`).
+  two packages, so apps without Zigflow carry no YAML editor. The LLM views of
+  the official Temporal AI integrations live in `components/llm/` and
+  `services/llm/`; they need no setting. Event Groups are read from the
+  history the same way.
+- **Formats written by workers are tested on both sides.** Official Temporal AI
+  integration payloads and Event Groups are recorded as histories
+  (`test-fixtures/llm-integrations`, `test-fixtures/event-groups`); the backend
+  reads them with its own code, and the frontend tests of those views read graph
+  responses built from the same histories.
 
 Back to [the documentation index](README.md).

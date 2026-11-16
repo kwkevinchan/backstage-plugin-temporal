@@ -81,18 +81,6 @@ function handlerList(definitions: unknown): WorkflowHandler[] {
 /** How many parents up a child workflow is looked for in an entity. */
 export const MAX_PARENT_DEPTH = 3;
 
-/**
- * A graph without the data of the experimental loop views: loop markers
- * and groups. The steps stay, as plain steps.
- */
-function withoutLoops(graph: WorkflowGraphResponse): WorkflowGraphResponse {
-  const { loops: _loops, ...rest } = graph;
-  return {
-    ...rest,
-    nodes: graph.nodes.map(({ loop: _loop, ...node }) => node),
-  };
-}
-
 export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
   'Failed',
   'TimedOut',
@@ -152,8 +140,6 @@ const described = new WeakMap<WorkflowDetail, Described>();
  * Temporal through {@link TemporalReadRepository}.
  */
 export class WorkflowQueries {
-  /** `temporal.experimental.aiWorkflows`; `AiWorkflowQueries` reads it too. */
-  readonly aiWorkflows: boolean;
   /** The LLM adapters; `AiWorkflowQueries` reads them too. */
   readonly llmAdapters: LlmAdapters;
 
@@ -167,16 +153,10 @@ export class WorkflowQueries {
       temporal,
     ),
     options: {
-      /**
-       * `temporal.experimental.aiWorkflows`: the loops. Without it, graphs
-       * carry no loop data.
-       */
-      aiWorkflows?: boolean;
       /** The LLM adapters that read model calls; the built-in ones by default. */
       llmAdapters?: LlmAdapters;
     } = {},
   ) {
-    this.aiWorkflows = options.aiWorkflows === true;
     this.llmAdapters = options.llmAdapters ?? builtInOnlyLlmAdapters();
   }
 
@@ -444,11 +424,9 @@ export class WorkflowQueries {
       searchAttributes: workflow.searchAttributes,
       includePayloads: options.includePayloads,
       failure: workflow.failure,
-      memo: workflow.memo,
-      aiWorkflows: this.aiWorkflows,
       llmAdapters: this.llmAdapters,
     });
-    return this.aiWorkflows ? graph : withoutLoops(graph);
+    return graph;
   }
 
   /**

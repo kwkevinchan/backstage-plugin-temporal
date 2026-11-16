@@ -826,11 +826,4 @@ describe('event groups in the graph', () => {
       }).toEqual(plain);
     }
   });
-
-  it('does not depend on the experimental switch', () => {
-    const events = fixture('loop-ts-sdk-1.25');
-    expect(graphOf(events, { aiWorkflows: false }).graph.eventGroups).toEqual(
-      graphOf(events, { aiWorkflows: true }).graph.eventGroups,
-    );
-  });
 });

@@ -209,17 +209,12 @@ You add your own buttons, tabs, list actions, backend actions and data
 enrichers without changing the plugin. [Architecture](architecture.md#extension-points)
 lists them.
 
-### AI workflows (experimental, off by default)
+### AI workflows (experimental shape)
 
 Loops (generate, check, revise) and LLM agents appear in Temporal only as a long
 series of activities. The plugin draws the model calls of the official Temporal
 AI integrations with their tool calls and a panel for the prompt, output and
-token usage, without a setting. When workers add markers with the experimental
-`@kwkevinchan/temporal-workflow-kit` (not published yet), it can also fold a
-loop into one box with a frame per round and add a **Loops** tab. The loop
-views are behind `temporal.experimental.aiWorkflows: true`, are not part of the
-first release, will move to a separate package and carry no compatibility
-promise. See [Loops](../README.md#loops) and
+token usage, without a setting. See
 [Model calls and tool calls](../README.md#model-calls-and-tool-calls).
 
 Workflows can group their steps themselves with Temporal Event Groups

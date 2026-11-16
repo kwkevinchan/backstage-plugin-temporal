@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Edge, ReactFlowProvider } from '@xyflow/react';
 import type {
   WorkflowEventGroup,
   WorkflowGraphEdge,
   WorkflowGraphResponse,
 } from '../../common';
-import { Button, Flex, Switch, Text } from '@backstage/ui';
+import { Flex, Switch, Text } from '@backstage/ui';
 import { isMarkerStep, isOpenStep } from '../steps';
 import {
   graphHeight,
   layoutSteps,
-  NodeSize,
   StepLayout,
   stepSize,
   visibleSteps,
@@ -41,10 +40,10 @@ import {
 } from './eventGroups';
 
 /**
- * How each event group is drawn, by key: as a box, as labels on its
- * steps, or not at all because its steps are in a loop box.
+ * How each event group is drawn, by key: as a box, or as labels on its
+ * steps.
  */
-export type GroupDisplay = Record<string, 'box' | 'label' | 'loop'>;
+export type GroupDisplay = Record<string, 'box' | 'label'>;
 
 import {
   GROUP_TAG_HEIGHT,
@@ -56,13 +55,6 @@ import {
   GroupTagNode,
 } from './GroupNode';
 import {
-  LoopBlockLayout,
-  layoutLoopBlock,
-  noteAfterId,
-  noteBeforeId,
-  placeLoopBlocks,
-} from './loopLayout';
-import {
   flowNodeBase,
   GraphCanvas,
   RELAYOUT_DELAY_MS,
@@ -72,31 +64,10 @@ import {
 } from './GraphCanvas';
 import { frameInsets } from './frameEdge';
 import { StepFlowNode, StepNode } from './StepNode';
-import {
-  LoopFlowNode,
-  LoopNode,
-  LoopNoteFlowNode,
-  LoopNoteNode,
-  RoundFrameFlowNode,
-  RoundFrameNode,
-} from './LoopNode';
-import {
-  focusFrame,
-  groupLoops,
-  loopOfStep,
-  isLoopBoxNode,
-  LoopBox,
-  LoopView,
-  LoopViews,
-} from './loops';
-import { loopStatusLabel, roundLabel, roundsText } from '../loopText';
 import { tp } from '../styles';
 
 const nodeTypes = {
   step: StepNode,
-  loop: LoopNode,
-  round: RoundFrameNode,
-  loopNote: LoopNoteNode,
   groupFrame: GroupFrameNode,
   // Not `group`: React Flow styles nodes of that type itself.
   eventGroup: GroupNode,
@@ -104,9 +75,6 @@ const nodeTypes = {
 };
 type FlowNode =
   | StepFlowNode
-  | LoopFlowNode
-  | RoundFrameFlowNode
-  | LoopNoteFlowNode
   | GroupFrameFlowNode
   | GroupFlowNode
   | GroupTagFlowNode;
@@ -118,12 +86,6 @@ export interface WorkflowGraphProps {
   /** Shows markers (side effects, version and patch markers). */
   showMarkers?: boolean;
   onShowMarkersChange?(show: boolean): void;
-  /**
-   * How each loop is shown (collapsed by default). Without it the graph
-   * keeps the views itself.
-   */
-  loopViews?: LoopViews;
-  onLoopViewChange?(name: string, view: LoopView): void;
   /**
    * Which Temporal event groups are expanded, by key, where the user set
    * it (see `defaultExpanded` for the others). Without it the graph keeps
@@ -152,14 +114,10 @@ export interface WorkflowGraphProps {
 
 type Structure = ReturnType<typeof useStructure>;
 
-/** Space the main graph keeps around an expanded loop when it wraps. */
-const BLOCK_MARGIN = 32;
-
 function useStructure(
   graph: WorkflowGraphResponse,
   showMarkers: boolean,
   layoutWidth: number | undefined,
-  loopViews: LoopViews,
   groupViews: GroupViews,
 ) {
   return useMemo(() => {
@@ -179,114 +137,54 @@ function useStructure(
         visibleEdges.push({ id, source, target: node.id });
       }
     }
-    const steps = groupLoops(
-      visible.nodes,
-      visibleEdges,
-      graph.loops,
-      loopViews,
-      { previousRun: Boolean(graph.runChain?.previousRunId) },
-    );
-    const sized =
-      steps.boxes.some(b => b.expanded) ||
-      visible.nodes.some(n => n.llm || n.tool);
+    const sized = visible.nodes.some(n => n.llm || n.tool);
     const sizeOf = (n: (typeof visible.nodes)[number]) =>
       sized ? stepSize(n) : undefined;
-
-    // Expanded loops first: each is one large box of the main graph.
-    const blocks = new Map<string, LoopBlockLayout>();
     const nextRun = graph.runChain?.index
       ? graph.runChain.index + 1
       : undefined;
-    for (const box of steps.boxes.filter(b => b.expanded)) {
-      blocks.set(
-        box.id,
-        layoutLoopBlock(
-          {
-            id: box.id,
-            frames: box.frames.map(frame => ({
-              id: frame.id,
-              steps: (steps.frameSteps.get(frame.id) ?? []).map(n => ({
-                id: n.id,
-                size: sizeOf(n),
-              })),
-              edges: steps.frameEdges.get(frame.id) ?? [],
-            })),
-            noteBefore: box.fromEarlierRun,
-            noteAfter: box.loop.status === 'continued',
-          },
-          layoutWidth !== undefined
-            ? Math.max(0, layoutWidth - 2 * BLOCK_MARGIN)
-            : undefined,
-        ),
-      );
-    }
-    const mainNodes = steps.nodes.map(n => {
-      const block = blocks.get(n.id);
-      let size: NodeSize | undefined;
-      if (block) size = { width: block.width, height: block.height };
-      else if (!isLoopBoxNode(n)) size = sizeOf(n);
+    const mainNodes = visible.nodes.map(n => {
+      const size = sizeOf(n);
       return size ? { id: n.id, size } : { id: n.id };
     });
-    // Temporal event groups: boxes around the steps (and loop boxes) that
-    // are not in a loop.
     let groups: GroupedLayout | undefined;
-    let main: StepLayout;
+    let layout: StepLayout;
     if (graph.eventGroups && graph.eventGroups.length > 0) {
       groups = layoutGroupedSteps(
         mainNodes,
-        steps.edges,
+        visibleEdges,
         graph.eventGroups,
         groupViews,
         layoutWidth,
       );
-      main = groups.layout;
+      layout = groups.layout;
     } else {
-      main = layoutSteps(mainNodes, steps.edges, layoutWidth);
+      layout = layoutSteps(mainNodes, visibleEdges, layoutWidth);
     }
-    const layout = placeLoopBlocks(main, blocks);
-    // A new layout key when a loop or a group opens or closes.
-    const loopKey = steps.boxes
-      .map(b => `${b.id}:${b.expanded ? b.frames.length : '-'}`)
-      .join(',');
     const groupKey = groups
       ? `:${[...groups.plan.boxes.values()]
           .filter(b => b.expanded)
           .map(b => b.id)
           .join(',')}`
       : '';
-    const edges = groups ? groups.graph.edges : steps.edges;
+    const edges = groups ? groups.graph.edges : visibleEdges;
     return {
-      ...steps,
+      nodes: visible.nodes,
       edges,
       layout,
       toolEdges,
       nextRun,
       groups,
       hues: groupHues(graph.eventGroups),
-      key: `${steps.nodes.length}:${edges.length}:${layout.width}x${layout.height}:${loopKey}${groupKey}`,
+      key: `${visible.nodes.length}:${edges.length}:${layout.width}x${layout.height}${groupKey}`,
     };
-  }, [graph, showMarkers, layoutWidth, loopViews, groupViews]);
-}
-
-/** Text of the notes above the first round frame and below the last. */
-function noteText(box: LoopBox, nextRun?: number) {
-  const first = box.frames[0]?.round.iteration ?? 1;
-  return {
-    before:
-      first > 2
-        ? `↑ Rounds 1–${first - 1} ran in earlier runs`
-        : '↑ Round 1 ran in the run before',
-    after: nextRun
-      ? `↓ The loop continues in run ${nextRun}`
-      : '↓ The loop continues in the next run',
-  };
+  }, [graph, showMarkers, layoutWidth, groupViews]);
 }
 
 function StepCanvas(
   props: WorkflowGraphProps & {
     structure: Structure;
     layoutWidth?: number;
-    onToggleLoop(name: string): void;
     onToggleGroup(key: string): void;
     focusId?: string;
     /** The group picked in the Event Groups tab: its box is marked. */
@@ -295,14 +193,13 @@ function StepCanvas(
     selectedBoxId?: string;
   },
 ) {
-  const { structure, onSelect, onToggleLoop, focusId } = props;
+  const { structure, onSelect, focusId } = props;
   const { onToggleGroup, markId, selectedBoxId } = props;
   // A step selected inside a collapsed group: its box is selected instead.
   const selectedId = selectedBoxId ? undefined : props.selectedId;
   const { layout } = structure;
   const running = props.graph.status === 'Running';
   const nodes: FlowNode[] = useMemo(() => {
-    // Frames and notes first: they are drawn under the steps.
     const under: FlowNode[] = [];
     const over: FlowNode[] = [];
     const groups = structure.groups;
@@ -347,76 +244,8 @@ function StepCanvas(
     for (const step of structure.nodes) {
       // Steps of a collapsed group are in its box.
       if (groups && !layout.positions.has(step.id)) continue;
-      const common = flowNodeBase(layout, step.id);
-      if (isLoopBoxNode(step)) {
-        const box = step.loopBox;
-        over.push({
-          ...common,
-          type: 'loop',
-          data: {
-            box,
-            active: running && box.loop.status === 'running',
-            selected: step.id === selectedId,
-            onToggle: onToggleLoop,
-          },
-        });
-        if (!box.expanded) continue;
-        const notes = noteText(box, structure.nextRun);
-        if (box.fromEarlierRun) {
-          under.push({
-            ...flowNodeBase(layout, noteBeforeId(box.id)),
-            type: 'loopNote',
-            // Nothing in it to operate: not a stop of the Tab key.
-            focusable: false,
-            data: {
-              text: notes.before,
-              testId: `loop-note-before-${box.loop.name}`,
-            },
-          });
-        }
-        if (box.loop.status === 'continued') {
-          under.push({
-            ...flowNodeBase(layout, noteAfterId(box.id)),
-            type: 'loopNote',
-            // Nothing in it to operate: not a stop of the Tab key.
-            focusable: false,
-            data: {
-              text: notes.after,
-              testId: `loop-note-after-${box.loop.name}`,
-            },
-          });
-        }
-        for (const frame of box.frames) {
-          const frameSteps = structure.frameSteps.get(frame.id) ?? [];
-          under.push({
-            ...flowNodeBase(layout, frame.id),
-            type: 'round',
-            // Nothing in it to operate: not a stop of the Tab key.
-            focusable: false,
-            data: {
-              loop: box.loop,
-              round: frame.round,
-              focused: frame.id === focusId,
-              active: running && frame.round.status === 'Running',
-              empty: frameSteps.length === 0,
-            },
-          });
-          for (const member of frameSteps) {
-            over.push({
-              ...flowNodeBase(layout, member.id),
-              type: 'step',
-              data: {
-                step: member,
-                selected: member.id === selectedId,
-                onSelect,
-              },
-            });
-          }
-        }
-        continue;
-      }
       over.push({
-        ...common,
+        ...flowNodeBase(layout, step.id),
         type: 'step',
         data: {
           step,
@@ -458,45 +287,28 @@ function StepCanvas(
     layout,
     selectedId,
     onSelect,
-    onToggleLoop,
     onToggleGroup,
     running,
-    focusId,
     markId,
     selectedBoxId,
   ]);
 
   const edges: Edge[] = useMemo(() => {
-    const expanded = new Map(
-      structure.boxes.filter(b => b.expanded).map(b => [b.id, b]),
-    );
     const open = new Set<string>();
     for (const box of structure.groups?.graph.collapsed ?? []) {
       if (running && box.group.status === 'Running') open.add(box.id);
     }
     for (const n of structure.nodes) {
-      if (isLoopBoxNode(n)) {
-        const box = n.loopBox;
-        if (!running) continue;
-        if (!box.expanded && box.loop.status === 'running') open.add(n.id);
-        for (const f of box.frames) {
-          if (f.round.status === 'Running') open.add(f.id);
-        }
-      } else if (isOpenStep(n)) {
-        open.add(n.id);
-      }
+      if (isOpenStep(n)) open.add(n.id);
     }
-    for (const steps of structure.frameSteps.values()) {
-      for (const n of steps) if (isOpenStep(n)) open.add(n.id);
-    }
-    const toFlow = (
-      e: { id: string; source: string; target: string },
-      handles: { sourceHandle?: string; targetHandle?: string } = {},
-    ): Edge => ({
+    const toFlow = (e: {
+      id: string;
+      source: string;
+      target: string;
+    }): Edge => ({
       id: e.id,
       source: e.source,
       target: e.target,
-      ...handles,
       type: 'smoothstep',
       // Arrows into open steps move, like the step itself.
       animated: open.has(e.target),
@@ -521,46 +333,13 @@ function StepCanvas(
       for (const f of grouped.frames) parentOf.set(f.id, f.parent);
       for (const n of grouped.nodes) parentOf.set(n.id, n.parent);
     }
-    // Arrows of the main graph; those of an expanded loop go into its
-    // first round and out of its last one.
     for (const e of structure.edges) {
-      const from = expanded.get(e.source);
-      const into = expanded.get(e.target);
-      const source = from ? from.frames[from.frames.length - 1].id : e.source;
-      const target = into ? into.frames[0].id : e.target;
-      const edge = toFlow(
-        { id: e.id, source, target },
-        {
-          sourceHandle: from ? 'out' : undefined,
-          targetHandle: into ? 'in' : undefined,
-        },
-      );
-      if (parentOf.size > 0 && !from && !into) {
+      const edge = toFlow(e);
+      if (parentOf.size > 0) {
         edge.type = 'frameEdge';
-        edge.data = frameInsets(layout, parentOf, source, target);
+        edge.data = frameInsets(layout, parentOf, e.source, e.target);
       }
       result.push(edge);
-    }
-    for (const box of expanded.values()) {
-      // Round after round, top to bottom.
-      box.frames.slice(1).forEach((frame, i) => {
-        const before = box.frames[i];
-        result.push(
-          toFlow(
-            {
-              id: `${before.id}->${frame.id}`,
-              source: before.id,
-              target: frame.id,
-            },
-            { sourceHandle: 'bottom', targetHandle: 'top' },
-          ),
-        );
-      });
-      for (const frame of box.frames) {
-        for (const e of structure.frameEdges.get(frame.id) ?? []) {
-          result.push(toFlow(e));
-        }
-      }
     }
     return result;
   }, [structure, layout, running]);
@@ -576,58 +355,18 @@ function StepCanvas(
       selectedId={selectedId}
       focusId={focusId}
       onSelect={onSelect}
-      // Loop and group boxes open and close from their own button; frames,
-      // notes and labels are not steps.
+      // Group boxes open and close from their own button; frames and labels
+      // are not steps.
       selectable={node => node.type === 'step'}
     />
   );
 }
 
-/** Expand or collapse one loop, above the graph. */
-function LoopControls(props: { box: LoopBox; onChange(view: LoopView): void }) {
-  const { box, onChange } = props;
-  const { loop } = box;
-  let rounds = 'No rounds';
-  if (box.expanded) {
-    rounds = roundsText(
-      box.frames.map(f => f.round),
-      loop,
-    );
-  } else if (loop.rounds.length > 0) {
-    rounds = roundLabel(loop.iteration, loop);
-  }
-  return (
-    <div
-      className={tp('tp-loop-controls')}
-      role="group"
-      aria-label={`Loop ${loop.name}`}
-      data-testid={`loop-controls-${loop.name}`}
-    >
-      <span className={tp('tp-loop-controls-name')}>{loop.name}</span>
-      <Text as="span" variant="body-small" data-testid="loop-round">
-        {rounds}
-        {` · ${loopStatusLabel(loop.status)}`}
-      </Text>
-      <Button
-        size="small"
-        variant="secondary"
-        isDisabled={loop.rounds.length === 0}
-        onPress={() => onChange({ expanded: !box.expanded })}
-      >
-        {box.expanded ? 'Collapse' : 'Expand'}
-      </Button>
-    </div>
-  );
-}
-
 function GraphToolbar(props: {
-  structure: Structure;
   hasMarkers: boolean;
   showMarkers: boolean;
   onShowMarkersChange?(show: boolean): void;
-  onLoopViewChange(name: string, view: LoopView): void;
 }) {
-  const { structure } = props;
   return (
     <Flex
       className={tp('tp-graph-toolbar')}
@@ -635,13 +374,6 @@ function GraphToolbar(props: {
       justify="end"
       gap="2"
     >
-      {structure.boxes.map(box => (
-        <LoopControls
-          key={box.id}
-          box={box}
-          onChange={view => props.onLoopViewChange(box.loop.name, view)}
-        />
-      ))}
       {props.hasMarkers && props.onShowMarkersChange && (
         <Switch
           label="Show markers"
@@ -667,21 +399,6 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     RELAYOUT_DELAY_MS,
     props.panelOpen,
   );
-  const [ownViews, setOwnViews] = useState<LoopViews>({});
-  const loopViews = props.loopViews ?? ownViews;
-  const { onLoopViewChange } = props;
-  const changeLoopView = useCallback(
-    (name: string, view: LoopView) => {
-      if (onLoopViewChange) onLoopViewChange(name, view);
-      else setOwnViews(views => ({ ...views, [name]: view }));
-    },
-    [onLoopViewChange],
-  );
-  const toggleLoop = useCallback(
-    (name: string) =>
-      changeLoopView(name, { expanded: !loopViews[name]?.expanded }),
-    [loopViews, changeLoopView],
-  );
   const [ownGroupViews, setOwnGroupViews] = useState<GroupViews>({});
   const groupViews = props.groupViews ?? ownGroupViews;
   const { onGroupViewChange } = props;
@@ -689,7 +406,6 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     props.graph,
     showMarkers,
     layoutWidth,
-    loopViews,
     groupViews,
   );
   // The group to bring into view: the one expanded or collapsed last, or
@@ -739,28 +455,6 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     setRefused(group);
     changeGroupView(requested, undefined);
   }, [requested, groupLayout, changeGroupView]);
-  // The loop that was expanded last, or whose round was picked: its round
-  // is brought into view.
-  const [focusLoop, setFocusLoop] = useState<string>();
-  const lastViews = useRef<LoopViews>({});
-  useEffect(() => {
-    const before = lastViews.current;
-    lastViews.current = loopViews;
-    const changed = Object.keys(loopViews).filter(
-      name =>
-        loopViews[name].expanded &&
-        (!before[name]?.expanded ||
-          before[name].iteration !== loopViews[name].iteration),
-    );
-    if (changed.length > 0) {
-      setFocusLoop(changed[changed.length - 1]);
-      setPanGroup(undefined);
-      setMarkGroup(undefined);
-    }
-  }, [loopViews]);
-  const focusBox = structure.boxes.find(
-    b => b.expanded && b.loop.name === focusLoop,
-  );
   const laidOut = (key: string | undefined) =>
     key && structure.layout.positions.has(groupNodeId(key))
       ? groupNodeId(key)
@@ -772,22 +466,11 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           b.stepIds.includes(props.selectedId!),
         )?.id
       : undefined;
-  const focusId =
-    selectedBoxId ??
-    laidOut(panGroup) ??
-    (focusBox
-      ? focusFrame(focusBox, loopViews[focusBox.loop.name])?.id
-      : undefined);
+  const focusId = selectedBoxId ?? laidOut(panGroup);
   const { onGroupDisplay } = props;
-  const { loops } = props.graph;
   useEffect(() => {
     if (!onGroupDisplay || !groupLayout) return;
     const display: GroupDisplay = {};
-    for (const group of props.graph.eventGroups ?? []) {
-      if (group.nodeIds.some(id => loopOfStep(loops, id))) {
-        display[group.key] = 'loop';
-      }
-    }
     for (const tagged of groupLayout.plan.tags.values()) {
       for (const g of tagged) display[g.key] = 'label';
     }
@@ -795,7 +478,7 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
       display[box.group.key] = 'box';
     }
     onGroupDisplay(display);
-  }, [groupLayout, onGroupDisplay, loops, props.graph.eventGroups]);
+  }, [groupLayout, onGroupDisplay]);
   const notices = [
     ...layoutNotices(groupLayout),
     ...(refused ? [refusedNotice(refused)] : []),
@@ -817,11 +500,9 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     <ReactFlowProvider>
       <div className={tp('tp-graph-column')}>
         <GraphToolbar
-          structure={structure}
           hasMarkers={hasMarkers}
           showMarkers={showMarkers}
           onShowMarkersChange={props.onShowMarkersChange}
-          onLoopViewChange={changeLoopView}
         />
         {notices.map(text => (
           <Text
@@ -854,7 +535,6 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
               {...props}
               structure={structure}
               layoutWidth={layoutWidth}
-              onToggleLoop={toggleLoop}
               onToggleGroup={toggleGroup}
               focusId={focusId}
               markId={laidOut(markGroup)}

@@ -121,42 +121,6 @@ describe('buildWorkflowGraph', () => {
     expect(byName('sendEmail').summary).toBeUndefined();
   });
 
-  it('leaves out the summary the loop helper writes for each round', () => {
-    const h = history();
-    h.start();
-    h.task();
-    const review = h.schedule('llmReview', 'loop/draft-review/2/llmReview');
-    h.events[review - 1].userMetadata = {
-      summary: payloads('draft-review · round 2 · llmReview').payloads[0],
-    };
-    h.started(review);
-    h.completed(review, {});
-    const graph = buildWorkflowGraph(h.events, options());
-    expect(
-      graph.nodes.find(n => n.name === 'llmReview')!.summary,
-    ).toBeUndefined();
-  });
-
-  it('marks an activity as in a loop only by an ID that starts with loop/', () => {
-    const h = history();
-    h.start();
-    h.task();
-    const inLoop = h.schedule('charge', 'loop/retry/2/charge');
-    h.started(inLoop);
-    h.completed(inLoop, {});
-    const custom = h.schedule('charge', 'tenants/acme/loop/retry/2/charge');
-    h.started(custom);
-    h.completed(custom, {});
-    const graph = buildWorkflowGraph(h.events, options());
-    const byStep = (id: string) => graph.nodes.find(n => n.stepId === id)!;
-    expect(byStep('loop/retry/2/charge').loop).toEqual({
-      loop: 'retry',
-      iteration: 2,
-      step: 'charge',
-    });
-    expect(byStep('tenants/acme/loop/retry/2/charge').loop).toBeUndefined();
-  });
-
   it('links sequential activities in event order', () => {
     const h = history();
     h.start();

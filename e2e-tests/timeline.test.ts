@@ -20,7 +20,7 @@ import { expect, Page, test } from '@playwright/test';
 
 /*
  * The Timeline tab: a failed run with retries, a running run whose bars
- * grow until now, and the rounds of a loop. Hover, select, drag to zoom.
+ * grow until now, and a generate/check/revise run. Hover, select, drag to zoom.
  * Screenshots in the light and the dark theme.
  */
 
@@ -99,7 +99,7 @@ async function smallestFont(page: Page): Promise<number> {
 }
 
 for (const theme of ['light', 'dark']) {
-  test(`timeline: bars, hover, panel, zoom, live and loops (${theme})`, async ({
+  test(`timeline: bars, hover, panel, zoom, live and a draft-review run (${theme})`, async ({
     page,
   }) => {
     if (theme === 'dark') {
@@ -158,22 +158,17 @@ for (const theme of ['light', 'dark']) {
     await expect.poll(label, { timeout: 15_000 }).not.toBe(before);
     await shot(page, 'timeline-05-running', theme);
 
-    // 5. A loop: rounds grouped, the latest open, others collapsed.
+    // 5. A generate/check/revise run: draft and review steps on the axis.
     await page.getByRole('link', { name: '← Workflow executions' }).click();
     await openRun(runs, 'draftReviewWorkflow');
     timeline = await openTimeline(page);
-    const round1 = page.getByTestId('timeline-round-draft-review/1');
-    const toggle = round1.getByRole('button', { name: /Round 1 of 5/ });
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(
-      page
-        .getByTestId('timeline-round-draft-review/4')
-        .getByRole('button', { name: /Round 4 of 5/ }),
-    ).toHaveAttribute('aria-expanded', 'true');
-    await shot(page, 'timeline-06-loop', theme);
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await shot(page, 'timeline-07-loop-expanded', theme);
+      timeline.getByRole('button', { name: /llmDraft/ }).first(),
+    ).toBeVisible();
+    await expect(
+      timeline.getByRole('button', { name: /llmReview/ }).first(),
+    ).toBeVisible();
+    await shot(page, 'timeline-06-draft-review', theme);
 
     expect(errors).toEqual([]);
   });

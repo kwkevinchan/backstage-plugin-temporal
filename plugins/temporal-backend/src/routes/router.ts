@@ -246,14 +246,6 @@ export async function createRouter(
     res.json(graph);
   });
 
-  // Loops across the continue-as-new runs. Like the graph, the read
-  // permission is enough: rounds, steps and the recorded decisions and
-  // scores (memo), no inputs or results.
-  router.get(workflowSubpaths('loops'), async (req, res) => {
-    const { workflow } = await loadWorkflow(req, 'read');
-    res.json(await ai.loops(workflow));
-  });
-
   // The full record of one model call: messages, reasoning, tool calls.
   // Like inputs and results, it needs the history permission. `index`
   // picks a later call of a step that made several.

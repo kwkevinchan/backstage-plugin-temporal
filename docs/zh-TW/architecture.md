@@ -11,15 +11,14 @@
 
 ## 套件
 
-![套件分成兩邊：Backstage app 裡是 temporal-frontend 和它的兩個模組；Backstage 後端裡是 temporal-backend 和它的兩個模組。每個模組只依賴它那一邊的核心；前端透過 HTTP 呼叫後端，並帶著一份共用定義的副本。workflow kit 屬於 Worker 端，不在 Backstage 內。](images/package-map.svg)
+![套件分成兩邊：Backstage app 裡是 temporal-frontend 和它的兩個模組；Backstage 後端裡是 temporal-backend 和它的兩個模組。每個模組只依賴它那一邊的核心；前端透過 HTTP 呼叫後端，並帶著一份共用定義的副本。](images/package-map.svg)
 
-所有套件名稱都有 `@kwkevinchan/backstage-plugin-` 前綴（workflow kit 例外，它是 `@kwkevinchan/temporal-workflow-kit`）。青綠色是核心，紫色是選用模組。每個套件的角色表在 [README](../../README.md#packages)，裡面也有[該裝哪些](../../README.md#packages)。
+所有套件名稱都有 `@kwkevinchan/backstage-plugin-` 前綴。青綠色是核心，紫色是選用模組。每個套件的角色表在 [README](../../README.md#packages)，裡面也有[該裝哪些](../../README.md#packages)。
 
 - **核心，後端**（`temporal-backend`）：提供 `/api/temporal`，讀取和操作流程、檢查存取權限、把 `TemporalWorkflow` kind 加進 catalog，並給其他後端程式共用的 Temporal client（`./node`）、擴充點（`./alpha`）和共用定義（`./common`）。一行 `backend.add()` 就全部裝好。
 - **核心，前端**（`temporal-frontend`）：實體分頁、詳細頁、Workflows 頁和各操作的按鈕，兩套前端系統都支援。它需要後端。
 - **Zigflow**（`temporal-module-zigflow`、`temporal-backend-module-zigflow`）：Definition 分頁。各自需要它那一邊的核心。
 - **Scaffolder**（`scaffolder-backend-module-temporal`、`scaffolder-module-temporal`）：範本 action 和選擇流程的表單欄位。
-- **`temporal-workflow-kit`**：給你的 Worker 用，不在 Backstage 裡。實驗性、`private`、不發佈；它和實驗性的 AI 畫面一起。
 - **只供開發**（不發佈）：`packages/app`、`packages/app-next`、`packages/backend`、`packages/example-worker`。
 
 哪些組合能用：
@@ -96,7 +95,7 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 - **下載走後端，不發 presigned URL。** presigned URL 在到期前，拿到的人都能用，繞過 Backstage 的權限檢查。代價是資料要經過後端，並有大小上限（[Large payloads](../../README.md#large-payloads-external-storage)）。
 - **一般的類別，不事先做抽象。** 沒有 repository interface，也沒有容器：各層就是資料夾，由 `plugin.ts` 把物件互相傳進去。
 - **SDK 的 major 就是外掛的 major。** 後端用 `@temporalio/client` 1.x；它出新的 major，外掛的套件就出新的 major（[Compatibility](../../README.md#compatibility)）。
-- **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器；AI 畫面在開關後面（LLM 的畫面放在 `components/llm/` 和 `services/llm/`，之後會搬到自己的套件），它在 Worker 端的 kit 也不發佈。
-- **Worker 寫入的格式，兩邊都有測試。** workflow kit 寫入迴圈標記和 LLM 紀錄，後端用自己的程式碼讀回；兩邊都用共用的 fixture（`test-fixtures/`）測試。
+- **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器。官方 Temporal AI 整合的 LLM 畫面放在 `components/llm/` 和 `services/llm/`，不需要設定；Event Groups 也是從事件紀錄直接讀。
+- **Worker 寫入的格式，兩邊都有測試。** 官方 Temporal AI 整合的 payload 和 Event Groups 以 history 錄在 `test-fixtures/llm-integrations` 與 `test-fixtures/event-groups`；後端用自己的程式碼讀回，前端畫面測試讀同一批 history 建出的 graph。
 
 回到[文件索引](README.md)。

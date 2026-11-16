@@ -22,9 +22,8 @@ project supports one Backstage release line at a time (see the
 ## Scope
 
 In scope: the published packages in `plugins/` (the Backstage plugins and
-their modules), and `@kwkevinchan/temporal-workflow-kit`, which is
-experimental and not published yet. The development packages in `packages/` are
-examples and are not published.
+their modules). The development packages in `packages/` are examples and
+are not published.
 
 Before you report: the operations that change workflows are on by default
 (`temporal.control.enabled`). Without a permission policy (the allow-all

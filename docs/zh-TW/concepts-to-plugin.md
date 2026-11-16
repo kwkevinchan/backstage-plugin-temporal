@@ -152,9 +152,9 @@ export async function releaseWorkflow(input: ReleaseInput) {
 
 不用改外掛，就能加自己的按鈕、分頁、清單操作、後端 action 和資料補充。[架構](architecture.md#擴充點)列出了全部。
 
-### AI 流程（實驗性，預設關閉）
+### AI 流程（實驗性形狀）
 
-迴圈（產生、檢查、修改）和 LLM agent 在 Temporal 裡只是一長串 Activity。外掛會把 Temporal 官方 AI 整合的模型呼叫畫成方塊、工具掛在旁邊，還有顯示 prompt、輸出和 token 用量的面板，不需要任何設定。當 Worker 用實驗性的 `@kwkevinchan/temporal-workflow-kit`（尚未發佈）加上標記後，外掛還可以把迴圈收成一個方塊、一輪一框，加上 **Loops** 分頁。迴圈畫面在 `temporal.experimental.aiWorkflows: true` 後面，不屬於第一個正式版本，之後會移到獨立套件，也不承諾相容性。見 [Loops](../../README.md#loops) 和 [Model calls and tool calls](../../README.md#model-calls-and-tool-calls)。
+迴圈（產生、檢查、修改）和 LLM agent 在 Temporal 裡只是一長串 Activity。外掛會把 Temporal 官方 AI 整合的模型呼叫畫成方塊、工具掛在旁邊，還有顯示 prompt、輸出和 token 用量的面板，不需要任何設定。見 [Model calls and tool calls](../../README.md#model-calls-and-tool-calls)。
 
 流程也可以自己用 Temporal 的 Event Groups 把步驟分組（Temporal 的實驗性功能；server 1.32、TypeScript SDK 1.23 以上）。Temporal Web UI 可以依群組篩選事件紀錄；外掛把每個群組畫成框住它的步驟的箱子，可以巢狀、可以收合，底下有三個群組時標 `×3`，並多一個 **Event Groups** 分頁，不需要任何設定。見 [Event groups](../../README.md#event-groups)。
 

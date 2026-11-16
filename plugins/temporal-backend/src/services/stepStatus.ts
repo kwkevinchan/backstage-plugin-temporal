@@ -16,7 +16,7 @@
 
 import type { WorkflowNodeStatus } from '../common';
 
-/* Statuses of the steps of a graph, shared by the graph, loops and groups. */
+/* Statuses of the steps of a graph, shared by the graph and groups. */
 
 /** Statuses of a step that has not ended. */
 export const OPEN_STATUSES = new Set<WorkflowNodeStatus>([

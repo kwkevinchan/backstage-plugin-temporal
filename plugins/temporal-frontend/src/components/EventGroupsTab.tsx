@@ -43,7 +43,6 @@ import { tp } from './styles';
 /** Where the graph shows a group that has no box. */
 function noteText(display: GroupDisplay[string] | undefined): string {
   if (display === 'label') return 'Labels on its steps in the graph';
-  if (display === 'loop') return 'Its steps are in a loop box in the graph';
   return 'Not in the graph';
 }
 

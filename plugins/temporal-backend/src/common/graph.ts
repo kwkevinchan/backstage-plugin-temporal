@@ -17,7 +17,6 @@
 import type { JsonObject, JsonValue } from '@backstage/types';
 import type { WorkflowEventGroup } from './eventGroups';
 import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
-import type { WorkflowLoopGroup, WorkflowLoopMarker } from './loops';
 import type { WorkflowFailure, WorkflowStatus } from './types';
 
 /**
@@ -168,11 +167,6 @@ export interface WorkflowGraphNode {
   /** Other details, for example the timer duration or a signal's sender. */
   details?: JsonObject;
   /**
-   * Loop, round and step of an activity or child workflow with a loop
-   * marker. Experimental (`temporal.experimental.aiWorkflows`).
-   */
-  loop?: WorkflowLoopMarker;
-  /**
    * A model call, recognized by an LLM adapter: model, tokens and tool
    * calls. Experimental: the shape changes before the first stable release.
    */
@@ -227,11 +221,6 @@ export interface WorkflowGraphResponse {
   payloadsHidden: boolean;
   /** The run's place among the runs of a workflow that continues as new. */
   runChain?: WorkflowRunChain;
-  /**
-   * Loops of the run, from loop markers; left out when there are none.
-   * Experimental (`temporal.experimental.aiWorkflows`).
-   */
-  loops?: WorkflowLoopGroup[];
   /**
    * Temporal event groups of the run, in the order they started; left out
    * when the history has none. Experimental, like Event Groups in Temporal.

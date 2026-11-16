@@ -15,11 +15,7 @@
  */
 
 import type { WorkflowGraphNode, WorkflowGraphResponse } from '../../common';
-import {
-  loopGraphResponse,
-  timelineNodes as nodes,
-  TIMELINE_T0 as T0,
-} from '../../testData';
+import { timelineNodes as nodes, TIMELINE_T0 as T0 } from '../../testData';
 
 const at = (seconds: number) => new Date(T0 + seconds * 1000).toISOString();
 
@@ -160,49 +156,6 @@ describe('buildTimeline', () => {
       row: { queued: { start: T0 + 1000, end: now }, open: true },
     });
     expect(row.type === 'row' && row.row.run).toBeUndefined();
-  });
-
-  it('groups the steps of each loop round, latest round marked', () => {
-    const loop = buildTimeline(
-      loopGraphResponse,
-      {
-        status: 'Completed',
-        startTime: new Date(Date.UTC(2026, 0, 1, 11, 0, 0)).toISOString(),
-        closeTime: new Date(Date.UTC(2026, 0, 1, 11, 0, 10)).toISOString(),
-      },
-      now,
-    );
-    const groups = loop.items.flatMap(i =>
-      i.type === 'group' ? [i.group] : [],
-    );
-    expect(groups.map(g => [g.key, g.rows.map(r => r.id), g.latest])).toEqual([
-      ['draft-review/1', ['activity-5', 'activity-8'], false],
-      ['draft-review/2', ['activity-12', 'activity-15'], true],
-    ]);
-    // A group takes the place of its first step.
-    expect(loop.items[0]).toMatchObject({ type: 'row', row: { id: 'start' } });
-    expect(groups[0].span).toEqual({
-      start: Date.UTC(2026, 0, 1, 11, 0, 1),
-      end: Date.UTC(2026, 0, 1, 11, 0, 3),
-    });
-  });
-
-  it('leaves out the rounds of other runs', () => {
-    const other = {
-      ...loopGraphResponse,
-      loops: loopGraphResponse.loops!.map(l => ({
-        ...l,
-        rounds: l.rounds.map(r => ({
-          ...r,
-          runId: r.iteration === 1 ? 'run-0' : 'run-1',
-        })),
-      })),
-    };
-    const model2 = buildTimeline(other, { ...running, runId: 'run-1' }, now);
-    const keys = model2.items.flatMap(i =>
-      i.type === 'group' ? [i.group.key] : [],
-    );
-    expect(keys).toEqual(['draft-review/2']);
   });
 });
 

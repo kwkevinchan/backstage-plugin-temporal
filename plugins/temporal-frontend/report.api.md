@@ -118,15 +118,6 @@ export interface TemporalApi {
       pageToken?: string;
     },
   ): Promise<WorkflowHistoryResponse>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowLoopsResponse" needs to be exported by the entry point index.d.ts
-  //
-  // @alpha
-  getWorkflowLoops(
-    ref: WorkflowRef,
-    options?: {
-      entityRef?: string;
-    },
-  ): Promise<WorkflowLoopsResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowProgressResponse" needs to be exported by the entry point index.d.ts
   getWorkflowProgress(
     ref: WorkflowRef,
@@ -306,13 +297,6 @@ export class TemporalClient implements TemporalApi {
       pageToken?: string;
     },
   ): Promise<WorkflowHistoryResponse>;
-  // (undocumented)
-  getWorkflowLoops(
-    ref: WorkflowRef,
-    options?: {
-      entityRef?: string;
-    },
-  ): Promise<WorkflowLoopsResponse>;
   // (undocumented)
   getWorkflowProgress(
     ref: WorkflowRef,
