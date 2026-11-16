@@ -97,6 +97,12 @@ jobs:
       - name: Backstage release pin
         run: node scripts/pin-backstage-release.mjs --check
 
+      - name: Package metadata
+        run: yarn backstage-cli repo fix --check --publish
+
+      - name: Config schema
+        run: yarn backstage-cli config:check --lax
+
       - name: Prettier
         run: yarn prettier:check
 
@@ -123,10 +129,25 @@ jobs:
         run: yarn backstage-cli repo lint
 
       - name: Test
-        run: yarn backstage-cli repo test
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            yarn backstage-cli repo test --since "origin/${{ github.base_ref }}"
+          else
+            yarn backstage-cli repo test
+          fi
 
       - name: Build
         run: yarn backstage-cli repo build --all
+
+      - name: Clean working tree
+        run: |
+          touch plugins/temporal-backend/uncommitted-check.tmp
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Working tree is not clean after Verify:" >&2
+            git status --short >&2
+            git diff >&2
+            exit 1
+          fi
 
   e2e:
     name: Smoke (${{ matrix.app }})
