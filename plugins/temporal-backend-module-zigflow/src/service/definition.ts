@@ -90,22 +90,7 @@ interface CompiledAllowRule {
 const SAME_REPO_MESSAGE =
   'Relative definition targets must stay in the repository of the entity; to read from another repository or host, use an absolute URL and allow it in temporal.definitions.allow';
 
-/**
- * Drops ASCII controls, spaces, and DEL from both ends of a target.
- * URL parsers do the same, so classification has to see the value they
- * will actually parse. Otherwise " https://..." is treated as a relative
- * path and later resolved as an absolute URL.
- */
-function withoutEdgeControls(value: string): string {
-  // U+0000–U+0020 (C0 controls and space) and U+007F (DEL).
-  const isEdge = (code: number) => code <= 0x20 || code === 0x7f;
-  let start = 0;
-  let end = value.length;
-  while (start < end && isEdge(value.charCodeAt(start))) start += 1;
-  while (end > start && isEdge(value.charCodeAt(end - 1))) end -= 1;
-  return value.slice(start, end);
-}
-
+/** True when `value` contains an ASCII control (U+0000–U+001F) or DEL. */
 function hasControlChar(value: string): boolean {
   for (let i = 0; i < value.length; i += 1) {
     const code = value.charCodeAt(i);
@@ -590,17 +575,21 @@ export class DefinitionReader {
    */
   resolve(
     entity: Entity,
-    target: string,
+    rawTarget: string,
   ): { type: 'url' | 'file'; target: string } {
-    const normalizedTarget = withoutEdgeControls(target);
-    const decodedFull = withoutEdgeControls(decodeFully(normalizedTarget));
-    if (hasControlChar(normalizedTarget) || hasControlChar(decodedFull)) {
+    // Reject controls in the raw target and its fully decoded form first,
+    // including the edges. Trimming them off before the check would hide
+    // "\thttps://..." and "%0ahttps://...", and URL parsers also delete
+    // interior tab, LF, and CR.
+    if (hasControlChar(rawTarget) || hasControlChar(decodeFully(rawTarget))) {
       throw new TargetError(SAME_REPO_MESSAGE);
     }
-    if (/^[a-z][a-z0-9+.-]*:/i.test(normalizedTarget)) {
+    const target = rawTarget.trim();
+    const decodedTrimmed = decodeFully(target).trim();
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) {
       let url: URL;
       try {
-        url = new URL(normalizedTarget);
+        url = new URL(target);
       } catch {
         throw new TargetError('spec.definition.target is not a valid URL');
       }
@@ -632,21 +621,21 @@ export class DefinitionReader {
       return { type: 'url', target: url.toString() };
     }
 
-    const targetPathRaw = normalizedTarget.split(/[?#]/, 1)[0];
-    const decodedTarget = withoutEdgeControls(decodeFully(targetPathRaw));
+    const targetPathRaw = target.split(/[?#]/, 1)[0];
+    const decodedTarget = decodeFully(targetPathRaw).trim();
     if (
       !targetPathRaw.trim() ||
-      normalizedTarget.includes('\\') ||
-      decodedFull.includes('\\')
+      target.includes('\\') ||
+      decodedTrimmed.includes('\\')
     ) {
       throw new TargetError(
         'Relative definition targets must be valid relative paths without "\\\\", null bytes, or empty paths',
       );
     }
     if (
-      normalizedTarget.startsWith('//') ||
-      decodedFull.startsWith('//') ||
-      /^[a-z][a-z0-9+.-]*:/i.test(decodedFull)
+      target.startsWith('//') ||
+      decodedTrimmed.startsWith('//') ||
+      /^[a-z][a-z0-9+.-]*:/i.test(decodedTrimmed)
     ) {
       throw new TargetError(SAME_REPO_MESSAGE);
     }
@@ -689,7 +678,7 @@ export class DefinitionReader {
       let resolved: string;
       try {
         resolved = this.integrations.resolveUrl({
-          url: normalizedTarget,
+          url: target,
           base: location.target,
         });
       } catch {
@@ -718,7 +707,7 @@ export class DefinitionReader {
         );
       }
       const base = dirname(location.target);
-      const file = resolve(base, normalizedTarget);
+      const file = resolve(base, target);
       const inside = relative(base, file);
       // Only files in the folder of the entity file or below it.
       if (

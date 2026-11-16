@@ -389,20 +389,11 @@ describe('DefinitionReader', () => {
       'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
     );
 
-    // Leading or trailing padding must be classified as an absolute URL,
-    // not resolved as a path inside the entity repository.
+    // Spaces are not controls. Trim them, then classify as an absolute URL
+    // so the allowlist still applies. Do not resolve them as repo paths.
     const paddedAbsolute = [
       ' https://evil.example.com/x',
       'https://evil.example.com/x ',
-      '\thttps://evil.example.com/x',
-      'https://evil.example.com/x\t',
-      '\nhttps://evil.example.com/x',
-      'https://evil.example.com/x\n',
-      '\rhttps://evil.example.com/x',
-      'https://evil.example.com/x\r',
-      '\u0000https://evil.example.com/x',
-      '\u007fhttps://evil.example.com/x',
-      'https://evil.example.com/x\u007f',
     ];
     for (const target of paddedAbsolute) {
       resolveUrl.mockClear();
@@ -415,6 +406,27 @@ describe('DefinitionReader', () => {
           ),
         }),
       );
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+
+    // Edge controls are rejected before classification. They must not be
+    // stripped and then accepted or rejected as an absolute URL.
+    const controlAbsolute = [
+      '\thttps://evil.example.com/x',
+      'https://evil.example.com/x\t',
+      '\nhttps://evil.example.com/x',
+      'https://evil.example.com/x\n',
+      '\rhttps://evil.example.com/x',
+      'https://evil.example.com/x\r',
+      '\u0000https://evil.example.com/x',
+      '\u007fhttps://evil.example.com/x',
+      'https://evil.example.com/x\u007f',
+    ];
+    for (const target of controlAbsolute) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error?.kind).toBe('read');
       expect(readUrl).not.toHaveBeenCalled();
       expect(resolveUrl).not.toHaveBeenCalled();
     }
@@ -446,6 +458,121 @@ describe('DefinitionReader', () => {
     );
     expect(readUrl).not.toHaveBeenCalled();
     expect(resolveUrl).not.toHaveBeenCalled();
+  });
+
+  it('rejects embedded and encoded ASCII controls before resolving a URL', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const real = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: { github: [{ host: 'github.com' }] },
+      }),
+    );
+    const resolveUrl = jest.fn((options: { url: string; base: string }) =>
+      real.resolveUrl(options),
+    );
+    const integrations = {
+      resolveUrl,
+      byUrl: (url: string) => real.byUrl(url),
+    } as unknown as ScmIntegrations;
+    const reader = readerOf(readUrl, { integrations });
+    const allowedReader = readerOf(readUrl, {
+      integrations,
+      allow: [{ host: 'raw.example.com' }],
+    });
+    const ghRoot = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+    );
+    const ghFeatSub = entity(
+      'url:https://github.com/my-org/my-repo/blob/feat/sub/catalog-info.yaml',
+    );
+
+    // Spaces still classify as an absolute URL, so an allowed host is read.
+    const paddedAllowed = await allowedReader.read(
+      entity(),
+      spec(' https://raw.example.com/order.yaml'),
+    );
+    expect(paddedAllowed.error).toBeUndefined();
+    expect(readUrl).toHaveBeenCalledWith('https://raw.example.com/order.yaml');
+    expect(resolveUrl).not.toHaveBeenCalled();
+    readUrl.mockClear();
+
+    const leadingSpace = await reader.read(
+      ghRoot,
+      spec(' https://github.com/my-org/my-repo/blob/main/other.yaml'),
+    );
+    expect(leadingSpace.error?.kind).toBe('read');
+    expect(leadingSpace.error?.message).toContain(
+      'Absolute definition URLs from github.com are not allowed',
+    );
+    expect(readUrl).not.toHaveBeenCalled();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    const rejected: Array<{
+      ent: ReturnType<typeof entity>;
+      target: string;
+      allow?: boolean;
+    }> = [
+      {
+        ent: ghRoot,
+        target: '\thttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      {
+        ent: ghRoot,
+        target: 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      { ent: ghRoot, target: ' //evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '\t//evil.example.com/a.yaml' },
+      { ent: ghFeatSub, target: '.\t./.\t./feat/other.yaml' },
+      { ent: ghRoot, target: '..%09/..' },
+      { ent: ghRoot, target: '..%09/outside.yaml' },
+      {
+        ent: ghRoot,
+        target: '%0ahttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      { ent: ghRoot, target: '%0dhttps://evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '%00./workflows/order.yaml' },
+      { ent: ghRoot, target: '%20https://evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '%20//evil.example.com/a.yaml' },
+      {
+        ent: ghRoot,
+        target: '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml',
+      },
+      // Edge controls must not be stripped and then pass the allowlist.
+      {
+        ent: entity(),
+        target: '\thttps://raw.example.com/order.yaml',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: 'https://raw.example.com/order.yaml\n',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: '%0ahttps://raw.example.com/order.yaml',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: '%09https://raw.example.com/order.yaml',
+        allow: true,
+      },
+      { ent: ghRoot, target: '\t./workflows/order.yaml' },
+      { ent: ghRoot, target: '%0a./workflows/order.yaml' },
+    ];
+    for (const { ent, target, allow } of rejected) {
+      resolveUrl.mockClear();
+      const result = await (allow ? allowedReader : reader).read(
+        ent,
+        spec(target),
+      );
+      expect(result.error?.kind).toBe('read');
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
   });
 
   it('keeps relative targets inside the same repository across integrations', async () => {
