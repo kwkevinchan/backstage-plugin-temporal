@@ -140,10 +140,16 @@ also show above the source.
 
 - A relative `target` is resolved against the entity's
   `backstage.io/managed-by-location` with the integration's rules and must stay
-  in the same repository (same integration and repository, or inside the folder
-  of the entity file for Gerrit, AWS CodeCommit, Harness, and other URL shapes
-  without a repository boundary); paths climbing out with `..` or resolving to
-  another repository are rejected.
+  in the same repository: same integration, repository and branch for GitHub,
+  GitLab, Bitbucket Cloud and Server, Azure DevOps and Gitea. Each of these URL
+  shapes is recognized only on hosts of its own integration type (and on hosts
+  without an integration). On other hosts, such as Gerrit, AWS CodeCommit and
+  Harness, and for other URL shapes, such as S3 objects, the target must stay
+  in the folder of the entity file or below it (for a file at the root of a
+  bucket host, such as
+  `https://my-bucket.s3.us-east-1.amazonaws.com/catalog-info.yaml`, that folder
+  is the bucket). Paths climbing out with `..` or resolving to another
+  repository are rejected.
 - An absolute `http(s)` URL is rejected by default and read only when its host
   (and optional `paths` prefix) matches `temporal.definitions.allow`. Other URL
   schemes are rejected.

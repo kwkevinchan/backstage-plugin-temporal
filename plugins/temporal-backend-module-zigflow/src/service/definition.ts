@@ -90,6 +90,9 @@ interface CompiledAllowRule {
 const SAME_REPO_MESSAGE =
   'Relative definition targets must stay in the repository of the entity; to read from another repository or host, use an absolute URL and allow it in temporal.definitions.allow';
 
+const SAME_FOLDER_MESSAGE =
+  'On this host, relative definition targets must stay in the folder of the entity file or below it; to read another file, use an absolute URL and allow it in temporal.definitions.allow';
+
 /** True when `value` contains an ASCII control (U+0000–U+001F) or DEL. */
 function hasControlChar(value: string): boolean {
   for (let i = 0; i < value.length; i += 1) {
@@ -246,11 +249,18 @@ interface ParsedRepoUrl {
   folderPrefix: string;
 }
 
+/** True for AWS S3 path-style hosts, where the first path segment is the bucket. */
+function isS3PathStyleHost(hostname: string): boolean {
+  return /^s3([.-][^.]+)*\.amazonaws\.com(\.cn)?$/i.test(hostname);
+}
+
 /**
  * Extracts the repository identity (`origin` + owner/repo or project/repo),
  * optional branch/ref, and file directory segments inside the repository from
  * an SCM file URL, or falls back to the entity file's folder boundary for
- * unrecognized URL shapes (such as Gerrit, CodeCommit, or Harness).
+ * other URL shapes (such as Gerrit, CodeCommit, or Harness). Each repository
+ * URL shape applies only to its integration type and to hosts without an
+ * integration.
  */
 function parseRepoUrl(
   rawUrl: string,
@@ -277,9 +287,13 @@ function parseRepoUrl(
   const allSegments = pathname.split('/').filter(Boolean);
   const folderPrefix =
     allSegments.length >= 2 ? `/${allSegments.slice(0, -1).join('/')}/` : '/';
+  const typeIs = (type: string) =>
+    integrationType === type || integrationType === undefined;
 
   // Azure DevOps: /{org}/{project}/_git/{repo}?path=/... (or /{project}/_git/{repo})
-  const azureMatch = /^\/(.+\/_git\/[^/]+)\/?$/.exec(pathname);
+  const azureMatch = typeIs('azure')
+    ? /^\/(.+\/_git\/[^/]+)\/?$/.exec(pathname)
+    : null;
   if (azureMatch) {
     const queryPath = parsed.searchParams.get('path');
     if (!queryPath) return undefined;
@@ -306,8 +320,9 @@ function parseRepoUrl(
   }
 
   // GitLab: /{group...}/{repo}/-/(blob|tree|raw|edit)/{ref}/{filepath}
-  const gitlabMatch =
-    /^\/(.+?)\/-\/(?:blob|tree|raw|edit)\/([^/]+)\/(.+)$/.exec(pathname);
+  const gitlabMatch = typeIs('gitlab')
+    ? /^\/(.+?)\/-\/(?:blob|tree|raw|edit)\/([^/]+)\/(.+)$/.exec(pathname)
+    : null;
   if (gitlabMatch) {
     const [, repoPath, ref, filepath] = gitlabMatch;
     const parts = filepath.split('/').filter(Boolean);
@@ -342,8 +357,9 @@ function parseRepoUrl(
   }
 
   // Bitbucket Server: /projects/{project}/repos/{repo}/(browse|raw)/{filepath}
-  const bbServerMatch =
-    /^\/(projects\/[^/]+\/repos\/[^/]+)\/(?:browse|raw)\/(.+)$/.exec(pathname);
+  const bbServerMatch = typeIs('bitbucketServer')
+    ? /^\/(projects\/[^/]+\/repos\/[^/]+)\/(?:browse|raw)\/(.+)$/.exec(pathname)
+    : null;
   if (bbServerMatch) {
     const [, repoPath, filepath] = bbServerMatch;
     const parts = filepath.split('/').filter(Boolean);
@@ -359,10 +375,11 @@ function parseRepoUrl(
   }
 
   // Gitea: /{owner}/{repo}/(src|raw)/(branch|commit|tag)/{ref}/{filepath}
-  const giteaMatch =
-    /^\/([^/]+\/[^/]+)\/(?:src|raw)\/(?:branch|commit|tag)\/([^/]+)\/(.+)$/.exec(
-      pathname,
-    );
+  const giteaMatch = typeIs('gitea')
+    ? /^\/([^/]+\/[^/]+)\/(?:src|raw)\/(?:branch|commit|tag)\/([^/]+)\/(.+)$/.exec(
+        pathname,
+      )
+    : null;
   if (giteaMatch) {
     const [, repoPath, ref, filepath] = giteaMatch;
     const parts = filepath.split('/').filter(Boolean);
@@ -422,9 +439,16 @@ function parseRepoUrl(
     return undefined;
   }
 
-  // Unrecognized SCM URL structure (e.g. Gerrit, CodeCommit, Harness):
-  // bound relative targets to the folder of the entity file.
-  if (allSegments.length >= 2) {
+  // Other URL shapes (e.g. Gerrit, CodeCommit, Harness): bound relative
+  // targets to the folder of the entity file. A file at the root of a host
+  // without an integration (an S3 bucket in the host name) is bounded by the
+  // host root; on S3 path-style hosts that root holds every bucket.
+  if (
+    allSegments.length >= 2 ||
+    (allSegments.length === 1 &&
+      integrationType === undefined &&
+      !isS3PathStyleHost(parsed.hostname))
+  ) {
     return {
       kind: 'folder',
       repoKey: `${parsed.origin}${folderPrefix}`,
@@ -726,8 +750,10 @@ export class DefinitionReader {
           `Could not determine the repository from ${ANNOTATION_LOCATION}; use an absolute URL and allow it in temporal.definitions.allow`,
         );
       }
+      const outside =
+        baseRepo.kind === 'folder' ? SAME_FOLDER_MESSAGE : SAME_REPO_MESSAGE;
       if (baseRepo.kind === 'folder' && decodedTarget.startsWith('/')) {
-        throw new TargetError(SAME_REPO_MESSAGE);
+        throw new TargetError(outside);
       }
       let depth = decodedTarget.startsWith('/')
         ? 0
@@ -739,7 +765,7 @@ export class DefinitionReader {
         if (segment === '..') {
           depth -= 1;
           if (depth < 0) {
-            throw new TargetError(SAME_REPO_MESSAGE);
+            throw new TargetError(outside);
           }
         } else {
           depth += 1;
@@ -752,15 +778,15 @@ export class DefinitionReader {
           base: location.target,
         });
       } catch {
-        throw new TargetError(SAME_REPO_MESSAGE);
+        throw new TargetError(outside);
       }
       const resolvedIntegration = this.integrations.byUrl(resolved);
       if (baseIntegration !== resolvedIntegration) {
-        throw new TargetError(SAME_REPO_MESSAGE);
+        throw new TargetError(outside);
       }
       const resolvedRepo = parseRepoUrl(resolved, resolvedIntegration?.type);
       if (!resolvedRepo) {
-        throw new TargetError(SAME_REPO_MESSAGE);
+        throw new TargetError(outside);
       }
       if (baseRepo.kind === 'folder') {
         const resolvedUrl = new URL(resolved);
@@ -773,7 +799,7 @@ export class DefinitionReader {
           !resolvedPathname.startsWith(baseRepo.folderPrefix) ||
           resolvedPathname.length <= baseRepo.folderPrefix.length
         ) {
-          throw new TargetError(SAME_REPO_MESSAGE);
+          throw new TargetError(outside);
         }
       } else if (
         resolvedRepo.kind !== 'repo' ||
