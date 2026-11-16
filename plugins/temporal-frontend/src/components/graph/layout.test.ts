@@ -16,7 +16,7 @@
 
 import type { WorkflowGraphNode } from '../../common';
 import { graphResponse } from '../../testData';
-import { routeRowGaps } from './GraphCanvas';
+import { routeRowGaps } from './frameEdge';
 import {
   graphHeight,
   initialViewport,
