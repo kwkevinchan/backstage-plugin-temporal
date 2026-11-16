@@ -81,15 +81,11 @@ workflow definition.
   added with a backend module (see
   [Model calls and tool calls](#model-calls-and-tool-calls)).
 
-| Workflows of an entity                                           | Step graph and step panel                                        |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![Workflow list of an entity](docs/images/entity-tab.png)        | ![Step graph with the step panel](docs/images/details-graph.png) |
-| **Timeline**                                                     | **Event groups** (experimental in Temporal)                      |
-| ![Timeline of a loop workflow](docs/images/timeline.png)         | ![Event group frames around a loop](docs/images/loop.png)        |
-| **Large payload in S3**                                          | **Workflow controls**                                            |
-| ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
-| **A model call and its tool calls**                              | **LLM panel**                                                    |
-| ![A model call with three tool calls](docs/images/llm-graph.png) | ![LLM panel of a model call](docs/images/llm-panel.png)          |
+| Workflows of an entity                                    | Step graph and step panel                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![Workflow list of an entity](docs/images/entity-tab.png) | ![Step graph with the step panel](docs/images/details-graph.png) |
+| **Large payload in S3**                                   | **Workflow controls**                                            |
+| ![An image stored in S3](docs/images/s3-payload.png)      | ![Terminate dialog](docs/images/controls.png)                    |
 
 ## Packages
 
@@ -366,9 +362,9 @@ step, oldest first, with offsets from the start of the run (`+1m 30s`):
   are points.
 - the first row is the whole run. For a running workflow, open steps reach
   to now (a vertical line) and grow while the page refreshes.
-- steps of a loop are grouped by round; the latest round of each loop is
-  open and the others can be expanded (one at a time, or all at once). A
-  run that continued as new shows its own rounds only.
+- the steps of an event group sit under a row with the group's bar; groups
+  can be expanded and collapsed one at a time, or all at once (**Expand
+  groups**, **Collapse groups**). See [Event groups](#event-groups).
 - drag across the chart to zoom in to that range; Ctrl (or ⌘) + scroll
   zooms around the pointer, Shift + scroll pans, and **Whole run** zooms
   out. Hovering a bar shows its times, durations and attempts; pressing it

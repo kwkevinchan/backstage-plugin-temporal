@@ -347,11 +347,9 @@ integration, so the plugin shows them without a setting.
    `mixedAgentWorkflow` mixes ordinary activities, model calls, parallel
    tools and a child workflow.
 
-   ![A model call with its tool calls.](images/llm-graph.png)
-
 **Why:** Temporal only sees a series of activities. The official AI
 integrations write a known payload shape; the plugin's adapters read it.
-See [LLM steps](../README.md#llm-steps).
+See [LLM steps](../README.md#model-calls-and-tool-calls).
 
 Workflows that group their steps with Temporal Event Groups (server 1.32 or
 later) get a box per group, without a setting: the graph nests the

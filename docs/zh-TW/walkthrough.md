@@ -171,9 +171,7 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 1. **LLM 步驟。** 打開 `example-agent-…`。每次模型呼叫（`invokeModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
 
-   ![一次模型呼叫和它的 tool call。](../images/llm-graph.png)
-
-**為什麼：** Temporal 只看到一串 Activity。官方 AI 整合寫出已知的 payload 形狀，外掛的轉接器讀它。見 [LLM steps](../../README.md#llm-steps)。
+**為什麼：** Temporal 只看到一串 Activity。官方 AI 整合寫出已知的 payload 形狀，外掛的轉接器讀它。見 [LLM steps](../../README.md#model-calls-and-tool-calls)。
 
 用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要設定：流程圖把箱子巢狀排好，迴圈的每一輪收成一排小方塊（`×3`），**Event Groups** 分頁列出所有群組。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
 
