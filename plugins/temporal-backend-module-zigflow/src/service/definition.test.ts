@@ -807,6 +807,220 @@ describe('DefinitionReader', () => {
     expect(readUrl).not.toHaveBeenCalled();
   });
 
+  describe('URL shapes of other integration types', () => {
+    const okReadUrl = () =>
+      jest.fn(async () => ({
+        buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+      }));
+    const typedReader = (readUrl: jest.Mock) =>
+      readerOf(readUrl, {
+        integrations: ScmIntegrations.fromConfig(
+          new ConfigReader({
+            integrations: {
+              github: [{ host: 'github.com' }],
+              gerrit: [
+                {
+                  host: 'gerrit.example.com',
+                  gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+                },
+              ],
+              harness: [{ host: 'app.harness.io' }],
+            },
+          }),
+        ),
+      });
+    const expectRejected = async (location: string, target: string) => {
+      const readUrl = okReadUrl();
+      const result = await typedReader(readUrl).read(
+        entity(`url:${location}`),
+        spec(target),
+      );
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+      expect(readUrl).not.toHaveBeenCalled();
+    };
+
+    it('does not read a Gerrit project named like a Gitea URL', async () => {
+      await expectRejected(
+        'https://gerrit.example.com/plugins/gitiles/src/branch/main/att/+/refs/heads/main/catalog-info.yaml',
+        '../../../../../victim/+/refs/heads/main/x.yaml',
+      );
+    });
+
+    it('does not read a Gerrit project named like a GitLab URL', async () => {
+      await expectRejected(
+        'https://gerrit.example.com/plugins/gitiles/team/-/blob/x/att/+/refs/heads/main/catalog-info.yaml',
+        '../../../../../victim/+/refs/heads/main/x.yaml',
+      );
+    });
+
+    it('bounds other integration types to the folder of the entity file', async () => {
+      // The same Gerrit names with encoded slashes and dots.
+      await expectRejected(
+        'https://gerrit.example.com/plugins/gitiles/src%2Fbranch%2Fmain%2Fatt/+/refs/heads/main/catalog-info.yaml',
+        '%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/victim/+/refs/heads/main/x.yaml',
+      );
+      await expectRejected(
+        'https://gerrit.example.com/plugins/gitiles/team/-/blob/x/att/+/refs/heads/main/catalog-info.yaml',
+        '..%2f..%2f..%2f..%2f..%2fvictim/+/refs/heads/main/x.yaml',
+      );
+      // A Bitbucket Server URL shape on a Harness host.
+      await expectRejected(
+        'https://app.harness.io/projects/p/repos/r/browse/a/catalog-info.yaml',
+        '../x.yaml',
+      );
+
+      // Inside the folder of the entity file is still read.
+      const readUrl = okReadUrl();
+      expect(
+        (
+          await typedReader(readUrl).read(
+            entity(
+              'url:https://gerrit.example.com/plugins/gitiles/src/branch/main/att/+/refs/heads/main/catalog-info.yaml',
+            ),
+            spec('./workflows/x.yaml'),
+          )
+        ).error,
+      ).toBeUndefined();
+      expect(readUrl).toHaveBeenLastCalledWith(
+        'https://gerrit.example.com/plugins/gitiles/src/branch/main/att/+/refs/heads/main/workflows/x.yaml',
+      );
+    });
+
+    it('keeps the GitHub boundary for a folder named like a GitLab URL', async () => {
+      const readUrl = okReadUrl();
+      expect(
+        (
+          await typedReader(readUrl).read(
+            entity(
+              'url:https://github.com/my-org/my-repo/blob/main/-/blob/x/catalog-info.yaml',
+            ),
+            spec('../../../order.yaml'),
+          )
+        ).error,
+      ).toBeUndefined();
+      expect(readUrl).toHaveBeenLastCalledWith(
+        'https://github.com/my-org/my-repo/tree/main/order.yaml',
+      );
+    });
+  });
+
+  it('says that folder-bounded hosts read only the folder of the entity file', async () => {
+    const readUrl = jest.fn();
+    const reader = readerOf(readUrl, {
+      integrations: ScmIntegrations.fromConfig(
+        new ConfigReader({
+          integrations: {
+            github: [{ host: 'github.com' }],
+            gerrit: [
+              {
+                host: 'gerrit.example.com',
+                gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+              },
+            ],
+          },
+        }),
+      ),
+    });
+    const gerrit = entity(
+      'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/a/catalog-info.yaml',
+    );
+    for (const target of ['../w.yaml', '/w.yaml', '%2e%2e/w.yaml']) {
+      const message = (await reader.read(gerrit, spec(target))).error?.message;
+      expect(message).toContain(
+        'must stay in the folder of the entity file or below it',
+      );
+      expect(message).not.toContain('repository of the entity');
+      expect(message).toContain('temporal.definitions.allow');
+    }
+    const github = await reader.read(
+      entity(
+        'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+      ),
+      spec('../w.yaml'),
+    );
+    expect(github.error?.message).toContain(
+      'must stay in the repository of the entity',
+    );
+    expect(readUrl).not.toHaveBeenCalled();
+  });
+
+  it('bounds a file at the root of a bucket host by that host', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const reader = readerOf(readUrl, {
+      integrations: ScmIntegrations.fromConfig(
+        new ConfigReader({
+          integrations: {
+            github: [{ host: 'github.com' }],
+            gerrit: [
+              {
+                host: 'gerrit.example.com',
+                gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+              },
+            ],
+          },
+        }),
+      ),
+    });
+    const bucketRoot = entity(
+      'url:https://my-bucket.s3.us-east-1.amazonaws.com/catalog-info.yaml',
+    );
+    for (const [target, url] of [
+      ['./w.yaml', 'https://my-bucket.s3.us-east-1.amazonaws.com/w.yaml'],
+      ['w.yaml', 'https://my-bucket.s3.us-east-1.amazonaws.com/w.yaml'],
+      [
+        './workflows/w.yaml',
+        'https://my-bucket.s3.us-east-1.amazonaws.com/workflows/w.yaml',
+      ],
+    ]) {
+      expect(
+        (await reader.read(bucketRoot, spec(target))).error,
+      ).toBeUndefined();
+      expect(readUrl).toHaveBeenLastCalledWith(url);
+    }
+    readUrl.mockClear();
+
+    const rejected: [ReturnType<typeof entity>, string][] = [
+      [bucketRoot, '../w.yaml'],
+      [bucketRoot, '%2e%2e/w.yaml'],
+      [bucketRoot, './../other-bucket/w.yaml'],
+      [bucketRoot, '/w.yaml'],
+      [bucketRoot, './'],
+      [bucketRoot, '//other-bucket.s3.us-east-1.amazonaws.com/w.yaml'],
+      // On path-style hosts the first segment is the bucket, so the host
+      // root is not a boundary.
+      [
+        entity('url:https://s3.us-east-1.amazonaws.com/catalog-info.yaml'),
+        './other-bucket/w.yaml',
+      ],
+      [
+        entity('url:https://s3.amazonaws.com/catalog-info.yaml'),
+        './other-bucket/w.yaml',
+      ],
+      [
+        entity('url:https://s3-us-west-2.amazonaws.com/catalog-info.yaml'),
+        './other-bucket/w.yaml',
+      ],
+      // Hosts with an integration have no files at their root.
+      [
+        entity('url:https://github.com/catalog-info.yaml'),
+        './my-org/my-repo/blob/main/w.yaml',
+      ],
+      [
+        entity('url:https://gerrit.example.com/catalog-info.yaml'),
+        './plugins/gitiles/proj/+/refs/heads/main/w.yaml',
+      ],
+    ];
+    for (const [ent, target] of rejected) {
+      const result = await reader.read(ent, spec(target));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+    }
+    expect(readUrl).not.toHaveBeenCalled();
+  });
+
   it('stops reading at the size limit', async () => {
     const big = Buffer.alloc(64, 'a');
     const stream = Readable.from([big, big, big]);
