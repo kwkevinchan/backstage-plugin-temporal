@@ -227,8 +227,8 @@ temporal:
     #       - /my-org/my-workflows/
 ```
 
-| Key                             | Default   | Description                                                                                                                              |
-| ------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port`) and optional `paths` prefixes allowed for absolute `http(s)` `target` URLs. |
-| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                  |
-| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                         |
+| Key                             | Default   | Description                                                                                                                                                    |
+| ------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and optional `paths` prefixes allowed for absolute `http(s)` `target` URLs. |
+| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                                        |
+| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                                               |

@@ -106,6 +106,16 @@ function withoutEdgeControls(value: string): string {
   return value.slice(start, end);
 }
 
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Repeatedly percent-decodes a string until it stops changing. */
 function decodeFully(value: string): string {
   let decoded = value;
@@ -166,29 +176,48 @@ function compileAllowRule(rule: DefinitionAllowRule): CompiledAllowRule {
   if (hostParts.length > 2 || !hostParts[0]) {
     throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
   }
-  const hostname = hostParts[0].toLowerCase();
+  const rawHostname = hostParts[0].toLowerCase();
   if (hostParts.length === 2 && !hostParts[1]) {
     throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
   }
   if (
-    hostname.includes('*') &&
-    (!hostname.startsWith('*.') ||
-      hostname.length <= 2 ||
-      hostname.slice(2).includes('*') ||
-      hostname.slice(2).startsWith('.'))
+    rawHostname.includes('*') &&
+    (!rawHostname.startsWith('*.') ||
+      rawHostname.length <= 2 ||
+      rawHostname.slice(2).includes('*') ||
+      rawHostname.slice(2).startsWith('.'))
   ) {
     throw new Error(
       `temporal.definitions.allow: invalid host wildcard "${rule.host}"`,
     );
   }
+  const isWildcard = rawHostname.startsWith('*.');
+  const domainPart = isWildcard ? rawHostname.slice(2) : rawHostname;
+  let normalizedDomain: string;
+  try {
+    const parsedHost = new URL(`http://${domainPart}`);
+    if (
+      parsedHost.username ||
+      parsedHost.password ||
+      parsedHost.port ||
+      parsedHost.pathname !== '/' ||
+      !parsedHost.hostname ||
+      domainPart.startsWith('.')
+    ) {
+      throw new Error('invalid host');
+    }
+    normalizedDomain = parsedHost.hostname.toLowerCase();
+  } catch {
+    throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
+  }
   const matchesPort = compilePortMatcher(hostParts[1], rule.host);
-  const matchesHostname = hostname.startsWith('*.')
+  const matchesHostname = isWildcard
     ? (url: URL) => {
-        const suffix = hostname.slice(1);
+        const suffix = `.${normalizedDomain}`;
         const host = url.hostname.toLowerCase();
         return host.length > suffix.length && host.endsWith(suffix);
       }
-    : (url: URL) => url.hostname.toLowerCase() === hostname;
+    : (url: URL) => url.hostname.toLowerCase() === normalizedDomain;
 
   let matchesPath: (normalizedPath: string) => boolean = () => true;
   if (rule.paths !== undefined) {
@@ -564,6 +593,10 @@ export class DefinitionReader {
     target: string,
   ): { type: 'url' | 'file'; target: string } {
     const normalizedTarget = withoutEdgeControls(target);
+    const decodedFull = withoutEdgeControls(decodeFully(normalizedTarget));
+    if (hasControlChar(normalizedTarget) || hasControlChar(decodedFull)) {
+      throw new TargetError(SAME_REPO_MESSAGE);
+    }
     if (/^[a-z][a-z0-9+.-]*:/i.test(normalizedTarget)) {
       let url: URL;
       try {
@@ -577,7 +610,7 @@ export class DefinitionReader {
       const decodedPath = decodeFully(url.pathname);
       if (
         decodedPath.includes('\\') ||
-        decodedPath.includes('\0') ||
+        hasControlChar(decodedPath) ||
         decodedPath.split('/').includes('..')
       ) {
         throw new TargetError(
@@ -600,14 +633,11 @@ export class DefinitionReader {
     }
 
     const targetPathRaw = normalizedTarget.split(/[?#]/, 1)[0];
-    const decodedTarget = decodeFully(targetPathRaw);
-    const decodedFull = decodeFully(normalizedTarget);
+    const decodedTarget = withoutEdgeControls(decodeFully(targetPathRaw));
     if (
       !targetPathRaw.trim() ||
       normalizedTarget.includes('\\') ||
-      decodedFull.includes('\\') ||
-      normalizedTarget.includes('\0') ||
-      decodedFull.includes('\0')
+      decodedFull.includes('\\')
     ) {
       throw new TargetError(
         'Relative definition targets must be valid relative paths without "\\\\", null bytes, or empty paths',

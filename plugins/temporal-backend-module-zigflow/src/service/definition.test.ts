@@ -308,7 +308,7 @@ describe('DefinitionReader', () => {
     ).toContain('temporal.definitions.allow');
 
     const pathReader = readerOf(readUrl, {
-      allow: [{ host: 'raw.example.com', paths: ['/my-org/workflows/'] }],
+      allow: [{ host: 'raw.example.com', paths: ['/my-org/workflows'] }],
     });
     expect(
       (
@@ -325,11 +325,47 @@ describe('DefinitionReader', () => {
     expect(wrongPath.error?.kind).toBe('read');
     expect(wrongPath.error?.message).toContain('/other-org/order.yaml');
     expect(wrongPath.error?.message).toContain('temporal.definitions.allow');
+    const siblingPrefix = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/my-org/workflows-evil/order.yaml'),
+    );
+    expect(siblingPrefix.error?.kind).toBe('read');
     const traversal = await pathReader.read(
       entity(),
       spec('https://raw.example.com/my-org/workflows/../secret.yaml'),
     );
     expect(traversal.error?.kind).toBe('read');
+
+    const defaultPort = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(entity(), spec('https://raw.example.com:443/order.yaml'));
+    expect(defaultPort.error).toBeUndefined();
+
+    const userinfoSpoof = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(
+      entity(),
+      spec('https://raw.example.com@evil.example.com/order.yaml'),
+    );
+    expect(userinfoSpoof.error?.kind).toBe('read');
+    expect(userinfoSpoof.error?.message).toContain('evil.example.com');
+
+    const userinfoMatch = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(entity(), spec('https://user@raw.example.com/order.yaml'));
+    expect(userinfoMatch.error).toBeUndefined();
+
+    const idnReader = readerOf(readUrl, {
+      allow: [{ host: '例子.example.com' }],
+    });
+    expect(
+      (
+        await idnReader.read(
+          entity(),
+          spec('https://例子.example.com/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
   });
 
   it('rejects absolute and protocol-relative targets padded with ASCII whitespace or controls', async () => {
@@ -397,6 +433,19 @@ describe('DefinitionReader', () => {
       expect(readUrl).not.toHaveBeenCalled();
       expect(resolveUrl).not.toHaveBeenCalled();
     }
+
+    // Even a same-repo URL padded with spaces must still require temporal.definitions.allow.
+    resolveUrl.mockClear();
+    const sameRepoPadded = await reader.read(
+      located,
+      spec(' https://github.com/my-org/my-repo/blob/main/other.yaml'),
+    );
+    expect(sameRepoPadded.error?.kind).toBe('read');
+    expect(sameRepoPadded.error?.message).toContain(
+      'Absolute definition URLs from github.com are not allowed',
+    );
+    expect(readUrl).not.toHaveBeenCalled();
+    expect(resolveUrl).not.toHaveBeenCalled();
   });
 
   it('keeps relative targets inside the same repository across integrations', async () => {
@@ -483,6 +532,17 @@ describe('DefinitionReader', () => {
       [ghRoot, '%252e%252e/outside.yaml'],
       [ghRoot, '//evil.example.com/a.yaml'],
       [ghRoot, '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml'],
+      [ghRoot, 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml'],
+      [ghRoot, '%20https://evil.example.com/a.yaml'],
+      [ghRoot, '%20//evil.example.com/a.yaml'],
+      [ghRoot, '.\t./outside.yaml'],
+      [ghRoot, '..%09/outside.yaml'],
+      [
+        entity(
+          'url:https://github.com/my-org/my-repo/blob/feat/sub/catalog-info.yaml',
+        ),
+        '.\t./.\t./feat/other.yaml',
+      ],
       [ghOneDir, '../../outside.yaml'],
       [ghOneDir, '../../../other-repo/blob/main/order.yaml'],
       [ghOneDir, '../../../../other-org/other-repo/blob/main/order.yaml'],
