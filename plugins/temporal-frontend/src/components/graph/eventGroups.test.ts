@@ -691,7 +691,8 @@ describe('boxes of a frame in one row', () => {
   );
 
   it('line up the rounds of a loop next to the signal received in it', () => {
-    for (const width of [undefined, 1400, 1000, 800]) {
+    // Wrapped, the step after the loop starts the next row.
+    for (const width of [1400, 1000, 800]) {
       const { layout } = laidOut(loopGraph, {}, width);
       const middles = rounds.map(id => middle(layout, id));
       expect({ width, middles }).toEqual({
@@ -703,6 +704,15 @@ describe('boxes of a frame in one row', () => {
         FRAME_TOP + height(layout, rounds[0]) + FRAME_PADDING,
       );
     }
+  });
+
+  it('keep the rounds of a loop where the arrow out of the loop stays straight', () => {
+    // In one row, the last round and the step after the loop are in line:
+    // lining up the rounds would move the step to the arrow out of the loop.
+    const { layout } = laidOut(loopGraph);
+    const last = rounds[2];
+    expect(middle(layout, last)).toBe(middle(layout, 'activity-66'));
+    expect(middle(layout, last)).not.toBe(middle(layout, rounds[1]));
   });
 
   it.each([[[1, 2, 3]], [[1]], [[2]], [[3]]])(
@@ -730,18 +740,21 @@ describe('boxes of a frame in one row', () => {
 
   // r1 → r2 → r3 in a frame, and r2 → s outside it: dagre puts s in the
   // column of r3, below the frame, and moves r3 up to make room for it.
-  const signalNextToRow = (tall: string[]) => {
-    const ids = ['start', 'r1', 'r2', 'r3', 's', 't1', 't2'];
+  const signalNextToRow = (
+    tall: string[],
+    after: string[][] = [],
+    lineUpRows?: boolean,
+  ) => {
     const pairs = [
       ['start', 'r1'],
       ['r1', 'r2'],
       ['r2', 'r3'],
       ['r2', 's'],
       ['s', 't1'],
-      ['r3', 't2'],
+      ...after,
     ];
     return layoutGraph(
-      ids.map(id => ({
+      [...new Set(pairs.flat())].map(id => ({
         id,
         ...(tall.includes(id)
           ? { size: { width: LLM_NODE_WIDTH, height: LLM_NODE_HEIGHT } }
@@ -750,15 +763,17 @@ describe('boxes of a frame in one row', () => {
       })),
       pairs.map(([source, target]) => ({ source, target })),
       undefined,
-      { frames: [{ id: 'F' }] },
+      { frames: [{ id: 'F' }], lineUpRows },
     );
   };
+  const row = ['r1', 'r2', 'r3'];
 
-  it.each([[[]], [['r1']], [['r2']], [['r3']], [['r1', 'r3']]])(
+  it.each([[[]], [['r1']], [['r2']], [['r1', 'r2']]])(
     'line up at their middles, without a larger frame (taller: %j)',
     tall => {
+      const before = signalNextToRow(tall, [], false);
+      expect(new Set(row.map(id => middle(before, id))).size).toBe(2);
       const layout = signalNextToRow(tall);
-      const row = ['r1', 'r2', 'r3'];
       const middles = row.map(id => middle(layout, id));
       expect(middles).toEqual([middles[0], middles[0], middles[0]]);
       const tallest = Math.max(...row.map(id => height(layout, id)));
@@ -768,6 +783,17 @@ describe('boxes of a frame in one row', () => {
       expect(layout.positions.get('s')!.y).toBeGreaterThan(frameBottom);
     },
   );
+
+  it('keep a row where lining it up would bend the arrow out of the frame', () => {
+    // r3 → t2 is straight as dagre lays it out: lining up the row would
+    // straighten r2 → r3 and bend r3 → t2.
+    const after = [['r3', 't2']];
+    const layout = signalNextToRow([], after);
+    expect([...layout.positions]).toEqual([
+      ...signalNextToRow([], after, false).positions,
+    ]);
+    expect(middle(layout, 'r3')).toBe(middle(layout, 't2'));
+  });
 
   it('keep the two rows of a frame with steps in parallel', () => {
     const ids = ['start', 'a', 'b', 'c', 'end'];

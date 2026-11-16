@@ -32,6 +32,8 @@ import {
 import {
   boxSize,
   EDGE_LANE_GAP,
+  layoutGraph,
+  NodeSize,
   StepLayout,
   stepSize,
   visibleSteps,
@@ -42,6 +44,8 @@ import { parallelGraph } from '../../testGraphs/parallelGraph';
 
 /** Space an arrow keeps from a frame border it runs along. */
 const CLEAR = 20;
+/** Random runs the layout is checked with. */
+const SEEDS = 100;
 /** Space between two columns of steps. */
 const COLUMN = 56;
 
@@ -735,4 +739,268 @@ describe('arrows that share the gap between two rows', () => {
       ['rowGap', { centerY: 100 }],
     ]);
   });
+});
+
+/**
+ * A random run: steps that run over random spans of time, each one after
+ * the steps that ended last before it started (as a run is drawn), sizes
+ * of steps, model calls and tool calls, and up to three groups of steps
+ * next to each other.
+ */
+function randomRun(seed: number) {
+  let state = seed >>> 0;
+  const random = () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 4294967296;
+  };
+  const count = 8 + Math.floor(random() * 14);
+  const ids = Array.from({ length: count }, (_, i) => `n${i}`);
+  const spans = ids
+    .map(() => {
+      const first = Math.floor(random() * 100);
+      const length = Math.floor(random() * (random() < 0.3 ? 40 : 12));
+      return { first, last: first + 1 + length };
+    })
+    .sort((a, b) => a.first - b.first)
+    .map((time, i) => ({ id: `n${i}`, ...time }));
+  const edges: WorkflowGraphEdge[] = [];
+  for (const step of spans) {
+    const before = spans.filter(o => o.last < step.first);
+    const latest = Math.max(-Infinity, ...before.map(o => o.first));
+    for (const o of before) {
+      if (o.last >= latest) {
+        edges.push({
+          id: `${o.id}->${step.id}`,
+          source: o.id,
+          target: step.id,
+        });
+      }
+    }
+  }
+  const groups: WorkflowEventGroup[] = [];
+  const groupCount = 1 + Math.floor(random() * 3);
+  for (let g = 0; g < groupCount; g++) {
+    const first = Math.floor(random() * count);
+    const length = 1 + Math.floor(random() * 4);
+    groups.push({
+      ...nested([])[0],
+      key: `label:g${g}`,
+      id: `g${g}`,
+      name: `g${g}`,
+      nodeIds: ids.slice(first, Math.min(count, first + length)),
+    });
+  }
+  const size = (width: number, height: number): NodeSize => ({ width, height });
+  // A size each: dagre writes the place of a box into it.
+  const nodes = ids.map(id => {
+    if (random() < 0.15) return { id, size: size(240, 86) };
+    return { id, size: random() < 0.1 ? size(180, 52) : size(220, 64) };
+  });
+  return { nodes, edges, groups };
+}
+
+function layOutRun(
+  run: ReturnType<typeof randomRun>,
+  width?: number,
+  lineUpRows?: boolean,
+) {
+  return layoutGroupedSteps(
+    run.nodes,
+    run.edges,
+    run.groups,
+    {},
+    width,
+    (n, e, w, options) => layoutGraph(n, e, w, { ...options, lineUpRows }),
+  );
+}
+
+/**
+ * Turns of arrows spread out next to other arrows that come closer than
+ * `CLEAR` to the border of a frame, or half of it to the side of a box, in
+ * the part of the arrow that moved.
+ */
+function spreadTooClose(result: GroupedLayout) {
+  const parentOf = new Map<string, string | undefined>([
+    ...result.graph.frames.map(f => [f.id, f.parent] as const),
+    ...result.graph.nodes.map(n => [n.id, n.parent] as const),
+  ]);
+  const frames = new Set(result.graph.frames.map(f => f.id));
+  const found: string[] = [];
+  for (const { edge, points } of arrows(result)) {
+    if (edge.data?.centerY === undefined) continue;
+    const given = frameInsets(
+      result.layout,
+      parentOf,
+      edge.source,
+      edge.target,
+    );
+    const moved: Segment[] = [];
+    if ((edge.data.sourceInset ?? 0) !== given.sourceInset) {
+      moved.push([points[1], points[2]]);
+    }
+    if ((edge.data.targetInset ?? 0) !== given.targetInset) {
+      moved.push([points[3], points[4]]);
+    }
+    for (const [a, b] of moved) {
+      const [y1, y2] = span(a.y, b.y);
+      for (const id of result.layout.positions.keys()) {
+        if (id === edge.source || id === edge.target) continue;
+        const r = rectOf(result, id);
+        if (r.bottom <= y1 || r.top >= y2) continue;
+        const clear = frames.has(id) ? CLEAR : CLEAR / 2;
+        const distance = Math.min(
+          Math.abs(a.x - r.left),
+          Math.abs(a.x - r.right),
+        );
+        if (
+          distance < clear ||
+          (!frames.has(id) && a.x > r.left && a.x < r.right)
+        ) {
+          found.push(`${edge.id} ${distance}px from ${id}`);
+        }
+      }
+    }
+  }
+  return found;
+}
+
+describe('random runs', () => {
+  it.each([
+    [163, 1100],
+    [40, 700],
+    [40, 900],
+    [334, 1100],
+  ])(
+    'keep turns spread out in a row clear of the frames and boxes next to them (run %i, width %i)',
+    (seed, width) => {
+      const result = layOutRun(randomRun(seed), width);
+      expect(result.layout.wrapped).toBe(true);
+      expect(spreadTooClose(result)).toEqual([]);
+    },
+  );
+
+  it('never run arrows through boxes because of lined up rows, nor spread turns too close', () => {
+    const found: string[] = [];
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const run = randomRun(seed);
+      for (const width of [undefined, 900, 1400]) {
+        const result = layOutRun(run, width);
+        const before = new Set(throughBoxes(layOutRun(run, width, false)));
+        for (const hit of throughBoxes(result)) {
+          if (!before.has(hit)) found.push(`run ${seed} at ${width}: ${hit}`);
+        }
+        for (const close of spreadTooClose(result)) {
+          found.push(`run ${seed} at ${width}: ${close}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
+  }, 60_000);
+});
+
+describe('rows of frames lined up', () => {
+  function graphOf(pairs: string[][]) {
+    const ids = [...new Set(pairs.flat())];
+    return {
+      nodes: ids.map(
+        (id): WorkflowGraphNode => ({
+          id,
+          kind: 'activity',
+          name: id,
+          status: 'Completed',
+          events: [],
+        }),
+      ),
+      edges: pairs.map(([source, target]) => ({
+        id: `${source}->${target}`,
+        source,
+        target,
+      })),
+    };
+  }
+
+  it.each([
+    [
+      'a → t passes the frame of a and b',
+      [
+        ['s', 'a'],
+        ['a', 'b'],
+        ['a', 't'],
+        ['s', 'c'],
+        ['c', 'd'],
+        ['d', 't'],
+        ['b', 'e'],
+      ],
+    ],
+    [
+      'p → b passes a in the frame of a and b',
+      [
+        ['s', 'p'],
+        ['s', 'a'],
+        ['p', 'y'],
+        ['a', 'b'],
+        ['p', 'b'],
+        ['a', 't'],
+        ['y', 't'],
+        ['b', 'end'],
+        ['t', 'end'],
+      ],
+    ],
+  ])('never move a box onto an arrow (%s)', (_, pairs) => {
+    const result = layOut(graphOf(pairs), nested(['a', 'b']));
+    expect(result.graph.frames).toHaveLength(1);
+    expect(throughBoxes(result)).toEqual([]);
+  });
+});
+
+/** The arrows in one row that are a straight line. */
+function straightArrows(result: GroupedLayout) {
+  return arrows(result)
+    .filter(
+      ({ edge, drawn }) =>
+        edge.data?.centerY === undefined &&
+        drawn.every(p => Math.abs(p.y - drawn[0].y) < 0.5),
+    )
+    .map(({ edge }) => edge.id);
+}
+
+describe('rows of frames lined up in recorded runs', () => {
+  const allOpen = (graph: typeof loopGraph) =>
+    Object.fromEntries((graph.eventGroups ?? []).map(g => [g.key, true]));
+  it.each([
+    ['a loop with a signal', loopGraph, true],
+    ['an agent', agentGraph, false],
+    ['groups in parallel', parallelGraph, true],
+  ] as const)(
+    'never bend a straight arrow in the run of %s',
+    (_, graph, straightens) => {
+      const visible = visibleSteps(graph.nodes, graph.edges);
+      const nodes = visible.nodes.map(n => ({ id: n.id, size: stepSize(n) }));
+      const found: string[] = [];
+      let straightened = 0;
+      for (const views of [{}, allOpen(graph)]) {
+        for (const width of [undefined, 1400, 1000, 800]) {
+          const layOutWith = (lineUpRows?: boolean) =>
+            layoutGroupedSteps(
+              nodes,
+              visible.edges,
+              graph.eventGroups ?? [],
+              views,
+              width,
+              (n, e, w, options) =>
+                layoutGraph(n, e, w, { ...options, lineUpRows }),
+            );
+          const before = straightArrows(layOutWith(false));
+          const after = straightArrows(layOutWith());
+          for (const id of before) {
+            if (!after.includes(id)) found.push(`${id} at ${width}`);
+          }
+          straightened += after.length - before.length;
+        }
+      }
+      expect(found).toEqual([]);
+      // Rows with a step in them get straight arrows.
+      expect(straightened > 0).toBe(straightens);
+    },
+  );
 });

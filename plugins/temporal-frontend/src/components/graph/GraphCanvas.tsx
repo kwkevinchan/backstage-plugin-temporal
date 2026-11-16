@@ -159,12 +159,14 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
       const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
       lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
     });
+    const gap = gapOf(shared[0])!;
     spreadTurns(shared, {
       turn: turnOut,
       end: edge => edge.source,
       innerFirst: (a, b) => middle(b) - middle(a),
       direction: 1,
-      limit: layout.width - EDGE_SIDE,
+      limit: (at, ends) =>
+        nearestSide(layout, at, 1, Math.min(...ends.map(middle)), gap + widest),
       set: (edge, at) =>
         turns.set(edge, {
           ...turns.get(edge),
@@ -176,7 +178,14 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
       end: edge => edge.target,
       innerFirst: (a, b) => middle(a) - middle(b),
       direction: -1,
-      limit: EDGE_SIDE,
+      limit: (at, ends) =>
+        nearestSide(
+          layout,
+          at,
+          -1,
+          gap - widest,
+          Math.max(...ends.map(middle)),
+        ),
       set: (edge, at) =>
         turns.set(edge, {
           ...turns.get(edge),
@@ -199,11 +208,61 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
 }
 
 /**
+ * How far the turns of arrows down (or up) at `at` can be spread out in
+ * `direction`, between `top` and `bottom`: up to the nearest side of a box
+ * or border of a frame there, `FRAME_GAP` clear of a frame and half of
+ * `OFFSET` clear of a box, or `EDGE_SIDE` inside the graph.
+ */
+function nearestSide(
+  layout: StepLayout,
+  at: number,
+  direction: 1 | -1,
+  top: number,
+  bottom: number,
+) {
+  const rects = [...layout.positions.keys()].map(id => {
+    const p = layout.positions.get(id)!;
+    const size = boxSize(layout, id);
+    return {
+      left: p.x,
+      top: p.y,
+      right: p.x + size.width,
+      bottom: p.y + size.height,
+    };
+  });
+  // A frame is a box with boxes in it.
+  const isFrame = (r: (typeof rects)[number]) =>
+    rects.some(
+      o =>
+        o !== r &&
+        o.left >= r.left &&
+        o.right <= r.right &&
+        o.top >= r.top &&
+        o.bottom <= r.bottom,
+    );
+  let limit = direction > 0 ? layout.width - EDGE_SIDE : EDGE_SIDE;
+  for (const r of rects) {
+    if (r.bottom <= top || r.top >= bottom) continue;
+    // The near side of a box or frame beyond the turn, or the far border
+    // of a frame around it.
+    const [near, far] = direction > 0 ? [r.left, r.right] : [r.right, r.left];
+    let line: number;
+    if ((near - at) * direction > 0) line = near;
+    else if ((far - at) * direction > 0) line = far;
+    else continue;
+    const clear = isFrame(r) ? FRAME_GAP : OFFSET / 2;
+    const reach = line - direction * clear;
+    limit = direction > 0 ? Math.min(limit, reach) : Math.max(limit, reach);
+  }
+  return limit;
+}
+
+/**
  * Spreads out the turns of arrows that turn down at one x, for different
  * ends (sources or targets): the arrows of one end share a turn. The turn of
  * the innermost end stays; each next one is `EDGE_LANE_GAP` farther in
- * `direction`, closer together when that would pass `limit`, so no arrow
- * leaves the graph.
+ * `direction`, closer together (by halves of a pixel) when that would pass
+ * the `limit` for the turn and the ends.
  */
 function spreadTurns(
   edges: Edge[],
@@ -212,7 +271,7 @@ function spreadTurns(
     end(edge: Edge): string;
     innerFirst(a: string, b: string): number;
     direction: 1 | -1;
-    limit: number;
+    limit(at: number, ends: string[]): number;
     set(edge: Edge, at: number): void;
   },
 ) {
@@ -224,8 +283,11 @@ function spreadTurns(
   for (const [at, shared] of byTurn) {
     const ends = [...new Set(shared.map(end))].sort(options.innerFirst);
     if (ends.length < 2) continue;
-    const room = Math.max(0, (options.limit - at) * direction);
-    const step = Math.min(EDGE_LANE_GAP, room / (ends.length - 1));
+    const room = Math.max(0, (options.limit(at, ends) - at) * direction);
+    const step = Math.min(
+      EDGE_LANE_GAP,
+      Math.floor((2 * room) / (ends.length - 1)) / 2,
+    );
     for (const edge of shared) {
       const k = ends.indexOf(end(edge));
       if (k > 0) options.set(edge, at + direction * k * step);
