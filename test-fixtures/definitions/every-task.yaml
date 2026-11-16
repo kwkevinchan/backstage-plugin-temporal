@@ -101,3 +101,4 @@ do:
             with:
               name: bookCourier
               taskQueue: orders-activities
+# trigger full test verification
