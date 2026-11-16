@@ -110,6 +110,11 @@ export type GroupFrameData = {
   onToggle(key: string): void;
   /** Selects the signal or update that started the group. */
   onSelectSource?(id: string): void;
+  /**
+   * Set when the frame stands for the signal or update that started the
+   * group (it is not drawn): true while it is selected.
+   */
+  selected?: boolean;
 };
 
 export type GroupFrameFlowNode = Node<GroupFrameData, 'groupFrame'>;
@@ -117,12 +122,16 @@ export type GroupFrameFlowNode = Node<GroupFrameData, 'groupFrame'>;
 /**
  * The frame of an expanded event group, drawn under its steps: a title bar
  * with a button that collapses it, the name, how many groups are inside
- * (×3), the status, the duration and the tokens of its model calls.
+ * (×3), the status, the duration and the tokens of its model calls. The
+ * frame of a signal or update group has a button that selects the signal
+ * or update; when the frame stands for it (it is not drawn), the frame and
+ * the button show that it is selected.
  */
 export const GroupFrameNode = memo(function GroupFrameView(
   props: NodeProps<GroupFrameFlowNode>,
 ) {
-  const { box, focused, active, onToggle, onSelectSource } = props.data;
+  const { box, focused, active, onToggle, onSelectSource, selected } =
+    props.data;
   const { group } = box;
   const count = groupCountBadge(group);
   const tone =
@@ -140,6 +149,7 @@ export const GroupFrameNode = memo(function GroupFrameView(
       data-kind={group.kind}
       data-status={group.status}
       data-focused={focused}
+      data-selected={Boolean(selected)}
       data-active={active}
       data-depth={box.depth}
       data-hue={box.hue}
@@ -179,6 +189,7 @@ export const GroupFrameNode = memo(function GroupFrameView(
             type="button"
             className={tp('tp-group-source')}
             onClick={() => onSelectSource(group.sourceNodeId!)}
+            aria-pressed={selected}
             aria-label={sourceText}
             title={sourceText}
           >

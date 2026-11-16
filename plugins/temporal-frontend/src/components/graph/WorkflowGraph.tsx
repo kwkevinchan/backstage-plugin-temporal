@@ -189,13 +189,18 @@ function StepCanvas(
     focusId?: string;
     /** The group picked in the Event Groups tab: its box is marked. */
     markId?: string;
-    /** The collapsed group with the selected step in it. */
+    /**
+     * The box that stands for the selected step: the collapsed group with
+     * the step in it, or the frame of the group a selected signal or update
+     * started, when the frame stands for it.
+     */
     selectedBoxId?: string;
   },
 ) {
   const { structure, onSelect, focusId } = props;
   const { onToggleGroup, markId, selectedBoxId } = props;
-  // A step selected inside a collapsed group: its box is selected instead.
+  // A step selected inside a collapsed group, or a signal or update that a
+  // frame stands for: the box or the frame is selected instead.
   const selectedId = selectedBoxId ? undefined : props.selectedId;
   const { layout } = structure;
   const running = props.graph.status === 'Running';
@@ -207,6 +212,11 @@ function StepCanvas(
       // Outer frames first, so the frames inside are drawn over them.
       for (const frame of groups.graph.frames) {
         const box = groups.plan.boxes.get(frame.id)!;
+        const source = box.group.sourceNodeId;
+        // The frame stands for the signal or update, which is not drawn.
+        const standsFor =
+          source !== undefined &&
+          groups.graph.sourceFrames.get(source) === frame.id;
         under.push({
           ...flowNodeBase(layout, frame.id),
           type: 'groupFrame',
@@ -220,10 +230,10 @@ function StepCanvas(
             active: running && box.group.status === 'Running',
             onToggle: onToggleGroup,
             onSelectSource:
-              box.group.sourceNodeId &&
-              layout.positions.has(box.group.sourceNodeId)
+              source && (standsFor || layout.positions.has(source))
                 ? onSelect
                 : undefined,
+            ...(standsFor ? { selected: frame.id === selectedBoxId } : {}),
           },
         });
       }
@@ -459,10 +469,13 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
     key && structure.layout.positions.has(groupNodeId(key))
       ? groupNodeId(key)
       : undefined;
-  // A step selected inside a collapsed group: its box is brought into view.
+  // A step selected inside a collapsed group, or a signal or update that
+  // the frame of its group stands for: the box or the frame is selected and
+  // brought into view.
   const selectedBoxId =
     props.selectedId && !structure.layout.positions.has(props.selectedId)
-      ? groupLayout?.graph.collapsed.find(b =>
+      ? groupLayout?.graph.sourceFrames.get(props.selectedId) ??
+        groupLayout?.graph.collapsed.find(b =>
           b.stepIds.includes(props.selectedId!),
         )?.id
       : undefined;

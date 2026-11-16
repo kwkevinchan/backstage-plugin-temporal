@@ -330,6 +330,82 @@ describe('event groups on the workflow page', () => {
     );
   });
 
+  it('draws the frame of a signal group in place of the signal', async () => {
+    await render(loopGraph);
+    const frame = await screen.findByTestId('group-frame-event:29');
+    // The frame stands for the signal: no box of its own.
+    expect(screen.queryByTestId('step-signal-29')).not.toBeInTheDocument();
+    expect(
+      document.querySelector(
+        '[data-testid^="rf__edge-"][data-testid*="signal-29"]',
+      ),
+    ).toBeNull();
+    expect(frame).toHaveAttribute('data-selected', 'false');
+    const collapse = within(frame).getByRole('button', {
+      name: /^Collapse Event group of a signal hint \(29\)/,
+    });
+    const source = within(frame).getByRole('button', {
+      name: 'Show the signal that started this group',
+    });
+    expect(source).toHaveAttribute('aria-pressed', 'false');
+    // After the button that collapses the frame, with the keyboard too.
+    expect(
+      collapse.compareDocumentPosition(source) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    source.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(await screen.findByTestId('step-drawer')).toHaveTextContent('hint');
+    expect(frame).toHaveAttribute('data-selected', 'true');
+    expect(source).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('workflow-graph')).toHaveAttribute(
+      'data-focus',
+      'group:event:29',
+    );
+
+    // Collapsed, the group is a box and the signal is drawn again, still
+    // selected; expanded again, the frame is.
+    fireEvent.click(collapse);
+    const signal = await screen.findByTestId('step-signal-29');
+    expect(signal).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('step-drawer')).toHaveTextContent('hint');
+    fireEvent.click(screen.getByTestId('group-event:29'));
+    const open = await screen.findByTestId('group-frame-event:29');
+    expect(screen.queryByTestId('step-signal-29')).not.toBeInTheDocument();
+    expect(open).toHaveAttribute('data-selected', 'true');
+    expect(screen.getByTestId('step-drawer')).toHaveTextContent('hint');
+
+    // The other views still list the signal.
+    await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }));
+    expect(
+      await screen.findByTestId('timeline-bar-signal-29'),
+    ).toBeInTheDocument();
+  });
+
+  it('selects the frame of a signal group for the signal selected from the start', async () => {
+    const selected: (string | undefined)[] = [];
+    await renderInTestApp(
+      <WorkflowGraph
+        graph={loopGraph}
+        selectedId="signal-29"
+        onSelect={id => selected.push(id)}
+      />,
+    );
+    const frame = await screen.findByTestId('group-frame-event:29');
+    expect(frame).toHaveAttribute('data-selected', 'true');
+    expect(screen.queryByTestId('step-signal-29')).not.toBeInTheDocument();
+    expect(screen.getByTestId('workflow-graph')).toHaveAttribute(
+      'data-focus',
+      'group:event:29',
+    );
+    fireEvent.click(
+      within(frame).getByRole('button', {
+        name: 'Show the signal that started this group',
+      }),
+    );
+    expect(selected).toEqual(['signal-29']);
+  });
+
   it('shows the ID of a group whose label is encoded, with a note', async () => {
     await render(codecLoopGraph);
     const loop = await screen.findByTestId(

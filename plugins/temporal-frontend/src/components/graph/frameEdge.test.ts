@@ -607,12 +607,17 @@ describe('arrows that share the gap between two rows', () => {
   });
 
   it('turn down at different x out of the loop and into the groups below', () => {
+    // A signal group whose signal the history does not name: the signal is
+    // a box of its own, next to the loop.
+    const groups = (loopGraph.eventGroups ?? []).map(
+      ({ sourceNodeId: _source, ...group }) => group,
+    );
     for (const width of [1000, 800]) {
       const visible = visibleSteps(loopGraph.nodes, loopGraph.edges);
       const result = layoutGroupedSteps(
         visible.nodes.map(n => ({ id: n.id, size: stepSize(n) })),
         visible.edges,
-        loopGraph.eventGroups ?? [],
+        groups,
         {},
         width,
       );
