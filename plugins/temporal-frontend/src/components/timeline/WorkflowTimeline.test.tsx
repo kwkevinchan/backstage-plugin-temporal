@@ -17,11 +17,7 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { WorkflowGraphResponse } from '../../common';
-import {
-  loopGraphResponse,
-  timelineNodes,
-  TIMELINE_T0 as T0,
-} from '../../testData';
+import { timelineNodes, TIMELINE_T0 as T0 } from '../../testData';
 import { WorkflowTimeline } from './WorkflowTimeline';
 
 const graph: WorkflowGraphResponse = {
@@ -194,35 +190,5 @@ describe('WorkflowTimeline', () => {
     // Without Ctrl the page scrolls.
     fireEvent.wheel(chart, { clientX: 800, deltaY: -100 });
     expect(width()).toBeCloseTo(before / 0.8, 1);
-  });
-
-  it('groups loop rounds, the latest round open', () => {
-    const loopGraph = { ...loopGraphResponse, status: 'Completed' as const };
-    render(
-      <WorkflowTimeline
-        graph={loopGraph}
-        workflow={{
-          status: 'Completed',
-          startTime: new Date(Date.UTC(2026, 0, 1, 11, 0, 0)).toISOString(),
-          closeTime: new Date(Date.UTC(2026, 0, 1, 11, 0, 10)).toISOString(),
-        }}
-        onSelect={() => {}}
-      />,
-    );
-    const round1 = screen.getByTestId('timeline-round-draft-review/1');
-    const toggle1 = within(round1).getByRole('button', {
-      name: /draft-review · Round 1 of 5/,
-    });
-    expect(toggle1).toHaveAttribute('aria-expanded', 'false');
-    expect(screen.queryByTestId('timeline-bar-activity-5')).toBeNull();
-    expect(screen.getByTestId('timeline-bar-activity-12')).toBeInTheDocument();
-    fireEvent.click(toggle1);
-    expect(toggle1).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByTestId('timeline-bar-activity-5')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse rounds' }));
-    expect(screen.queryByTestId('timeline-bar-activity-12')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand rounds' }));
-    expect(screen.getByTestId('timeline-bar-activity-5')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-bar-activity-12')).toBeInTheDocument();
   });
 });

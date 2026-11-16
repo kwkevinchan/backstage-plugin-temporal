@@ -24,7 +24,6 @@ import type {
   WorkflowStatsResponse,
   WorkflowHistoryResponse,
   WorkflowListResponse,
-  WorkflowLoopsResponse,
   TemporalSchedule,
   TemporalScheduleListResponse,
 } from './common';
@@ -258,117 +257,6 @@ export const progressResponse: WorkflowProgressResponse = {
   truncated: false,
 };
 
-const loopStep = (
-  id: string,
-  name: string,
-  iteration: number,
-  time: number,
-): WorkflowGraphResponse['nodes'][number] => ({
-  id,
-  kind: 'activity',
-  name,
-  status: 'Completed',
-  stepId: `loop/draft-review/${iteration}/${name}`,
-  loop: { loop: 'draft-review', iteration, step: name },
-  startTime: new Date(Date.UTC(2026, 0, 1, 11, 0, time)).toISOString(),
-  endTime: new Date(Date.UTC(2026, 0, 1, 11, 0, time + 1)).toISOString(),
-  events: [],
-});
-
-/** A run with a loop of two rounds (draft, review), then publish. */
-export const loopGraphResponse: WorkflowGraphResponse = {
-  status: 'Completed',
-  completedSteps: 5,
-  totalSteps: 5,
-  truncated: false,
-  payloadsHidden: false,
-  nodes: [
-    {
-      id: 'start',
-      kind: 'workflowStarted',
-      name: 'Start',
-      status: 'Completed',
-      events: [],
-    },
-    loopStep('activity-5', 'llmDraft', 1, 1),
-    loopStep('activity-8', 'llmReview', 1, 2),
-    loopStep('activity-12', 'llmDraft', 2, 3),
-    loopStep('activity-15', 'llmReview', 2, 4),
-    {
-      id: 'activity-20',
-      kind: 'activity',
-      name: 'publishDraft',
-      status: 'Completed',
-      events: [],
-    },
-    {
-      id: 'end',
-      kind: 'workflowClosed',
-      name: 'End',
-      status: 'Completed',
-      events: [],
-    },
-  ],
-  edges: [
-    ['start', 'activity-5'],
-    ['activity-5', 'activity-8'],
-    ['activity-8', 'activity-12'],
-    ['activity-12', 'activity-15'],
-    ['activity-15', 'activity-20'],
-    ['activity-20', 'end'],
-  ].map(([source, target]) => ({ id: `${source}->${target}`, source, target })),
-  loops: [
-    {
-      name: 'draft-review',
-      status: 'done',
-      iteration: 2,
-      maxIterations: 5,
-      decision: 'accept',
-      score: 0.9,
-      rounds: [1, 2].map(iteration => ({
-        iteration,
-        status: 'Completed' as const,
-        decision: iteration === 2 ? 'accept' : 'revise',
-        score: iteration === 2 ? 0.9 : 0.5,
-        steps: [
-          {
-            nodeId: iteration === 1 ? 'activity-5' : 'activity-12',
-            name: 'llmDraft',
-            kind: 'activity' as const,
-            status: 'Completed' as const,
-          },
-          {
-            nodeId: iteration === 1 ? 'activity-8' : 'activity-15',
-            name: 'llmReview',
-            kind: 'activity' as const,
-            status: 'Completed' as const,
-          },
-        ],
-      })),
-    },
-  ],
-};
-
-/** The loop across two runs: round 1 ran in an earlier run. */
-export const loopsResponse: WorkflowLoopsResponse = {
-  source: 'history',
-  truncated: false,
-  runs: [
-    { runId: 'run-1', segment: 1, status: 'ContinuedAsNew' },
-    { runId: 'run-2', segment: 2, status: 'Completed' },
-  ],
-  loops: [
-    {
-      ...loopGraphResponse.loops![0],
-      rounds: loopGraphResponse.loops![0].rounds.map(r => ({
-        ...r,
-        runId: r.iteration === 1 ? 'run-1' : 'run-2',
-        segment: r.iteration === 1 ? 1 : 2,
-      })),
-    },
-  ],
-};
-
 /** Start of the run in {@link timelineNodes}. */
 export const TIMELINE_T0 = Date.UTC(2026, 0, 1, 10, 0, 0);
 const tAt = (seconds: number) =>
@@ -488,13 +376,12 @@ export const llmGraphResponse: WorkflowGraphResponse = {
       kind: 'activity',
       name: 'callModel',
       status: 'Completed',
-      stepId: 'llm/r1/loop/agent/1/callModel',
+      stepId: 'model-1',
       startTime: '2026-11-03T10:00:01.000Z',
       endTime: '2026-11-03T10:00:03.000Z',
-      loop: { loop: 'agent', iteration: 1, step: 'callModel' },
       llm: {
         call: 'r1',
-        framework: 'temporal-workflow-kit',
+        framework: 'vercel-ai-sdk',
         record: 'available',
         operation: 'chat',
         provider: 'openai',
@@ -518,12 +405,11 @@ export const llmGraphResponse: WorkflowGraphResponse = {
       kind: 'activity',
       name: 'search',
       status: 'Completed',
-      stepId: 'tool/r1/call_1a/loop/agent/1/search',
+      stepId: 'search-1',
       startTime: '2026-11-03T10:00:04.000Z',
       endTime: '2026-11-03T10:00:04.300Z',
       attempt: 2,
       result: { encoding: 'json/plain', value: { hits: 2 } },
-      loop: { loop: 'agent', iteration: 1, step: 'search' },
       tool: {
         call: 'r1',
         toolCallId: 'call_1a',
@@ -537,13 +423,12 @@ export const llmGraphResponse: WorkflowGraphResponse = {
       kind: 'activity',
       name: 'callModel',
       status: 'Completed',
-      stepId: 'llm/r2/loop/agent/2/callModel',
+      stepId: 'model-2',
       startTime: '2026-11-03T10:00:05.000Z',
       endTime: '2026-11-03T10:00:06.000Z',
-      loop: { loop: 'agent', iteration: 2, step: 'callModel' },
       llm: {
         call: 'r2',
-        framework: 'temporal-workflow-kit',
+        framework: 'vercel-ai-sdk',
         record: 'available',
         model: 'fake-reasoner-1',
         usage: { inputTokens: 1500, outputTokens: 300 },
@@ -577,62 +462,14 @@ export const llmGraphResponse: WorkflowGraphResponse = {
     },
     { id: 'activity-11->end', source: 'activity-11', target: 'end' },
   ],
-  loops: [
-    {
-      name: 'agent',
-      status: 'done',
-      iteration: 2,
-      rounds: [
-        {
-          iteration: 1,
-          status: 'Completed',
-          usage: { inputTokens: 1240, outputTokens: 96, reasoningTokens: 40 },
-          llmCalls: 1,
-          steps: [
-            {
-              nodeId: 'activity-5',
-              name: 'callModel',
-              kind: 'activity',
-              status: 'Completed',
-              llm: 'llm',
-              usage: { inputTokens: 1240, outputTokens: 96 },
-            },
-            {
-              nodeId: 'activity-8',
-              name: 'search',
-              kind: 'activity',
-              status: 'Completed',
-              llm: 'tool',
-            },
-          ],
-        },
-        {
-          iteration: 2,
-          status: 'Completed',
-          usage: { inputTokens: 1500, outputTokens: 300 },
-          llmCalls: 1,
-          steps: [
-            {
-              nodeId: 'activity-11',
-              name: 'callModel',
-              kind: 'activity',
-              status: 'Completed',
-              llm: 'llm',
-              usage: { inputTokens: 1500, outputTokens: 300 },
-            },
-          ],
-        },
-      ],
-    },
-  ],
 };
 
 /** The full record of the first model call of {@link llmGraphResponse}. */
 export const llmCallResponse: WorkflowLlmCallResponse = {
-  framework: 'temporal-workflow-kit',
+  framework: 'vercel-ai-sdk',
   nodeId: 'activity-5',
-  activityId: 'llm/r1/loop/agent/1/callModel',
-  activityType: 'callModel',
+  activityId: 'model-1',
+  activityType: 'invokeModel',
   call: 'r1',
   status: 'Completed',
   record: {
@@ -732,7 +569,6 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
-    getWorkflowLoops: jest.fn().mockResolvedValue(loopsResponse),
     getLlmCall: jest.fn().mockResolvedValue(llmCallResponse),
     downloadPayload: jest
       .fn()

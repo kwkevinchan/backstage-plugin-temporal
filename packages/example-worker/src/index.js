@@ -28,15 +28,15 @@
  *   - pipelineWorkflow    completes after twelve stages, with a patch marker
  *                         before each stage
  *   - pollWorkflow        continues as new three times, then completes
- *   - draftReviewWorkflow a fake AI loop (draft, review, revise) with loop
- *                         markers: done in round 4 of at most 5
+ *   - draftReviewWorkflow a fake generate/check/revise loop (draft, review,
+ *                         revise): done in round 4 of at most 5
  *   - longRefineWorkflow  a loop of 25 rounds that continues as new every
  *                         10 rounds (three runs)
  *   - agentWorkflow       a fake LLM agent (no model is called): model
  *                         calls with reasoning and tool calls, tools as
  *                         activities, a local activity and a retry, four
- *                         rounds with loop markers, a long report (in S3
- *                         with PAYLOAD_S3_ENDPOINT)
+ *                         rounds, a long report (in S3 with
+ *                         PAYLOAD_S3_ENDPOINT)
  *   - mixedAgentWorkflow  ordinary activities, two model calls, two tools in
  *                         parallel and a child workflow
  *   - reportWorkflow      completes with large outputs stored in S3 (only
@@ -129,7 +129,7 @@ async function startAll(client, withSearchAttributes) {
       workflowId: `example-long-refine-${suffix}`,
       args: [{ document: 'design doc', totalRounds: 25, every: 10 }],
     }),
-    // LLM steps: an agent loop and a mixed workflow (fake model).
+    // LLM steps: a fake agent and a mixed workflow (no model is called).
     client.workflow.start('agentWorkflow', {
       ...common,
       workflowId: `example-agent-${suffix}`,

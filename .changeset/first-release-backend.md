@@ -53,7 +53,6 @@ catalog module with the `TemporalWorkflow` kind; the named exports
   with the package: every route with its parameters, bodies, responses and
   permission, the routes of `temporal.control` and the experimental ones
   marked. The route tests check the requests and responses against it.
-- Experimental, off by default (`temporal.experimental.aiWorkflows`), no
-  compatibility promise: loops of AI workflows (`GET .../loops`) and LLM
-  steps (`GET .../llm-calls/:eventId`). When off, graphs and steps carry no
-  loop or model call data and those routes answer 404.
+- Experimental, no compatibility promise: model calls of the official
+  Temporal AI integrations (`GET .../llm-calls/:eventId`) and Temporal
+  Event Groups on the graph. Nothing needs to be turned on.

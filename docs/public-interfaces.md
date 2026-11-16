@@ -28,7 +28,7 @@ links to it instead of repeating it. For the layers behind the interfaces see
 - [What the plugin writes](#what-the-plugin-writes)
 - [Scaffolder](#scaffolder)
 - [Zigflow](#zigflow)
-- [Experimental: loops and model calls](#experimental-loops-and-model-calls)
+- [Experimental: model calls and event groups](#experimental-model-calls-and-event-groups)
 - [Examples](#examples)
 - [Not public](#not-public)
 - [Keeping this guide true](#keeping-this-guide-true)
@@ -38,11 +38,11 @@ links to it instead of repeating it. For the layers behind the interfaces see
 Every exported name carries a release tag in its doc comment, and the
 [API reports](#keeping-this-guide-true) show it on each line:
 
-| Tag          | Meaning                                                                                                                                                                                                                |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                                                      |
-| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui`, and `./common` has 32 of them (the experimental names).                                            |
-| Experimental | The loop views (`temporal.experimental.aiWorkflows`) and the model call types. They will change substantially before the first release; see [Experimental](#experimental-loops-and-model-calls). Do not build on them. |
+| Tag          | Meaning                                                                                                                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                     |
+| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui`, and `./common` has 32 of them (the experimental names).           |
+| Experimental | The model call types and Event Groups. They will change substantially before the first release; see [Experimental](#experimental-model-calls-and-event-groups). Do not build on them. |
 
 The HTTP API, the permissions, the configuration keys, the annotations, the
 kind and the search attributes have no tag of their own: they follow the
@@ -125,21 +125,20 @@ it from the package of your side. The entry points for modules (`./node`,
 The 128 names in groups. Every name is in the
 [report](../plugins/temporal-backend/report-common.api.md).
 
-| Group (source file)                               | Names                                                                                                                                                                                                                                                                                                                                                                                                                                            | Used by                                                                                        |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Workflows (`types.ts`, 15)                        | `WorkflowRef`, `WorkflowSummary`, `WorkflowDetail`, `WorkflowStatus`, `WORKFLOW_STATUSES`, `WorkflowFailure`, `PendingActivity`, `WorkflowListResponse`, `WorkflowStatsResponse`, `WorkflowHistoryEvent`, `WorkflowHistoryResponse`, `WorkflowStepsResponse`, `ActivityStep`, `DecodedPayload`, `ExternalPayload`                                                                                                                                | Clients of the HTTP API, enrichers, actions                                                    |
-| Graph and progress (`graph.ts`, 10)               | `WorkflowGraphResponse`, `WorkflowGraphNode`, `WorkflowGraphEdge`, `WorkflowNodeKind`, `WorkflowNodeStatus`, `WorkflowNodeAttempt`, `WorkflowNodeEvent`, `WorkflowDeadline`, `WorkflowRunChain`, `WorkflowProgressResponse`                                                                                                                                                                                                                      | Clients of `…/graph` and `…/progress`                                                          |
-| Operations (`controls.ts`, 10)                    | `WorkflowControlOperation`, `WorkflowMessageRequest`, `WorkflowMessageResponse`, `WorkflowStartRequest`, `WorkflowStartResponse`, `WorkflowHandler`, `WorkflowHandlersResponse`, `buildWorkflowOperationPath`, `buildWorkflowActionPath`, `buildWorkflowHandlersPath`                                                                                                                                                                            | Clients that operate workflows                                                                 |
-| Schedules (`schedules.ts`, 8)                     | `TemporalSchedule`, `TemporalScheduleAction`, `TemporalScheduleListResponse`, `TemporalScheduleNoteRequest`, `TemporalScheduleOperation`, `SCHEDULES_PATH`, `buildEntitySchedulesPath`, `buildScheduleOperationPath`                                                                                                                                                                                                                             | Clients of the schedule routes                                                                 |
-| Paths (`paths.ts`, 4)                             | `buildWorkflowPath`, `buildEntityWorkflowsPath`, `buildEntityWorkflowStatsPath`, `WORKFLOWS_PATH`                                                                                                                                                                                                                                                                                                                                                | Building HTTP API paths                                                                        |
-| Permissions (`permissions.ts`, 16)                | The 11 permissions (`temporalWorkflowReadPermission` … `temporalWorkflowRerunPermission`, see [Permissions](#permissions)), `temporalPermissions`, `temporalControlPermissions`, `RESOURCE_TYPE_TEMPORAL_WORKFLOW`, `parseTemporalWorkflowResourceRef`, `stringifyTemporalWorkflowResourceRef`                                                                                                                                                   | Permission policies, actions, buttons                                                          |
-| Annotations (`annotations.ts`, 13)                | `TEMPORAL_NAMESPACE_ANNOTATION`, `TEMPORAL_TASK_QUEUE_ANNOTATION`, `TEMPORAL_WORKFLOW_TYPE_ANNOTATION`, `TemporalAnnotations`, `parseTemporalAnnotations`, `InvalidTemporalAnnotationError`, `isTemporalAvailable`, `getDependsOnTemporalWorkflowRefs`, `isValidNamespaceName`, `isValidTaskQueueName`, `isValidWorkflowTypeName`, `isValidWorkflowIdPrefix`, `NAME_PATTERN_SOURCES`                                                             | Entity pages, catalog processors, validation                                                   |
-| `TemporalWorkflow` kind (`workflowEntity.ts`, 10) | `TEMPORAL_WORKFLOW_API_VERSION`, `TEMPORAL_WORKFLOW_KIND`, `TemporalWorkflowEntityV1alpha1`, `temporalWorkflowEntityV1alpha1Schema`, `isTemporalWorkflowEntity`, `isTemporalWorkflowEntityRef`, `parseTemporalWorkflowSpec`, `InvalidTemporalWorkflowSpecError`, `getTemporalWorkflowSource`, `getTemporalWorkflowExampleArgs`                                                                                                                   | Code that reads workflow entities                                                              |
-| Messages (`messages.ts`, 6)                       | `TemporalWorkflowMessageSpec`, `TemporalWorkflowMessagesSpec`, `temporalWorkflowMessageSchema`, `getTemporalWorkflowMessages`, `mergeWorkflowHandlers`, `exampleArgs`                                                                                                                                                                                                                                                                            | `spec.messages` of the kind                                                                    |
-| Definition (`definition.ts`, 4)                   | `TEMPORAL_DEFINITION_FORMATS`, `TemporalDefinitionFormat`, `TemporalWorkflowDefinitionSpec`, `getTemporalWorkflowDefinitionSpec`                                                                                                                                                                                                                                                                                                                 | `spec.definition` of the kind                                                                  |
-| Experimental loops (`loops.ts`, 10)               | `LOOP_MARKER_MEMO_KEY`, `LOOP_STATE_MEMO_KEY`, `LOOP_STATE_QUERY`, `WorkflowLoopGroup`, `WorkflowLoopMarker`, `WorkflowLoopRound`, `WorkflowLoopRun`, `WorkflowLoopStatus`, `WorkflowLoopStep`, `WorkflowLoopsResponse`                                                                                                                                                                                                                          | [Experimental](#experimental-loops-and-model-calls): do not use                                |
-| Experimental LLM (`llm.ts`, 20)                   | `LLM_MARKER_PREFIX`, `LLM_RECORD_KEY`, `LLM_RECORD_VERSION`, `LLM_SEMCONV_VERSION`, `LLM_TOOL_RESULT_KEY`, `TOOL_MARKER_PREFIX`, `addLlmUsage`, `buildLlmCallPath`, `parseLlmMarker`, `WorkflowLlmCallResponse`, `WorkflowLlmMarker`, `WorkflowLlmMessage`, `WorkflowLlmPart`, `WorkflowLlmRecord`, `WorkflowLlmRecordState`, `WorkflowLlmSummary`, `WorkflowLlmToolCallRef`, `WorkflowLlmToolExecution`, `WorkflowLlmUsage`, `WorkflowToolLink` | [Experimental](#experimental-loops-and-model-calls): do not use                                |
-| Experimental event groups (`eventGroups.ts`, 2)   | `WorkflowEventGroup`, `WorkflowEventGroupKind`                                                                                                                                                                                                                                                                                                                                                                                                   | [Experimental](#experimental-loops-and-model-calls): Event Groups are experimental in Temporal |
+| Group (source file)                               | Names                                                                                                                                                                                                                                                                                                                                                                                | Used by                                                                                               |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Workflows (`types.ts`, 15)                        | `WorkflowRef`, `WorkflowSummary`, `WorkflowDetail`, `WorkflowStatus`, `WORKFLOW_STATUSES`, `WorkflowFailure`, `PendingActivity`, `WorkflowListResponse`, `WorkflowStatsResponse`, `WorkflowHistoryEvent`, `WorkflowHistoryResponse`, `WorkflowStepsResponse`, `ActivityStep`, `DecodedPayload`, `ExternalPayload`                                                                    | Clients of the HTTP API, enrichers, actions                                                           |
+| Graph and progress (`graph.ts`, 10)               | `WorkflowGraphResponse`, `WorkflowGraphNode`, `WorkflowGraphEdge`, `WorkflowNodeKind`, `WorkflowNodeStatus`, `WorkflowNodeAttempt`, `WorkflowNodeEvent`, `WorkflowDeadline`, `WorkflowRunChain`, `WorkflowProgressResponse`                                                                                                                                                          | Clients of `…/graph` and `…/progress`                                                                 |
+| Operations (`controls.ts`, 10)                    | `WorkflowControlOperation`, `WorkflowMessageRequest`, `WorkflowMessageResponse`, `WorkflowStartRequest`, `WorkflowStartResponse`, `WorkflowHandler`, `WorkflowHandlersResponse`, `buildWorkflowOperationPath`, `buildWorkflowActionPath`, `buildWorkflowHandlersPath`                                                                                                                | Clients that operate workflows                                                                        |
+| Schedules (`schedules.ts`, 8)                     | `TemporalSchedule`, `TemporalScheduleAction`, `TemporalScheduleListResponse`, `TemporalScheduleNoteRequest`, `TemporalScheduleOperation`, `SCHEDULES_PATH`, `buildEntitySchedulesPath`, `buildScheduleOperationPath`                                                                                                                                                                 | Clients of the schedule routes                                                                        |
+| Paths (`paths.ts`, 4)                             | `buildWorkflowPath`, `buildEntityWorkflowsPath`, `buildEntityWorkflowStatsPath`, `WORKFLOWS_PATH`                                                                                                                                                                                                                                                                                    | Building HTTP API paths                                                                               |
+| Permissions (`permissions.ts`, 16)                | The 11 permissions (`temporalWorkflowReadPermission` … `temporalWorkflowRerunPermission`, see [Permissions](#permissions)), `temporalPermissions`, `temporalControlPermissions`, `RESOURCE_TYPE_TEMPORAL_WORKFLOW`, `parseTemporalWorkflowResourceRef`, `stringifyTemporalWorkflowResourceRef`                                                                                       | Permission policies, actions, buttons                                                                 |
+| Annotations (`annotations.ts`, 13)                | `TEMPORAL_NAMESPACE_ANNOTATION`, `TEMPORAL_TASK_QUEUE_ANNOTATION`, `TEMPORAL_WORKFLOW_TYPE_ANNOTATION`, `TemporalAnnotations`, `parseTemporalAnnotations`, `InvalidTemporalAnnotationError`, `isTemporalAvailable`, `getDependsOnTemporalWorkflowRefs`, `isValidNamespaceName`, `isValidTaskQueueName`, `isValidWorkflowTypeName`, `isValidWorkflowIdPrefix`, `NAME_PATTERN_SOURCES` | Entity pages, catalog processors, validation                                                          |
+| `TemporalWorkflow` kind (`workflowEntity.ts`, 10) | `TEMPORAL_WORKFLOW_API_VERSION`, `TEMPORAL_WORKFLOW_KIND`, `TemporalWorkflowEntityV1alpha1`, `temporalWorkflowEntityV1alpha1Schema`, `isTemporalWorkflowEntity`, `isTemporalWorkflowEntityRef`, `parseTemporalWorkflowSpec`, `InvalidTemporalWorkflowSpecError`, `getTemporalWorkflowSource`, `getTemporalWorkflowExampleArgs`                                                       | Code that reads workflow entities                                                                     |
+| Messages (`messages.ts`, 6)                       | `TemporalWorkflowMessageSpec`, `TemporalWorkflowMessagesSpec`, `temporalWorkflowMessageSchema`, `getTemporalWorkflowMessages`, `mergeWorkflowHandlers`, `exampleArgs`                                                                                                                                                                                                                | `spec.messages` of the kind                                                                           |
+| Definition (`definition.ts`, 4)                   | `TEMPORAL_DEFINITION_FORMATS`, `TemporalDefinitionFormat`, `TemporalWorkflowDefinitionSpec`, `getTemporalWorkflowDefinitionSpec`                                                                                                                                                                                                                                                     | `spec.definition` of the kind                                                                         |
+| Experimental LLM (`llm.ts`, 12)                   | `addLlmUsage`, `buildLlmCallPath`, `WorkflowLlmCallResponse`, `WorkflowLlmMessage`, `WorkflowLlmPart`, `WorkflowLlmRecord`, `WorkflowLlmRecordState`, `WorkflowLlmSummary`, `WorkflowLlmToolCallRef`, `WorkflowLlmToolExecution`, `WorkflowLlmUsage`, `WorkflowToolLink`                                                                                                             | [Experimental](#experimental-model-calls-and-event-groups): do not use                                |
+| Experimental event groups (`eventGroups.ts`, 2)   | `WorkflowEventGroup`, `WorkflowEventGroupKind`                                                                                                                                                                                                                                                                                                                                       | [Experimental](#experimental-model-calls-and-event-groups): Event Groups are experimental in Temporal |
 
 ### `temporal-frontend`
 
@@ -496,13 +495,10 @@ Reads are always served:
 | `GET /:wf/steps`                                      | history level                                                                                           | `entityRef`                                                                                                         | `WorkflowStepsResponse`        |
 | `GET /:wf/payloads/download`                          | history level                                                                                           | `entityRef`, `key`                                                                                                  | The payload's bytes            |
 | `POST /:wf/query`                                     | read level and `temporal.workflow.query`; audited                                                       | `WorkflowMessageRequest`                                                                                            | `WorkflowMessageResponse`      |
-| `GET /:wf/loops`                                      | read level. **Experimental**                                                                            | `entityRef`                                                                                                         | `WorkflowLoopsResponse`        |
 | `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                                                                         | `entityRef`, `index`                                                                                                | `WorkflowLlmCallResponse`      |
 
 The read and history levels are decided as in
 [Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
-`GET /:wf/loops` answers `404` unless
-`temporal.experimental.aiWorkflows` is true.
 
 Operations are served unless `temporal.control.enabled` is false; then the
 routes do not exist and answer `404` without an error body. Each one is
@@ -608,7 +604,6 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; secret                                                     |                        |
 | `externalStorage.s3.accountId`, `.defaultCredentials`                                                                     | backend (with Backstage's `aws` config)                             |                        |
 | `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations`                                              | Zigflow backend module                                              |                        |
-| `experimental.aiWorkflows`                                                                                                | backend, the loops. **Experimental**                                |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
 the `workflowUrl` output. With `externalStorage.s3.accountId`, the backend
@@ -679,9 +674,9 @@ Other systems can read these, so they are interfaces too:
   for `workflow-query`, `high` for `workflow-terminate` and `medium` for the
   others.
 
-The memo your workers write is read only by the experimental views
-(below). The plugin also reads the references of Temporal External Storage,
-written by the SDK's S3 driver in its own format.
+The plugin shows a workflow's memo on the details page. It also reads the
+references of Temporal External Storage, written by the SDK's S3 driver in
+its own format.
 
 ## Scaffolder
 
@@ -715,26 +710,16 @@ schemas are shown on the Scaffolder's actions page; see the
 route (`WorkflowDefinitionResponse`) is not exported: the two modules are
 released together and the route is for the tab only.
 
-## Experimental: loops and model calls
+## Experimental: model calls and event groups
 
 > **Experimental. These will change substantially before the first
 > release. Do not depend on them, except through an LLM adapter.**
 
-- the loops: turned on with `temporal.experimental.aiWorkflows: true`, off
-  by default. The route `GET /:wf/loops`, the `TemporalApi` method
-  `getWorkflowLoops` (`@alpha`), the names of `loops.ts` in `./common`
-  (table above), the fields `loop` and `loops` of `WorkflowGraphNode` and
-  `WorkflowGraphResponse`, and the memo keys and query that
-  `@kwkevinchan/temporal-workflow-kit` (not published) writes in workers.
-  There are no examples for them on purpose.
 - the model calls and tool calls: always on. The route
   `GET /:wf/llm-calls/:eventId`, the `TemporalApi` method `getLlmCall`
   (`@alpha`), the names of `llm.ts` in `./common`, the fields `llm` and
   `tool` of `WorkflowGraphNode` and `ActivityStep`, and
-  [`temporalLlmAdapterExtensionPoint`](#llm-adapters). The markers and the
-  record of `llm.ts` (`LLM_MARKER_PREFIX`, `LLM_RECORD_KEY`,
-  `parseLlmMarker`, …) are the format of the workflow kit; they go away
-  with it.
+  [`temporalLlmAdapterExtensionPoint`](#llm-adapters).
 - the event groups: always on, read from the history. The names of
   `eventGroups.ts` in `./common`, the field `groups` of `WorkflowGraphNode`
   and the fields `eventGroups` and `eventGroupsTruncated` of

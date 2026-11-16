@@ -262,9 +262,9 @@ const _default: OverridableFrontendPlugin<
           | (
               | 'development'
               | 'deployment'
+              | 'operation'
               | 'overview'
               | 'documentation'
-              | 'operation'
               | 'observability'
             )
           | (string & {});

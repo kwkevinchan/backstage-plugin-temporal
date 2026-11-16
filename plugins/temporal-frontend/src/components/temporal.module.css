@@ -1077,35 +1077,6 @@
   border-radius: 2px;
   background: var(--tp-group-hue);
 }
-.tp-loop-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--bui-space-1, 4px);
-  padding: 2px var(--bui-space-2, 8px);
-  border: 1px solid var(--bui-border-1);
-  border-radius: var(--bui-radius-2, 4px);
-  font-family: var(--bui-font-regular);
-  font-size: var(--bui-font-size-2, 13px);
-  color: var(--bui-fg-primary);
-}
-.tp-loop-controls-name {
-  font-weight: var(--bui-font-weight-bold, 600);
-}
-.tp-loop-steps {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--bui-space-1, 4px) var(--bui-space-3, 12px);
-}
-.tp-loop-step {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--tp-fg);
-}
-.tp-loop-step > span:last-child {
-  color: var(--bui-fg-primary);
-}
-
 /* Timeline tab: a label column and a track per step. Bars are placed in
    percent of the track width; the overlay holds the grid lines, the "now"
    line and the drag selection. */
@@ -1423,7 +1394,6 @@
 .tp-llm,
 .tp-graph,
 .tp-timeline,
-.tp-loop-steps,
 .tp-drawer {
   --tp-llm: color-mix(in srgb, var(--bui-fg-info) 55%, var(--bui-fg-danger));
   /* Kind hues, muted mixes of the theme tokens, apart from the status
@@ -1456,8 +1426,7 @@
   --tp-tint: 7%;
   --tp-tint-hover: 13%;
 }
-:global([data-theme-mode='dark']) .tp-graph,
-:global([data-theme-mode='dark']) .tp-loop-steps {
+:global([data-theme-mode='dark']) .tp-graph {
   /* A dark surface needs a little more of the hue to show it. */
   --tp-tint: 12%;
   --tp-tint-hover: 18%;

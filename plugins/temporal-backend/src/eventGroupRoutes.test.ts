@@ -37,11 +37,7 @@ function fixture(name: string, dir = 'event-groups'): any[] {
   return readHistoryFixture(dir, name).events;
 }
 
-async function start(options: {
-  history: boolean;
-  events: any[];
-  ai?: boolean;
-}) {
+async function start(options: { history: boolean; events: any[] }) {
   const workflowService = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
     async (req: any) =>
@@ -77,11 +73,7 @@ async function start(options: {
       catalogServiceMock.factory({ entities: [ordersEntity] }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
-      mockServices.rootConfig.factory({
-        data: {
-          temporal: { experimental: { aiWorkflows: options.ai !== false } },
-        },
-      }),
+      mockServices.rootConfig.factory({ data: { temporal: {} } }),
     ],
   });
   return withOpenApiValidation(server);
@@ -154,16 +146,14 @@ describe('event groups in the graph route', () => {
     expect(historyReader.body.eventGroups).toEqual(reader.body.eventGroups);
   });
 
-  it('shows the groups with the experimental views off', async () => {
+  it('shows the groups of a run whose labels a codec encoded', async () => {
     const res = await request(
       await start({
         history: false,
-        ai: false,
         events: fixture('codec-loop'),
       }),
     ).get(graphPath);
     expect(res.status).toBe(200);
-    expect(res.body.loops).toBeUndefined();
     expect(res.body.eventGroups).toHaveLength(5);
     expect(res.body.eventGroups[0]).toMatchObject({
       key: 'label:loop:draft-review',

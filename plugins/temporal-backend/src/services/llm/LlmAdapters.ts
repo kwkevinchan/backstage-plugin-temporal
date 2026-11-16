@@ -25,11 +25,10 @@ import type {
 import { isObject } from './json';
 import { openaiAgentsAdapter } from './openaiAgents';
 import { vercelAiSdkAdapter } from './vercelAiSdk';
-import { workflowKitAdapter } from './workflowKit';
 
 /** The built-in adapters, in the order they are asked. */
 export function builtInLlmAdapters(): TemporalLlmAdapter[] {
-  return [vercelAiSdkAdapter, openaiAgentsAdapter, workflowKitAdapter];
+  return [vercelAiSdkAdapter, openaiAgentsAdapter];
 }
 
 /** Most model calls one step may report; more make the step a plain step. */
@@ -165,8 +164,7 @@ export interface LlmModelCalls {
   framework: string;
   calls: TemporalLlmModelCall[];
   /**
-   * False when tool calls of these calls must not be linked by inference
-   * (the workflow kit's format marks every tool step).
+   * False when tool calls of these calls must not be linked by inference.
    */
   inferToolCalls: boolean;
 }
@@ -239,15 +237,11 @@ export class LlmAdapters {
     (options.builtIn ? this.builtIn : this.added).push(adapter);
   }
 
-  /**
-   * Adds the built-in adapters, after the ones added so far. The workflow
-   * kit's tool steps all carry markers, so its calls get no inferred links.
-   */
+  /** Adds the built-in adapters, after the ones added so far. */
   addBuiltIns() {
     for (const adapter of builtInLlmAdapters()) {
       this.add(adapter, { builtIn: true });
     }
-    this.noInference.add(workflowKitAdapter.id);
   }
 
   /** All adapters, in the order they are asked. */

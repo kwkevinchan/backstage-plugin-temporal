@@ -33,9 +33,7 @@ export * from './controls';
 export * from './messages';
 export * from './schedules';
 export * from './definition';
-// Experimental, @alpha: the loops (temporal.experimental.aiWorkflows) and
-// the model calls and tool calls.
-export * from './loops';
+// Experimental, @alpha: the model calls and tool calls.
 export * from './llm';
 // Experimental, @alpha: Temporal Event Groups.
 export * from './eventGroups';

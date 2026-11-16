@@ -20,10 +20,11 @@ import { expect, Locator, Page, test } from '@playwright/test';
 
 /*
  * LLM steps: the example worker runs agentWorkflow (four rounds of model
- * call and tools, with loop markers; a tool fails once and is retried, one
- * runs as a local activity, the last answer is stored in S3) and
- * mixedAgentWorkflow (ordinary activities, model calls, two tools in
- * parallel and a child workflow). No model is called.
+ * call and tools; a tool fails once and is retried, one runs as a local
+ * activity, the last answer is stored in S3) and mixedAgentWorkflow
+ * (ordinary activities, model calls, two tools in parallel and a child
+ * workflow). No model is called. Model calls use the Vercel AI SDK
+ * activity shape.
  */
 
 const app = process.env.SMOKE_APP ?? 'app';
@@ -132,20 +133,16 @@ function section(page: Page, id: string): Locator {
   return page.getByTestId(id);
 }
 
-test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', async ({
+test('LLM steps: agent graph, LLM panel, tool cards, timeline', async ({
   page,
 }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(String(error)));
   await openRun(page, 'agentWorkflow');
 
-  // The loop box, expanded: a frame per round; round 2 has a model call and
-  // its three tools.
-  await page.getByTestId('loop-agent').click();
-  const controls = page.getByTestId('loop-controls-agent');
-  await expect(controls.getByTestId('loop-round')).toContainText('Rounds 1–4');
-  await expect(page.getByTestId('loop-round-agent-2')).toBeVisible();
-  const call = modelCall(page, /^Model call callModel, fake-reasoner/).nth(1);
+  // Four model calls; the second asks for three tools (one retried).
+  await expect(modelCall(page, /^Model call fake-reasoner/)).toHaveCount(4);
+  const call = modelCall(page, /^Model call fake-reasoner/).nth(1);
   await expect(call).toBeVisible();
   await expect(call).toContainText('fake-reasoner-1-2026-11');
   await expect(call).toContainText(/\d+ in · \d+ out · [\d.]+m?s · 3 tools/);
@@ -218,16 +215,18 @@ test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', as
     'File server busy',
   );
   await shot(page, '04-tool-step');
-  await drawer.getByRole('button', { name: /^Model call r2/ }).click();
-  await expect(page.getByTestId('llm-panel')).toContainText('LLM call r2');
+  await drawer
+    .getByRole('button', { name: /^Model call fake-reasoner/ })
+    .click();
+  await expect(page.getByTestId('llm-panel')).toBeVisible();
 
-  // The raw record.
+  // The raw record (the Vercel AI SDK input and result).
   await page.getByText('Raw JSON', { exact: true }).click();
-  await expect(section(page, 'llm-raw')).toContainText('gen_ai.input.messages');
+  await expect(section(page, 'llm-raw')).toContainText('fake-reasoner-1');
   await page.getByText('Raw JSON', { exact: true }).click();
 
   // The last round: the answer is stored in S3 (when the worker uses it).
-  await modelCall(page, /^Model call callModel/)
+  await modelCall(page, /^Model call fake-reasoner/)
     .last()
     .dispatchEvent('click');
   const output = section(page, 'llm-output');
@@ -235,26 +234,9 @@ test('LLM steps: agent graph, LLM panel, tool cards, Loops tokens, timeline', as
   await expect(output.getByRole('button', { name: /Show all/ })).toBeVisible();
   await expect(section(page, 'llm-tools')).toContainText('asked for no tools');
 
-  // The Loops tab: tokens of each round and of the loop.
-  await page.getByRole('tab', { name: 'Loops' }).click();
-  const loops = page.getByTestId('loop-table-agent');
-  await expect(
-    loops.getByRole('columnheader', { name: 'Tokens' }),
-  ).toBeVisible();
-  for (const round of [1, 2, 3, 4]) {
-    await expect(loops.getByTestId(`round-tokens-${round}`)).toContainText(
-      /\d+(\.\d)?k? in · \d+(\.\d)?k? out/,
-    );
-  }
-  await expect(loops.getByTestId('loop-tokens-total')).toContainText('Tokens:');
-  await expect(loops.getByLabel('Model call')).toHaveCount(4);
-  await page.getByTestId('workflow-loops').scrollIntoViewIfNeeded();
-  await shot(page, '05-loops-tokens');
-
   // The Timeline: model and tool calls have their own icons and outline.
   await page.getByRole('tab', { name: 'Timeline' }).click();
   const timeline = page.getByTestId('workflow-timeline');
-  await timeline.getByRole('button', { name: 'Expand rounds' }).click();
   await expect(timeline.getByLabel('Model call').first()).toBeVisible();
   await expect(timeline.locator('[data-llm="call"]').first()).toBeVisible();
   await expect(timeline.locator('[data-llm="tool"]').first()).toBeVisible();
@@ -314,9 +296,7 @@ test('LLM steps in the dark theme', async ({ page }) => {
   });
   await openRun(page, 'agentWorkflow');
   await expect(page.locator('body')).toHaveAttribute('data-theme-mode', 'dark');
-  await page.getByTestId('loop-agent').click();
-  await expect(page.getByTestId('loop-round-agent-2')).toBeVisible();
-  await modelCall(page, /^Model call callModel/)
+  await modelCall(page, /^Model call fake-reasoner/)
     .nth(1)
     .dispatchEvent('click');
   await page.getByTestId('llm-thinking-details').locator('summary').click();

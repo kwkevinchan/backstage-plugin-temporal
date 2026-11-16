@@ -15,7 +15,6 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import { LOOP_MARKER_MEMO_KEY, LOOP_STATE_MEMO_KEY } from '../common';
 import type {
   PendingActivity,
   WorkflowFailure,
@@ -25,10 +24,8 @@ import type {
   WorkflowNodeKind,
   WorkflowNodeStatus,
   WorkflowStatus,
-  WorkflowLoopMarker,
 } from '../common';
 import {
-  decodePayload,
   decodePayloads,
   dropUndefined,
   durationToMs,
@@ -49,12 +46,6 @@ import {
 import { EventGroupCollector } from './eventGroups';
 import { FAILED_STATUSES, OPEN_STATUSES } from './stepStatus';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
-import {
-  buildLoopGroups,
-  parseActivityLoopMarker,
-  parseLoopMarker,
-  readLoopMarker,
-} from './loops';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows
@@ -86,26 +77,6 @@ import {
 
 type Json = any;
 
-/** The value of one memo field of a history event, when it is JSON. */
-function memoValue(memo: Json, key: string): unknown {
-  const payload = memo?.fields?.[key];
-  if (!payload) return undefined;
-  const decoded = decodePayload(payload);
-  return 'value' in decoded ? decoded.value : undefined;
-}
-
-/**
- * The summary the loop helper of temporal-workflow-kit writes for the
- * Temporal UI (`<loop> · round <n> · <step>`). The graph already shows the
- * loop and the round, so it is not used as the step's title.
- */
-function isLoopSummary(summary: string, loop: WorkflowLoopMarker | undefined) {
-  return (
-    !!loop &&
-    summary === `${loop.loop} · round ${loop.iteration} · ${loop.step}`
-  );
-}
-
 /** Most arrows of one graph; beyond that the graph is too dense to read. */
 export const MAX_GRAPH_EDGES = 5000;
 
@@ -133,13 +104,6 @@ export interface BuildGraphOptions {
   includePayloads: boolean;
   /** Failure of the closed run from describe, when the history is cut. */
   failure?: WorkflowFailure;
-  /** Memo from describe, for the loop state. */
-  memo?: JsonObject;
-  /**
-   * False (the experimental AI views are off): the summary of a loop step
-   * is kept, since the graph does not show the loop.
-   */
-  aiWorkflows?: boolean;
   /** The LLM adapters that read model calls and tool calls. */
   llmAdapters?: LlmAdapters;
 }
@@ -236,10 +200,7 @@ export function buildWorkflowGraphWithLlm(
       first: num(event.eventId),
     };
     const summary = summaryOf(event);
-    if (
-      summary &&
-      (options.aiWorkflows === false || !isLoopSummary(summary, init.loop))
-    ) {
+    if (summary) {
       node.summary = summary;
     }
     const groups = eventGroups.add(node.id, event);
@@ -282,10 +243,6 @@ export function buildWorkflowGraphWithLlm(
   const lastAttempt = (node: Building) =>
     node.attempts?.[node.attempts.length - 1];
 
-  // Loop states from the memo: the one carried into the run, then each
-  // upsert after a round.
-  let carriedLoopState: unknown;
-  const loopStates: unknown[] = [];
   let lastEventId = 0;
   for (const event of events) {
     lastEventId = Math.max(lastEventId, num(event.eventId));
@@ -295,7 +252,6 @@ export function buildWorkflowGraphWithLlm(
     // Workflow start and close.
     a = event.workflowExecutionStartedEventAttributes;
     if (a) {
-      carriedLoopState = memoValue(a.memo, LOOP_STATE_MEMO_KEY);
       const node = add('start', event, {
         id: 'start',
         kind: 'workflowStarted',
@@ -384,7 +340,6 @@ export function buildWorkflowGraphWithLlm(
         startTime: time,
         input: payload(decodePayloads(a.input)),
         maximumAttempts: max > 0 ? max : undefined,
-        loop: parseActivityLoopMarker(a.activityId),
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
         }),
@@ -629,9 +584,6 @@ export function buildWorkflowGraphWithLlm(
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
         }),
-        loop:
-          readLoopMarker(memoValue(a.memo, LOOP_MARKER_MEMO_KEY)) ??
-          parseLoopMarker(a.workflowId),
       });
       attach(node, event);
       continue;
@@ -767,13 +719,6 @@ export function buildWorkflowGraphWithLlm(
           failureFromCause(a.cause, 'Workflow task failed');
       }
       continue;
-    }
-
-    // Memo upserts with the loop state stay internal events.
-    a = event.workflowPropertiesModifiedEventAttributes;
-    if (a) {
-      const state = memoValue(a.upsertedMemo, LOOP_STATE_MEMO_KEY);
-      if (state !== undefined) loopStates.push(state);
     }
 
     // Anything else.
@@ -912,12 +857,6 @@ export function buildWorkflowGraphWithLlm(
   const nextRunId =
     endNode?.status === 'ContinuedAsNew' ? endNode.workflow?.runId : undefined;
   const current = currentStep(visible, options);
-  const loops = buildLoopGroups(nodes, {
-    status: options.status,
-    upserts: loopStates,
-    carried: carriedLoopState,
-    current: options.memo?.[LOOP_STATE_MEMO_KEY],
-  });
   const response: WorkflowGraphResponse = {
     status: options.status,
     nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
@@ -936,7 +875,6 @@ export function buildWorkflowGraphWithLlm(
             nextRunId,
           })
         : undefined,
-    loops,
     eventGroups: groups.groups.length > 0 ? groups.groups : undefined,
     eventGroupsTruncated: groups.truncated || undefined,
   };

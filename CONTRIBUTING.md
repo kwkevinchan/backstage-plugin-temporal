@@ -51,9 +51,9 @@ takes every published package from `0.0.0` to `0.1.0`: the six packages
    (with two-factor authentication, add `--otp <code>` after
    `npm publish`), then `yarn changeset tag` and `git push --follow-tags`.
 
-Private packages (`"private": true`) are not published. At the moment that
-is `@kwkevinchan/temporal-workflow-kit`, which goes with the experimental AI
-views (`temporal.experimental.aiWorkflows`) and will be released with them.
+Private packages (`"private": true`) are not published. The development
+packages in `packages/` (`app`, `app-next`, `backend`, `example-worker`)
+are private.
 
 ## Package layers
 
@@ -91,14 +91,11 @@ The Zigflow modules share one file in the same way:
 `plugins/temporal-backend-module-zigflow/src/common` is the original,
 `plugins/temporal-module-zigflow/src/common` the copy.
 
-The backend reads the loop markers and LLM records with its own code; the
-workflow kit writes them. Both are tested against
-`test-fixtures/loop-markers.json` and `test-fixtures/llm-records.json`, so
-change the format there first. The LLM adapters of the official Temporal AI
-integrations are tested against recorded histories in
-`test-fixtures/llm-integrations` (see its README; rename task queues,
-workflow types and IDs, worker identities and paths before adding one).
-The event groups are tested the same way against `test-fixtures/event-groups`.
+The LLM adapters of the official Temporal AI integrations are tested
+against recorded histories in `test-fixtures/llm-integrations` (see its
+README; rename task queues, workflow types and IDs, worker identities and
+paths before adding one). The event groups are tested the same way against
+`test-fixtures/event-groups`.
 The frontend tests of the event group views read graph responses written
 from some of these histories with the backend's graph builder: run
 `yarn sync:test-graphs` when the shape of the graph changes
@@ -134,7 +131,7 @@ The query classes in `services/` each cover one kind of read:
 | `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks     |
 | `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list   |
 | `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and handlers |
-| `AiWorkflowQueries`     | The experimental AI views: loops and model call records                                                   |
+| `AiWorkflowQueries`     | The records of a run's model calls                                                                        |
 
 `EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
 `WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a

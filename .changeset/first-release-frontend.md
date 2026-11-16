@@ -50,6 +50,6 @@ that the backend does not serve the Temporal plugin and name that package.
   `workflowSections` props for the legacy system. `./common` has the
   permissions, the API types and the annotation constants; `./ui` (alpha)
   the building blocks of the pages for companion packages.
-- Experimental, off unless the backend sets
-  `temporal.experimental.aiWorkflows`: loops of AI workflows (one box per
-  loop, the Loops tab) and LLM steps (model and tool calls, the LLM panel).
+- Experimental: model calls and tool calls of the official Temporal AI
+  integrations (the LLM panel) and Temporal Event Groups (group frames in
+  the graph and the Event Groups tab). Nothing needs to be turned on.

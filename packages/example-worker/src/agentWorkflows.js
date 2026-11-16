@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,14 +17,18 @@
 /*
  * Fake agent workflows with LLM steps (see agentActivities.js):
  *
- *   agentWorkflow       an agent loop with loop markers: each round calls the
- *                       model, which answers with reasoning and tool calls;
- *                       the tools run as activities (one fails once and is
- *                       retried, one runs as a local activity); after four
- *                       rounds the model writes a long report (stored in S3
- *                       when the worker uses the S3 codec)
+ *   agentWorkflow       an agent loop: each round calls the model, which
+ *                       answers with reasoning and tool calls; the tools
+ *                       run as activities (one fails once and is retried,
+ *                       one runs as a local activity); after four rounds
+ *                       the model writes a long report (stored in S3 when
+ *                       the worker uses the S3 codec)
  *   mixedAgentWorkflow  ordinary activities, two model calls, two tools in
- *                       parallel and a child workflow, without loop markers
+ *                       parallel and a child workflow
+ *
+ * Model calls use the activity type and payload shape of
+ * `@temporalio/vercel-ai-sdk` (`invokeModel`), so the plugin's built-in
+ * adapter shows them. No model is called.
  */
 const {
   executeChild,
@@ -32,72 +36,49 @@ const {
   proxyLocalActivities,
   workflowInfo,
 } = require('@temporalio/workflow');
-const { createLoops } = require('@kwkevinchan/temporal-workflow-kit/loop');
-const {
-  llmCallOptions,
-  outputTextOf,
-  toolCallOptions,
-  toolCallsOf,
-} = require('@kwkevinchan/temporal-workflow-kit/llm');
-
-/** Activity of each tool; `glossary` runs as a local activity. */
-const TOOL_ACTIVITIES = { search: 'search', read_file: 'readFile' };
 
 const SYSTEM =
   'You are a helpful engineering assistant. Use the tools to look things up before you answer.';
 
-/** The assistant message of a model call, for the next request. */
-function assistantMessage(result) {
-  const record = result['temporal.llm'];
-  const [message] = record.attributes['gen_ai.output.messages'] ?? [];
-  const text = (message?.parts ?? [])
+function promptFrom(messages) {
+  return messages.map(m => ({
+    role: m.role === 'tool' ? 'tool' : m.role,
+    content: [{ type: 'text', text: m.content ?? '' }],
+  }));
+}
+
+function assistantFrom(result) {
+  const text = (result.content ?? [])
     .filter(p => p.type === 'text')
-    .map(p => p.content)
+    .map(p => p.text)
     .join('\n');
-  const calls = toolCallsOf(result);
-  return {
-    role: 'assistant',
-    content: text || null,
-    tool_calls:
-      calls.length > 0
-        ? calls.map(c => ({
-            id: c.id,
-            type: 'function',
-            function: { name: c.name, arguments: JSON.stringify(c.arguments) },
-          }))
-        : undefined,
-  };
+  const calls = (result.content ?? []).filter(p => p.type === 'tool-call');
+  return { text, calls };
 }
 
 /**
- * Runs the tool calls of one model call at the same time: each as an
- * activity with the ID `tool/<call>/<tool call ID>/...`, and the glossary
- * as a local activity whose result carries the tool marker.
+ * Runs the tool calls of one model call at the same time. The glossary
+ * runs as a local activity; the others as activities the plugin infers
+ * from the tool name.
  */
-async function runTools(call, toolCalls, activityOptions) {
+async function runTools(toolCalls) {
   return Promise.all(
     toolCalls.map(async tc => {
-      if (tc.name === 'glossary') {
+      if (tc.toolName === 'glossary') {
         const { glossary } = proxyLocalActivities({
           startToCloseTimeout: '10 seconds',
         });
-        const marked = await glossary({
-          call,
-          toolCallId: tc.id,
-          args: tc.arguments,
+        const output = await glossary({
+          args: tc.input,
         });
-        return { tc, output: marked.value };
+        return { tc, output };
       }
-      const activity = TOOL_ACTIVITIES[tc.name];
-      const options = toolCallOptions(
-        call,
-        tc.id,
-        activityOptions(tc.name, {
-          startToCloseTimeout: '10 seconds',
-          retry: { initialInterval: '1 second', maximumAttempts: 3 },
-        }),
-      );
-      const output = await proxyActivities(options)[activity](tc.arguments);
+      const activity = tc.toolName === 'read_file' ? 'readFile' : tc.toolName;
+      const options = {
+        startToCloseTimeout: '10 seconds',
+        retry: { initialInterval: '1 second', maximumAttempts: 3 },
+      };
+      const output = await proxyActivities(options)[activity](tc.input);
       return { tc, output };
     }),
   );
@@ -105,65 +86,44 @@ async function runTools(call, toolCalls, activityOptions) {
 
 /** An agent loop: model call, tools, model call, ... until it answers. */
 async function agentWorkflow(request) {
-  const loops = createLoops();
+  const { invokeModel } = proxyActivities({
+    startToCloseTimeout: '30 seconds',
+  });
   const conversation = request.conversation ?? 'agent';
   const messages = [
     { role: 'system', content: SYSTEM },
     { role: 'user', content: `Explain ${request.topic} in this project.` },
   ];
-  const result = await loops.run(
-    'agent',
-    { maxIterations: request.maxRounds ?? 6 },
-    async round => {
-      const call = `r${round.iteration}`;
-      const { callModel } = proxyActivities(
-        llmCallOptions(
-          call,
-          round.activityOptions('callModel', {
-            startToCloseTimeout: '30 seconds',
-          }),
-        ),
-      );
-      const reply = await callModel({
+  let answer;
+  const maxRounds = request.maxRounds ?? 6;
+  for (let round = 1; round <= maxRounds; round++) {
+    const result = await invokeModel({
+      modelId: 'fake-reasoner-1',
+      options: {
+        prompt: promptFrom(messages),
         conversation,
-        round: round.iteration,
+        round,
         seed: request.seed ?? 1,
         topic: request.topic,
         reportSize: request.reportSize,
-        messages,
+      },
+    });
+    const { text, calls } = assistantFrom(result);
+    messages.push({ role: 'assistant', content: text });
+    if (calls.length === 0) {
+      answer = { length: text.length, start: text.slice(0, 120) };
+      break;
+    }
+    const outputs = await runTools(calls);
+    for (const { tc, output } of outputs) {
+      messages.push({
+        role: 'tool',
+        content: JSON.stringify(output),
+        toolCallId: tc.toolCallId,
       });
-      messages.push(assistantMessage(reply));
-      const toolCalls = toolCallsOf(reply);
-      if (toolCalls.length === 0) {
-        const text = outputTextOf(reply);
-        return round.done({
-          value: { length: text.length, start: text.slice(0, 120) },
-          decision: 'answer',
-        });
-      }
-      const outputs = await runTools(call, toolCalls, (step, options) =>
-        round.activityOptions(step, options),
-      );
-      for (const { tc, output } of outputs) {
-        messages.push({
-          role: 'tool',
-          tool_call_id: tc.id,
-          content: JSON.stringify(output),
-        });
-      }
-      return round.next({
-        decision:
-          toolCalls.length === 1
-            ? '1 tool call'
-            : `${toolCalls.length} tool calls`,
-      });
-    },
-  );
-  return {
-    status: result.status,
-    rounds: result.iterations,
-    answer: result.value,
-  };
+    }
+  }
+  return { rounds: maxRounds, answer };
 }
 
 const { loadTicket, postAnswer } = proxyActivities({
@@ -181,57 +141,55 @@ async function summarizeResultsWorkflow(input) {
 
 /**
  * Ordinary activities, model calls, two tools in parallel and a child
- * workflow, without loop markers.
+ * workflow.
  */
 async function mixedAgentWorkflow(request) {
+  const { invokeModel } = proxyActivities({
+    startToCloseTimeout: '30 seconds',
+  });
   const ticket = await loadTicket(request);
   const messages = [
     { role: 'system', content: SYSTEM },
     { role: 'user', content: `Ticket ${ticket.ticket}: ${ticket.topic}?` },
   ];
-  const plan = await proxyActivities(
-    llmCallOptions('plan', { startToCloseTimeout: '30 seconds' }),
-  ).callModel({
-    conversation: `mixed-${request.ticket}`,
-    round: 1,
-    seed: 2,
-    topic: request.topic,
-    plan: 'mixed-plan',
-    messages,
+  const plan = await invokeModel({
+    modelId: 'fake-reasoner-1',
+    options: {
+      prompt: promptFrom(messages),
+      conversation: `mixed-${request.ticket}`,
+      round: 1,
+      seed: 2,
+      topic: request.topic,
+      plan: 'mixed-plan',
+    },
   });
-  messages.push(assistantMessage(plan));
-  const outputs = await runTools(
-    'plan',
-    toolCallsOf(plan),
-    (_step, options) => ({
-      ...options,
-    }),
-  );
-  for (const { tc, output } of outputs) {
+  const planned = assistantFrom(plan);
+  messages.push({ role: 'assistant', content: planned.text });
+  const outputs = await runTools(planned.calls);
+  for (const { output } of outputs) {
     messages.push({
       role: 'tool',
-      tool_call_id: tc.id,
       content: JSON.stringify(output),
     });
   }
   const summary = await executeChild(summarizeResultsWorkflow, {
     workflowId: `${workflowInfo().workflowId}-summary`,
-    // The entity reference too, so the child shows on the same entity.
     typedSearchAttributes: workflowInfo().typedSearchAttributes,
     args: [{ outputs: outputs.map(o => o.output) }],
   });
   messages.push({ role: 'user', content: `Summary: ${summary.summary}` });
-  const final = await proxyActivities(
-    llmCallOptions('final', { startToCloseTimeout: '30 seconds' }),
-  ).callModel({
-    conversation: `mixed-${request.ticket}`,
-    round: 2,
-    seed: 2,
-    topic: request.topic,
-    plan: 'mixed-final',
-    messages,
+  const final = await invokeModel({
+    modelId: 'fake-reasoner-1',
+    options: {
+      prompt: promptFrom(messages),
+      conversation: `mixed-${request.ticket}`,
+      round: 2,
+      seed: 2,
+      topic: request.topic,
+      plan: 'mixed-final',
+    },
   });
-  const text = outputTextOf(final);
+  const text = assistantFrom(final).text;
   await postAnswer({ text });
   return { answer: text };
 }

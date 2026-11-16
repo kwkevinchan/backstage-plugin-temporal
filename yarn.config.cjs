@@ -21,13 +21,6 @@ const { defineConfig } = require('@yarnpkg/types');
 const REPO_URL = 'https://github.com/kwkevinchan/backstage-plugin-temporal';
 const SCOPE = '@kwkevinchan/';
 const NPMJS = 'https://registry.npmjs.org/';
-/**
- * Library for Temporal workers: `/loop` (loop marks) and `/llm` (LLM steps),
- * both running in the workflow sandbox. It has no runtime dependencies; the
- * Temporal workflow SDK is an optional peer dependency.
- */
-const WORKFLOW_KIT = '@kwkevinchan/temporal-workflow-kit';
-const WORKFLOW_KIT_PEERS = new Set(['@temporalio/workflow']);
 
 const BACKEND_ROLES = new Set([
   'backend',
@@ -198,39 +191,13 @@ module.exports = defineConfig({
         }
       }
 
-      // The workflow kit: only optional peer dependencies at run time.
-      if (workspace.ident === WORKFLOW_KIT && dep.type !== 'devDependencies') {
-        if (
-          dep.type !== 'peerDependencies' ||
-          !WORKFLOW_KIT_PEERS.has(dep.ident)
-        ) {
-          dep.error(
-            `${WORKFLOW_KIT} may only have ${[...WORKFLOW_KIT_PEERS].join(
-              ', ',
-            )} as (optional) peer dependencies, not ${dep.ident} in ${
-              dep.type
-            }`,
-          );
-        } else {
-          workspace.set(['peerDependenciesMeta', dep.ident, 'optional'], true);
-        }
-      }
-
       // Published packages talk to Temporal through the client only; the
       // worker and workflow packages (native code, sandbox) stay out.
-      // The one exception is the workflow kit, whose `/loop` runs inside
-      // workflow code: it uses @temporalio/workflow as a peer dependency, so
-      // the workflow's own SDK version is used and nothing is bundled twice.
-      const isWorkflowHelperPeer =
-        workspace.ident === WORKFLOW_KIT &&
-        dep.type === 'peerDependencies' &&
-        dep.ident === '@temporalio/workflow';
       if (
         isPublished &&
         dep.type !== 'devDependencies' &&
         /^@temporalio\//.test(dep.ident) &&
-        dep.ident !== '@temporalio/client' &&
-        !isWorkflowHelperPeer
+        dep.ident !== '@temporalio/client'
       ) {
         dep.error(
           `Published packages may only use @temporalio/client, not ${dep.ident}`,

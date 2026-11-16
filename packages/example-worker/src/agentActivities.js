@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,19 +15,13 @@
  */
 
 /*
- * Activities of the fake agent examples. No model is called: `callModel`
- * answers like the OpenAI chat completions API, from the round and a seed,
- * so a run always looks the same. It records each call with
- * `recordLlmCall` and the OpenAI converter of
- * `@kwkevinchan/temporal-workflow-kit/llm`, so Backstage shows the input,
- * the reasoning, the output, the tool calls and the tokens.
+ * Activities of the fake agent examples. No model is called: `invokeModel`
+ * answers like the Vercel AI SDK generate result, from the round and a
+ * seed, so a run always looks the same and the plugin's built-in adapter
+ * shows the input, the reasoning, the output, the tool calls and the
+ * tokens.
  */
 const { ApplicationFailure, Context } = require('@temporalio/activity');
-const {
-  markToolResult,
-  openaiChat,
-  recordLlmCall,
-} = require('@kwkevinchan/temporal-workflow-kit/llm');
 
 const MODEL = 'fake-reasoner-1';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -40,44 +34,6 @@ function random(seed) {
     return x / 4294967296;
   };
 }
-
-const TOOLS = [
-  {
-    type: 'function',
-    function: {
-      name: 'search',
-      description: 'Search the project documentation',
-      parameters: {
-        type: 'object',
-        properties: { query: { type: 'string' } },
-        required: ['query'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'read_file',
-      description: 'Read a file of the repository',
-      parameters: {
-        type: 'object',
-        properties: { path: { type: 'string' } },
-        required: ['path'],
-      },
-    },
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'glossary',
-      description: 'Look a term up in the glossary',
-      parameters: {
-        type: 'object',
-        properties: { term: { type: 'string' } },
-      },
-    },
-  },
-];
 
 /** About `count` characters of a report, line by line. */
 function longReport(topic, count, next) {
@@ -95,24 +51,23 @@ function longReport(topic, count, next) {
   return lines.join('\n');
 }
 
+function toolCall(id, name, input) {
+  return { type: 'tool-call', toolCallId: id, toolName: name, input };
+}
+
 /** The answer of the fake model for one round. */
 function answer(request) {
   const next = random(request.seed * 100 + request.round);
   const topic = request.topic;
   const id = n => `call_${request.round}${String.fromCharCode(96 + n)}`;
-  const toolCall = (n, name, args) => ({
-    id: id(n),
-    type: 'function',
-    function: { name, arguments: JSON.stringify(args) },
-  });
   const steps = request.plan ?? 'agent';
   if (steps === 'mixed-plan') {
     return {
       reasoning: `To answer about ${topic} I need the docs and the config at the same time.`,
       content: 'Searching the docs and reading the config.',
       toolCalls: [
-        toolCall(1, 'search', { query: `${topic} overview` }),
-        toolCall(2, 'read_file', { path: 'config/settings.yaml' }),
+        toolCall(id(1), 'search', { query: `${topic} overview` }),
+        toolCall(id(2), 'read_file', { path: 'config/settings.yaml' }),
       ],
     };
   }
@@ -128,7 +83,7 @@ function answer(request) {
       return {
         reasoning: `The user asks about ${topic}. I do not know this project yet, so I should search its documentation first.`,
         content: '',
-        toolCalls: [toolCall(1, 'search', { query: topic })],
+        toolCalls: [toolCall(id(1), 'search', { query: topic })],
       };
     case 2:
       return {
@@ -136,9 +91,9 @@ function answer(request) {
           'The search found two documents. I should read both, and look up the term "claim check" that the first one uses.',
         content: 'Reading the two documents.',
         toolCalls: [
-          toolCall(1, 'read_file', { path: 'docs/flaky.md' }),
-          toolCall(2, 'read_file', { path: 'docs/setup.md' }),
-          toolCall(3, 'glossary', { term: 'claim check' }),
+          toolCall(id(1), 'read_file', { path: 'docs/flaky.md' }),
+          toolCall(id(2), 'read_file', { path: 'docs/setup.md' }),
+          toolCall(id(3), 'glossary', { term: 'claim check' }),
         ],
       };
     case 3:
@@ -146,7 +101,7 @@ function answer(request) {
         reasoning:
           'The setup guide mentions a retry policy that I have not seen yet. One more search should settle it.',
         content: '',
-        toolCalls: [toolCall(1, 'search', { query: 'retry policy' })],
+        toolCalls: [toolCall(id(1), 'search', { query: 'retry policy' })],
       };
     default:
       return {
@@ -160,69 +115,49 @@ function answer(request) {
 const tokens = text => Math.max(1, Math.round(JSON.stringify(text).length / 4));
 
 /**
- * One call of the fake model, recorded with the OpenTelemetry attributes.
- * The request has the OpenAI chat completion shape.
+ * One call of the fake model, in the Vercel AI SDK generate-result shape
+ * the plugin's built-in adapter reads (`invokeModel`).
  */
-async function callModel(request) {
-  const body = {
-    model: MODEL,
-    temperature: 0.2,
-    max_completion_tokens: 4096,
-    messages: request.messages,
-    tools: TOOLS,
+async function invokeModel(input) {
+  const options = input.options ?? {};
+  const request = {
+    seed: options.seed ?? 1,
+    round: options.round ?? 1,
+    topic: options.topic ?? 'this project',
+    reportSize: options.reportSize,
+    plan: options.plan,
+    conversation: options.conversation ?? 'agent',
   };
-  return recordLlmCall({
-    request: body,
-    convert: openaiChat,
-    attributes: { 'gen_ai.conversation.id': request.conversation },
-    // The record has the output; the workflow reads it with toolCallsOf.
-    value: () => undefined,
-    async call(req, context) {
-      // The first round looks up the user's profile inside the activity:
-      // a tool that is only in the record.
-      if (request.round === 1 && !request.plan) {
-        await context.runTool(
-          {
-            id: 'ctx_profile',
-            name: 'user_profile',
-            arguments: { user: 'guest' },
-          },
-          async () => {
-            await sleep(80);
-            return { language: 'en', role: 'developer' };
-          },
-        );
-      }
-      const reply = answer(request);
-      await sleep(400 + Math.round(random(request.round)() * 600));
-      const reasoningTokens = tokens(reply.reasoning);
-      return {
-        id: `chatcmpl-${request.conversation}-${request.round}`,
-        object: 'chat.completion',
-        model: `${MODEL}-2026-11`,
-        choices: [
-          {
-            index: 0,
-            finish_reason: reply.toolCalls.length > 0 ? 'tool_calls' : 'stop',
-            message: {
-              role: 'assistant',
-              content: reply.content || null,
-              reasoning_content: reply.reasoning,
-              tool_calls:
-                reply.toolCalls.length > 0 ? reply.toolCalls : undefined,
-            },
-          },
-        ],
-        usage: {
-          prompt_tokens: tokens(req.messages) + 180,
-          completion_tokens:
-            tokens(reply.content) + tokens(reply.toolCalls) + reasoningTokens,
-          prompt_tokens_details: { cached_tokens: request.round > 1 ? 128 : 0 },
-          completion_tokens_details: { reasoning_tokens: reasoningTokens },
-        },
-      };
+  const reply = answer(request);
+  await sleep(400 + Math.round(random(request.round)() * 600));
+  const reasoningTokens = tokens(reply.reasoning);
+  const content = [];
+  if (reply.reasoning) {
+    content.push({ type: 'reasoning', text: reply.reasoning });
+  }
+  if (reply.content) content.push({ type: 'text', text: reply.content });
+  content.push(...reply.toolCalls);
+  return {
+    content,
+    finishReason: {
+      unified: reply.toolCalls.length > 0 ? 'tool-calls' : 'stop',
     },
-  });
+    usage: {
+      inputTokens: {
+        total: tokens(options.prompt) + 180,
+        cacheRead: request.round > 1 ? 128 : undefined,
+      },
+      outputTokens: {
+        total:
+          tokens(reply.content) + tokens(reply.toolCalls) + reasoningTokens,
+        reasoning: reasoningTokens,
+      },
+    },
+    response: {
+      id: `chatcmpl-${request.conversation}-${request.round}`,
+      modelId: `${MODEL}-2026-11`,
+    },
+  };
 }
 
 /** Tool: search the docs. */
@@ -257,17 +192,13 @@ async function readFile(args) {
   };
 }
 
-/** Tool, run as a local activity: the result carries the tool marker. */
+/** Tool, run as a local activity. */
 async function glossary(input) {
   await sleep(50);
-  return markToolResult(
-    { call: input.call, toolCallId: input.toolCallId, name: 'glossary' },
-    {
-      term: input.args.term,
-      meaning:
-        'A small reference in the history to data stored elsewhere (S3).',
-    },
-  );
+  return {
+    term: input.args.term,
+    meaning: 'A small reference in the history to data stored elsewhere (S3).',
+  };
 }
 
 /** Steps of the mixed example that are not LLM steps. */
@@ -282,7 +213,7 @@ async function postAnswer(request) {
 }
 
 module.exports = {
-  callModel,
+  invokeModel,
   search,
   readFile,
   glossary,

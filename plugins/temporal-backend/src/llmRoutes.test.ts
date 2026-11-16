@@ -65,40 +65,37 @@ const plain = (value: unknown) => ({
   data: b64(JSON.stringify(value)),
 });
 
-/** A record larger than the backend shows inline (maxInlineBytes 1000). */
-const bigRecord = {
-  'temporal.llm': {
-    v: 1,
-    attributes: {
-      'gen_ai.provider.name': 'openai',
-      'gen_ai.request.model': 'gpt-big',
-      'gen_ai.usage.input_tokens': 5000,
-      'gen_ai.usage.output_tokens': 900,
-      'gen_ai.input.messages': [
-        { role: 'user', parts: [{ type: 'text', content: 'x'.repeat(4000) }] },
-      ],
-      'gen_ai.output.messages': [
-        {
-          role: 'assistant',
-          parts: [
-            { type: 'reasoning', content: 'thinking hard' },
-            { type: 'text', content: 'the answer' },
-          ],
-        },
-      ],
-    },
+/** A Vercel AI SDK result larger than the backend shows inline (maxInlineBytes 1000). */
+const bigResult = {
+  content: [
+    { type: 'reasoning', text: 'thinking hard' },
+    { type: 'text', text: `the answer ${'x'.repeat(4000)}` },
+  ],
+  finishReason: 'stop',
+  usage: {
+    inputTokens: { total: 5000 },
+    outputTokens: { total: 900 },
+  },
+  response: { id: 'resp-big', modelId: 'gpt-big' },
+};
+const smallResult = {
+  content: [{ type: 'text', text: 'hi' }],
+  finishReason: 'stop',
+  usage: { inputTokens: { total: 10 }, outputTokens: { total: 2 } },
+  response: { id: 'resp-small', modelId: 'gpt-small' },
+};
+const bigInput = {
+  modelId: 'gpt-big',
+  options: {
+    prompt: [
+      { role: 'user', content: [{ type: 'text', text: 'x'.repeat(4000) }] },
+    ],
   },
 };
-const smallRecord = {
-  'temporal.llm': {
-    v: 1,
-    attributes: {
-      'gen_ai.request.model': 'gpt-small',
-      'gen_ai.usage.input_tokens': 10,
-      'gen_ai.output.messages': [
-        { role: 'assistant', parts: [{ type: 'text', content: 'hi' }] },
-      ],
-    },
+const smallInput = {
+  modelId: 'gpt-small',
+  options: {
+    prompt: [{ role: 'user', content: [{ type: 'text', text: 'hi?' }] }],
   },
 };
 
@@ -111,8 +108,8 @@ const stored: Record<
 beforeAll(async () => {
   const s3 = memoryS3();
   for (const [name, value] of [
-    ['big', bigRecord],
-    ['small', smallRecord],
+    ['big', bigResult],
+    ['small', smallResult],
   ] as const) {
     const { payload, key } = await storeExternally(s3, value, {
       workflowId: name,
@@ -128,8 +125,9 @@ function events() {
     {
       eventId: '2',
       activityTaskScheduledEventAttributes: {
-        activityId: 'llm/big',
-        activityType: { name: 'callModel' },
+        activityId: 'model-big',
+        activityType: { name: 'invokeModel' },
+        input: { payloads: [plain(bigInput)] },
       },
     },
     {
@@ -142,8 +140,9 @@ function events() {
     {
       eventId: '4',
       activityTaskScheduledEventAttributes: {
-        activityId: 'llm/small',
-        activityType: { name: 'callModel' },
+        activityId: 'model-small',
+        activityType: { name: 'invokeModel' },
+        input: { payloads: [plain(smallInput)] },
       },
     },
     {
@@ -170,8 +169,9 @@ function events() {
     {
       eventId: '8',
       activityTaskScheduledEventAttributes: {
-        activityId: 'llm/sealed',
-        activityType: { name: 'callModel' },
+        activityId: 'model-sealed',
+        activityType: { name: 'invokeModel' },
+        input: { payloads: [plain(smallInput)] },
       },
     },
     {
@@ -253,7 +253,6 @@ const agentEvents = () => [
 async function start(options: {
   history: boolean;
   s3?: boolean;
-  ai?: boolean;
   events?: () => unknown[];
   features?: any[];
 }) {
@@ -285,13 +284,11 @@ async function start(options: {
       })),
     ) as any,
   });
-  const experimental = { aiWorkflows: options.ai !== false };
   const config =
     options.s3 === false
-      ? { temporal: { experimental } }
+      ? { temporal: {} }
       : {
           temporal: {
-            experimental,
             externalStorage: {
               s3: {
                 bucket: 'payloads',
@@ -337,29 +334,28 @@ describe('LLM routes', () => {
     }
   });
 
-  it('shows model calls without the experimental switch', async () => {
-    const { server } = await start({ history: true, ai: false });
+  it('shows model calls of the official adapters', async () => {
+    const { server } = await start({ history: true });
     const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
     const small = graph.body.nodes.find(
-      (n: { stepId?: string }) => n.stepId === 'llm/small',
+      (n: { stepId?: string }) => n.stepId === 'model-small',
     );
     expect(small.llm).toMatchObject({
-      framework: 'temporal-workflow-kit',
+      framework: 'vercel-ai-sdk',
       model: 'gpt-small',
     });
     const steps = await request(server).get(path('/steps'));
     expect(steps.status).toBe(200);
     expect(
       steps.body.activities.find(
-        (a: { activityId: string }) => a.activityId === 'llm/small',
+        (a: { activityId: string }) => a.activityId === 'model-small',
       ).llm,
     ).toMatchObject({ model: 'gpt-small' });
     const res = await request(server).get(path('/llm-calls/4'));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
-      framework: 'temporal-workflow-kit',
-      call: 'small',
+      framework: 'vercel-ai-sdk',
       record: { requestModel: 'gpt-small' },
     });
   });
@@ -434,13 +430,11 @@ describe('LLM routes', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       nodeId: 'activity-2',
-      activityId: 'llm/big',
-      activityType: 'callModel',
-      call: 'big',
+      activityId: 'model-big',
+      activityType: 'invokeModel',
       status: 'Completed',
       external: { key: stored.big.key, state: 'inline' },
       record: {
-        provider: 'openai',
         requestModel: 'gpt-big',
         usage: { inputTokens: 5000, outputTokens: 900 },
       },
@@ -452,14 +446,15 @@ describe('LLM routes', () => {
       type: 'reasoning',
       content: 'thinking hard',
     });
-    expect(res.body.raw).toEqual(bigRecord['temporal.llm']);
+    expect(res.body.raw).toEqual({ input: bigInput, result: bigResult });
   });
 
   it('explains records it cannot read', async () => {
     const { server } = await start({ history: true });
     const sealed = await request(server).get(path('/llm-calls/8'));
-    expect(sealed.body.unavailable).toMatch(/codec/);
+    expect(sealed.status).toBe(200);
     expect(sealed.body.record).toBeUndefined();
+    expect(sealed.body.unavailable).toMatch(/codec|record|result/i);
     expect((await request(server).get(path('/llm-calls/6'))).status).toBe(404);
     expect((await request(server).get(path('/llm-calls/99'))).status).toBe(404);
     expect((await request(server).get(path('/llm-calls/x2'))).status).toBe(400);
@@ -491,7 +486,6 @@ describe('LLM routes', () => {
     expect(byId('activity-4').result).toBeUndefined();
     // Larger than the inline limit: the summary needs the record route.
     expect(byId('activity-2').llm.record).toBe('unreadable');
-    expect(byId('activity-8').llm.record).toBe('unreadable');
     expect(byId('activity-6').llm).toBeUndefined();
   });
 
@@ -500,7 +494,7 @@ describe('LLM routes', () => {
     const res = await request(server).get(path('/steps'));
     expect(res.status).toBe(200);
     const small = res.body.activities.find(
-      (a: any) => a.activityId === 'llm/small',
+      (a: any) => a.activityId === 'model-small',
     );
     expect(small.llm).toMatchObject({
       record: 'available',

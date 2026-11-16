@@ -17,7 +17,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
-import { LLM_TOOL_RESULT_KEY } from '../../common';
+
 import type {
   WorkflowGraphNode,
   WorkflowLlmCallResponse,
@@ -302,19 +302,11 @@ function toolCards(
 
 /**
  * The result of a tool step: the activity result, or for a local activity
- * the result in its marker, without the tool marker around it.
+ * the result in its marker.
  */
 function toolResult(node: WorkflowGraphNode): JsonValue | undefined {
   if (node.kind !== 'marker') return node.result;
   const input = node.input as { result?: JsonValue } | undefined;
-  const decoded = input?.result as { value?: unknown } | undefined;
-  const value = decoded?.value as Record<string, unknown> | undefined;
-  if (value && typeof value === 'object' && LLM_TOOL_RESULT_KEY in value) {
-    return {
-      encoding: 'json/plain',
-      value: (value.value ?? null) as JsonValue,
-    };
-  }
   return input?.result;
 }
 

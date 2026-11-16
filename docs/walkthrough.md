@@ -333,39 +333,28 @@ its size and the number of tasks:
 The tab belongs to two optional packages; see
 [Workflow definitions](../README.md#workflow-definitions).
 
-## 7. AI workflows (experimental)
+## 7. AI workflows (experimental shape)
 
-The development app turns on `temporal.experimental.aiWorkflows`; the loop
-views are off by default in your own app, will move to a separate package, and
-carry no compatibility promise. Model calls are shown without the setting. The
-example worker starts fake AI workflows that call no model.
+The example worker starts fake AI workflows that call no model. Model
+calls use the activity type and payload shape of the Vercel AI SDK
+integration, so the plugin shows them without a setting.
 
-1. **Loops.** `draftReviewWorkflow` drafts, reviews and revises until the score is
-   high enough (done in round 4 of 5). The graph folds the loop into one box;
-   expand it to see one frame per round. The **Loops** tab (shown only for
-   workflows with loops) lists each round with its decision and score, newest
-   first. `longRefineWorkflow` runs 25 rounds and continues as new every 10, so its
-   rounds are counted across three runs (`Run 3 of 3`); it ends with `Round 25 of
-25 · Out of rounds`, because the example never reaches its goal.
-
-   ![A loop expanded, one frame per round.](images/loop.png)
-
-2. **LLM steps.** In `example-agent-…` the loop is one box (`agent`); press
-   **Expand**. Each model call (`callModel`, with the model, the tokens and the
-   number of tools) is a box with its tools next to it; one tool (`read_file`)
-   retries, and `glossary` runs as a local activity. Select a model call: the panel
-   shows the input, the thinking, the output, the tool calls and the usage.
-   `mixedAgentWorkflow` mixes ordinary activities, model calls, parallel tools and
-   a child workflow.
+1. **LLM steps.** Open `example-agent-…`. Each model call (`invokeModel`,
+   with the model, the tokens and the number of tools) is a box with its
+   tools next to it; one tool (`read_file`) retries, and `glossary` runs as
+   a local activity. Select a model call: the panel shows the input, the
+   thinking, the output, the tool calls and the usage.
+   `mixedAgentWorkflow` mixes ordinary activities, model calls, parallel
+   tools and a child workflow.
 
    ![A model call with its tool calls.](images/llm-graph.png)
 
-**Why:** Temporal only sees a series of activities. These markers are written by
-the workflow kit and read back by the plugin. See [Loops](../README.md#loops) and
-[LLM steps](../README.md#llm-steps).
+**Why:** Temporal only sees a series of activities. The official AI
+integrations write a known payload shape; the plugin's adapters read it.
+See [LLM steps](../README.md#llm-steps).
 
 Workflows that group their steps with Temporal Event Groups (server 1.32 or
-later) get a box per group, without the setting: the graph nests the
+later) get a box per group, without a setting: the graph nests the
 boxes and collapses the rounds of a loop into a row (`×3`), and the
 **Event Groups** tab lists the groups. The example worker does not use Event
 Groups yet. See [Event groups](../README.md#event-groups).
