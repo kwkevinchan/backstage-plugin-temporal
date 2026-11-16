@@ -105,10 +105,12 @@ function toPart(part: Json): WorkflowLlmPart {
     }
     case 'tool-result': {
       // Provider-executed results on LanguageModelV4GenerateResult use
-      // `result`; prompt tool results use `output`.
+      // `result` (raw JSON, kept as-is). Prompt tool results use `output`
+      // (`{ type, value }`, unwrapped). Only an absent result reads output.
       const response: WorkflowLlmPart = {
         type: 'tool_call_response',
-        response: toolOutput(part.result ?? part.output),
+        response:
+          part.result !== undefined ? part.result : toolOutput(part.output),
       };
       if (str(part.toolCallId)) response.id = part.toolCallId;
       if (str(part.toolName)) response.name = part.toolName;
