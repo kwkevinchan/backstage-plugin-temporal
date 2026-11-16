@@ -463,6 +463,39 @@ function throughBoxes(result: GroupedLayout) {
   return [...new Set(found)];
 }
 
+/**
+ * The arrows that run along the side of a box, 1px from it or on it, other
+ * than their ends, without running through it.
+ */
+function alongBoxes(result: GroupedLayout) {
+  const found: string[] = [];
+  const boxes = result.graph.nodes.map(n => ({
+    id: n.id,
+    ...rectOf(result, n.id),
+  }));
+  for (const { edge, drawn } of arrows(result)) {
+    for (const [a, b] of segments(drawn)) {
+      const [x1, x2] = span(a.x, b.x);
+      const [y1, y2] = span(a.y, b.y);
+      for (const box of boxes) {
+        if (box.id === edge.source || box.id === edge.target) continue;
+        const near =
+          x1 <= box.right + 1 &&
+          x2 >= box.left - 1 &&
+          y1 <= box.bottom + 1 &&
+          y2 >= box.top - 1;
+        const through =
+          x1 < box.right - 0.5 &&
+          x2 > box.left + 0.5 &&
+          y1 < box.bottom - 0.5 &&
+          y2 > box.top + 0.5;
+        if (near && !through) found.push(`${edge.id} along ${box.id}`);
+      }
+    }
+  }
+  return [...new Set(found)];
+}
+
 describe('arrows and the boxes on their way', () => {
   it.each([
     ['a loop with a signal', loopGraph],
@@ -607,12 +640,17 @@ describe('arrows that share the gap between two rows', () => {
   });
 
   it('turn down at different x out of the loop and into the groups below', () => {
+    // A signal group whose signal the history does not name: the signal is
+    // a box of its own, next to the loop.
+    const groups = (loopGraph.eventGroups ?? []).map(
+      ({ sourceNodeId: _source, ...group }) => group,
+    );
     for (const width of [1000, 800]) {
       const visible = visibleSteps(loopGraph.nodes, loopGraph.edges);
       const result = layoutGroupedSteps(
         visible.nodes.map(n => ({ id: n.id, size: stepSize(n) })),
         visible.edges,
-        loopGraph.eventGroups ?? [],
+        groups,
         {},
         width,
       );
@@ -941,6 +979,23 @@ describe('random runs', () => {
       const run = random(seed);
       const before = throughBoxes(layOutRun(run, width, false));
       const after = throughBoxes(layOutRun(run, width));
+      expect(after.filter(hit => !before.includes(hit))).toEqual([]);
+    },
+  );
+
+  it.each([
+    [20386, 700],
+    [20403, 700],
+    [20403, 900],
+    [20403, 1100],
+  ])(
+    'never line up a row onto the side of a box (graph %i, width %i)',
+    (seed, width) => {
+      // Lined up, an arrow into the next row would run down along the side
+      // of a box.
+      const run = randomGraph(seed);
+      const before = alongBoxes(layOutRun(run, width, false));
+      const after = alongBoxes(layOutRun(run, width));
       expect(after.filter(hit => !before.includes(hit))).toEqual([]);
     },
   );

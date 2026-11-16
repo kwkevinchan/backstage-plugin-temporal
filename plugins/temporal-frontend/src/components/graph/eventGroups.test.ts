@@ -17,6 +17,7 @@
 import type {
   WorkflowEventGroup,
   WorkflowGraphEdge,
+  WorkflowGraphNode,
   WorkflowGraphResponse,
 } from '../../common';
 import {
@@ -34,6 +35,7 @@ import {
   visibleSteps,
 } from './layout';
 import {
+  framableSource,
   GroupedLayout,
   groupHues,
   groupNodeId,
@@ -55,7 +57,12 @@ function laidOut(
 ): GroupedLayout {
   const visible = visibleSteps(graph.nodes, graph.edges);
   return layoutGroupedSteps(
-    visible.nodes.map(n => ({ id: n.id, size: stepSize(n) })),
+    visible.nodes.map(n => ({
+      id: n.id,
+      size: stepSize(n),
+      // As the graph of the page marks them.
+      ...(framableSource(n) ? { framable: true } : {}),
+    })),
     visible.edges,
     graph.eventGroups ?? [],
     views,
@@ -463,6 +470,58 @@ describe('layoutGroupedSteps', () => {
     expect(late.refused).toEqual([]);
   });
 
+  it('lines up the rows of fifty frames, each next to a step outside it', () => {
+    // r1 → r2 → r3 in each frame, and r2 → s outside it: dagre moves a box
+    // of each row for s, and each row is checked and lined up.
+    const nodes: { id: string }[] = [];
+    const edges: WorkflowGraphEdge[] = [];
+    const groups: WorkflowEventGroup[] = [];
+    const link = (source: string, target: string) =>
+      edges.push({ id: `${source}->${target}`, source, target });
+    for (let i = 0; i < 50; i++) {
+      const [start, r1, r2, r3, s, t] = ['st', 'r1', 'r2', 'r3', 's', 't'].map(
+        id => `${id}${i}`,
+      );
+      nodes.push(...[start, r1, r2, r3, s, t].map(id => ({ id })));
+      link(start, r1);
+      link(r1, r2);
+      link(r2, r3);
+      link(r2, s);
+      link(s, t);
+      if (i < 49) {
+        link(r3, `st${i + 1}`);
+        link(t, `st${i + 1}`);
+      }
+      groups.push(group(`g${i}`, [r1, r2, r3]));
+    }
+    // Timed against the same layout without lining up the rows, on the
+    // same machine.
+    const time = (lineUpRows?: boolean) => {
+      const started = Date.now();
+      const laid = layoutGroupedSteps(
+        nodes,
+        edges,
+        groups,
+        {},
+        1400,
+        (n, e, w, options) => layoutGraph(n, e, w, { ...options, lineUpRows }),
+      );
+      return { laid, ms: Date.now() - started };
+    };
+    const plain = time(false);
+    const { laid: result, ms } = time();
+    expect(ms).toBeLessThan(Math.max(3 * plain.ms, 1000));
+    expect(ms).toBeLessThan(5000);
+    expect(result.graph.frames).toHaveLength(50);
+    const middle = (id: string) =>
+      result.layout.positions.get(id)!.y +
+      boxSize(result.layout, id).height / 2;
+    for (let i = 0; i < 50; i++) {
+      const row = ['r1', 'r2', 'r3'].map(id => middle(`${id}${i}`));
+      expect({ i, row }).toEqual({ i, row: [row[0], row[0], row[0]] });
+    }
+  });
+
   it('says which groups the user opened could not be opened', () => {
     const { nodes, edges } = chain(400);
     const groups = Array.from({ length: 40 }, (_, i) =>
@@ -610,6 +669,471 @@ describe('layoutGroupedSteps', () => {
   });
 });
 
+describe('the frame of a signal or update group', () => {
+  /**
+   * start → a1 → a2 → end, and a signal `sig` received after a1 whose
+   * handler ran h1 → h2. Extra arrows and nodes in `more`; nodes named
+   * `sig…` are signals (or updates).
+   */
+  function received(
+    more: { nodes?: string[]; edges?: string[][] } = {},
+    kind: 'signal' | 'update' = 'signal',
+    status: 'Completed' | 'Failed' | 'Running' | 'Rejected' = 'Completed',
+  ) {
+    const pairs = [
+      ['start', 'a1'],
+      ['a1', 'a2'],
+      ['a2', 'end'],
+      ['a1', 'sig'],
+      ['sig', 'h1'],
+      ['h1', 'h2'],
+      ['h2', 'end'],
+      ...(more.edges ?? []),
+    ];
+    const ids = [
+      'start',
+      'a1',
+      'sig',
+      'h1',
+      'h2',
+      'a2',
+      ...(more.nodes ?? []),
+      'end',
+    ];
+    return {
+      nodes: ids.map(id => ({
+        id,
+        kind: kinds[id] ?? (id.startsWith('sig') ? kind : 'activity'),
+        name: id,
+        status: id === 'sig' ? status : ('Completed' as const),
+        events: [],
+      })),
+      edges: pairs.map(([source, target]) => ({
+        id: `${source}->${target}`,
+        source,
+        target,
+      })),
+    };
+  }
+
+  /** The group of the handler of a signal (or of an update). */
+  function handler(
+    key: string,
+    nodeIds: string[],
+    sourceNodeId: string | undefined = 'sig',
+    kind: 'event' | 'update' = 'event',
+  ): WorkflowEventGroup {
+    return {
+      key: `${kind}:${key}`,
+      kind,
+      id: key,
+      name: `${key} (${key})`,
+      ...(sourceNodeId ? { sourceNodeId } : {}),
+      nodeIds,
+      children: [],
+      status: 'Completed',
+    };
+  }
+
+  const arrows = (result: GroupedLayout) =>
+    result.graph.edges.map(e => `${e.source}>${e.target}`).sort();
+
+  /**
+   * No arrow twice, none from a box to itself, every end laid out, and
+   * each arrow between two steps follows a path of the graph given.
+   */
+  function expectArrowsOf(
+    result: GroupedLayout,
+    graph: { edges: WorkflowGraphEdge[] },
+  ) {
+    const list = arrows(result);
+    expect(new Set(list).size).toBe(list.length);
+    const next = new Map<string, string[]>();
+    for (const e of graph.edges) {
+      next.set(e.source, [...(next.get(e.source) ?? []), e.target]);
+    }
+    const leadsTo = (from: string, to: string) => {
+      const queue = [...(next.get(from) ?? [])];
+      const seen = new Set<string>();
+      while (queue.length > 0) {
+        const id = queue.pop()!;
+        if (id === to) return true;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        queue.push(...(next.get(id) ?? []));
+      }
+      return false;
+    };
+    for (const e of result.graph.edges) {
+      expect(e.source).not.toBe(e.target);
+      expect(result.layout.positions.has(e.source)).toBe(true);
+      expect(result.layout.positions.has(e.target)).toBe(true);
+      if (!e.source.startsWith('group:') && !e.target.startsWith('group:')) {
+        expect({ arrow: e.id, path: leadsTo(e.source, e.target) }).toEqual({
+          arrow: e.id,
+          path: true,
+        });
+      }
+    }
+  }
+
+  it.each(['signal', 'update'] as const)(
+    'stands for its %s: the arrows into it go to the first step of the group',
+    kind => {
+      const graph = received({}, kind);
+      const groupKind = kind === 'signal' ? 'event' : 'update';
+      const result = laidOut({
+        ...graph,
+        eventGroups: [handler('5', ['h1', 'h2'], 'sig', groupKind)],
+      });
+      const frame = `group:${groupKind}:5`;
+      expect(result.graph.frames).toEqual([{ id: frame }]);
+      expect(result.graph.sourceFrames).toEqual(new Map([['sig', frame]]));
+      expect(result.graph.nodes.map(n => n.id)).not.toContain('sig');
+      expect(result.layout.positions.has('sig')).toBe(false);
+      expect(arrows(result)).toEqual([
+        'a1>a2',
+        'a1>h1',
+        'a2>end',
+        'h1>h2',
+        'h2>end',
+        'start>a1',
+      ]);
+      expectArrowsOf(result, graph);
+      expectCleanFrames(result);
+    },
+  );
+
+  it('draws the signal of a collapsed group, with the arrows as before', () => {
+    const graph = received();
+    const result = laidOut(
+      { ...graph, eventGroups: [handler('5', ['h1', 'h2'])] },
+      { 'event:5': false },
+    );
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig')).toBe(true);
+    expect(arrows(result)).toEqual([
+      'a1>a2',
+      'a1>sig',
+      'a2>end',
+      'group:event:5>end',
+      'sig>group:event:5',
+      'start>a1',
+    ]);
+  });
+
+  it('draws the signal of a group shown as labels', () => {
+    // A group that started first shares h1 with the signal group: the
+    // signal group has no box.
+    const graph = received();
+    const result = laidOut({
+      ...graph,
+      eventGroups: [group('first', ['h1', 'a2']), handler('5', ['h1', 'h2'])],
+    });
+    expect(result.plan.boxes.has('group:event:5')).toBe(false);
+    expect(result.plan.tags.get('h1')?.map(g => g.key)).toContain('event:5');
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig')).toBe(true);
+    expectArrowsOf(result, graph);
+  });
+
+  it('draws the signal when laying out the frames fails', () => {
+    const graph = received();
+    const result = layoutGroupedSteps(
+      graph.nodes.map(n => ({ id: n.id })),
+      graph.edges,
+      [handler('5', ['h1', 'h2'])],
+      {},
+      undefined,
+      () => {
+        throw new Error('no layout');
+      },
+    );
+    expect(result.notice).toBe('failed');
+    expect(result.layout.positions.has('sig')).toBe(true);
+  });
+
+  it('draws a signal that is a step of another group', () => {
+    const graph = received();
+    const result = laidOut({
+      ...graph,
+      eventGroups: [group('outer', ['a1', 'sig']), handler('5', ['h1', 'h2'])],
+    });
+    expect(result.graph.frames.map(f => f.id)).toEqual([
+      'group:label:outer',
+      'group:event:5',
+    ]);
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.graph.nodes.find(n => n.id === 'sig')?.parent).toBe(
+      'group:label:outer',
+    );
+    expectArrowsOf(result, graph);
+  });
+
+  it('draws a signal that started two groups', () => {
+    const graph = received({ nodes: ['h3'], edges: [['sig', 'h3']] });
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['h1', 'h2']), handler('6', ['h3'])],
+    });
+    expect(result.graph.frames).toHaveLength(2);
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig')).toBe(true);
+  });
+
+  it('draws the signal of a group without a step in the graph', () => {
+    const graph = received();
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['internal-7'])],
+    });
+    expect(result.graph.frames).toEqual([]);
+    expect(result.layout.positions.has('sig')).toBe(true);
+    expect(arrows(result)).toContain('a1>sig');
+  });
+
+  it('keeps the graph of a group whose signal is not in the run', () => {
+    // A signal of an earlier run (continue-as-new), or one the history
+    // does not have.
+    const graph = received();
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['h1', 'h2'], 'signal-1')],
+    });
+    expect(result.graph.frames).toEqual([{ id: 'group:event:5' }]);
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig')).toBe(true);
+    expect(arrows(result)).toContain('sig>h1');
+  });
+
+  it('draws a signal that leads to its group only through another step', () => {
+    // The handler's step started after another step, not after the signal.
+    const graph = received({
+      edges: [['sig', 'a2']],
+    });
+    graph.edges = graph.edges.filter(e => e.id !== 'sig->h1');
+    graph.edges.push({ id: 'a2->h1', source: 'a2', target: 'h1' });
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['h1', 'h2'])],
+    });
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig')).toBe(true);
+  });
+
+  it.each(['Failed', 'Rejected', 'Running'] as const)(
+    'draws an update that is %s, with the arrows as before',
+    status => {
+      const graph = received({}, 'update', status);
+      const result = laidOut({
+        ...graph,
+        eventGroups: [handler('5', ['h1', 'h2'], 'sig', 'update')],
+      });
+      expect(result.graph.frames).toEqual([{ id: 'group:update:5' }]);
+      expect(result.graph.sourceFrames.size).toBe(0);
+      expect(result.layout.positions.has('sig')).toBe(true);
+      expect(arrows(result)).toEqual(
+        expect.arrayContaining(['a1>sig', 'sig>h1']),
+      );
+    },
+  );
+
+  it('draws the start of the run that started an event group', () => {
+    const graph = received();
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('1', ['a1', 'a2'], 'start')],
+    });
+    expect(result.graph.frames).toEqual([{ id: 'group:event:1' }]);
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('start')).toBe(true);
+    expect(arrows(result)).toContain('start>a1');
+  });
+
+  /**
+   * The signals `sig1` to `sigN` (or updates) received in one workflow
+   * task after a1: in the order of time each leads to the next, and the
+   * last one to the step of each handler, `h1` to `hN`.
+   */
+  function together(messages: ('signal' | 'update')[]) {
+    const sigs = messages.map((_, i) => `sig${i + 1}`);
+    const steps = messages.map((_, i) => `h${i + 1}`);
+    const pairs = [
+      ['start', 'a1'],
+      ['a1', sigs[0]],
+      ...sigs.slice(1).map((id, i) => [sigs[i], id]),
+      ...steps.map(id => [sigs[sigs.length - 1], id]),
+      ...steps.map(id => [id, 'end']),
+    ];
+    const ids = ['start', 'a1', ...sigs, ...steps, 'end'];
+    return {
+      nodes: ids.map(id => ({
+        id,
+        kind:
+          kinds[id] ??
+          (id.startsWith('sig')
+            ? messages[Number(id.slice(3)) - 1]
+            : 'activity'),
+        name: id,
+        status: 'Completed' as WorkflowGraphNode['status'],
+        events: [],
+      })),
+      edges: pairs.map(([source, target]) => ({
+        id: `${source}->${target}`,
+        source,
+        target,
+      })),
+      eventGroups: messages.map((kind, i) =>
+        handler(
+          `${10 + i}`,
+          [steps[i]],
+          sigs[i],
+          kind === 'signal' ? 'event' : 'update',
+        ),
+      ),
+    };
+  }
+
+  it.each([
+    [['signal', 'signal']],
+    [['signal', 'update']],
+    [['signal', 'signal', 'signal']],
+  ] as const)(
+    'stands for each of the messages received in one task (%j)',
+    messages => {
+      const graph = together([...messages]);
+      const result = laidOut(graph);
+      expect([...result.graph.sourceFrames.keys()].sort()).toEqual(
+        messages.map((_, i) => `sig${i + 1}`),
+      );
+      expect(result.graph.nodes.some(n => n.id.startsWith('sig'))).toBe(false);
+      // Each handler's step after a1, no arrow from one message into the
+      // group of another.
+      expect(arrows(result)).toEqual(
+        [
+          ...messages.map((_, i) => `a1>h${i + 1}`),
+          ...messages.map((_, i) => `h${i + 1}>end`),
+          'start>a1',
+        ].sort(),
+      );
+      expectArrowsOf(result, graph);
+      expectCleanFrames(result);
+    },
+  );
+
+  it('draws a signal received before an update that is still running', () => {
+    // The signal leads to its group only through the update, which stays a
+    // box: so does the signal.
+    const graph = together(['signal', 'update']);
+    graph.nodes.find(n => n.id === 'sig2')!.status = 'Running';
+    const result = laidOut(graph);
+    expect(result.graph.sourceFrames.size).toBe(0);
+    expect(result.layout.positions.has('sig1')).toBe(true);
+    expect(result.layout.positions.has('sig2')).toBe(true);
+  });
+
+  it('stands for its signal around groups inside it, not inside a collapsed group', () => {
+    const graph = received();
+    const eventGroups = [
+      group('outer', ['h1', 'h2']),
+      { ...handler('5', ['h1', 'h2']), parent: 'label:outer' },
+      { ...group('inner', ['h1']), parent: 'event:5' },
+    ];
+    eventGroups[0].children = ['event:5'];
+    eventGroups[1].children = ['label:inner'];
+    const open = laidOut({ ...graph, eventGroups });
+    expect(open.graph.frames).toEqual([
+      { id: 'group:label:outer' },
+      { id: 'group:event:5', parent: 'group:label:outer' },
+      { id: 'group:label:inner', parent: 'group:event:5' },
+    ]);
+    expect(open.graph.sourceFrames).toEqual(
+      new Map([['sig', 'group:event:5']]),
+    );
+    expect(arrows(open)).toContain('a1>h1');
+    expectArrowsOf(open, graph);
+    expectCleanFrames(open);
+
+    const closed = laidOut({ ...graph, eventGroups }, { 'label:outer': false });
+    expect(closed.graph.sourceFrames.size).toBe(0);
+    expect(arrows(closed)).toEqual([
+      'a1>a2',
+      'a1>sig',
+      'a2>end',
+      'group:label:outer>end',
+      'sig>group:label:outer',
+      'start>a1',
+    ]);
+  });
+
+  it('stands for each of several signals', () => {
+    const graph = received({
+      nodes: ['sig2', 'k1'],
+      edges: [
+        ['a2', 'sig2'],
+        ['sig2', 'k1'],
+        ['k1', 'end'],
+      ],
+    });
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['h1', 'h2']), handler('9', ['k1'], 'sig2')],
+    });
+    expect(result.graph.sourceFrames).toEqual(
+      new Map([
+        ['sig', 'group:event:5'],
+        ['sig2', 'group:event:9'],
+      ]),
+    );
+    expect(arrows(result)).toEqual(expect.arrayContaining(['a1>h1', 'a2>k1']));
+    expectArrowsOf(result, graph);
+    expectCleanFrames(result);
+  });
+
+  it('leads the arrows into the signal also to the steps after it outside its group', () => {
+    // x started after the signal, in the workflow itself.
+    const graph = received({
+      nodes: ['x'],
+      edges: [
+        ['sig', 'x'],
+        ['x', 'end'],
+      ],
+    });
+    const result = laidOut({
+      ...graph,
+      eventGroups: [handler('5', ['h1', 'h2'])],
+    });
+    expect(result.graph.sourceFrames.size).toBe(1);
+    expect(arrows(result)).toEqual(expect.arrayContaining(['a1>h1', 'a1>x']));
+    expectArrowsOf(result, graph);
+  });
+
+  it('stands for the signal of a recorded loop, one arrow fewer', () => {
+    const before = visibleSteps(loopGraph.nodes, loopGraph.edges);
+    const result = laidOut(loopGraph);
+    expect(result.graph.sourceFrames).toEqual(
+      new Map([['signal-29', 'group:event:29']]),
+    );
+    expect(arrows(result)).toEqual([
+      'activity-66>activity-72',
+      'activity-72>end',
+      'group:label:loop:draft-review:1>group:label:loop:draft-review:2',
+      'group:label:loop:draft-review:2>activity-33',
+      'group:label:loop:draft-review:2>group:label:loop:draft-review:3',
+      'group:label:loop:draft-review:3>activity-66',
+      'start>group:label:loop:draft-review:1',
+    ]);
+    expectArrowsOf(result, before);
+    expectCleanFrames(result);
+    // Round 2 open: the step before the signal leads to the step of its
+    // group.
+    const open = laidOut(loopGraph, { 'label:loop:draft-review:2': true });
+    expect(arrows(open)).toContain('activity-22>activity-33');
+    expect(arrows(open).some(a => a.includes('signal-29'))).toBe(false);
+    expectArrowsOf(open, before);
+  });
+});
+
 describe('groupHues', () => {
   it('gives the outermost groups the hues in turn and the others theirs', () => {
     const groups = nest(
@@ -690,10 +1214,23 @@ describe('boxes of a frame in one row', () => {
     groupNodeId(`label:loop:draft-review:${i}`),
   );
 
-  it('line up the rounds of a loop next to the signal received in it', () => {
+  // The loop with the signal received in it as a box of its own: a signal
+  // group that does not name its signal.
+  const loopWithSignal = {
+    ...loopGraph,
+    eventGroups: loopGraph.eventGroups!.map(
+      ({ sourceNodeId: _source, ...g }) => g,
+    ),
+  };
+
+  it('line up the rounds of a loop, also next to the signal received in it', () => {
     // Wrapped, the step after the loop starts the next row.
-    for (const width of [1400, 1000, 800]) {
-      const { layout } = laidOut(loopGraph, {}, width);
+    for (const [graph, width] of [1400, 1000, 800].flatMap(w => [
+      [loopGraph, w] as const,
+      [loopWithSignal, w] as const,
+    ])) {
+      const { layout } = laidOut(graph, {}, width);
+      expect(layout.positions.has('signal-29')).toBe(graph === loopWithSignal);
       const middles = rounds.map(id => middle(layout, id));
       expect({ width, middles }).toEqual({
         width,

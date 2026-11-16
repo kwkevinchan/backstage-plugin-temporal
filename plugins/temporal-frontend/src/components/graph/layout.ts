@@ -28,7 +28,13 @@ import {
   NodeSize,
   StepLayout,
 } from './geometry';
-import { frameEdgeCorners, frameInsets, routeRowGaps } from './frameEdge';
+import {
+  frameEdgeCorners,
+  FrameEdgeData,
+  frameInsets,
+  Point,
+  routeRowGaps,
+} from './frameEdge';
 
 export {
   boxSize,
@@ -375,16 +381,23 @@ function frameSpacing(frames: LayoutFrame[]) {
  * within the top and bottom of the row as dagre laid it out, so the frame
  * never gets larger. A row is lined up only when more of the arrows of the
  * boxes that move end up straight than before, and no arrow, as it is
- * drawn in the finished graph, then runs through a box it did not run
- * through before (dagre can have moved a box aside for an arrow that passes
- * the frame).
+ * drawn in the finished graph, then runs through or along a box it did not
+ * run through or along before (dagre can have moved a box aside for an
+ * arrow that passes the frame).
  */
 function alignFrameRows(graph: FramedGraph) {
   const { nodes, frames, sizeOf } = graph;
   const positions = graph.layout.positions;
   const rows = wrappedRows(graph);
   const holdsFrames = new Set(frames.map(f => f.parent));
-  let through: Set<string> | undefined;
+  let through: Map<string, number> | undefined;
+  const drawing: ArrowDrawing = {
+    parentOf: new Map([
+      ...frames.map(f => [f.id, f.parent] as const),
+      ...nodes.map(n => [n.id, n.parent] as const),
+    ]),
+    corners: new Map(),
+  };
   for (const frame of frames) {
     if (holdsFrames.has(frame.id)) continue;
     const row = nodes
@@ -420,10 +433,14 @@ function alignFrameRows(graph: FramedGraph) {
       moved = true;
     }
     if (!moved || !straightens(graph, rows, positions, lined)) continue;
-    const before = through ?? arrowsThroughBoxes(graph, positions);
-    const after = arrowsThroughBoxes(graph, lined);
+    // No arrow may run through a box it ran along or past before, nor along
+    // a box it ran past.
+    const before = through ?? arrowsThroughBoxes(graph, positions, drawing);
+    const after = arrowsThroughBoxes(graph, lined, drawing);
     through = before;
-    if ([...after].some(hit => !before.has(hit))) continue;
+    if ([...after].some(([hit, level]) => level > (before.get(hit) ?? 0))) {
+      continue;
+    }
     for (const node of row) positions.set(node.id, lined.get(node.id)!);
     through = after;
   }
@@ -455,29 +472,69 @@ function straightens(
 }
 
 /**
- * The arrows that run through a box other than their ends, with the boxes
- * at `positions`, as the finished graph draws them: with the turns
+ * How close an arrow may come to a box, other than its ends, before it
+ * counts as running along it: an arrow on the side of a box reads as one
+ * into it.
+ */
+const BOX_CLEARANCE = 1.5;
+/** An arrow that runs along a box, and one that runs through it. */
+const ALONG = 1;
+const THROUGH = 2;
+
+/** What the arrows of a graph are drawn from, kept while its rows line up. */
+interface ArrowDrawing {
+  /** The frame around each box and frame. */
+  parentOf: Map<string, string | undefined>;
+  /** The corners of the arrows drawn so far, by their ends and turns. */
+  corners: Map<string, Point[]>;
+}
+
+/**
+ * The arrows that run through a box other than their ends (`THROUGH`), or
+ * along its side, `BOX_CLEARANCE` from it or closer (`ALONG`), with the
+ * boxes at `positions`, as the finished graph draws them: with the turns
  * `frameInsets` gives them, routed by `routeRowGaps` into later rows, along
- * the path of `frameEdgePath`.
+ * the path of `frameEdgePath`. Only the boxes within the bounds of an arrow
+ * are looked at.
  */
 function arrowsThroughBoxes(
   graph: FramedGraph,
   positions: Map<string, { x: number; y: number }>,
-): Set<string> {
+  drawing: ArrowDrawing,
+): Map<string, number> {
   const layout = settle(graph, positions);
-  const parentOf = new Map<string, string | undefined>([
-    ...graph.frames.map(f => [f.id, f.parent] as const),
-    ...graph.nodes.map(n => [n.id, n.parent] as const),
-  ]);
-  const box = (id: string) => {
-    const p = layout.positions.get(id)!;
-    const size = boxSize(layout, id);
-    return {
-      left: p.x,
-      top: p.y,
-      right: p.x + size.width,
-      bottom: p.y + size.height,
-    };
+  const { parentOf } = drawing;
+  // From the top down, to look only at the boxes as high as an arrow.
+  const boxes = graph.nodes
+    .map(({ id }) => {
+      const p = layout.positions.get(id)!;
+      const size = boxSize(layout, id);
+      return {
+        id,
+        left: p.x - BOX_CLEARANCE,
+        top: p.y - BOX_CLEARANCE,
+        right: p.x + size.width + BOX_CLEARANCE,
+        bottom: p.y + size.height + BOX_CLEARANCE,
+        // Inside the box: not along its border.
+        inner: {
+          left: p.x + 0.5,
+          top: p.y + 0.5,
+          right: p.x + size.width - 0.5,
+          bottom: p.y + size.height - 0.5,
+        },
+      };
+    })
+    .sort((a, b) => a.top - b.top);
+  const tallest = Math.max(0, ...boxes.map(b => b.bottom - b.top));
+  /** The first box whose top is at `y` or below. */
+  const firstBelow = (y: number) => {
+    let [low, high] = [0, boxes.length];
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (boxes[mid].top < y) low = mid + 1;
+      else high = mid;
+    }
+    return low;
   };
   const arrows = routeRowGaps(
     layout,
@@ -489,40 +546,51 @@ function arrowsThroughBoxes(
       data: frameInsets(layout, parentOf, source, target),
     })),
   );
-  const found = new Set<string>();
+  const found = new Map<string, number>();
   for (const { source, target, data } of arrows) {
-    const s = box(source);
-    const t = box(target);
-    const corners = frameEdgeCorners(
-      {
-        sourceX: s.right,
-        sourceY: (s.top + s.bottom) / 2,
-        targetX: t.left,
-        targetY: (t.top + t.bottom) / 2,
-      },
-      data,
-    );
-    for (const node of graph.nodes) {
-      if (node.id === source || node.id === target) continue;
-      if (pathThroughBox(corners, box(node.id))) {
-        found.add(`${source} ${target} ${node.id}`);
+    const s = layout.positions.get(source)!;
+    const t = layout.positions.get(target)!;
+    const ends = {
+      sourceX: s.x + boxSize(layout, source).width,
+      sourceY: (s.y + (s.y + boxSize(layout, source).height)) / 2,
+      targetX: t.x,
+      targetY: (t.y + (t.y + boxSize(layout, target).height)) / 2,
+    };
+    // The same arrow is drawn again for each row that lines up.
+    const turns = (data ?? {}) as FrameEdgeData;
+    const key = `${Object.values(ends)} ${turns.sourceInset} ${
+      turns.targetInset
+    } ${turns.centerY}`;
+    let corners = drawing.corners.get(key);
+    if (!corners) {
+      corners = frameEdgeCorners(ends, turns);
+      drawing.corners.set(key, corners);
+    }
+    const xs = corners.map(c => c.x);
+    const ys = corners.map(c => c.y);
+    const [left, right] = [Math.min(...xs), Math.max(...xs)];
+    const [top, bottom] = [Math.min(...ys), Math.max(...ys)];
+    for (let i = firstBelow(top - tallest); i < boxes.length; i++) {
+      const box = boxes[i];
+      if (box.top > bottom) break;
+      if (box.right < left || box.left > right || box.bottom < top) continue;
+      if (box.id === source || box.id === target) continue;
+      if (pathThroughBox(corners, box)) {
+        found.set(
+          `${source} ${target} ${box.id}`,
+          pathThroughBox(corners, box.inner) ? THROUGH : ALONG,
+        );
       }
     }
   }
   return found;
 }
 
-/** True when a line through `points` runs inside a box (not along it). */
+/** True when a line through `points` runs inside a box or on its border. */
 function pathThroughBox(
   points: { x: number; y: number }[],
   box: { left: number; top: number; right: number; bottom: number },
 ) {
-  const inner = {
-    left: box.left + 0.5,
-    top: box.top + 0.5,
-    right: box.right - 0.5,
-    bottom: box.bottom - 0.5,
-  };
   return points.slice(1).some((b, i) => {
     const a = points[i];
     // The part of the segment inside the box (Liang-Barsky).
@@ -531,10 +599,10 @@ function pathThroughBox(
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const sides: [number, number][] = [
-      [-dx, a.x - inner.left],
-      [dx, inner.right - a.x],
-      [-dy, a.y - inner.top],
-      [dy, inner.bottom - a.y],
+      [-dx, a.x - box.left],
+      [dx, box.right - a.x],
+      [-dy, a.y - box.top],
+      [dy, box.bottom - a.y],
     ];
     for (const [p, q] of sides) {
       if (p === 0) {

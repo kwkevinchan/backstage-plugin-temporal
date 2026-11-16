@@ -685,6 +685,10 @@
 .tp-group-frame[data-focused='true'] {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--bui-ring) 60%, transparent);
 }
+/* The frame stands for the selected signal or update. */
+.tp-group-frame[data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--bui-ring);
+}
 .tp-group-title {
   box-sizing: border-box;
   display: flex;
@@ -779,7 +783,8 @@
   color: var(--bui-fg-secondary);
   cursor: pointer;
 }
-.tp-group-source:hover {
+.tp-group-source:hover,
+.tp-group-source[aria-pressed='true'] {
   color: var(--bui-fg-primary);
   background: var(--bui-bg-neutral-2-hover);
 }
