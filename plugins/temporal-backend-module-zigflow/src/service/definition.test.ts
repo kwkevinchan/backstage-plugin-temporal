@@ -652,6 +652,23 @@ describe('DefinitionReader', () => {
       (await reader.read(gerritEntity, spec('./workflows/order.yaml'))).error,
     ).toBeUndefined();
 
+    const ghPlusSubdir = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/services/+/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(ghPlusSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+    expect(readUrl).toHaveBeenLastCalledWith(
+      'https://github.com/my-org/my-repo/tree/main/services/workflows/order.yaml',
+    );
+
+    const glPlusSubdir = entity(
+      'url:https://gitlab.com/org/sub/my-repo/-/blob/main/services/+/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(glPlusSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+
     const azSubdir = entity(
       'url:https://dev.azure.com/my-org/my-project/_git/my-repo?path=/services/orders/catalog-info.yaml&version=GBmain',
     );
@@ -676,6 +693,7 @@ describe('DefinitionReader', () => {
               gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
             },
           ],
+          harness: [{ host: 'app.harness.io' }],
         },
       }),
     );
@@ -697,7 +715,7 @@ describe('DefinitionReader', () => {
       [ghRoot, '/../outside.yaml'],
       [ghRoot, '%2e%2e/outside.yaml'],
       [ghRoot, '%252e%252e/outside.yaml'],
-      [ghRoot, '%2e%2e/%2e%2e/main/x.yaml%'],
+      [ghOneDir, '%2e%2e/%2e%2e/main/x.yaml%'],
       [ghRoot, '//evil.example.com/a.yaml'],
       [ghRoot, '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml'],
       [ghRoot, 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml'],
@@ -744,6 +762,18 @@ describe('DefinitionReader', () => {
           'url:https://gitlab.com/grp/sub/repo/blob/main/catalog-info.yaml',
         ),
         '../../../other/blob/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gitlab.com/grp/x/src/a/b/proj/blob/main/catalog-info.yaml',
+        ),
+        '../../../../b2/proj2/blob/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://app.harness.io/ng/account/A/module/code/orgs/src/projects/P/repos/R/files/main/~/catalog-info.yaml',
+        ),
+        '../../../../../../P2/repos/R2/files/main/~/x.yaml',
       ],
     ];
     for (const [ent, target] of badCases) {

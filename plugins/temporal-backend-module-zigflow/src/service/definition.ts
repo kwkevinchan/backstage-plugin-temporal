@@ -252,7 +252,10 @@ interface ParsedRepoUrl {
  * an SCM file URL, or falls back to the entity file's folder boundary for
  * unrecognized URL shapes (such as Gerrit, CodeCommit, or Harness).
  */
-function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
+function parseRepoUrl(
+  rawUrl: string,
+  integrationType?: string,
+): ParsedRepoUrl | undefined {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -319,6 +322,25 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     };
   }
 
+  // GitLab legacy URLs without `/-/`: /{group...}/{repo}/blob/{ref}/{filepath}
+  // GitLab splits at the first `/blob/` segment to separate the project path.
+  if (integrationType === 'gitlab') {
+    const gitlabLegacyMatch = /^\/(.+?)\/blob\/([^/]+)\/(.+)$/.exec(pathname);
+    if (gitlabLegacyMatch) {
+      const [, repoPath, ref, filepath] = gitlabLegacyMatch;
+      const parts = filepath.split('/').filter(Boolean);
+      return {
+        kind: 'repo',
+        repoKey: `${parsed.origin}/${repoPath}`,
+        ref,
+        dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
+      };
+    }
+  }
+
   // Bitbucket Server: /projects/{project}/repos/{repo}/(browse|raw)/{filepath}
   const bbServerMatch =
     /^\/(projects\/[^/]+\/repos\/[^/]+)\/(?:browse|raw)\/(.+)$/.exec(pathname);
@@ -355,25 +377,30 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     };
   }
 
-  // GitHub, Bitbucket Cloud, and GitLab legacy URLs without `/-/`:
-  // /{owner_or_group...}/{repo}/(blob|tree|raw|edit|src)/{ref}/{filepath}
-  const stdMatch = !pathname.includes('/+/')
-    ? /^\/([^/]+(?:\/[^/]+)+?)\/(?:blob|tree|raw|edit|src)\/([^/]+)\/(.+)$/.exec(
+  // GitHub, Bitbucket Cloud, and hosts without a configured integration:
+  // exact two-segment /{owner}/{repo}/(blob|tree|raw|edit|src)/{ref}/{filepath}.
+  if (
+    integrationType === 'github' ||
+    integrationType === 'bitbucketCloud' ||
+    integrationType === undefined
+  ) {
+    const stdMatch =
+      /^\/([^/]+\/[^/]+)\/(?:blob|tree|raw|edit|src)\/([^/]+)\/(.+)$/.exec(
         pathname,
-      )
-    : null;
-  if (stdMatch) {
-    const [, repoPath, ref, filepath] = stdMatch;
-    const parts = filepath.split('/').filter(Boolean);
-    return {
-      kind: 'repo',
-      repoKey: `${parsed.origin}/${repoPath}`,
-      ref,
-      dirSegments: parts.slice(0, -1),
-      origin: parsed.origin,
-      search: parsed.search,
-      folderPrefix,
-    };
+      );
+    if (stdMatch) {
+      const [, repoPath, ref, filepath] = stdMatch;
+      const parts = filepath.split('/').filter(Boolean);
+      return {
+        kind: 'repo',
+        repoKey: `${parsed.origin}/${repoPath}`,
+        ref,
+        dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
+      };
+    }
   }
 
   // Raw GitHub URLs: /{owner}/{repo}/{ref}/{filepath}
@@ -692,7 +719,8 @@ export class DefinitionReader {
       throw new TargetError(`Invalid ${ANNOTATION_LOCATION} annotation`);
     }
     if (location.type === 'url') {
-      const baseRepo = parseRepoUrl(location.target);
+      const baseIntegration = this.integrations.byUrl(location.target);
+      const baseRepo = parseRepoUrl(location.target, baseIntegration?.type);
       if (!baseRepo) {
         throw new TargetError(
           `Could not determine the repository from ${ANNOTATION_LOCATION}; use an absolute URL and allow it in temporal.definitions.allow`,
@@ -726,13 +754,11 @@ export class DefinitionReader {
       } catch {
         throw new TargetError(SAME_REPO_MESSAGE);
       }
-      if (
-        this.integrations.byUrl(location.target) !==
-        this.integrations.byUrl(resolved)
-      ) {
+      const resolvedIntegration = this.integrations.byUrl(resolved);
+      if (baseIntegration !== resolvedIntegration) {
         throw new TargetError(SAME_REPO_MESSAGE);
       }
-      const resolvedRepo = parseRepoUrl(resolved);
+      const resolvedRepo = parseRepoUrl(resolved, resolvedIntegration?.type);
       if (!resolvedRepo) {
         throw new TargetError(SAME_REPO_MESSAGE);
       }
