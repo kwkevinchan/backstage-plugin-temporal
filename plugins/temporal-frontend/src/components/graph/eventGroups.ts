@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import type { WorkflowEventGroup, WorkflowGraphEdge } from '../../common';
+import type {
+  WorkflowEventGroup,
+  WorkflowGraphEdge,
+  WorkflowGraphNode,
+} from '../../common';
 import {
   boxSize,
   hideSteps,
@@ -338,20 +342,58 @@ export interface GroupedGraph {
 }
 
 /**
+ * True for a step that the frame of the group it started can stand for: a
+ * signal, or an update that completed. A failed, rejected or running
+ * update, and the start of the run, stay boxes of their own, with their
+ * status.
+ */
+export function framableSource(node: {
+  kind: WorkflowGraphNode['kind'];
+  status: WorkflowGraphNode['status'];
+}): boolean {
+  return (
+    (node.kind === 'signal' || node.kind === 'update') &&
+    node.status === 'Completed'
+  );
+}
+
+/**
  * The signals and updates that the frames of their groups stand for, by
- * node ID, with the ID of the frame. A signal or update is left out when
- * the group it started is drawn as a frame and it is a step of the graph
- * that is in no group, started no other group with steps in the graph, and
- * has an arrow into a step of that group. Otherwise (the group collapsed
- * or shown as labels, or any of these not so) it stays a box of its own.
+ * node ID, with the ID of the frame. A step marked `framable` (see
+ * `framableSource`) is left out when the group it started is drawn as a
+ * frame and the step is in no group, started no other group with steps in
+ * the graph, and leads to a step of that group: by an arrow, or through
+ * other framable steps only (signals received together, one after the
+ * other). Otherwise (the group collapsed or shown as labels, or any of
+ * these not so) it stays a box of its own.
  */
 function framedSources(
-  nodes: { id: string }[],
+  nodes: { id: string; framable?: boolean }[],
   edges: WorkflowGraphEdge[],
   plan: GroupPlan,
   frames: LayoutFrame[],
 ): Map<string, string> {
   const result = new Map<string, string>();
+  const framable = new Set(nodes.filter(n => n.framable).map(n => n.id));
+  if (framable.size === 0) return result;
+  const next = new Map<string, string[]>();
+  for (const e of edges) {
+    next.set(e.source, [...(next.get(e.source) ?? []), e.target]);
+  }
+  /** True when `from` leads to `steps`, through framable steps only. */
+  const leadsTo = (from: string, steps: Set<string>) => {
+    const seen = new Set([from]);
+    const queue = [from];
+    while (queue.length > 0) {
+      for (const id of next.get(queue.pop()!) ?? []) {
+        if (steps.has(id)) return true;
+        if (seen.has(id) || !framable.has(id)) continue;
+        seen.add(id);
+        queue.push(id);
+      }
+    }
+    return false;
+  };
   const groupsBySource = new Map<string, Set<string>>();
   const started = (group: WorkflowEventGroup) => {
     if (!group.sourceNodeId) return;
@@ -361,16 +403,15 @@ function framedSources(
   };
   for (const box of plan.boxes.values()) started(box.group);
   for (const tagged of plan.tags.values()) tagged.forEach(started);
-  const shown = new Set(nodes.map(n => n.id));
   for (const frame of frames) {
     const { group, stepIds } = plan.boxes.get(frame.id)!;
     const source = group.sourceNodeId;
     const message = group.kind === 'event' || group.kind === 'update';
-    if (!message || !source || !shown.has(source)) continue;
+    if (!message || !source || !framable.has(source)) continue;
     if (plan.boxOf.has(source) || plan.tags.has(source)) continue;
     if (groupsBySource.get(source)!.size !== 1) continue;
     const steps = new Set(stepIds);
-    if (!edges.some(e => e.source === source && steps.has(e.target))) continue;
+    if (!leadsTo(source, steps)) continue;
     result.set(source, frame.id);
   }
   return result;
@@ -386,7 +427,7 @@ function framedSources(
  * between two steps of the group) is left out, so the arrows go one way.
  */
 export function groupGraph(
-  allNodes: { id: string }[],
+  allNodes: { id: string; framable?: boolean }[],
   allEdges: WorkflowGraphEdge[],
   plan: GroupPlan,
 ): GroupedGraph {
@@ -583,7 +624,8 @@ function frameDepth(frames: LayoutFrame[]): number {
  *   steps, laid out like a graph without groups.
  */
 export function layoutGroupedSteps(
-  nodes: { id: string; size?: NodeSize }[],
+  /** `framable`: see `framableSource`. */
+  nodes: { id: string; size?: NodeSize; framable?: boolean }[],
   edges: WorkflowGraphEdge[],
   groups: WorkflowEventGroup[],
   views: GroupViews,

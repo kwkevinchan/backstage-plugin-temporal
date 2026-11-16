@@ -580,19 +580,23 @@ On the workflow page:
   rest in its tooltip. A signal or update group has a dashed border, a mail
   or edit icon and a button that selects the signal or update that started
   it. A lock next to the name says that the label could not be read.
-- **Signals and updates.** While the group of a signal or update handler is
-  expanded, its frame stands for the signal or update, which is not drawn
-  as a box of its own: the arrows into it go on to the first steps of the
-  group (and to any other step that followed it), and selecting it, with
-  the button in the title bar or in another tab, selects the frame. The
-  signal or update is a box of its own while its group is collapsed or
-  shown as labels, and also when it is a step of a group, started more
-  than one group, has no arrow into a step of its group, or is not in the
-  run. The timeline, the Steps tab and the Event Groups tab list it as
-  before.
   Internal steps are left out; a group without a step shown has no box.
   Arrows into and out of a box turn outside it and cross its border
   straight.
+- **Signals and updates.** While the group of a signal handler, or of an
+  update that completed, is expanded, its frame stands for the signal or
+  update, which is not drawn as a box of its own: the arrows into it go on
+  to the first steps of the group (and to any other step that followed
+  it), and selecting it, with the button at the end of the title bar or in
+  another tab, selects the frame. Pressing the name of the frame still
+  collapses it. A failed, rejected or running update keeps its box, with
+  its status, and so does the start of the run when it started a group.
+  A signal or update is also a box of its own while its group is collapsed
+  or shown as labels, and when it is a step of a group, started more than
+  one group, leads to its group only through other steps (signals and
+  updates received together, one after the other, do not count), or is not
+  in the run. The timeline, the Steps tab and the Event Groups tab list it
+  as before.
 - **Colors.** A faint color only tells the groups apart: the outermost
   groups take four colors in turn, in the order they started, and the
   groups inside a group have its color (a little darker for each box

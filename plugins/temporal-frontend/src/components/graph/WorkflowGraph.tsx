@@ -36,6 +36,7 @@ import {
   groupHues,
   groupNodeId,
   GroupViews,
+  framableSource,
   layoutGroupedSteps,
 } from './eventGroups';
 
@@ -145,7 +146,12 @@ function useStructure(
       : undefined;
     const mainNodes = visible.nodes.map(n => {
       const size = sizeOf(n);
-      return size ? { id: n.id, size } : { id: n.id };
+      return {
+        id: n.id,
+        ...(size ? { size } : {}),
+        // A frame can stand for a completed signal or update only.
+        ...(framableSource(n) ? { framable: true } : {}),
+      };
     });
     let groups: GroupedLayout | undefined;
     let layout: StepLayout;
@@ -233,6 +239,7 @@ function StepCanvas(
               source && (standsFor || layout.positions.has(source))
                 ? onSelect
                 : undefined,
+            sourceKind: structure.nodes.find(n => n.id === source)?.kind,
             ...(standsFor ? { selected: frame.id === selectedBoxId } : {}),
           },
         });

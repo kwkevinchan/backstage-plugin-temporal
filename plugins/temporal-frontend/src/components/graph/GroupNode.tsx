@@ -110,6 +110,8 @@ export type GroupFrameData = {
   onToggle(key: string): void;
   /** Selects the signal or update that started the group. */
   onSelectSource?(id: string): void;
+  /** The kind of the step that started the group. */
+  sourceKind?: string;
   /**
    * Set when the frame stands for the signal or update that started the
    * group (it is not drawn): true while it is selected.
@@ -132,14 +134,18 @@ export const GroupFrameNode = memo(function GroupFrameView(
 ) {
   const { box, focused, active, onToggle, onSelectSource, selected } =
     props.data;
+  const { sourceKind } = props.data;
   const { group } = box;
   const count = groupCountBadge(group);
   const tone =
     group.status === 'Completed' ? 'neutral' : statusTone(group.status);
   const facts = groupFacts(box, false);
-  const sourceText = `Show the ${
-    group.kind === 'update' ? 'update' : 'signal'
-  } that started this group`;
+  // The start of the run can start an event group too.
+  const source =
+    sourceKind === 'signal' || sourceKind === 'update' ? sourceKind : 'event';
+  const sourceText = `Show the ${source} that started this group`;
+  // The frame stands for the signal or update: its name still collapses it.
+  const standsFor = selected !== undefined;
   return (
     <div
       className={tp('tp-group-frame', 'tp-hue', `tp-tone-${tone}`)}
@@ -159,8 +165,14 @@ export const GroupFrameNode = memo(function GroupFrameView(
           type="button"
           className={tp('tp-group-toggle')}
           aria-expanded
-          aria-label={`Collapse ${groupAria(box)}`}
-          title="Collapse"
+          aria-label={`Collapse ${groupAria(box)}${
+            standsFor ? `. The next button shows the ${source}` : ''
+          }`}
+          title={
+            standsFor
+              ? `Collapse. The button at the end of the title bar shows the ${source}.`
+              : 'Collapse'
+          }
           onClick={() => onToggle(group.key)}
         >
           <RiArrowDownSLine size={16} aria-hidden />

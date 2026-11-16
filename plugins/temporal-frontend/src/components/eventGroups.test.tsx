@@ -406,6 +406,75 @@ describe('event groups on the workflow page', () => {
     expect(selected).toEqual(['signal-29']);
   });
 
+  it('names what the buttons of a frame do, by the step that started it', async () => {
+    // The loop with the signal as a failed update, and a group started by
+    // the start of the run.
+    const update: WorkflowGraphResponse = {
+      ...loopGraph,
+      nodes: loopGraph.nodes.map(n =>
+        n.id === 'signal-29' ? { ...n, kind: 'update', status: 'Failed' } : n,
+      ),
+      eventGroups: [
+        ...loopGraph.eventGroups!.map(g =>
+          g.key === 'event:29'
+            ? { ...g, key: 'update:u1', kind: 'update' as const }
+            : g,
+        ),
+      ],
+    };
+    const { unmount } = await renderInTestApp(
+      <WorkflowGraph graph={update} onSelect={() => {}} />,
+    );
+    // A failed update stays a box of its own, with its status.
+    expect(await screen.findByTestId('step-signal-29')).toHaveAttribute(
+      'data-status',
+      'Failed',
+    );
+    const frame = screen.getByTestId('group-frame-update:u1');
+    expect(frame).not.toHaveAttribute('data-selected', 'true');
+    expect(
+      within(frame).getByRole('button', {
+        name: 'Show the update that started this group',
+      }),
+    ).not.toHaveAttribute('aria-pressed');
+    unmount();
+
+    const started: WorkflowGraphResponse = {
+      ...loopGraph,
+      eventGroups: loopGraph.eventGroups!.map(g =>
+        g.key === 'label:wrap-up'
+          ? {
+              ...g,
+              key: 'event:1',
+              kind: 'event' as const,
+              sourceNodeId: 'start',
+            }
+          : g,
+      ),
+    };
+    const second = await renderInTestApp(
+      <WorkflowGraph graph={started} onSelect={() => {}} />,
+    );
+    expect(await screen.findByTestId('step-start')).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId('group-frame-event:1')).getByRole('button', {
+        name: 'Show the event that started this group',
+      }),
+    ).toBeInTheDocument();
+    // The frame of the signal stands for it: its name says that it only
+    // collapses the frame.
+    const hint = within(screen.getByTestId('group-frame-event:29'));
+    const collapse = hint.getByRole('button', { name: /^Collapse / });
+    expect(collapse).toHaveAccessibleName(
+      /\. The next button shows the signal$/,
+    );
+    expect(collapse).toHaveAttribute(
+      'title',
+      'Collapse. The button at the end of the title bar shows the signal.',
+    );
+    second.unmount();
+  });
+
   it('shows the ID of a group whose label is encoded, with a note', async () => {
     await render(codecLoopGraph);
     const loop = await screen.findByTestId(
