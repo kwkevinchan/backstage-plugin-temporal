@@ -480,6 +480,66 @@ const vercelCall = {
   },
 };
 
+function vercelRecord(content: unknown[]) {
+  const { llm } = buildWorkflowGraphWithLlm(
+    history([
+      {
+        type: 'invokeModel',
+        input: { modelId: 'm', options: { prompt: [] } },
+        result: {
+          content,
+          usage: { inputTokens: { total: 3 }, outputTokens: { total: 1 } },
+        },
+      },
+    ]),
+    options,
+  );
+  return [...llm.calls.values()][0].calls[0].record!;
+}
+
+describe('Vercel AI SDK tool-result fields', () => {
+  it('reads a provider-executed tool result from result', () => {
+    const record = vercelRecord([
+      {
+        type: 'tool-result',
+        toolCallId: 'call_web_1',
+        toolName: 'web_search',
+        result: { hits: ['https://example.com'] },
+      },
+    ]);
+    expect(record.outputMessages[0].parts).toEqual([
+      {
+        type: 'tool_call_response',
+        id: 'call_web_1',
+        name: 'web_search',
+        response: { hits: ['https://example.com'] },
+      },
+    ]);
+  });
+
+  it('falls back to output when result is absent', () => {
+    const record = vercelRecord([
+      {
+        type: 'tool-result',
+        toolCallId: 'call_search_1',
+        toolName: 'search_docs',
+        output: {
+          type: 'json',
+          value: { hits: ['docs/event-groups.md'] },
+        },
+      },
+    ]);
+    expect(record.outputMessages[0].parts).toEqual([
+      {
+        type: 'tool_call_response',
+        id: 'call_search_1',
+        name: 'search_docs',
+        response: { hits: ['docs/event-groups.md'] },
+      },
+    ]);
+  });
+});
+
 describe('LLM adapters', () => {
   it('does not take steps of the same names with another shape', () => {
     const graph = buildWorkflowGraph(
