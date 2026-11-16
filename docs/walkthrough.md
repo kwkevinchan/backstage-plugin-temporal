@@ -341,8 +341,8 @@ integration, so the plugin shows them without a setting.
 
 1. **LLM steps.** Open `example-agent-…`. Each model call (`invokeModel`,
    with the model, the tokens and the number of tools) is a box with its
-   tools next to it; one tool (`read_file`) retries, and `glossary` runs as
-   a local activity. Select a model call: the panel shows the input, the
+   tools next to it; one tool (`read_file`) retries. Select a model call: the
+   panel shows the input, the
    thinking, the output, the tool calls and the usage.
    `mixedAgentWorkflow` mixes ordinary activities, model calls, parallel
    tools and a child workflow.

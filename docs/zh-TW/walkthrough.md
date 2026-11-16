@@ -169,7 +169,7 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 範例 Worker 啟動的是假的 AI 流程，不會呼叫任何模型。模型呼叫用 Vercel AI SDK 整合的 activity 類型和 payload 形狀，所以外掛不需要任何設定就會顯示。
 
-1. **LLM 步驟。** 打開 `example-agent-…`。每次模型呼叫（`invokeModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試，`glossary` 則是 local activity。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
+1. **LLM 步驟。** 打開 `example-agent-…`。每次模型呼叫（`invokeModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
 
    ![一次模型呼叫和它的 tool call。](../images/llm-graph.png)
 

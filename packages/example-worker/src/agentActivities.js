@@ -192,11 +192,11 @@ async function readFile(args) {
   };
 }
 
-/** Tool, run as a local activity. */
+/** Tool: look up a term. */
 async function glossary(input) {
   await sleep(50);
   return {
-    term: input.args.term,
+    term: input.term,
     meaning: 'A small reference in the history to data stored elsewhere (S3).',
   };
 }

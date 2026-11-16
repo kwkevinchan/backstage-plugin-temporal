@@ -20,11 +20,11 @@ import { expect, Locator, Page, test } from '@playwright/test';
 
 /*
  * LLM steps: the example worker runs agentWorkflow (four rounds of model
- * call and tools; a tool fails once and is retried, one runs as a local
- * activity, the last answer is stored in S3) and mixedAgentWorkflow
- * (ordinary activities, model calls, two tools in parallel and a child
- * workflow). No model is called. Model calls use the Vercel AI SDK
- * activity shape.
+ * call and tools; a tool fails once and is retried, the last answer is
+ * stored in S3) and mixedAgentWorkflow (ordinary activities, model calls,
+ * two tools in parallel and a child workflow). No model is called. Model
+ * calls use the Vercel AI SDK activity shape. Tools are inferred from the
+ * activity name.
  */
 
 const app = process.env.SMOKE_APP ?? 'app';
@@ -150,11 +150,13 @@ test('LLM steps: agent graph, LLM panel, tool cards, timeline', async ({
   expect(await tools.count()).toBeGreaterThanOrEqual(3);
   await expect(
     graph(page).getByRole('button', {
-      name: /^Tool call read_file, Completed, attempt 2/,
+      name: /^Tool call read_file, inferred link, Completed, attempt 2/,
     }),
   ).toBeVisible();
   await expect(
-    graph(page).getByRole('button', { name: /^Tool call glossary/ }),
+    graph(page).getByRole('button', {
+      name: /^Tool call glossary, inferred link/,
+    }),
   ).toBeVisible();
   // Arrows from the model call to its tools are drawn as tool arrows.
   await expect(

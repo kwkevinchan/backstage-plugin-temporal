@@ -19,10 +19,9 @@
  *
  *   agentWorkflow       an agent loop: each round calls the model, which
  *                       answers with reasoning and tool calls; the tools
- *                       run as activities (one fails once and is retried,
- *                       one runs as a local activity); after four rounds
- *                       the model writes a long report (stored in S3 when
- *                       the worker uses the S3 codec)
+ *                       run as activities (one fails once and is retried);
+ *                       after four rounds the model writes a long report
+ *                       (stored in S3 when the worker uses the S3 codec)
  *   mixedAgentWorkflow  ordinary activities, two model calls, two tools in
  *                       parallel and a child workflow
  *
@@ -33,7 +32,6 @@
 const {
   executeChild,
   proxyActivities,
-  proxyLocalActivities,
   workflowInfo,
 } = require('@temporalio/workflow');
 
@@ -57,26 +55,19 @@ function assistantFrom(result) {
 }
 
 /**
- * Runs the tool calls of one model call at the same time. The glossary
- * runs as a local activity; the others as activities the plugin infers
- * from the tool name.
+ * Runs the tool calls of one model call at the same time. The plugin
+ * infers the tool from the activity name (`read_file` → `readFile`).
  */
 async function runTools(toolCalls) {
   return Promise.all(
     toolCalls.map(async tc => {
-      if (tc.toolName === 'glossary') {
-        const { glossary } = proxyLocalActivities({
-          startToCloseTimeout: '10 seconds',
-        });
-        const output = await glossary({
-          args: tc.input,
-        });
-        return { tc, output };
-      }
       const activity = tc.toolName === 'read_file' ? 'readFile' : tc.toolName;
       const options = {
         startToCloseTimeout: '10 seconds',
-        retry: { initialInterval: '1 second', maximumAttempts: 3 },
+        retry:
+          activity === 'readFile'
+            ? { initialInterval: '1 second', maximumAttempts: 3 }
+            : undefined,
       };
       const output = await proxyActivities(options)[activity](tc.input);
       return { tc, output };

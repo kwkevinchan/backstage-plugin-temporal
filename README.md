@@ -1646,8 +1646,8 @@ The example worker also runs two generate/check/revise workflows:
 `draftReviewWorkflow` (draft, review, revise until the score is high
 enough; done in round 4 of 5) and `longRefineWorkflow` (25 rounds that
 continue as new every 10 rounds), and two fake LLM agents without a model:
-`agentWorkflow` (four rounds of model call and tools, a retried tool, a
-local activity, and a long answer stored in S3 when the worker uses it) and
+`agentWorkflow` (four rounds of model call and tools, a retried tool, and a
+long answer stored in S3 when the worker uses it) and
 `mixedAgentWorkflow` (ordinary activities, model calls, two tools in
 parallel and a child workflow). Model calls use the activity type and
 payload shape of the Vercel AI SDK integration.

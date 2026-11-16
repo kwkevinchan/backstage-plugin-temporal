@@ -34,9 +34,8 @@
  *                         10 rounds (three runs)
  *   - agentWorkflow       a fake LLM agent (no model is called): model
  *                         calls with reasoning and tool calls, tools as
- *                         activities, a local activity and a retry, four
- *                         rounds, a long report (in S3 with
- *                         PAYLOAD_S3_ENDPOINT)
+ *                         activities (one retried), four rounds, a long
+ *                         report (in S3 with PAYLOAD_S3_ENDPOINT)
  *   - mixedAgentWorkflow  ordinary activities, two model calls, two tools in
  *                         parallel and a child workflow
  *   - reportWorkflow      completes with large outputs stored in S3 (only

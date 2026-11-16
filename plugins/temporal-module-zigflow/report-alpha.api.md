@@ -86,9 +86,9 @@ export const temporalDefinitionContent: OverridableExtensionDefinition<{
       | (
           | 'development'
           | 'deployment'
-          | 'operation'
           | 'overview'
           | 'documentation'
+          | 'operation'
           | 'observability'
         )
       | (string & {});
