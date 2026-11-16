@@ -780,6 +780,10 @@ temporal:
   definitions:
     maxBytes: 1048576
     readFileLocations: false
+    # allow:
+    #   - host: raw.githubusercontent.com
+    #     paths:
+    #       - /my-org/my-workflows/
   # Optional: views that are not part of the first release, see Loops.
   experimental:
     aiWorkflows: false
@@ -809,6 +813,7 @@ temporal:
 | `externalStorage.s3.defaultCredentials` | `false`              | `true`: read with the AWS SDK's default credential chain (environment, profile, instance or pod role); see the warning below.                                                                         |
 | `externalStorage.s3.maxInlineBytes`     | `262144`             | JSON payloads up to this size are shown like payloads in the history.                                                                                                                                 |
 | `externalStorage.s3.previewBytes`       | `2048`               | Bytes of text shown as the preview of a larger payload.                                                                                                                                               |
+| `definitions.allow`                     | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and optional `paths` prefixes allowed for absolute `http(s)` definition URLs.                      |
 | `definitions.maxBytes`                  | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                               |
 | `definitions.readFileLocations`         | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                      |
 | `experimental.aiWorkflows`              | `false`              | Show the loops (experimental, no compatibility promise). Model calls are shown without it.                                                                                                            |
@@ -961,9 +966,10 @@ the error of S3 is in the backend log, with the key of the object.
 of `integrations.awsS3` with the credentials of that entry, and the AWS
 entry (`amazonaws.com`) with the main AWS account when it has none. The
 catalog (locations), the Scaffolder (templates that fetch a URL) and the
-Definition tab of the Zigflow module read URLs that users give. With the
-same credentials, anyone who can have Backstage read a URL could read the
-stored payloads without `temporal.workflow.history.read`. There is also
+Definition tab of the Zigflow module (for entities in S3/integrations or URLs
+listed in `temporal.definitions.allow`) use it to read URLs from entity specs.
+With the same credentials, anyone who can have Backstage read a URL could read
+the stored payloads without `temporal.workflow.history.read`. There is also
 only one AWS entry in Backstage, so a role on it would change the
 credentials of every S3 read. The plugin's credentials are therefore its
 own.
@@ -1609,9 +1615,10 @@ warning; it does not fail the lint.
   same access key or role in `integrations.awsS3`, and do not make it the
   main AWS account (`aws.mainAccount`, or the machine's role when that is
   unset): Backstage's URL reader reads with those, and the catalog, the
-  Scaffolder and the Definition tab of the Zigflow module use it to read
-  URLs that users give, without the permission checks of this plugin. The
-  same holds for `defaultCredentials: true` when `aws.mainAccount` is not
+  Scaffolder and the Definition tab of the Zigflow module (when reading relative
+  targets in the entity's repo or absolute URLs allowed in
+  `temporal.definitions.allow`) use it without the payload permission checks of
+  this plugin. The same holds for `defaultCredentials: true` when `aws.mainAccount` is not
   set: the URL reader also reads with the machine's role. An `accountId`
   entry without its own role or access key would do the same, and the
   backend refuses to start with it. A codec that encrypts payloads in the workers

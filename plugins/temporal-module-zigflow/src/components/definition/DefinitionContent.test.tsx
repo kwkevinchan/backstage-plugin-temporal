@@ -376,9 +376,56 @@ describe('Definition tab', () => {
         message: 'The file is larger than 1048576 bytes',
       },
     });
-    await render(yamlEntity, api);
+    const tooLargeView = await render(yamlEntity, api);
     expect(await screen.findByTestId('definition-error')).toHaveTextContent(
       'The definition file is too large',
     );
+    tooLargeView.unmount();
+
+    const deniedMessage =
+      'Absolute definition URLs from raw.example.com are not allowed; use a path relative to the entity, or add host: raw.example.com under temporal.definitions.allow';
+    api.getEntityDefinition.mockResolvedValue({
+      ...definition,
+      content: undefined,
+      document: undefined,
+      tasks: [],
+      error: {
+        kind: 'read',
+        message: deniedMessage,
+      },
+    });
+    const yamlDeniedView = await render(yamlEntity, api);
+    const yamlAlert = await screen.findByTestId('definition-error');
+    expect(yamlAlert).toHaveTextContent('The definition could not be read');
+    expect(yamlAlert).toHaveTextContent('temporal.definitions.allow');
+    yamlDeniedView.unmount();
+
+    api.getEntityDefinition.mockResolvedValue({
+      entityRef: 'temporalworkflow:default/order-workflow',
+      format: 'source',
+      target: 'https://raw.example.com/workflows.ts',
+      maxBytes: 1048576,
+      tasks: [],
+      error: {
+        kind: 'read',
+        message: deniedMessage,
+      },
+    });
+    await render(
+      {
+        ...codeEntity,
+        spec: {
+          ...codeEntity.spec,
+          definition: {
+            format: 'source',
+            target: 'https://raw.example.com/workflows.ts',
+          },
+        },
+      },
+      api,
+    );
+    const sourceAlert = await screen.findByTestId('definition-error');
+    expect(sourceAlert).toHaveTextContent('The definition could not be read');
+    expect(sourceAlert).toHaveTextContent('temporal.definitions.allow');
   });
 });

@@ -24,7 +24,11 @@ import type { Entity } from '@backstage/catalog-model';
 import { ConfigReader } from '@backstage/config';
 import { NotFoundError } from '@backstage/errors';
 import { ScmIntegrations } from '@backstage/integration';
-import { DefinitionReader, parseDefinition } from './definition';
+import {
+  DefinitionAllowRule,
+  DefinitionReader,
+  parseDefinition,
+} from './definition';
 
 const fixture = readFileSync(
   join(__dirname, '../../../../test-fixtures/definitions/every-task.yaml'),
@@ -51,12 +55,19 @@ const spec = (target: string) => ({
 
 function readerOf(
   readUrl: jest.Mock,
-  options: { maxBytes?: number; readFileLocations?: boolean } = {},
+  options: {
+    maxBytes?: number;
+    readFileLocations?: boolean;
+    allow?: DefinitionAllowRule[];
+    integrations?: ScmIntegrations;
+  } = {},
 ) {
+  const { integrations, ...rest } = options;
   return new DefinitionReader({
     reader: mockServices.urlReader.mock({ readUrl }),
-    integrations: ScmIntegrations.fromConfig(new ConfigReader({})),
-    ...options,
+    integrations:
+      integrations ?? ScmIntegrations.fromConfig(new ConfigReader({})),
+    ...rest,
   });
 }
 
@@ -208,16 +219,592 @@ describe('DefinitionReader', () => {
     expect(byType.symbolLines).toBeUndefined();
   });
 
-  it('reads an absolute URL as it is', async () => {
+  it('rejects absolute URLs by default and reads them only when matching temporal.definitions.allow', async () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
     }));
-    const result = await readerOf(readUrl).read(
+
+    const denied = await readerOf(readUrl).read(
       entity(),
-      spec('https://raw.example.com/order.yaml'),
+      spec('https://raw.example.com/my-org/workflows/order.yaml'),
     );
+    expect(denied.error?.kind).toBe('read');
+    expect(denied.error?.message).toContain('raw.example.com');
+    expect(denied.error?.message).toContain('temporal.definitions.allow');
+    expect(readUrl).not.toHaveBeenCalled();
+
+    const exact = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(entity(), spec('https://raw.example.com/order.yaml'));
     expect(readUrl).toHaveBeenCalledWith('https://raw.example.com/order.yaml');
-    expect(result.error).toBeUndefined();
+    expect(exact.error).toBeUndefined();
+
+    const wildcardReader = readerOf(readUrl, {
+      allow: [{ host: '*.example.com' }],
+    });
+    expect(
+      (
+        await wildcardReader.read(
+          entity(),
+          spec('https://raw.example.com/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
+    expect(
+      (
+        await wildcardReader.read(
+          entity(),
+          spec('https://example.com/order.yaml'),
+        )
+      ).error?.message,
+    ).toContain('temporal.definitions.allow');
+    expect(
+      (
+        await wildcardReader.read(
+          entity(),
+          spec('https://evil-example.com/order.yaml'),
+        )
+      ).error?.message,
+    ).toContain('temporal.definitions.allow');
+
+    const portReader = readerOf(readUrl, {
+      allow: [{ host: 'internal.example.com:8443' }],
+    });
+    expect(
+      (
+        await portReader.read(
+          entity(),
+          spec('https://internal.example.com:8443/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
+    expect(
+      (
+        await portReader.read(
+          entity(),
+          spec('https://internal.example.com/order.yaml'),
+        )
+      ).error?.message,
+    ).toContain('temporal.definitions.allow');
+
+    const portRangeReader = readerOf(readUrl, {
+      allow: [{ host: 'internal.example.com:8000-8999' }],
+    });
+    expect(
+      (
+        await portRangeReader.read(
+          entity(),
+          spec('https://internal.example.com:8443/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
+    expect(
+      (
+        await portRangeReader.read(
+          entity(),
+          spec('https://internal.example.com:9000/order.yaml'),
+        )
+      ).error?.message,
+    ).toContain('temporal.definitions.allow');
+
+    const pathReader = readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com', paths: ['/my-org/workflows'] }],
+    });
+    expect(
+      (
+        await pathReader.read(
+          entity(),
+          spec('https://raw.example.com/my-org/workflows/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
+    const wrongPath = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/other-org/order.yaml'),
+    );
+    expect(wrongPath.error?.kind).toBe('read');
+    expect(wrongPath.error?.message).toContain('/other-org/order.yaml');
+    expect(wrongPath.error?.message).toContain('temporal.definitions.allow');
+    const siblingPrefix = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/my-org/workflows-evil/order.yaml'),
+    );
+    expect(siblingPrefix.error?.kind).toBe('read');
+    const traversal = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/my-org/workflows/../secret.yaml'),
+    );
+    expect(traversal.error?.kind).toBe('read');
+
+    const strayPercentTraversal = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/my-org/workflows/%252e%252e/secret/x%'),
+    );
+    expect(strayPercentTraversal.error?.kind).toBe('read');
+    expect(readUrl).not.toHaveBeenCalledWith(
+      expect.stringContaining('secret/x%'),
+    );
+
+    const defaultPort = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(entity(), spec('https://raw.example.com:443/order.yaml'));
+    expect(defaultPort.error).toBeUndefined();
+
+    const userinfoSpoof = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(
+      entity(),
+      spec('https://raw.example.com@evil.example.com/order.yaml'),
+    );
+    expect(userinfoSpoof.error?.kind).toBe('read');
+    expect(userinfoSpoof.error?.message).toContain('evil.example.com');
+
+    const userinfoMatch = await readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    }).read(entity(), spec('https://user@raw.example.com/order.yaml'));
+    expect(userinfoMatch.error).toBeUndefined();
+
+    const idnReader = readerOf(readUrl, {
+      allow: [{ host: '例子.example.com' }],
+    });
+    expect(
+      (
+        await idnReader.read(
+          entity(),
+          spec('https://例子.example.com/order.yaml'),
+        )
+      ).error,
+    ).toBeUndefined();
+  });
+
+  it('rejects absolute and protocol-relative targets padded with ASCII whitespace or controls', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const real = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: { github: [{ host: 'github.com' }] },
+      }),
+    );
+    const resolveUrl = jest.fn((options: { url: string; base: string }) =>
+      real.resolveUrl(options),
+    );
+    const integrations = {
+      resolveUrl,
+      byUrl: (url: string) => real.byUrl(url),
+    } as unknown as ScmIntegrations;
+    const reader = readerOf(readUrl, { integrations });
+    const located = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+    );
+
+    // Spaces are not controls. Trim them, then classify as an absolute URL
+    // so the allowlist still applies. Do not resolve them as repo paths.
+    const paddedAbsolute = [
+      ' https://evil.example.com/x',
+      'https://evil.example.com/x ',
+    ];
+    for (const target of paddedAbsolute) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error).toEqual(
+        expect.objectContaining({
+          kind: 'read',
+          message: expect.stringContaining(
+            'Absolute definition URLs from evil.example.com are not allowed',
+          ),
+        }),
+      );
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+
+    // Edge controls are rejected before classification. They must not be
+    // stripped and then accepted or rejected as an absolute URL.
+    const controlAbsolute = [
+      '\thttps://evil.example.com/x',
+      'https://evil.example.com/x\t',
+      '\nhttps://evil.example.com/x',
+      'https://evil.example.com/x\n',
+      '\rhttps://evil.example.com/x',
+      'https://evil.example.com/x\r',
+      '\u0000https://evil.example.com/x',
+      '\u007fhttps://evil.example.com/x',
+      'https://evil.example.com/x\u007f',
+    ];
+    for (const target of controlAbsolute) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error?.kind).toBe('read');
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+
+    const paddedProtocolRelative = [
+      ' //evil.example.com/x',
+      '\t//evil.example.com/x',
+      '\n//evil.example.com/x',
+      '\r//evil.example.com/x',
+    ];
+    for (const target of paddedProtocolRelative) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+
+    // Even a same-repo URL padded with spaces must still require temporal.definitions.allow.
+    resolveUrl.mockClear();
+    const sameRepoPadded = await reader.read(
+      located,
+      spec(' https://github.com/my-org/my-repo/blob/main/other.yaml'),
+    );
+    expect(sameRepoPadded.error?.kind).toBe('read');
+    expect(sameRepoPadded.error?.message).toContain(
+      'Absolute definition URLs from github.com are not allowed',
+    );
+    expect(readUrl).not.toHaveBeenCalled();
+    expect(resolveUrl).not.toHaveBeenCalled();
+  });
+
+  it('rejects embedded and encoded ASCII controls before resolving a URL', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const real = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: { github: [{ host: 'github.com' }] },
+      }),
+    );
+    const resolveUrl = jest.fn((options: { url: string; base: string }) =>
+      real.resolveUrl(options),
+    );
+    const integrations = {
+      resolveUrl,
+      byUrl: (url: string) => real.byUrl(url),
+    } as unknown as ScmIntegrations;
+    const reader = readerOf(readUrl, { integrations });
+    const allowedReader = readerOf(readUrl, {
+      integrations,
+      allow: [{ host: 'raw.example.com' }],
+    });
+    const ghRoot = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+    );
+    const ghFeatSub = entity(
+      'url:https://github.com/my-org/my-repo/blob/feat/sub/catalog-info.yaml',
+    );
+
+    // Spaces still classify as an absolute URL, so an allowed host is read.
+    const paddedAllowed = await allowedReader.read(
+      entity(),
+      spec(' https://raw.example.com/order.yaml'),
+    );
+    expect(paddedAllowed.error).toBeUndefined();
+    expect(readUrl).toHaveBeenCalledWith('https://raw.example.com/order.yaml');
+    expect(resolveUrl).not.toHaveBeenCalled();
+    readUrl.mockClear();
+
+    const leadingSpace = await reader.read(
+      ghRoot,
+      spec(' https://github.com/my-org/my-repo/blob/main/other.yaml'),
+    );
+    expect(leadingSpace.error?.kind).toBe('read');
+    expect(leadingSpace.error?.message).toContain(
+      'Absolute definition URLs from github.com are not allowed',
+    );
+    expect(readUrl).not.toHaveBeenCalled();
+    expect(resolveUrl).not.toHaveBeenCalled();
+
+    const rejected: Array<{
+      ent: ReturnType<typeof entity>;
+      target: string;
+      allow?: boolean;
+    }> = [
+      {
+        ent: ghRoot,
+        target: '\thttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      {
+        ent: ghRoot,
+        target: 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      { ent: ghRoot, target: ' //evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '\t//evil.example.com/a.yaml' },
+      { ent: ghFeatSub, target: '.\t./.\t./feat/other.yaml' },
+      { ent: ghRoot, target: '..%09/..' },
+      { ent: ghRoot, target: '..%09/outside.yaml' },
+      {
+        ent: ghRoot,
+        target: '%0ahttps://github.com/my-org/my-repo/blob/main/other.yaml',
+      },
+      { ent: ghRoot, target: '%0dhttps://evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '%00./workflows/order.yaml' },
+      { ent: ghRoot, target: '%20https://evil.example.com/a.yaml' },
+      { ent: ghRoot, target: '%20//evil.example.com/a.yaml' },
+      {
+        ent: ghRoot,
+        target: '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml',
+      },
+      // Edge controls must not be stripped and then pass the allowlist.
+      {
+        ent: entity(),
+        target: '\thttps://raw.example.com/order.yaml',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: 'https://raw.example.com/order.yaml\n',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: '%0ahttps://raw.example.com/order.yaml',
+        allow: true,
+      },
+      {
+        ent: entity(),
+        target: '%09https://raw.example.com/order.yaml',
+        allow: true,
+      },
+      { ent: ghRoot, target: '\t./workflows/order.yaml' },
+      { ent: ghRoot, target: '%0a./workflows/order.yaml' },
+    ];
+    for (const { ent, target, allow } of rejected) {
+      resolveUrl.mockClear();
+      const result = await (allow ? allowedReader : reader).read(
+        ent,
+        spec(target),
+      );
+      expect(result.error?.kind).toBe('read');
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+  });
+
+  it('keeps relative targets inside the same repository across integrations', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const integrations = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: {
+          github: [{ host: 'github.com' }],
+          gitlab: [{ host: 'gitlab.com' }],
+          azure: [{ host: 'dev.azure.com' }],
+          gerrit: [
+            {
+              host: 'gerrit.example.com',
+              gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+            },
+          ],
+        },
+      }),
+    );
+    const reader = readerOf(readUrl, { integrations });
+
+    const ghSubdir = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/services/orders/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(ghSubdir, spec('./workflows/order.yaml'))).error,
+    ).toBeUndefined();
+    expect(readUrl).toHaveBeenLastCalledWith(
+      'https://github.com/my-org/my-repo/tree/main/services/orders/workflows/order.yaml',
+    );
+    expect(
+      (await reader.read(ghSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+    expect(readUrl).toHaveBeenLastCalledWith(
+      'https://github.com/my-org/my-repo/tree/main/services/workflows/order.yaml',
+    );
+    expect(
+      (await reader.read(ghSubdir, spec('/workflows/order.yaml'))).error,
+    ).toBeUndefined();
+    expect(readUrl).toHaveBeenLastCalledWith(
+      'https://github.com/my-org/my-repo/tree/main/workflows/order.yaml',
+    );
+
+    const glSubdir = entity(
+      'url:https://gitlab.com/org/sub/my-repo/-/blob/main/services/orders/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(glSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+
+    const glLegacySubdir = entity(
+      'url:https://gitlab.com/grp/sub/my-repo/blob/main/services/orders/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(glLegacySubdir, spec('../workflows/order.yaml')))
+        .error,
+    ).toBeUndefined();
+    expect(
+      (await reader.read(glLegacySubdir, spec('./100%.yaml'))).error,
+    ).toBeUndefined();
+
+    const gerritEntity = entity(
+      'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(gerritEntity, spec('./workflows/order.yaml'))).error,
+    ).toBeUndefined();
+
+    const ghPlusSubdir = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/services/+/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(ghPlusSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+    expect(readUrl).toHaveBeenLastCalledWith(
+      'https://github.com/my-org/my-repo/tree/main/services/workflows/order.yaml',
+    );
+
+    const glPlusSubdir = entity(
+      'url:https://gitlab.com/org/sub/my-repo/-/blob/main/services/+/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(glPlusSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+
+    const azSubdir = entity(
+      'url:https://dev.azure.com/my-org/my-project/_git/my-repo?path=/services/orders/catalog-info.yaml&version=GBmain',
+    );
+    expect(
+      (await reader.read(azSubdir, spec('../workflows/order.yaml'))).error,
+    ).toBeUndefined();
+  });
+
+  it('rejects relative targets that climb out of the repository or resolve elsewhere', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const integrations = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: {
+          github: [{ host: 'github.com' }],
+          gitlab: [{ host: 'gitlab.com' }],
+          azure: [{ host: 'dev.azure.com' }],
+          gerrit: [
+            {
+              host: 'gerrit.example.com',
+              gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+            },
+          ],
+          harness: [{ host: 'app.harness.io' }],
+        },
+      }),
+    );
+    const reader = readerOf(readUrl, { integrations });
+
+    const ghRoot = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+    );
+    const ghOneDir = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/services/catalog-info.yaml',
+    );
+    const azSubdir = entity(
+      'url:https://dev.azure.com/my-org/my-project/_git/my-repo?path=/services/orders/catalog-info.yaml&version=GBmain',
+    );
+
+    const badCases: [ReturnType<typeof entity>, string][] = [
+      [ghRoot, '../outside.yaml'],
+      [ghRoot, '../main/order.yaml'],
+      [ghRoot, '/../outside.yaml'],
+      [ghRoot, '%2e%2e/outside.yaml'],
+      [ghRoot, '%252e%252e/outside.yaml'],
+      [ghOneDir, '%2e%2e/%2e%2e/main/x.yaml%'],
+      [ghRoot, '//evil.example.com/a.yaml'],
+      [ghRoot, '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml'],
+      [ghRoot, 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml'],
+      [ghRoot, '%20https://evil.example.com/a.yaml'],
+      [ghRoot, '%20//evil.example.com/a.yaml'],
+      [ghRoot, '.\t./outside.yaml'],
+      [ghRoot, '..%09/outside.yaml'],
+      [
+        entity(
+          'url:https://github.com/my-org/my-repo/blob/feat/sub/catalog-info.yaml',
+        ),
+        '.\t./.\t./feat/other.yaml',
+      ],
+      [ghOneDir, '../../outside.yaml'],
+      [ghOneDir, '../../../other-repo/blob/main/order.yaml'],
+      [ghOneDir, '../../../../other-org/other-repo/blob/main/order.yaml'],
+      [azSubdir, '../../../outside.yaml'],
+      [
+        entity(
+          'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/catalog-info.yaml',
+        ),
+        '../../../../../../secret/+/refs/heads/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/services/catalog-info.yaml',
+        ),
+        '../other/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://us-east-1.console.aws.amazon.com/codesuite/codecommit/repositories/repoA/browse/refs/heads/main/--/catalog-info.yaml?region=us-east-1',
+        ),
+        '../../../../../../repoB/browse/refs/heads/main/--/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://app.harness.io/ng/account/A/module/code/orgs/O/projects/P/repos/R/files/main/~/catalog-info.yaml',
+        ),
+        '../../../../../../../../O2/projects/P2/repos/R2/files/main/~/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gitlab.com/grp/sub/repo/blob/main/catalog-info.yaml',
+        ),
+        '../../../other/blob/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gitlab.com/grp/x/src/a/b/proj/blob/main/catalog-info.yaml',
+        ),
+        '../../../../b2/proj2/blob/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://app.harness.io/ng/account/A/module/code/orgs/src/projects/P/repos/R/files/main/~/catalog-info.yaml',
+        ),
+        '../../../../../../P2/repos/R2/files/main/~/x.yaml',
+      ],
+    ];
+    for (const [ent, target] of badCases) {
+      const result = await reader.read(ent, spec(target));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+    }
+    expect(readUrl).not.toHaveBeenCalled();
+
+    // Even a backslash traversal is rejected before UrlReader is called.
+    const backslash = await reader.read(ghRoot, spec('workflows\\order.yaml'));
+    expect(backslash.error?.kind).toBe('read');
+
+    // Guard post-resolution mismatch even if a custom integration returns another repo, branch, or host.
+    for (const spoofed of [
+      'https://github.com/my-org/other-repo/blob/main/order.yaml',
+      'https://github.com/my-org/my-repo/blob/other-branch/order.yaml',
+      'https://evil.example.com/order.yaml',
+    ]) {
+      const fakeIntegrations = {
+        resolveUrl: jest.fn(() => spoofed),
+        byUrl: jest.fn((u: string) => integrations.byUrl(u)),
+      } as unknown as ScmIntegrations;
+      const customReader = readerOf(readUrl, {
+        integrations: fakeIntegrations,
+      });
+      const result = await customReader.read(ghRoot, spec('./order.yaml'));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+    }
+    expect(readUrl).not.toHaveBeenCalled();
   });
 
   it('stops reading at the size limit', async () => {
@@ -227,7 +814,8 @@ describe('DefinitionReader', () => {
       buffer: async () => Buffer.concat([big, big, big]),
       stream: () => stream,
     }));
-    const result = await readerOf(readUrl, { maxBytes: 100 }).read(
+    const allow = [{ host: 'raw.example.com' }];
+    const result = await readerOf(readUrl, { maxBytes: 100, allow }).read(
       entity(),
       spec('https://raw.example.com/order.yaml'),
     );
@@ -243,7 +831,7 @@ describe('DefinitionReader', () => {
     }));
     expect(
       (
-        await readerOf(noStream, { maxBytes: 100 }).read(
+        await readerOf(noStream, { maxBytes: 100, allow }).read(
           entity(),
           spec('https://raw.example.com/order.yaml'),
         )
@@ -257,20 +845,18 @@ describe('DefinitionReader', () => {
     });
     expect(
       (
-        await readerOf(missing).read(
-          entity(),
-          spec('https://raw.example.com/order.yaml'),
-        )
+        await readerOf(missing, {
+          allow: [{ host: 'raw.example.com' }],
+        }).read(entity(), spec('https://raw.example.com/order.yaml'))
       ).error,
     ).toEqual({ kind: 'read', message: 'The file was not found' });
 
     const notAllowed = jest.fn(async () => {
       throw new Error('Reading from https://evil.example.com is not allowed');
     });
-    const result = await readerOf(notAllowed).read(
-      entity(),
-      spec('https://evil.example.com/order.yaml'),
-    );
+    const result = await readerOf(notAllowed, {
+      allow: [{ host: 'evil.example.com' }],
+    }).read(entity(), spec('https://evil.example.com/order.yaml'));
     expect(result.error?.kind).toBe('read');
     expect(result.error?.message).toContain('integrations');
   });
@@ -328,7 +914,7 @@ describe('DefinitionReader', () => {
     }
   });
 
-  it('checks the configured limit', () => {
+  it('checks the configured limits and allowlist rules', () => {
     const urlReader = mockServices.urlReader.mock();
     expect(
       DefinitionReader.fromConfig(new ConfigReader({}), urlReader).maxBytes,
@@ -339,5 +925,36 @@ describe('DefinitionReader', () => {
         urlReader,
       ),
     ).toThrow('temporal.definitions.maxBytes');
+    expect(() =>
+      DefinitionReader.fromConfig(
+        new ConfigReader({
+          temporal: {
+            definitions: {
+              allow: [
+                {
+                  host: 'raw.githubusercontent.com',
+                  paths: ['/my-org/my-repo/'],
+                },
+              ],
+            },
+          },
+        }),
+        urlReader,
+      ),
+    ).not.toThrow();
+    for (const badRule of [
+      { host: 'bad/host' },
+      { host: '*.*.com' },
+      { host: 'example.com:99999' },
+      { host: 'example.com', paths: ['relative/path'] },
+      { host: 'example.com', paths: ['/org/../secret'] },
+    ]) {
+      expect(() =>
+        DefinitionReader.fromConfig(
+          new ConfigReader({ temporal: { definitions: { allow: [badRule] } } }),
+          urlReader,
+        ),
+      ).toThrow('temporal.definitions.allow');
+    }
   });
 });

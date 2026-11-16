@@ -15,7 +15,7 @@
  */
 
 import { open } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import type {
   LoggerService,
@@ -58,6 +58,12 @@ class TooLargeError extends Error {}
 /** A target that is not allowed, or a location it cannot be resolved from. */
 class TargetError extends Error {}
 
+/** One host (and optional path prefix) entry in `temporal.definitions.allow`. */
+export interface DefinitionAllowRule {
+  host: string;
+  paths?: string[];
+}
+
 export interface DefinitionReaderOptions {
   reader: UrlReaderService;
   integrations: ScmIntegrations;
@@ -68,6 +74,368 @@ export interface DefinitionReaderOptions {
    * catalog of a development setup). Off by default.
    */
   readFileLocations?: boolean;
+  /**
+   * Hosts (and optional path prefixes) from which absolute `http(s)` URLs
+   * may be read. Empty by default, so absolute URLs are rejected unless
+   * listed here.
+   */
+  allow?: DefinitionAllowRule[];
+}
+
+interface CompiledAllowRule {
+  matchesHost(url: URL): boolean;
+  matchesPath(normalizedPath: string): boolean;
+}
+
+const SAME_REPO_MESSAGE =
+  'Relative definition targets must stay in the repository of the entity; to read from another repository or host, use an absolute URL and allow it in temporal.definitions.allow';
+
+/** True when `value` contains an ASCII control (U+0000–U+001F) or DEL. */
+function hasControlChar(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function decodePercentChunk(chunk: string): string {
+  try {
+    return decodeURIComponent(chunk);
+  } catch {
+    return chunk.replace(/%([0-9a-f]{2})/gi, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    );
+  }
+}
+
+/** Repeatedly percent-decodes valid `%XX` sequences until the string stops changing. */
+function decodeFully(value: string): string {
+  let decoded = value;
+  let previous: string;
+  do {
+    previous = decoded;
+    decoded = decoded.replace(/(?:%[0-9a-f]{2})+/gi, decodePercentChunk);
+  } while (decoded !== previous);
+  return decoded;
+}
+
+function effectivePort(url: URL): number {
+  if (url.port) {
+    return Number(url.port);
+  }
+  return url.protocol === 'http:' ? 80 : 443;
+}
+
+function compilePortMatcher(
+  portSpec: string | undefined,
+  rawHost: string,
+): (url: URL) => boolean {
+  if (portSpec === undefined) {
+    return url => !url.port;
+  }
+  const rangeParts = portSpec.split('-');
+  if (rangeParts.length === 1 && /^\d+$/.test(rangeParts[0])) {
+    const port = Number(rangeParts[0]);
+    if (port >= 1 && port <= 65535) {
+      return url => effectivePort(url) === port;
+    }
+  } else if (
+    rangeParts.length === 2 &&
+    /^\d+$/.test(rangeParts[0]) &&
+    /^\d+$/.test(rangeParts[1])
+  ) {
+    const start = Number(rangeParts[0]);
+    const end = Number(rangeParts[1]);
+    if (start >= 1 && end <= 65535 && start <= end) {
+      return url => {
+        const urlPort = effectivePort(url);
+        return urlPort >= start && urlPort <= end;
+      };
+    }
+  }
+  throw new Error(`temporal.definitions.allow: invalid host "${rawHost}"`);
+}
+
+function compileAllowRule(rule: DefinitionAllowRule): CompiledAllowRule {
+  if (!rule.host || /\s|[/?#\\]/.test(rule.host)) {
+    throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
+  }
+  const hostParts = rule.host.split(':');
+  if (hostParts.length > 2 || !hostParts[0]) {
+    throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
+  }
+  const rawHostname = hostParts[0].toLowerCase();
+  if (hostParts.length === 2 && !hostParts[1]) {
+    throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
+  }
+  if (
+    rawHostname.includes('*') &&
+    (!rawHostname.startsWith('*.') ||
+      rawHostname.length <= 2 ||
+      rawHostname.slice(2).includes('*') ||
+      rawHostname.slice(2).startsWith('.'))
+  ) {
+    throw new Error(
+      `temporal.definitions.allow: invalid host wildcard "${rule.host}"`,
+    );
+  }
+  const isWildcard = rawHostname.startsWith('*.');
+  const domainPart = isWildcard ? rawHostname.slice(2) : rawHostname;
+  let normalizedDomain: string;
+  try {
+    const parsedHost = new URL(`http://${domainPart}`);
+    if (
+      parsedHost.username ||
+      parsedHost.password ||
+      parsedHost.port ||
+      parsedHost.pathname !== '/' ||
+      !parsedHost.hostname ||
+      domainPart.startsWith('.')
+    ) {
+      throw new Error('invalid host');
+    }
+    normalizedDomain = parsedHost.hostname.toLowerCase();
+  } catch {
+    throw new Error(`temporal.definitions.allow: invalid host "${rule.host}"`);
+  }
+  const matchesPort = compilePortMatcher(hostParts[1], rule.host);
+  const matchesHostname = isWildcard
+    ? (url: URL) => {
+        const suffix = `.${normalizedDomain}`;
+        const host = url.hostname.toLowerCase();
+        return host.length > suffix.length && host.endsWith(suffix);
+      }
+    : (url: URL) => url.hostname.toLowerCase() === normalizedDomain;
+
+  let matchesPath: (normalizedPath: string) => boolean = () => true;
+  if (rule.paths !== undefined) {
+    const matchers = rule.paths.map(pathEntry => {
+      if (
+        !pathEntry.startsWith('/') ||
+        /\s|\\|\0/.test(pathEntry) ||
+        pathEntry.split('/').includes('..')
+      ) {
+        throw new Error(
+          `temporal.definitions.allow: invalid path "${pathEntry}"`,
+        );
+      }
+      const normalized = posix.normalize(pathEntry);
+      const prefix = normalized.endsWith('/') ? normalized : `${normalized}/`;
+      return (targetPath: string) =>
+        targetPath === normalized || targetPath.startsWith(prefix);
+    });
+    matchesPath = (targetPath: string) => matchers.some(m => m(targetPath));
+  }
+
+  return {
+    matchesHost: url => matchesHostname(url) && matchesPort(url),
+    matchesPath,
+  };
+}
+
+interface ParsedRepoUrl {
+  kind: 'repo' | 'folder';
+  repoKey: string;
+  ref?: string;
+  dirSegments: string[];
+  origin: string;
+  search: string;
+  folderPrefix: string;
+}
+
+/**
+ * Extracts the repository identity (`origin` + owner/repo or project/repo),
+ * optional branch/ref, and file directory segments inside the repository from
+ * an SCM file URL, or falls back to the entity file's folder boundary for
+ * unrecognized URL shapes (such as Gerrit, CodeCommit, or Harness).
+ */
+function parseRepoUrl(
+  rawUrl: string,
+  integrationType?: string,
+): ParsedRepoUrl | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    return undefined;
+  }
+  const pathname = decodeFully(parsed.pathname);
+  if (
+    pathname.includes('\\') ||
+    hasControlChar(pathname) ||
+    pathname.split('/').includes('..')
+  ) {
+    return undefined;
+  }
+
+  const allSegments = pathname.split('/').filter(Boolean);
+  const folderPrefix =
+    allSegments.length >= 2 ? `/${allSegments.slice(0, -1).join('/')}/` : '/';
+
+  // Azure DevOps: /{org}/{project}/_git/{repo}?path=/... (or /{project}/_git/{repo})
+  const azureMatch = /^\/(.+\/_git\/[^/]+)\/?$/.exec(pathname);
+  if (azureMatch) {
+    const queryPath = parsed.searchParams.get('path');
+    if (!queryPath) return undefined;
+    const decodedQueryPath = decodeFully(queryPath);
+    if (
+      decodedQueryPath.includes('\\') ||
+      hasControlChar(decodedQueryPath) ||
+      decodedQueryPath.split('/').includes('..')
+    ) {
+      return undefined;
+    }
+    const cleanPath = decodedQueryPath.replace(/^\/+/, '');
+    if (!cleanPath) return undefined;
+    const parts = cleanPath.split('/').filter(Boolean);
+    return {
+      kind: 'repo',
+      repoKey: `${parsed.origin}/${azureMatch[1]}`,
+      ref: parsed.searchParams.get('version') ?? undefined,
+      dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
+    };
+  }
+
+  // GitLab: /{group...}/{repo}/-/(blob|tree|raw|edit)/{ref}/{filepath}
+  const gitlabMatch =
+    /^\/(.+?)\/-\/(?:blob|tree|raw|edit)\/([^/]+)\/(.+)$/.exec(pathname);
+  if (gitlabMatch) {
+    const [, repoPath, ref, filepath] = gitlabMatch;
+    const parts = filepath.split('/').filter(Boolean);
+    return {
+      kind: 'repo',
+      repoKey: `${parsed.origin}/${repoPath}`,
+      ref,
+      dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
+    };
+  }
+
+  // GitLab legacy URLs without `/-/`: /{group...}/{repo}/blob/{ref}/{filepath}
+  // GitLab splits at the first `/blob/` segment to separate the project path.
+  if (integrationType === 'gitlab') {
+    const gitlabLegacyMatch = /^\/(.+?)\/blob\/([^/]+)\/(.+)$/.exec(pathname);
+    if (gitlabLegacyMatch) {
+      const [, repoPath, ref, filepath] = gitlabLegacyMatch;
+      const parts = filepath.split('/').filter(Boolean);
+      return {
+        kind: 'repo',
+        repoKey: `${parsed.origin}/${repoPath}`,
+        ref,
+        dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
+      };
+    }
+  }
+
+  // Bitbucket Server: /projects/{project}/repos/{repo}/(browse|raw)/{filepath}
+  const bbServerMatch =
+    /^\/(projects\/[^/]+\/repos\/[^/]+)\/(?:browse|raw)\/(.+)$/.exec(pathname);
+  if (bbServerMatch) {
+    const [, repoPath, filepath] = bbServerMatch;
+    const parts = filepath.split('/').filter(Boolean);
+    return {
+      kind: 'repo',
+      repoKey: `${parsed.origin}/${repoPath}`,
+      ref: parsed.searchParams.get('at') ?? undefined,
+      dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
+    };
+  }
+
+  // Gitea: /{owner}/{repo}/(src|raw)/(branch|commit|tag)/{ref}/{filepath}
+  const giteaMatch =
+    /^\/([^/]+\/[^/]+)\/(?:src|raw)\/(?:branch|commit|tag)\/([^/]+)\/(.+)$/.exec(
+      pathname,
+    );
+  if (giteaMatch) {
+    const [, repoPath, ref, filepath] = giteaMatch;
+    const parts = filepath.split('/').filter(Boolean);
+    return {
+      kind: 'repo',
+      repoKey: `${parsed.origin}/${repoPath}`,
+      ref,
+      dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
+    };
+  }
+
+  // GitHub, Bitbucket Cloud, and hosts without a configured integration:
+  // exact two-segment /{owner}/{repo}/(blob|tree|raw|edit|src)/{ref}/{filepath}.
+  if (
+    integrationType === 'github' ||
+    integrationType === 'bitbucketCloud' ||
+    integrationType === undefined
+  ) {
+    const stdMatch =
+      /^\/([^/]+\/[^/]+)\/(?:blob|tree|raw|edit|src)\/([^/]+)\/(.+)$/.exec(
+        pathname,
+      );
+    if (stdMatch) {
+      const [, repoPath, ref, filepath] = stdMatch;
+      const parts = filepath.split('/').filter(Boolean);
+      return {
+        kind: 'repo',
+        repoKey: `${parsed.origin}/${repoPath}`,
+        ref,
+        dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
+      };
+    }
+  }
+
+  // Raw GitHub URLs: /{owner}/{repo}/{ref}/{filepath}
+  if (parsed.hostname.toLowerCase() === 'raw.githubusercontent.com') {
+    const rawMatch = /^\/([^/]+\/[^/]+)\/([^/]+)\/(.+)$/.exec(pathname);
+    if (rawMatch) {
+      const [, repoPath, ref, filepath] = rawMatch;
+      const parts = filepath.split('/').filter(Boolean);
+      return {
+        kind: 'repo',
+        repoKey: `${parsed.origin}/${repoPath}`,
+        ref,
+        dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
+      };
+    }
+    return undefined;
+  }
+
+  // Unrecognized SCM URL structure (e.g. Gerrit, CodeCommit, Harness):
+  // bound relative targets to the folder of the entity file.
+  if (allSegments.length >= 2) {
+    return {
+      kind: 'folder',
+      repoKey: `${parsed.origin}${folderPrefix}`,
+      dirSegments: [],
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
+    };
+  }
+
+  return undefined;
 }
 
 /** Reads all of a stream, failing as soon as it passes `maxBytes`. */
@@ -219,6 +587,7 @@ export class DefinitionReader {
   private readonly integrations: ScmIntegrations;
   private readonly logger?: LoggerService;
   private readonly readFileLocations: boolean;
+  private readonly allow: CompiledAllowRule[];
 
   static fromConfig(
     config: Config,
@@ -237,6 +606,12 @@ export class DefinitionReader {
         `temporal.definitions.maxBytes must be between 1 and ${MAX_DEFINITION_MAX_BYTES}`,
       );
     }
+    const allow = config
+      .getOptionalConfigArray('temporal.definitions.allow')
+      ?.map(entry => ({
+        host: entry.getString('host'),
+        paths: entry.getOptionalStringArray('paths'),
+      }));
     return new DefinitionReader({
       reader,
       integrations: ScmIntegrations.fromConfig(config),
@@ -245,6 +620,7 @@ export class DefinitionReader {
       readFileLocations:
         config.getOptionalBoolean('temporal.definitions.readFileLocations') ??
         false,
+      allow,
     });
   }
 
@@ -254,16 +630,28 @@ export class DefinitionReader {
     this.logger = options.logger;
     this.maxBytes = options.maxBytes ?? DEFAULT_DEFINITION_MAX_BYTES;
     this.readFileLocations = options.readFileLocations ?? false;
+    this.allow = (options.allow ?? []).map(compileAllowRule);
   }
 
   /**
-   * Where a target is: an absolute `http(s)` URL as it is, a relative path
-   * against the location the entity was read from.
+   * Resolves a target: an absolute `http(s)` URL must match
+   * `temporal.definitions.allow`, while a relative path must stay inside the
+   * repository of the entity's `backstage.io/managed-by-location` (or inside
+   * the entity folder for allowed `file:` locations).
    */
   resolve(
     entity: Entity,
-    target: string,
+    rawTarget: string,
   ): { type: 'url' | 'file'; target: string } {
+    // Reject controls in the raw target and its fully decoded form first,
+    // including the edges. Trimming them off before the check would hide
+    // "\thttps://..." and "%0ahttps://...", and URL parsers also delete
+    // interior tab, LF, and CR.
+    if (hasControlChar(rawTarget) || hasControlChar(decodeFully(rawTarget))) {
+      throw new TargetError(SAME_REPO_MESSAGE);
+    }
+    const target = rawTarget.trim();
+    const decodedTrimmed = decodeFully(target).trim();
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) {
       let url: URL;
       try {
@@ -274,12 +662,54 @@ export class DefinitionReader {
       if (url.protocol !== 'https:' && url.protocol !== 'http:') {
         throw new TargetError('Only http and https URLs are read');
       }
+      const decodedPath = decodeFully(url.pathname);
+      if (
+        decodedPath.includes('\\') ||
+        hasControlChar(decodedPath) ||
+        decodedPath.split('/').includes('..')
+      ) {
+        throw new TargetError(
+          'Absolute definition URL paths must not contain "..", "\\", or control characters',
+        );
+      }
+      const hostMatches = this.allow.filter(rule => rule.matchesHost(url));
+      if (hostMatches.length === 0) {
+        throw new TargetError(
+          `Absolute definition URLs from ${url.host} are not allowed; use a path relative to the entity, or add host: ${url.host} under temporal.definitions.allow`,
+        );
+      }
+      const normalizedPath = posix.normalize(decodedPath);
+      if (!hostMatches.some(rule => rule.matchesPath(normalizedPath))) {
+        throw new TargetError(
+          `The path ${url.pathname} on ${url.host} is not allowed; use a path relative to the entity, or add it under temporal.definitions.allow (paths)`,
+        );
+      }
       return { type: 'url', target: url.toString() };
     }
+
+    const targetPathRaw = target.split(/[?#]/, 1)[0];
+    const decodedTarget = decodeFully(targetPathRaw).trim();
+    if (
+      !targetPathRaw.trim() ||
+      target.includes('\\') ||
+      decodedTrimmed.includes('\\')
+    ) {
+      throw new TargetError(
+        'Relative definition targets must be valid relative paths without "\\", control characters, or empty paths',
+      );
+    }
+    if (
+      target.startsWith('//') ||
+      decodedTrimmed.startsWith('//') ||
+      /^[a-z][a-z0-9+.-]*:/i.test(decodedTrimmed)
+    ) {
+      throw new TargetError(SAME_REPO_MESSAGE);
+    }
+
     const annotation = entity.metadata.annotations?.[ANNOTATION_LOCATION];
     if (!annotation) {
       throw new TargetError(
-        'The entity has no location to resolve a relative target against; use an absolute URL',
+        'The entity has no location to resolve a relative target against; use an absolute URL and allow it in temporal.definitions.allow',
       );
     }
     let location: { type: string; target: string };
@@ -289,13 +719,70 @@ export class DefinitionReader {
       throw new TargetError(`Invalid ${ANNOTATION_LOCATION} annotation`);
     }
     if (location.type === 'url') {
-      return {
-        type: 'url',
-        target: this.integrations.resolveUrl({
+      const baseIntegration = this.integrations.byUrl(location.target);
+      const baseRepo = parseRepoUrl(location.target, baseIntegration?.type);
+      if (!baseRepo) {
+        throw new TargetError(
+          `Could not determine the repository from ${ANNOTATION_LOCATION}; use an absolute URL and allow it in temporal.definitions.allow`,
+        );
+      }
+      if (baseRepo.kind === 'folder' && decodedTarget.startsWith('/')) {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      let depth = decodedTarget.startsWith('/')
+        ? 0
+        : baseRepo.dirSegments.length;
+      for (const segment of decodedTarget.split('/')) {
+        if (!segment || segment === '.') {
+          continue;
+        }
+        if (segment === '..') {
+          depth -= 1;
+          if (depth < 0) {
+            throw new TargetError(SAME_REPO_MESSAGE);
+          }
+        } else {
+          depth += 1;
+        }
+      }
+      let resolved: string;
+      try {
+        resolved = this.integrations.resolveUrl({
           url: target,
           base: location.target,
-        }),
-      };
+        });
+      } catch {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      const resolvedIntegration = this.integrations.byUrl(resolved);
+      if (baseIntegration !== resolvedIntegration) {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      const resolvedRepo = parseRepoUrl(resolved, resolvedIntegration?.type);
+      if (!resolvedRepo) {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      if (baseRepo.kind === 'folder') {
+        const resolvedUrl = new URL(resolved);
+        const resolvedPathname = posix.normalize(
+          decodeFully(resolvedUrl.pathname),
+        );
+        if (
+          resolvedUrl.origin !== baseRepo.origin ||
+          resolvedUrl.search !== baseRepo.search ||
+          !resolvedPathname.startsWith(baseRepo.folderPrefix) ||
+          resolvedPathname.length <= baseRepo.folderPrefix.length
+        ) {
+          throw new TargetError(SAME_REPO_MESSAGE);
+        }
+      } else if (
+        resolvedRepo.kind !== 'repo' ||
+        resolvedRepo.repoKey !== baseRepo.repoKey ||
+        resolvedRepo.ref !== baseRepo.ref
+      ) {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      return { type: 'url', target: resolved };
     }
     if (location.type === 'file') {
       if (!this.readFileLocations) {
@@ -319,7 +806,7 @@ export class DefinitionReader {
       return { type: 'file', target: file };
     }
     throw new TargetError(
-      `Locations of type ${location.type} are not supported; use an absolute URL`,
+      `Locations of type ${location.type} are not supported; use an absolute URL and allow it in temporal.definitions.allow`,
     );
   }
 
