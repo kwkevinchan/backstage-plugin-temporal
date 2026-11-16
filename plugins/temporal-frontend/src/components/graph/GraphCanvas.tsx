@@ -121,8 +121,8 @@ export interface GraphCanvasProps<N extends Node> {
   layoutWidth?: number;
   selectedId?: string;
   /**
-   * A box to bring into view when nothing is selected (the round frame of
-   * an expanded loop).
+   * A box to bring into view when nothing is selected: the box of a group
+   * opened, closed or picked last, or of a selected step in a closed group.
    */
   focusId?: string;
   onSelect(id: string | undefined): void;

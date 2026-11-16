@@ -768,7 +768,7 @@ describe('boxes of a frame in one row', () => {
   };
   const row = ['r1', 'r2', 'r3'];
 
-  it.each([[[]], [['r1']], [['r2']], [['r1', 'r2']]])(
+  it.each([[[]], [['r1']], [['r2']], [['r1', 'r2']], [['r1', 'r3']]])(
     'line up at their middles, without a larger frame (taller: %j)',
     tall => {
       const before = signalNextToRow(tall, [], false);
@@ -781,6 +781,20 @@ describe('boxes of a frame in one row', () => {
       // The other box stays clear of the frame.
       const frameBottom = layout.positions.get('F')!.y + height(layout, 'F');
       expect(layout.positions.get('s')!.y).toBeGreaterThan(frameBottom);
+    },
+  );
+
+  it.each([[['r3']]])(
+    'keep a row whose middles cannot be shared within the row (taller: %j)',
+    tall => {
+      // The taller last box fits the shared middle of the others only past
+      // the bottom of the row: lining it up would straighten no more
+      // arrows than it bends.
+      const layout = signalNextToRow(tall);
+      expect([...layout.positions]).toEqual([
+        ...signalNextToRow(tall, [], false).positions,
+      ]);
+      expect(new Set(row.map(id => middle(layout, id))).size).toBe(2);
     },
   );
 

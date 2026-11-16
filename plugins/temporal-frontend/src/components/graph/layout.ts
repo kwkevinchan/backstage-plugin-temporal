@@ -299,7 +299,7 @@ interface FramedGraph {
  * The graph with the boxes at `positions`: its columns spread out and its
  * frames placed, in one row.
  */
-function placed(
+function withFrames(
   graph: FramedGraph,
   positions: Map<string, { x: number; y: number }>,
 ): StepLayout {
@@ -312,21 +312,22 @@ function placed(
   return layout;
 }
 
+/** The frames that are in no other frame. */
+const outerFramesOf = (frames: LayoutFrame[]) =>
+  frames.filter(f => !f.parent).map(f => f.id);
+
 /** The graph with the boxes at `positions`, as it is drawn. */
 function settle(
   graph: FramedGraph,
   positions: Map<string, { x: number; y: number }>,
 ): StepLayout {
-  const layout = placed(graph, positions);
+  const layout = withFrames(graph, positions);
   const { width } = graph;
   if (width === undefined || graph.nodes.length === 0) return layout;
   // Fits as it is, at a readable zoom.
   if (layout.width * READABLE_ZOOM <= width) return layout;
   return wrapColumns(layout, width, outerFramesOf(graph.frames));
 }
-
-const outerFramesOf = (frames: LayoutFrame[]) =>
-  frames.filter(f => !f.parent).map(f => f.id);
 
 /**
  * The row each box ends up in when the graph is wrapped, or nothing when
@@ -336,7 +337,7 @@ const outerFramesOf = (frames: LayoutFrame[]) =>
 function wrappedRows(graph: FramedGraph): Map<string, number> | undefined {
   const { width, nodes } = graph;
   if (width === undefined || nodes.length === 0) return undefined;
-  const layout = placed(graph, graph.layout.positions);
+  const layout = withFrames(graph, graph.layout.positions);
   if (layout.width * READABLE_ZOOM <= width) return undefined;
   const plan = planRows(layout, width, outerFramesOf(graph.frames));
   if (plan.rowCount === 1) return undefined;
@@ -419,9 +420,10 @@ function alignFrameRows(graph: FramedGraph) {
       moved = true;
     }
     if (!moved || !straightens(graph, rows, positions, lined)) continue;
-    through ??= arrowsThroughBoxes(graph, positions);
+    const before = through ?? arrowsThroughBoxes(graph, positions);
     const after = arrowsThroughBoxes(graph, lined);
-    if ([...after].some(hit => !through!.has(hit))) continue;
+    through = before;
+    if ([...after].some(hit => !before.has(hit))) continue;
     for (const node of row) positions.set(node.id, lined.get(node.id)!);
     through = after;
   }
@@ -728,8 +730,7 @@ function placeFrames(
 /**
  * Moves the columns of a laid out graph into rows of at most `width`.
  * Columns are as wide as the widest box (the column width of a step, or
- * more for a large box such as an expanded loop), and fill each row from
- * the left. Each of `outerFrames` stays in one row, with the boxes in its
+ * of a model call), and fill each row from the left. Each of `outerFrames` stays in one row, with the boxes in its
  * width. With frames, the rows keep `FRAME_GAP` more at their sides and
  * between them, for the arrows that go around the frames into the next row.
  */

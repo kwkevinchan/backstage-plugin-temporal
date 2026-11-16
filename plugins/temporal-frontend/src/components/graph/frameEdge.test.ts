@@ -44,8 +44,9 @@ import { parallelGraph } from '../../testGraphs/parallelGraph';
 
 /** Space an arrow keeps from a frame border it runs along. */
 const CLEAR = 20;
-/** Random runs the layout is checked with. */
-const SEEDS = 100;
+/** Random runs and graphs the layout is checked with. */
+const FIRST_SEED = 2001;
+const SEEDS = 150;
 /** Space between two columns of steps. */
 const COLUMN = 56;
 
@@ -704,6 +705,19 @@ describe('arrows that share the gap between two rows', () => {
     expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
   });
 
+  it('leaves the turns of an arrow without frames where a smooth step has them', () => {
+    // s0 leaves no frame; it turns where the arrow out of the frame of s1
+    // turns.
+    const { layout, edges } = stacked(2);
+    const p = layout.positions.get('s0')!;
+    layout.positions.set('s0', { x: p.x + 24, y: p.y });
+    const plain = { ...edges[0], data: { sourceInset: 0, targetInset: 0 } };
+    const result = routed(layout, [plain, edges[1]]);
+    expect(result[0].points[1].x).toBe(result[1].points[1].x);
+    const data = result[0].edge.data!;
+    expect([data.sourceInset, data.targetInset]).toEqual([0, 0]);
+  });
+
   it('keeps one turn for the arrows out of one source', () => {
     const { layout, edges } = stacked(2);
     const fork = [
@@ -741,18 +755,48 @@ describe('arrows that share the gap between two rows', () => {
   });
 });
 
-/**
- * A random run: steps that run over random spans of time, each one after
- * the steps that ended last before it started (as a run is drawn), sizes
- * of steps, model calls and tool calls, and up to three groups of steps
- * next to each other.
- */
-function randomRun(seed: number) {
+/** Numbers from 0 to 1 that follow from `seed`. */
+function randomFrom(seed: number) {
   let state = seed >>> 0;
-  const random = () => {
+  return () => {
     state = (state * 1664525 + 1013904223) >>> 0;
     return state / 4294967296;
   };
+}
+
+/**
+ * The steps of a random graph, after the arrows: sizes of steps, model
+ * calls and tool calls, and up to three groups of steps next to each other.
+ */
+function randomSteps(random: () => number, ids: string[]) {
+  const groups: WorkflowEventGroup[] = [];
+  const groupCount = 1 + Math.floor(random() * 3);
+  for (let g = 0; g < groupCount; g++) {
+    const first = Math.floor(random() * ids.length);
+    const length = 1 + Math.floor(random() * 4);
+    groups.push({
+      ...nested([])[0],
+      key: `label:g${g}`,
+      id: `g${g}`,
+      name: `g${g}`,
+      nodeIds: ids.slice(first, Math.min(ids.length, first + length)),
+    });
+  }
+  const size = (width: number, height: number): NodeSize => ({ width, height });
+  // A size each: dagre writes the place of a box into it.
+  const nodes = ids.map(id => {
+    if (random() < 0.15) return { id, size: size(240, 86) };
+    return { id, size: random() < 0.1 ? size(180, 52) : size(220, 64) };
+  });
+  return { nodes, groups };
+}
+
+/**
+ * A random run: steps that run over random spans of time, each one after
+ * the steps that ended last before it started (as a run is drawn).
+ */
+function randomRun(seed: number) {
+  const random = randomFrom(seed);
   const count = 8 + Math.floor(random() * 14);
   const ids = Array.from({ length: count }, (_, i) => `n${i}`);
   const spans = ids
@@ -777,30 +821,34 @@ function randomRun(seed: number) {
       }
     }
   }
-  const groups: WorkflowEventGroup[] = [];
-  const groupCount = 1 + Math.floor(random() * 3);
-  for (let g = 0; g < groupCount; g++) {
-    const first = Math.floor(random() * count);
-    const length = 1 + Math.floor(random() * 4);
-    groups.push({
-      ...nested([])[0],
-      key: `label:g${g}`,
-      id: `g${g}`,
-      name: `g${g}`,
-      nodeIds: ids.slice(first, Math.min(count, first + length)),
-    });
+  return { edges, ...randomSteps(random, ids) };
+}
+
+/**
+ * A random graph: each step after one or two earlier steps, some after
+ * the step two before it.
+ */
+function randomGraph(seed: number) {
+  const random = randomFrom(seed);
+  const count = 8 + Math.floor(random() * 14);
+  const ids = Array.from({ length: count }, (_, i) => `n${i}`);
+  const pairs = new Set<string>();
+  for (let i = 1; i < count; i++) {
+    const before = 1 + (random() < 0.35 ? 1 : 0);
+    for (let j = 0; j < before; j++) {
+      pairs.add(`n${Math.floor(random() * i)} n${i}`);
+    }
+    if (random() < 0.3 && i > 2) pairs.add(`n${i - 2} n${i}`);
   }
-  const size = (width: number, height: number): NodeSize => ({ width, height });
-  // A size each: dagre writes the place of a box into it.
-  const nodes = ids.map(id => {
-    if (random() < 0.15) return { id, size: size(240, 86) };
-    return { id, size: random() < 0.1 ? size(180, 52) : size(220, 64) };
+  const edges: WorkflowGraphEdge[] = [...pairs].map(pair => {
+    const [source, target] = pair.split(' ');
+    return { id: `${source}->${target}`, source, target };
   });
-  return { nodes, edges, groups };
+  return { edges, ...randomSteps(random, ids) };
 }
 
 function layOutRun(
-  run: ReturnType<typeof randomRun>,
+  run: ReturnType<typeof randomRun | typeof randomGraph>,
   width?: number,
   lineUpRows?: boolean,
 ) {
@@ -879,23 +927,48 @@ describe('random runs', () => {
     },
   );
 
-  it('never run arrows through boxes because of lined up rows, nor spread turns too close', () => {
-    const found: string[] = [];
-    for (let seed = 1; seed <= SEEDS; seed++) {
-      const run = randomRun(seed);
-      for (const width of [undefined, 900, 1400]) {
-        const result = layOutRun(run, width);
-        const before = new Set(throughBoxes(layOutRun(run, width, false)));
-        for (const hit of throughBoxes(result)) {
-          if (!before.has(hit)) found.push(`run ${seed} at ${width}: ${hit}`);
-        }
-        for (const close of spreadTooClose(result)) {
-          found.push(`run ${seed} at ${width}: ${close}`);
+  it.each([
+    ['run', 5525, undefined, randomRun],
+    ['run', 5525, 900, randomRun],
+    ['run', 5525, 1100, randomRun],
+    ['graph', 176, 700, randomGraph],
+  ] as const)(
+    'never line up a row onto an arrow as it is drawn (%s %i, width %s)',
+    (_, seed, width, random) => {
+      // An arrow out of a frame runs straight to outside it before it
+      // turns (run 5525), and the turn of an arrow into the next row
+      // depends on the boxes next to it (graph 176).
+      const run = random(seed);
+      const before = throughBoxes(layOutRun(run, width, false));
+      const after = throughBoxes(layOutRun(run, width));
+      expect(after.filter(hit => !before.includes(hit))).toEqual([]);
+    },
+  );
+
+  it.each([
+    ['runs', randomRun],
+    ['graphs', randomGraph],
+  ] as const)(
+    'never run arrows through boxes because of lined up rows, nor spread turns too close, in random %s',
+    (_, random) => {
+      const found: string[] = [];
+      for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
+        const run = random(seed);
+        for (const width of [undefined, 1100]) {
+          const result = layOutRun(run, width);
+          const before = new Set(throughBoxes(layOutRun(run, width, false)));
+          for (const hit of throughBoxes(result)) {
+            if (!before.has(hit)) found.push(`${seed} at ${width}: ${hit}`);
+          }
+          for (const close of spreadTooClose(result)) {
+            found.push(`${seed} at ${width}: ${close}`);
+          }
         }
       }
-    }
-    expect(found).toEqual([]);
-  }, 60_000);
+      expect(found).toEqual([]);
+    },
+    60_000,
+  );
 });
 
 describe('rows of frames lined up', () => {
