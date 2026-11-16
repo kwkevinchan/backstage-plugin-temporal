@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useResolvedPath, useSearchParams } from 'react-router-dom';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
 import type {
@@ -55,12 +55,10 @@ import {
   useGraphFullscreenState,
 } from './graph/GraphCanvas';
 import { WorkflowGraph } from './graph/WorkflowGraph';
-import { loopOfStep, LoopView, LoopViews } from './graph/loops';
 import type { GroupViews } from './graph/eventGroups';
 import type { GroupDisplay } from './graph/WorkflowGraph';
 import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
-import { LoopsTab } from './LoopsTab';
 import { JsonView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
 import { RunHelp } from './RunHelp';
@@ -261,8 +259,6 @@ function GraphCard(props: {
   workflowHref(ref: WorkflowRef): string;
   showMarkers: boolean;
   onShowMarkersChange(show: boolean): void;
-  loopViews: LoopViews;
-  onLoopViewChange(name: string, view: LoopView): void;
   groupViews: GroupViews;
   onGroupViewChange(key: string, expanded: boolean | undefined): void;
   focusGroup?: { key: string };
@@ -317,8 +313,6 @@ function GraphCard(props: {
                 onSelect={onSelect}
                 showMarkers={props.showMarkers}
                 onShowMarkersChange={props.onShowMarkersChange}
-                loopViews={props.loopViews}
-                onLoopViewChange={props.onLoopViewChange}
                 groupViews={props.groupViews}
                 onGroupViewChange={props.onGroupViewChange}
                 focusGroup={props.focusGroup}
@@ -426,36 +420,6 @@ export function WorkflowDetailPage(
   const [selectedId, setSelectedId] = useState<string | undefined>();
   const [tab, setTab] = useState<string>('steps');
   const [showMarkers, setShowMarkers] = useState(false);
-  // A link from the Loops tab of another run opens a round: ?loop=&round=.
-  const [searchParams] = useSearchParams();
-  const linkedLoop = searchParams.get('loop');
-  const linkedRound = Number(searchParams.get('round'));
-  const [loopViews, setLoopViews] = useState<LoopViews>(() =>
-    linkedLoop
-      ? {
-          [linkedLoop]: {
-            expanded: true,
-            iteration: Number.isInteger(linkedRound) ? linkedRound : undefined,
-          },
-        }
-      : {},
-  );
-  // A link to another run of the same page: the component stays mounted.
-  useEffect(() => {
-    if (!linkedLoop) return;
-    setLoopViews(views => ({
-      ...views,
-      [linkedLoop]: {
-        expanded: true,
-        iteration: Number.isInteger(linkedRound) ? linkedRound : undefined,
-      },
-    }));
-  }, [linkedLoop, linkedRound, workflowRef]);
-  const setLoopView = useCallback(
-    (name: string, view: LoopView) =>
-      setLoopViews(views => ({ ...views, [name]: view })),
-    [],
-  );
   // Temporal event groups the user expanded or collapsed, and the group
   // picked in the Event Groups tab.
   const [groupViews, setGroupViews] = useState<GroupViews>({});
@@ -501,7 +465,6 @@ export function WorkflowDetailPage(
     [rootPath],
   );
   const nodes = data.graph?.nodes;
-  const loops = data.graph?.loops;
   const eventGroups = data.graph?.eventGroups;
   // A step picked outside the graph: its groups are expanded.
   const openGroupsOf = useCallback(
@@ -529,42 +492,19 @@ export function WorkflowDetailPage(
       // A marker picked in the events is shown in the graph.
       const node = nodes?.find(n => n.id === id);
       if (node && isMarkerStep(node)) setShowMarkers(true);
-      // A step of a loop is shown in its round.
-      const inLoop = loopOfStep(loops, id);
-      if (inLoop) {
-        setLoopView(inLoop.loop.name, {
-          expanded: true,
-          iteration: inLoop.round.iteration,
-        });
-      }
       openGroupsOf(id);
       setSelectedId(id);
       scrollToGraph();
     },
-    [nodes, loops, setLoopView, scrollToGraph, openGroupsOf],
+    [nodes, scrollToGraph, openGroupsOf],
   );
-  // A step picked in the step panel: shown in its loop round, selected.
+  // A step picked in the step panel: selected and shown in its groups.
   const selectInGraph = useCallback(
     (id: string) => {
-      const inLoop = loopOfStep(loops, id);
-      if (inLoop) {
-        setLoopView(inLoop.loop.name, {
-          expanded: true,
-          iteration: inLoop.round.iteration,
-        });
-      }
       openGroupsOf(id);
       setSelectedId(id);
     },
-    [loops, setLoopView, openGroupsOf],
-  );
-  const showRound = useCallback(
-    (loop: string, iteration: number) => {
-      setLoopView(loop, { expanded: true, iteration });
-      setSelectedId(undefined);
-      scrollToGraph();
-    },
-    [setLoopView, scrollToGraph],
+    [openGroupsOf],
   );
   // A group picked in the Event Groups tab: expanded with the groups
   // around it and brought into view.
@@ -772,8 +712,6 @@ export function WorkflowDetailPage(
             workflowHref={workflowHref}
             showMarkers={showMarkers}
             onShowMarkersChange={setShowMarkers}
-            loopViews={loopViews}
-            onLoopViewChange={setLoopView}
             groupViews={groupViews}
             onGroupViewChange={setGroupView}
             focusGroup={focusGroup}
@@ -790,7 +728,6 @@ export function WorkflowDetailPage(
               <TabList aria-label="Workflow details">
                 <Tab id="steps">Steps</Tab>
                 <Tab id="timeline">Timeline</Tab>
-                {loops && loops.length > 0 ? <Tab id="loops">Loops</Tab> : null}
                 {eventGroups && eventGroups.length > 0 ? (
                   <Tab id="event-groups">Event Groups</Tab>
                 ) : null}
@@ -823,17 +760,6 @@ export function WorkflowDetailPage(
                   <Loading />
                 )}
               </TabPanel>
-              {graph && loops && loops.length > 0 ? (
-                <TabPanel id="loops">
-                  <LoopsTab
-                    workflow={workflow}
-                    graph={graph}
-                    entityRef={entityRef}
-                    workflowHref={workflowHref}
-                    onShowRound={showRound}
-                  />
-                </TabPanel>
-              ) : null}
               {graph && eventGroups && eventGroups.length > 0 ? (
                 <TabPanel id="event-groups">
                   <EventGroupsTab

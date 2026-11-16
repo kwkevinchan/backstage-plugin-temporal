@@ -149,9 +149,6 @@ export const temporalPlugin = createBackendPlugin({
         // modules through temporalAccessServiceRef) → services (use cases)
         // → repositories (Temporal, S3).
         const temporalReads = new TemporalReadRepository(temporal);
-        const aiWorkflows =
-          config.getOptionalBoolean('temporal.experimental.aiWorkflows') ??
-          false;
         // The built-in adapters go through the same registration; an ID a
         // module took fails the start.
         const adapters = new LlmAdapters(logger);
@@ -164,7 +161,7 @@ export const temporalPlugin = createBackendPlugin({
           sources,
           PayloadStore.fromConfig(config, logger),
           temporalReads,
-          { aiWorkflows, llmAdapters: adapters },
+          { llmAdapters: adapters },
         );
         const lists = new WorkflowListQueries(
           temporal,
@@ -172,7 +169,7 @@ export const temporalPlugin = createBackendPlugin({
           sources,
           queries,
         );
-        const ai = new AiWorkflowQueries(temporalReads, logger, queries);
+        const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permissions.
         // Modules can add more rules (addPermissionRules).
         permissionsRegistry.addResourceType({

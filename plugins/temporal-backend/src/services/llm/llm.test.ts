@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *     https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,22 +14,11 @@
  * limitations under the License.
  */
 
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import { parseLlmMarker } from '../../common';
-import { parseActivityLoopMarker } from '../loops';
+import type { TemporalLlmAdapter } from '../../node/alpha';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
-import type { WorkflowNodeStatus } from '../../common';
+import { LlmAdapters } from './LlmAdapters';
 import { summarizeModelCalls } from './llm';
-import { normalizeLlmRecord, workflowKitAdapter } from './workflowKit';
-
-const fixture = JSON.parse(
-  readFileSync(
-    resolve(__dirname, '../../../../../test-fixtures/llm-records.json'),
-    'utf8',
-  ),
-);
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payload = (value: unknown) => ({
@@ -38,33 +27,33 @@ const payload = (value: unknown) => ({
 });
 const payloads = (value: unknown) => ({ payloads: [payload(value)] });
 
-/**
- * The summary of a step with the activity ID `llm/<call>`, read by the
- * workflow kit's adapter. `result` is the decoded result payload.
- */
-function summarizeLlmCall(
-  node: { status: WorkflowNodeStatus },
-  call: string,
-  result: any,
-) {
-  const step = {
-    kind: 'activity' as const,
-    activityType: 'callModel',
-    activityId: `llm/${call}`,
-  };
-  const calls = workflowKitAdapter.readModelCalls(step, {
-    ...(result && 'value' in result ? { result: result.value } : {}),
-  });
-  return summarizeModelCalls(
-    node,
-    { framework: 'temporal-workflow-kit', calls, inferToolCalls: false },
-    result,
-  ).summary;
-}
-const record = (attributes: object, extra: object = {}) => ({
-  'temporal.llm': { v: 1, semconv: fixture.semconv, attributes, ...extra },
-  value: { raw: true },
-});
+const vercelInput = {
+  modelId: 'fake-reasoner-1',
+  options: {
+    prompt: [
+      { role: 'user', content: [{ type: 'text', text: 'Explain retries.' }] },
+    ],
+  },
+};
+
+const vercelResult = {
+  content: [
+    { type: 'reasoning', text: 'I should look this up.' },
+    { type: 'text', text: 'Searching.' },
+    {
+      type: 'tool-call',
+      toolCallId: 'call_1',
+      toolName: 'search',
+      input: { query: 'retries' },
+    },
+  ],
+  finishReason: { unified: 'tool-calls' },
+  usage: {
+    inputTokens: { total: 40, cacheRead: 8 },
+    outputTokens: { total: 12, reasoning: 4 },
+  },
+  response: { id: 'resp-1', modelId: 'fake-reasoner-1-2026-11' },
+};
 
 /** History events in protobuf JSON form, one second apart. */
 function history() {
@@ -81,14 +70,25 @@ function history() {
     });
     return events.length;
   };
+  const resultPayloads = (end: { result?: unknown; rawResult?: unknown }) => {
+    if (end.rawResult !== undefined) return { payloads: [end.rawResult] };
+    return end.result === undefined ? undefined : payloads(end.result);
+  };
   const activity = (
     type: string,
     activityId: string,
-    end: { result?: unknown; failure?: unknown; open?: boolean },
+    end: {
+      input?: unknown;
+      result?: unknown;
+      rawResult?: unknown;
+      failure?: unknown;
+      open?: boolean;
+    },
   ) => {
     const id = add('ActivityTaskScheduled', {
       activityId,
       activityType: { name: type },
+      input: end.input === undefined ? undefined : payloads(end.input),
     });
     add('ActivityTaskStarted', { scheduledEventId: String(id), attempt: 1 });
     if (end.open) return id;
@@ -97,12 +97,12 @@ function history() {
         scheduledEventId: String(id),
         failure: end.failure,
       });
-    } else {
-      add('ActivityTaskCompleted', {
-        scheduledEventId: String(id),
-        result: end.result === undefined ? undefined : payloads(end.result),
-      });
+      return id;
     }
+    add('ActivityTaskCompleted', {
+      scheduledEventId: String(id),
+      result: resultPayloads(end),
+    });
     return id;
   };
   return { events, add, activity };
@@ -116,378 +116,55 @@ const options = {
   includePayloads: false,
 };
 
-describe('LLM markers in the backend', () => {
-  it.each(
-    (fixture.markers as any[])
-      .filter(m => m.loop)
-      .map((m: any): [string, any] => [m.text, m.loop]),
-  )('reads the loop marker after %s', (text, loop) => {
-    expect(parseActivityLoopMarker(text)).toEqual(loop);
-  });
-
-  it.each(
-    (fixture.markers as any[]).map((m: any): [string, any] => [m.text, m]),
-  )('reads %s like the workflow kit', (text, example: any) => {
-    expect(parseLlmMarker(text as string)).toEqual(example.marker ?? undefined);
-  });
-});
-
-describe('LLM records', () => {
-  it.each(
-    (fixture.records as any[]).map((r: any): [string, any] => [r.name, r]),
-  )('summarizes the %s record the converters write', (_name, example: any) => {
-    const summary = summarizeLlmCall({ status: 'Completed' }, 'c1', {
-      encoding: 'json/plain',
-      value: record(example.attributes),
-    });
-    expect(summary).toEqual({
-      call: 'c1',
-      framework: 'temporal-workflow-kit',
-      record: 'available',
-      operation: 'chat',
-      ...example.summary,
-    });
-  });
-
-  it('reads attributes stored as JSON text, as OpenTelemetry exporters do', () => {
-    const attributes = fixture.records[1].attributes;
-    const normalized = normalizeLlmRecord(
-      record({
-        ...attributes,
-        'gen_ai.input.messages': JSON.stringify(
-          attributes['gen_ai.input.messages'],
-        ),
-        'gen_ai.output.messages': JSON.stringify(
-          attributes['gen_ai.output.messages'],
-        ),
-        'gen_ai.response.finish_reasons': 'tool_call',
-        'gen_ai.request.top_k': 5,
-      })['temporal.llm'] as any,
-    );
-    expect(normalized.systemInstructions).toEqual([
-      { type: 'text', content: 'You are a code reviewer.' },
-    ]);
-    expect(normalized.inputMessages.map(m => m.role)).toEqual([
-      'user',
-      'assistant',
-      'tool',
-    ]);
-    expect(normalized.outputMessages[0].parts[0]).toEqual({
-      type: 'reasoning',
-      content: 'The file exports a constant; check its use.',
-    });
-    expect(normalized.finishReasons).toEqual(['tool_call']);
-    expect(normalized.parameters).toEqual({
-      max_tokens: 4096,
-      'reasoning.level': 'enabled',
-      top_k: 5,
-    });
-    expect(normalized.usage.cacheWriteInputTokens).toBe(100);
-  });
-
-  it('turns odd parts into text and keeps tool executions', () => {
-    const normalized = normalizeLlmRecord(
-      record(
-        {
-          'gen_ai.output.messages': [
-            {
-              role: 'assistant',
-              parts: [
-                'plain',
-                3,
-                { type: 'tool_call', name: 't', arguments: '{"a":1}' },
-              ],
-            },
-            'oops',
-          ],
-        },
-        {
-          durationMs: 12.6,
-          error: { type: 'Timeout', message: 'too slow' },
-          toolExecutions: [
-            {
-              'gen_ai.tool.name': 'grep',
-              'gen_ai.tool.call.id': 'x',
-              'gen_ai.tool.call.result': '[1]',
-              durationMs: 4,
-            },
-            {
-              'gen_ai.tool.name': 'cat',
-              error: { message: 'no file' },
-              'error.type': 'ENOENT',
-            },
-            'bad',
-          ],
-        },
-      )['temporal.llm'] as any,
-    );
-    expect(normalized.outputMessages[0].parts).toEqual([
-      { type: 'text', content: 'plain' },
-      { type: 'text', content: '3' },
-      { type: 'tool_call', name: 't', arguments: { a: 1 } },
-    ]);
-    expect(normalized.outputMessages[1]).toEqual({
-      role: 'user',
-      parts: [{ type: 'text', content: 'oops' }],
-    });
-    expect(normalized.durationMs).toBe(13);
-    expect(normalized.error).toEqual({ type: 'Timeout', message: 'too slow' });
-    expect(normalized.toolExecutions).toEqual([
-      { name: 'grep', id: 'x', result: [1], durationMs: 4 },
-      { name: 'cat', error: { message: 'no file' } },
-    ]);
-    const summary = summarizeLlmCall({ status: 'Failed' }, 'c', {
-      encoding: 'json/plain',
-      value: record(
-        {},
-        {
-          toolExecutions: [
-            { 'gen_ai.tool.name': 'grep', 'gen_ai.tool.call.id': 'x' },
-          ],
-        },
-      ),
-    });
-    expect(summary.toolCalls).toEqual([
-      { id: 'x', name: 'grep', inActivity: true, status: 'Completed' },
-    ]);
-  });
-
-  it('says why there is no record', () => {
-    expect(summarizeLlmCall({ status: 'Running' }, 'c', undefined).record).toBe(
-      'pending',
-    );
-    expect(
-      summarizeLlmCall({ status: 'Completed' }, 'c', {
-        encoding: 'json/plain',
-        value: 'text',
-      }).record,
-    ).toBe('missing');
-    expect(
-      summarizeLlmCall({ status: 'TimedOut' }, 'c', undefined).record,
-    ).toBe('missing');
-    expect(
-      summarizeLlmCall({ status: 'Completed' }, 'c', {
-        encoding: 'binary/encrypted',
-        size: 9,
-        undecodable: true,
-      }).record,
-    ).toBe('unreadable');
-    expect(
-      summarizeLlmCall({ status: 'Completed' }, 'c', {
-        encoding: 'json/protobuf',
-        external: {},
-      }).record,
-    ).toBe('unreadable');
-    expect(
-      summarizeLlmCall({ status: 'Completed' }, 'c', {
-        encoding: 'json/plain',
-        value: { 'temporal.llm': { v: 2, attributes: {} } },
-      }).record,
-    ).toBe('missing');
-  });
-});
-
-/** A two round agent: model call, two tools (one fails once), model call. */
-function agentHistory() {
-  const h = history();
-  h.add('WorkflowExecutionStarted', { input: payloads({ task: 'x' }) });
-  const prepare = h.activity('prepare', '1', { result: 'ok' });
-  const first = h.activity('callModel', 'llm/agent-1/loop/agent/1/callModel', {
-    result: record(fixture.records[0].attributes, { durationMs: 1500 }),
-  });
-  // Two tools in parallel; read_issue #15 failed once and was retried.
-  const t1 = h.add('ActivityTaskScheduled', {
-    activityId: 'tool/agent-1/call_b1/loop/agent/1/read_issue',
-    activityType: { name: 'read_issue' },
-  });
-  const t2 = h.add('ActivityTaskScheduled', {
-    activityId: 'tool/agent-1/call_b2/loop/agent/1/read_issue/2',
-    activityType: { name: 'read_issue' },
-  });
-  h.add('ActivityTaskStarted', { scheduledEventId: String(t1), attempt: 1 });
-  h.add('ActivityTaskStarted', {
-    scheduledEventId: String(t2),
-    attempt: 2,
-    lastFailure: { message: 'flaky' },
-  });
-  h.add('ActivityTaskCompleted', {
-    scheduledEventId: String(t1),
-    result: payloads('#12'),
-  });
-  h.add('ActivityTaskCompleted', {
-    scheduledEventId: String(t2),
-    result: payloads('#15'),
-  });
-  // A tool run as a local activity, marked in its result.
-  const marker = h.add('MarkerRecorded', {
-    markerName: 'core_local_activity',
-    details: {
-      data: payloads({ seq: 3, activity_id: '3', activity_type: 'search' }),
-      result: payloads({
-        'temporal.llm.tool': { call: 'agent-1', toolCallId: 'call_x' },
-        value: [],
-      }),
-    },
-  });
-  const second = h.activity('callModel', 'llm/agent-2/loop/agent/2/callModel', {
-    result: record({
-      'gen_ai.request.model': 'm',
-      'gen_ai.usage.input_tokens': 100,
-      'gen_ai.usage.output_tokens': 20,
-      'gen_ai.output.messages': [
-        { role: 'assistant', parts: [{ type: 'text', content: 'done' }] },
-      ],
-    }),
-  });
-  h.add('WorkflowExecutionCompleted', { result: payloads('done') });
-  return { ...h, prepare, first, t1, t2, marker, second };
-}
-
 describe('LLM steps in the graph', () => {
-  it('summarizes model calls and links their tool calls', () => {
-    const h = agentHistory();
+  it('summarizes official model calls and infers their tool calls', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', { input: payloads({ task: 'x' }) });
+    const prepare = h.activity('prepare', '1', { result: 'ok' });
+    const call = h.activity('invokeModel', 'model-1', {
+      input: vercelInput,
+      result: vercelResult,
+    });
+    const tool = h.activity('search', 'search-1', {
+      result: { hits: ['docs/retries.md'] },
+    });
+    h.add('WorkflowExecutionCompleted', { result: payloads('done') });
     const graph = buildWorkflowGraph(h.events, options);
-    const node = (id: number, kind = 'activity') =>
-      graph.nodes.find(n => n.id === `${kind}-${id}`)!;
-    expect(node(h.prepare).llm).toBeUndefined();
-    expect(node(h.prepare).tool).toBeUndefined();
-    const first = node(h.first);
-    expect(first.result).toBeUndefined(); // no payload permission
-    expect(first.llm).toMatchObject({
-      call: 'agent-1',
+    const node = (id: number) =>
+      graph.nodes.find(n => n.id === `activity-${id}`)!;
+    expect(node(prepare).llm).toBeUndefined();
+    expect(node(call).llm).toMatchObject({
+      framework: 'vercel-ai-sdk',
       record: 'available',
-      model: 'deepseek-reasoner-0528',
-      durationMs: 1500,
+      model: 'fake-reasoner-1-2026-11',
       reasoning: true,
-      usage: { inputTokens: 812, outputTokens: 164 },
+      usage: {
+        inputTokens: 40,
+        outputTokens: 12,
+        reasoningTokens: 4,
+        cacheReadInputTokens: 8,
+      },
     });
-    expect(first.llm!.toolCalls).toEqual([
+    expect(node(call).llm!.toolCalls).toEqual([
       {
-        id: 'call_b1',
-        name: 'read_issue',
-        nodeId: `activity-${h.t1}`,
-        status: 'Completed',
-      },
-      {
-        id: 'call_b2',
-        name: 'read_issue',
-        nodeId: `activity-${h.t2}`,
-        status: 'Completed',
-      },
-      {
-        id: 'call_x',
+        id: 'call_1',
         name: 'search',
-        nodeId: `marker-${h.marker}`,
+        nodeId: `activity-${tool}`,
         status: 'Completed',
+        inferred: true,
       },
     ]);
-    expect(node(h.t2).tool).toEqual({
-      call: 'agent-1',
-      toolCallId: 'call_b2',
-      llmNodeId: `activity-${h.first}`,
-      name: 'read_issue',
-    });
-    expect(node(h.t2).attempt).toBe(2);
-    expect(node(h.marker, 'marker')).toMatchObject({
+    expect(node(tool).tool).toMatchObject({
+      llmNodeId: `activity-${call}`,
       name: 'search',
-      tool: { call: 'agent-1', toolCallId: 'call_x' },
-    });
-    // The tools run in parallel after the first call, then the second call.
-    const into = (id: string) =>
-      graph.edges.filter(e => e.target === id).map(e => e.source);
-    expect(into(`activity-${h.t1}`)).toEqual([`activity-${h.first}`]);
-    expect(into(`activity-${h.t2}`)).toEqual([`activity-${h.first}`]);
-    // A model call without tools and a duration from the activity.
-    expect(node(h.second).llm).toMatchObject({
-      call: 'agent-2',
-      model: 'm',
-      reasoning: false,
-      toolCalls: [],
-      durationMs: 1000,
-    });
-    // Rounds of the loop add up their tokens.
-    const [loop] = graph.loops!;
-    expect(loop.rounds.map(r => [r.iteration, r.llmCalls, r.usage])).toEqual([
-      [
-        1,
-        1,
-        {
-          inputTokens: 812,
-          outputTokens: 164,
-          reasoningTokens: 96,
-          cacheReadInputTokens: 256,
-        },
-      ],
-      [2, 1, { inputTokens: 100, outputTokens: 20 }],
-    ]);
-    expect(loop.rounds[0].steps.map(s => [s.name, s.llm])).toEqual([
-      ['callModel', 'llm'],
-      ['read_issue', 'tool'],
-      ['read_issue', 'tool'],
-      ['search', 'tool'],
-    ]);
-  });
-
-  it('reads the record of a failed call from the failure details', () => {
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    const id = h.activity('callModel', 'llm/c', {
-      failure: {
-        message: 'wrapped',
-        cause: {
-          message: 'rate limited',
-          applicationFailureInfo: {
-            details: payloads(
-              record(
-                { 'gen_ai.request.model': 'm', 'error.type': 'RateLimit' },
-                { error: { type: 'RateLimit', message: 'rate limited' } },
-              ),
-            ),
-          },
-        },
-      },
-    });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      status: 'Failed',
-    });
-    expect(graph.nodes.find(n => n.id === `activity-${id}`)!.llm).toMatchObject(
-      {
-        record: 'available',
-        model: 'm',
-        error: 'RateLimit',
-      },
-    );
-  });
-
-  it('shows an open call and a tool without its call', () => {
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    const tool = h.activity('search', 'tool/nowhere/1', { result: 1 });
-    const open = h.activity('callModel', 'llm/c', { open: true });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      status: 'Running',
-    });
-    expect(graph.nodes.find(n => n.id === `activity-${tool}`)!.tool).toEqual({
-      call: 'nowhere',
-      toolCallId: '1',
-    });
-    expect(graph.nodes.find(n => n.id === `activity-${open}`)!.llm).toEqual({
-      call: 'c',
-      framework: 'temporal-workflow-kit',
-      record: 'pending',
-      toolCalls: [],
-      reasoning: false,
+      inferred: true,
     });
   });
 
-  it('leaves workflows without markers as they are', () => {
+  it('leaves workflows without matching payloads as they are', () => {
     const h = history();
     h.add('WorkflowExecutionStarted', {});
-    h.activity('callModel', 'callModel-1', {
-      result: record(fixture.records[0].attributes),
-    });
+    h.activity('callModel', 'callModel-1', { result: { text: 'hi' } });
     h.add('MarkerRecorded', {
       markerName: 'core_local_activity',
       details: { data: payloads({ activity_type: 'search' }) },
@@ -500,24 +177,175 @@ describe('LLM steps in the graph', () => {
     expect(graph.nodes.find(n => n.kind === 'marker')!.name).toBe(
       'Local activity',
     );
-    expect(graph.loops).toBeUndefined();
+  });
+});
+
+describe('the state of a model call without a record', () => {
+  const sealed = {
+    metadata: { encoding: b64('binary/encrypted') },
+    data: b64('sealed'),
+  };
+
+  it('is pending while the call is open, missing once it ended without a result, and unreadable when the result cannot be decoded', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const open = h.activity('invokeModel', 'open', {
+      input: vercelInput,
+      open: true,
+    });
+    const empty = h.activity('invokeModel', 'empty', { input: vercelInput });
+    const hidden = h.activity('invokeModel', 'hidden', {
+      input: vercelInput,
+      rawResult: sealed,
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      status: 'Running',
+    });
+    const llm = (id: number) =>
+      graph.nodes.find(n => n.id === `activity-${id}`)!.llm;
+    expect(llm(open)).toEqual({
+      framework: 'vercel-ai-sdk',
+      record: 'pending',
+      toolCalls: [],
+      reasoning: false,
+    });
+    expect(llm(empty)).toMatchObject({ record: 'missing' });
+    expect(llm(hidden)).toMatchObject({ record: 'unreadable' });
+  });
+
+  it('is decided by the status of the step and by the decoded result', () => {
+    const read = { framework: 'x', calls: [{}] };
+    const record = (status: string, decoded: unknown) =>
+      summarizeModelCalls({ status } as any, read, decoded).summary.record;
+    expect(record('Running', undefined)).toBe('pending');
+    expect(record('Retrying', undefined)).toBe('pending');
+    expect(record('Completed', undefined)).toBe('missing');
+    expect(record('TimedOut', undefined)).toBe('missing');
+    expect(record('Completed', { encoding: 'json/plain', value: 'text' })).toBe(
+      'missing',
+    );
+    expect(
+      record('Completed', {
+        encoding: 'binary/encrypted',
+        size: 9,
+        undecodable: true,
+      }),
+    ).toBe('unreadable');
+    expect(
+      record('Completed', { encoding: 'json/protobuf', external: {} }),
+    ).toBe('unreadable');
+  });
+});
+
+describe('failure details of a model call', () => {
+  /** An adapter that reads the record a failed call put in its failure. */
+  const failureAdapter: TemporalLlmAdapter = {
+    id: 'failure-details',
+    isModelCall: step => step.activityType === 'callModel',
+    readModelCalls: (_step, stepPayloads) => {
+      const details: any = stepPayloads.failureDetails?.[0];
+      if (!details) return [{}];
+      return [
+        {
+          record: {
+            requestModel: details.model,
+            usage: {},
+            systemInstructions: [],
+            inputMessages: [],
+            outputMessages: [],
+            toolExecutions: [],
+            error: details.error,
+          },
+        },
+      ];
+    },
+  };
+
+  it('gives the record of a failed call to the adapter', () => {
+    const adapters = new LlmAdapters();
+    adapters.add(failureAdapter);
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const id = h.activity('callModel', 'call-1', {
+      failure: {
+        message: 'wrapped',
+        cause: {
+          message: 'rate limited',
+          applicationFailureInfo: {
+            details: payloads({
+              model: 'm',
+              error: { type: 'RateLimit', message: 'rate limited' },
+            }),
+          },
+        },
+      },
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      status: 'Failed',
+      llmAdapters: adapters,
+    });
+    expect(graph.nodes.find(n => n.id === `activity-${id}`)!.llm).toMatchObject(
+      {
+        framework: 'failure-details',
+        record: 'available',
+        model: 'm',
+        error: 'RateLimit',
+      },
+    );
+  });
+
+  it('has no failure details for a step that completed', () => {
+    const seen: unknown[] = [];
+    const adapters = new LlmAdapters();
+    adapters.add({
+      ...failureAdapter,
+      readModelCalls: (_step, stepPayloads) => {
+        seen.push(stepPayloads.failureDetails);
+        return [{}];
+      },
+    });
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    h.activity('callModel', 'call-1', { result: { ok: true } });
+    buildWorkflowGraph(h.events, { ...options, llmAdapters: adapters });
+    expect(seen).toEqual([undefined]);
+  });
+});
+
+describe('tool calls without a model call', () => {
+  it('keeps the tool call ID of an MCP tool step that no model call asked for', () => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const tool = h.activity('files-callTool', 'tool-1', {
+      input: { name: 'read', input: {}, options: { toolCallId: 'orphan' } },
+      result: 'ok',
+    });
+    const graph = buildWorkflowGraph(h.events, options);
+    expect(graph.nodes.find(n => n.id === `activity-${tool}`)!.tool).toEqual({
+      name: 'read',
+      toolCallId: 'orphan',
+    });
   });
 });
 
 describe('LLM steps in the steps response', () => {
   it('adds summaries and tool links', () => {
-    const h = agentHistory();
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const call = h.activity('invokeModel', 'model-1', {
+      input: vercelInput,
+      result: vercelResult,
+    });
+    const tool = h.activity('search', 'search-1', { result: { hits: [] } });
     const steps = toWorkflowSteps(h.events, false);
     const byId = (id: number) =>
       steps.activities.find(a => a.scheduledEventId === String(id))!;
-    expect(byId(h.prepare).llm).toBeUndefined();
-    expect(byId(h.first).llm).toMatchObject({
-      model: 'deepseek-reasoner-0528',
-      toolCalls: [
-        { id: 'call_b1', nodeId: `activity-${h.t1}` },
-        { id: 'call_b2', nodeId: `activity-${h.t2}` },
-      ],
+    expect(byId(call).llm).toMatchObject({
+      model: 'fake-reasoner-1-2026-11',
+      toolCalls: [{ id: 'call_1', nodeId: `activity-${tool}` }],
     });
-    expect(byId(h.t1).tool).toMatchObject({ llmNodeId: `activity-${h.first}` });
+    expect(byId(tool).tool).toMatchObject({ llmNodeId: `activity-${call}` });
   });
 });

@@ -33,7 +33,6 @@ const {
   upsertSearchAttributes,
   workflowInfo,
 } = require('@temporalio/workflow');
-const { createLoops } = require('@kwkevinchan/temporal-workflow-kit/loop');
 const agentWorkflows = require('./agentWorkflows');
 
 const { reserveStock, chargeCard, deploy } = proxyActivities({
@@ -267,53 +266,44 @@ async function ticketWorkflow(ticket) {
 }
 
 /**
- * A fake AI loop: draft, review, and draft again with the review's
- * feedback until the score is high enough, for at most `maxRounds` rounds.
- * The "LLM" activities answer from a seed, so the run always looks the
- * same. A short pause between rounds (a timer) belongs to the round.
+ * A fake generate/check/revise loop: draft, review, and draft again with
+ * the review's feedback until the score is high enough, for at most
+ * `maxRounds` rounds. The "LLM" activities answer from a seed, so the run
+ * always looks the same.
  */
 async function draftReviewWorkflow(request) {
-  const loops = createLoops();
+  const { llmDraft, llmReview } = proxyActivities({
+    startToCloseTimeout: '10 seconds',
+  });
   let feedback;
-  const result = await loops.run(
-    'draft-review',
-    { maxIterations: request.maxRounds ?? 5 },
-    async round => {
-      const { llmDraft, llmReview } = round.activities({
-        startToCloseTimeout: '10 seconds',
-      });
-      const draft = await llmDraft({
-        topic: request.topic,
-        round: round.iteration,
-        feedback,
-      });
-      const review = await llmReview({
-        draft,
-        round: round.iteration,
-        seed: request.seed ?? 1,
-      });
-      feedback = review.feedback;
-      if (review.score >= (request.passScore ?? 0.8)) {
-        return round.done({
-          value: draft,
-          decision: 'accept',
-          score: review.score,
-        });
-      }
-      await sleep('300 milliseconds');
-      return round.next({
-        value: draft,
-        decision: 'revise',
-        score: review.score,
-      });
-    },
-  );
+  let draft;
+  let review;
+  const maxRounds = request.maxRounds ?? 5;
+  let rounds = 0;
+  for (let round = 1; round <= maxRounds; round++) {
+    rounds = round;
+    draft = await llmDraft({
+      topic: request.topic,
+      round,
+      feedback,
+    });
+    review = await llmReview({
+      draft,
+      round,
+      seed: request.seed ?? 1,
+    });
+    feedback = review.feedback;
+    if (review.score >= (request.passScore ?? 0.8)) break;
+    await sleep('300 milliseconds');
+  }
+  const status =
+    review.score >= (request.passScore ?? 0.8) ? 'done' : 'exhausted';
   const published = await publishDraft({
     topic: request.topic,
-    status: result.status,
-    rounds: result.iterations,
+    status,
+    rounds,
   });
-  return { ...result, published };
+  return { status, iterations: rounds, value: draft, published };
 }
 
 /**
@@ -321,25 +311,24 @@ async function draftReviewWorkflow(request) {
  * (three runs). The round count goes on across the runs.
  */
 async function longRefineWorkflow(request) {
-  const loops = createLoops();
-  const result = await loops.run(
-    'refine',
-    {
-      maxIterations: request.totalRounds ?? 25,
-      continueAsNew: { afterRounds: request.every ?? 10, args: [request] },
-    },
-    async round => {
-      const { llmRefine } = round.activities({
-        startToCloseTimeout: '10 seconds',
-      });
-      const out = await llmRefine({
-        document: request.document,
-        round: round.iteration,
-      });
-      return round.next({ value: out.text, score: out.score });
-    },
-  );
-  return { rounds: result.iterations, status: result.status };
+  const { llmRefine } = proxyActivities({
+    startToCloseTimeout: '10 seconds',
+  });
+  const total = request.totalRounds ?? 25;
+  const every = request.every ?? 10;
+  const start = request.startRound ?? 1;
+  const end = Math.min(total, start + every - 1);
+  let last;
+  for (let round = start; round <= end; round++) {
+    last = await llmRefine({
+      document: request.document,
+      round,
+    });
+  }
+  if (end < total) {
+    await continueAsNew({ ...request, startRound: end + 1 });
+  }
+  return { rounds: end, status: 'exhausted', last };
 }
 
 const { publishDraft } = proxyActivities({

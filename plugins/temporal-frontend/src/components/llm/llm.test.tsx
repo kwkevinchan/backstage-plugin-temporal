@@ -18,7 +18,6 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { temporalApiRef } from '../../extensions';
 import {
-  failedWorkflow,
   graphResponse,
   llmCallResponse,
   llmGraphResponse,
@@ -27,7 +26,6 @@ import {
 import { WorkflowGraph } from '../graph/WorkflowGraph';
 import { layoutSteps, stepSize, visibleSteps } from '../graph/layout';
 import { StepDrawer } from '../StepDrawer';
-import { LoopsTab } from '../LoopsTab';
 import type { WorkflowGraphResponse } from '../../common';
 import {
   formatCallDuration,
@@ -83,11 +81,7 @@ describe('LLM text', () => {
 describe('LLM steps in the graph', () => {
   it('draws model calls with model, tokens, duration and tools, and tool calls as small boxes', async () => {
     await renderInTestApp(
-      <WorkflowGraph
-        graph={llmGraphResponse}
-        onSelect={() => {}}
-        loopViews={{ agent: { expanded: true, iteration: 1 } }}
-      />,
+      <WorkflowGraph graph={llmGraphResponse} onSelect={() => {}} />,
     );
     const call = screen.getByTestId('step-activity-5');
     expect(call).toHaveAttribute('data-llm', 'call');
@@ -331,57 +325,5 @@ describe('A step with several model calls', () => {
     await waitFor(() => expect(panel).toHaveTextContent('model-a'));
     expect(panel).not.toHaveTextContent('model-b');
     expect(screen.getByTestId('llm-usage-tiles')).toHaveTextContent('10');
-  });
-});
-
-describe('LLM steps in the Loops tab', () => {
-  it('adds the tokens of each round and of the loop', async () => {
-    const api = mockTemporalApi();
-    (api.getWorkflowLoops as jest.Mock).mockResolvedValue({
-      loops: llmGraphResponse.loops!,
-      runs: [{ runId: 'run-1', segment: 1, status: 'Completed' }],
-      source: 'history',
-      truncated: false,
-    });
-    await renderInTestApp(
-      <TestApiProvider apis={[[temporalApiRef, api]]}>
-        <LoopsTab
-          workflow={failedWorkflow}
-          graph={llmGraphResponse}
-          workflowHref={() => '/x'}
-          onShowRound={() => {}}
-        />
-      </TestApiProvider>,
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId('round-tokens-1')).toHaveTextContent(
-        '1.2k in · 96 out',
-      ),
-    );
-    expect(screen.getByTestId('round-tokens-2')).toHaveTextContent(
-      '1.5k in · 300 out',
-    );
-    expect(screen.getByTestId('loop-tokens-total')).toHaveTextContent(
-      'Tokens: 2.7k in · 396 out',
-    );
-    expect(screen.getAllByLabelText('Model call')).toHaveLength(2);
-    expect(screen.getAllByLabelText('Tool call')).toHaveLength(1);
-  });
-
-  it('has no tokens column for loops without model calls', async () => {
-    await renderInTestApp(
-      <TestApiProvider apis={[[temporalApiRef, mockTemporalApi()]]}>
-        <LoopsTab
-          workflow={failedWorkflow}
-          graph={graphResponse}
-          workflowHref={() => '/x'}
-          onShowRound={() => {}}
-        />
-      </TestApiProvider>,
-    );
-    await screen.findByTestId('workflow-loops');
-    expect(
-      screen.queryByRole('columnheader', { name: 'Tokens' }),
-    ).not.toBeInTheDocument();
   });
 });

@@ -11,10 +11,9 @@ tools) and the OpenAI Agents integration (`@temporalio/openai-agents`:
 model call only when its payloads have the integration's shape; others stay
 plain steps.
 
-- Model calls no longer need `temporal.experimental.aiWorkflows`; the
-  setting now only turns on the loops. So, in an installation that never
-  turned it on, whoever has the read permission of a workflow now sees in
-  the graph what the backend reads from the payloads of its model calls:
+- Model calls need no setting. Whoever has the read permission of a
+  workflow sees in the graph what the backend reads from the payloads of
+  its model calls:
   the framework, the model, the token counts (also reasoning and cached),
   the finish reason, the names and tool call IDs of the tools asked for,
   and the type or message of an error. The messages, the thinking and
@@ -36,5 +35,4 @@ plain steps.
   that read the call; `call` is optional (the frontend titles a call by its
   summary or model without it). A step can make several model calls
   (`callCount`); `GET .../llm-calls/:eventId?index=` reads one of them.
-- The format of the unreleased workflow kit is still read by an internal
-  adapter.
+

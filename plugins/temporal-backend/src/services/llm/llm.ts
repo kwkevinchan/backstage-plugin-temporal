@@ -298,8 +298,6 @@ interface ModelStep {
   calls: TemporalLlmModelCall[];
   requests: ToolRequest[];
   answered: Set<string>;
-  /** False: its tool calls are linked by tool call ID only. */
-  infer: boolean;
 }
 
 interface ToolStep {
@@ -349,13 +347,7 @@ export function readLlmSteps(
         if (c.record)
           answeredToolCalls(c.record).forEach(id => answered.add(id));
       }
-      models.push({
-        entry,
-        calls: read.calls,
-        requests,
-        answered,
-        infer: read.inferToolCalls,
-      });
+      models.push({ entry, calls: read.calls, requests, answered });
       continue;
     }
     const tool = reader.readToolCall(entry.step, payloads, eventId)?.tool;
@@ -428,7 +420,7 @@ function linkByInference(models: ModelStep[], candidates: ToolStep[]) {
   const used = new Set<ToolStep>();
   models.forEach((model, i) => {
     const start = model.entry.node.last;
-    if (start === undefined || !model.infer) return;
+    if (start === undefined) return;
     for (const request of model.requests) {
       const { ref } = request;
       if (ref.nodeId || ref.inActivity) continue;

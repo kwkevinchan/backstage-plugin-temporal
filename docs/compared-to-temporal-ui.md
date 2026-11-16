@@ -45,7 +45,7 @@ What the Temporal Web UI offers depends on its version; see the
 | Operations                  | Start, signal, update, query, cancel, terminate, reset, batch operations, schedules and more | Start, signal, update, query, cancel, terminate, rerun, and pause, resume or trigger schedules                                |
 | Cluster areas               | Namespaces, task queues, workers, worker versioning, Codec Server, creating schedules        | None; use **Open in Temporal UI**                                                                                             |
 | Large data                  | Shows the External Storage reference                                                         | Reads the object from S3 and shows it, a preview or a thumbnail, with a download                                              |
-| AI workflows (experimental) | A long list of activities                                                                    | Loops folded into rounds and a panel for each model call                                                                      |
+| AI workflows (experimental) | A long list of activities                                                                    | Model calls as boxes with an LLM panel; Event Groups as frames around a loop                                                  |
 | Catalog context             | None                                                                                         | Owner, system, dependencies and the catalog graph next to the workflows                                                       |
 
 ## When to use which

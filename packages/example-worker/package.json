@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.350.0",
-    "@kwkevinchan/temporal-workflow-kit": "workspace:^",
     "@temporalio/activity": "~1.24.0",
     "@temporalio/client": "~1.24.0",
     "@temporalio/common": "~1.24.0",

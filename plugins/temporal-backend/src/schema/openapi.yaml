@@ -7,7 +7,7 @@ info:
 
     The paths are relative to the base URL of the plugin, `/api/temporal` in a default backend (the discovery service gives the URL of an installation). Every route needs Backstage credentials: a user token from the identity API, or a service token.
 
-    The routes that change workflows (tag `Operations`, `x-temporal-control: true`) exist unless `temporal.control.enabled` is false. Routes and fields marked experimental (`x-temporal-experimental: true`, tag `Experimental`) change before the first stable release; the loops are only served with `temporal.experimental.aiWorkflows`. `x-temporal-permissions` lists the permissions a route checks; the description says on what, and the permission policy decides.
+    The routes that change workflows (tag `Operations`, `x-temporal-control: true`) exist unless `temporal.control.enabled` is false. Routes and fields marked experimental (`x-temporal-experimental: true`, tag `Experimental`) change before the first stable release. `x-temporal-permissions` lists the permissions a route checks; the description says on what, and the permission policy decides.
 
     Paths take the entity kind, namespace and name in lowercase. Errors have the body of the Backstage backend (`Error`). A route that is not served (the operations with `temporal.control.enabled: false`, the definition route without its module) answers 404 without a body.
   license:
@@ -24,7 +24,7 @@ tags:
   - name: Operations
     description: Routes that change workflows; absent when `temporal.control.enabled` is false.
   - name: Experimental
-    description: 'Experimental: the shape changes before the first stable release. The loops need `temporal.experimental.aiWorkflows`; the model calls do not.'
+    description: 'Experimental: the shape changes before the first stable release. The model calls and Event Groups do not need a setting.'
   - name: Definitions
     description: Served by `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`.
 security:
@@ -899,10 +899,6 @@ components:
         details:
           type: object
           additionalProperties: {}
-        loop:
-          type: object
-          additionalProperties: {}
-          description: 'Loop, round and step of a step with a loop marker. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
         llm:
           type: object
           additionalProperties: {}
@@ -970,12 +966,6 @@ components:
           type: boolean
         runChain:
           $ref: '#/components/schemas/WorkflowRunChain'
-        loops:
-          type: array
-          items:
-            type: object
-            additionalProperties: {}
-          description: 'Loops of the run, from loop markers; left out when there are none. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
         eventGroups:
           type: array
           items:
@@ -1174,33 +1164,6 @@ components:
           type: boolean
           description: True when there were more schedules than the backend reads.
       additionalProperties: false
-    WorkflowLoopsResponse:
-      type: object
-      description: 'Loops of a workflow across the runs it continued as new. Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.'
-      required:
-        - loops
-        - runs
-        - source
-        - truncated
-      properties:
-        loops:
-          type: array
-          items:
-            type: object
-            additionalProperties: {}
-        runs:
-          type: array
-          items:
-            type: object
-            additionalProperties: {}
-        source:
-          type: string
-          enum:
-            - query
-            - history
-        truncated:
-          type: boolean
-      additionalProperties: {}
     WorkflowLlmCallResponse:
       type: object
       description: 'The full record of one model call. Experimental: the shape changes before the first stable release.'
@@ -1719,7 +1682,7 @@ paths:
       operationId: getWorkflowGraph
       summary: Get the steps and arrows of a workflow run
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `loop`, `llm`, `tool`, `groups`, `loops`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
+        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
@@ -1773,43 +1736,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowProgressResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/loops:
-    get:
-      operationId: getWorkflowLoops
-      summary: Get the loops of a workflow across its runs
-      description: |-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
-
-        Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.
-      tags:
-        - Experimental
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-      x-temporal-experimental: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowLoopsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -2394,7 +2320,7 @@ paths:
       operationId: getWorkflowRunGraph
       summary: Get the steps and arrows of a workflow run (one run)
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `loop`, `llm`, `tool`, `groups`, `loops`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
+        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
@@ -2450,44 +2376,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowProgressResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/loops:
-    get:
-      operationId: getWorkflowRunLoops
-      summary: Get the loops of a workflow across its runs (one run)
-      description: |-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
-
-        Experimental (`temporal.experimental.aiWorkflows`): the shape changes before the first stable release.
-      tags:
-        - Experimental
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-      x-temporal-experimental: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/runId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowLoopsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

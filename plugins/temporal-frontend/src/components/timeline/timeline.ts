@@ -18,8 +18,6 @@ import type {
   WorkflowEventGroup,
   WorkflowGraphNode,
   WorkflowGraphResponse,
-  WorkflowLoopGroup,
-  WorkflowLoopRound,
   WorkflowNodeStatus,
   WorkflowStatus,
 } from '../../common';
@@ -29,9 +27,9 @@ import { boxChain, GroupPlan, planGroups } from '../graph/eventGroups';
 
 /*
  * Layout of the Timeline tab, without React: one row per step with the
- * times of its bar, rows of a loop grouped by round, rows of a Temporal
- * event group grouped by group (inside the groups around it), and the time window
- * shown (zoom, pan, ticks of the time axis).
+ * times of its bar, rows of a Temporal event group grouped by group
+ * (inside the groups around it), and the time window shown (zoom, pan,
+ * ticks of the time axis).
  */
 
 /** A time range in milliseconds since the epoch. */
@@ -63,18 +61,6 @@ export interface TimelineRow {
   span: Span;
 }
 
-/** The steps of one round of a loop. */
-export interface TimelineGroup {
-  key: string;
-  loop: WorkflowLoopGroup;
-  round: WorkflowLoopRound;
-  rows: TimelineRow[];
-  span: Span;
-  tone: Tone;
-  /** The latest round of its loop in this run. */
-  latest: boolean;
-}
-
 /** The steps of a Temporal event group, with the groups inside it. */
 export interface TimelineEventGroup {
   /** `group:<group key>`. */
@@ -94,7 +80,6 @@ export interface TimelineEventGroup {
 
 export type TimelineItem =
   | { type: 'row'; row: TimelineRow }
-  | { type: 'group'; group: TimelineGroup }
   | { type: 'eventGroup'; group: TimelineEventGroup };
 
 export interface TimelineModel {
@@ -236,34 +221,8 @@ export function timelineRow(
   };
 }
 
-/** Rounds of the loops that ran in this run, with their steps here. */
-function roundsOfRun(
-  loops: WorkflowLoopGroup[] | undefined,
-  nodeIds: Set<string>,
-  runId: string | undefined,
-): { loop: WorkflowLoopGroup; round: WorkflowLoopRound; ids: string[] }[] {
-  const out: {
-    loop: WorkflowLoopGroup;
-    round: WorkflowLoopRound;
-    ids: string[];
-  }[] = [];
-  for (const loop of loops ?? []) {
-    for (const round of loop.rounds) {
-      if (runId && round.runId && round.runId !== runId) continue;
-      const ids = round.steps.map(s => s.nodeId).filter(id => nodeIds.has(id));
-      if (ids.length > 0) out.push({ loop, round, ids });
-    }
-  }
-  return out;
-}
-
-function roundTone(round: WorkflowLoopRound): Tone {
-  return statusTone(round.status);
-}
-
 /**
- * Rows of a run, oldest first. Rows of a loop round are grouped; a group
- * takes the place of its first row. The run itself is the first row, from
+ * Rows of a run, oldest first. The run itself is the first row, from
  * its start to its end (or now).
  */
 export function buildTimeline(
@@ -323,46 +282,10 @@ export function buildTimeline(
       a.span.start - b.span.start || order.get(a.id)! - order.get(b.id)!,
   );
 
-  const byId = new Map(rows.map(r => [r.id, r]));
-  const rounds = roundsOfRun(graph.loops, new Set(byId.keys()), workflow.runId);
-  const latestByLoop = new Map<string, number>();
-  for (const { loop, round } of rounds) {
-    latestByLoop.set(
-      loop.name,
-      Math.max(latestByLoop.get(loop.name) ?? 0, round.iteration),
-    );
-  }
-  const groupOf = new Map<string, TimelineGroup>();
-  for (const { loop, round, ids } of rounds) {
-    const groupRows = rows.filter(r => ids.includes(r.id));
-    const groupStart = Math.min(...groupRows.map(r => r.span.start));
-    const groupEnd = Math.max(...groupRows.map(r => r.span.end));
-    const group: TimelineGroup = {
-      key: `${loop.name}/${round.iteration}`,
-      loop,
-      round,
-      rows: groupRows,
-      span: { start: groupStart, end: groupEnd },
-      tone: roundTone(round),
-      latest: latestByLoop.get(loop.name) === round.iteration,
-    };
-    for (const r of groupRows) {
-      if (!groupOf.has(r.id)) groupOf.set(r.id, group);
-    }
-  }
-
-  const items: TimelineItem[] = [];
-  const placed = new Set<string>();
-  for (const row of rows) {
-    const group = groupOf.get(row.id);
-    if (!group) {
-      items.push({ type: 'row', row });
-    } else if (!placed.has(group.key)) {
-      placed.add(group.key);
-      group.rows = group.rows.filter(r => groupOf.get(r.id) === group);
-      items.push({ type: 'group', group });
-    }
-  }
+  const items: TimelineItem[] = rows.map(row => ({
+    type: 'row' as const,
+    row,
+  }));
 
   const range = { start: runStart, end: Math.max(runEnd, runStart + 1000) };
   const grouped = graph.eventGroups?.length
@@ -379,9 +302,8 @@ export function buildTimeline(
 }
 
 /**
- * Rows of Temporal event groups grouped, like the rounds of a loop: a
- * group takes the place of its first row, and holds the groups inside it.
- * Rows of a loop round stay in their round.
+ * Rows of Temporal event groups grouped: a group takes the place of its
+ * first row, and holds the groups inside it.
  */
 function groupItems(items: TimelineItem[], plan: GroupPlan): TimelineItem[] {
   if (plan.boxes.size === 0) return items;

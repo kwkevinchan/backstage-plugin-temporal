@@ -33,7 +33,6 @@ import {
   RiToolsLine,
 } from '@remixicon/react';
 import { formatTime } from '../format';
-import { decisionText, roundLabel } from '../loopText';
 import {
   groupCountBadge,
   groupDuration,
@@ -55,7 +54,6 @@ import {
   selectWindow,
   Span,
   TimelineEventGroup,
-  TimelineGroup,
   TimelineItem,
   TimelineRow,
   timeTicks,
@@ -428,36 +426,6 @@ function GroupRow(props: {
   );
 }
 
-function GroupHeader(props: {
-  group: TimelineGroup;
-  expanded: boolean;
-  win: Span;
-  onToggle(): void;
-}) {
-  const { group } = props;
-  const decision = decisionText(group.round);
-  const label = `${group.loop.name} · ${roundLabel(
-    group.round.iteration,
-    group.loop,
-  )}`;
-  return (
-    <GroupRow
-      testId={`timeline-round-${group.key}`}
-      label={label}
-      hint={decision}
-      barTitle={[label, statusLabel(group.round.status), decision]
-        .filter(Boolean)
-        .join(' · ')}
-      steps={group.rows.length}
-      span={group.span}
-      tone={group.tone}
-      expanded={props.expanded}
-      win={props.win}
-      onToggle={props.onToggle}
-    />
-  );
-}
-
 function EventGroupHeader(props: {
   group: TimelineEventGroup;
   hue?: GroupHue;
@@ -496,7 +464,7 @@ function EventGroupHeader(props: {
   );
 }
 
-function Legend(props: { rounds: boolean; groups?: boolean }) {
+function Legend(props: { groups?: boolean }) {
   const item = (cls: string, text: string, tone = 'tp-tone-success') => (
     <span className={tp('tp-tl-legend-item')}>
       <span className={tp('tp-tl-legend-swatch', cls, tone)} aria-hidden />
@@ -510,7 +478,6 @@ function Legend(props: { rounds: boolean; groups?: boolean }) {
       {item('tp-tl-legend-run', 'Failed', 'tp-tone-danger')}
       {item('tp-tl-legend-wait', 'Timer or wait', 'tp-tone-neutral')}
       {item('tp-tl-legend-point', 'Signal or update', 'tp-tone-info')}
-      {props.rounds && item('tp-tl-legend-round', 'Collapsed round')}
       {props.groups && item('tp-tl-legend-round', 'Collapsed group')}
     </div>
   );
@@ -519,9 +486,9 @@ function Legend(props: { rounds: boolean; groups?: boolean }) {
 /**
  * The steps of a run on a time axis: one bar per step with the time it
  * waited for a worker (queued) and the time it ran, dashed bars for timers
- * and waits, and points for signals and updates. Rounds of a loop and
- * Temporal event groups are grouped and can be collapsed; a group inside
- * another one is indented under it. Drag across the chart, or scroll with Ctrl
+ * and waits, and points for signals and updates. Temporal event groups are
+ * grouped and can be collapsed; a group inside another one is indented
+ * under it. Drag across the chart, or scroll with Ctrl
  * held, to zoom.
  */
 export function WorkflowTimeline(props: WorkflowTimelineProps) {
@@ -648,16 +615,6 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
   );
   const hideHover = useCallback(() => setHover(undefined), []);
 
-  const isExpanded = (group: TimelineGroup) =>
-    expanded[group.key] ?? group.latest;
-  const groups = model.items.flatMap(i =>
-    i.type === 'group' ? [i.group] : [],
-  );
-  const setAll = (value: boolean) =>
-    setExpanded(e => ({
-      ...e,
-      ...Object.fromEntries(groups.map(g => [g.key, value])),
-    }));
   // Event groups, at any depth.
   const eventGroups: TimelineEventGroup[] = [];
   const collect = (items: TimelineItem[]) => {
@@ -768,24 +725,6 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
               </Button>
             </>
           )}
-          {groups.length > 1 && (
-            <>
-              <Button
-                size="small"
-                variant="secondary"
-                onPress={() => setAll(true)}
-              >
-                Expand rounds
-              </Button>
-              <Button
-                size="small"
-                variant="secondary"
-                onPress={() => setAll(false)}
-              >
-                Collapse rounds
-              </Button>
-            </>
-          )}
           <Button size="small" variant="secondary" onPress={() => zoomBy(0.5)}>
             Zoom in
           </Button>
@@ -807,7 +746,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           </Button>
         </Flex>
       </Flex>
-      <Legend rounds={groups.length > 0} groups={eventGroups.length > 0} />
+      <Legend groups={eventGroups.length > 0} />
       <div
         ref={chartRef}
         className={tp('tp-tl-chart')}
@@ -872,22 +811,7 @@ export function WorkflowTimeline(props: WorkflowTimelineProps) {
           </div>
           {model.items.map(item => {
             if (item.type === 'row') return renderRow(item.row, false);
-            if (item.type === 'eventGroup') return renderEventGroup(item.group);
-            const { group } = item;
-            const open = isExpanded(group);
-            return (
-              <div key={group.key} role="group" aria-label={group.key}>
-                <GroupHeader
-                  group={group}
-                  expanded={open}
-                  win={win}
-                  onToggle={() =>
-                    setExpanded(e => ({ ...e, [group.key]: !open }))
-                  }
-                />
-                {open && group.rows.map(row => renderRow(row, true))}
-              </div>
-            );
+            return renderEventGroup(item.group);
           })}
         </div>
         {hover && <Tooltip {...hover} />}

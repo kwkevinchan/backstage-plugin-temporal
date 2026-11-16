@@ -672,7 +672,6 @@ describe('LLM adapters', () => {
       'mine',
       'vercel-ai-sdk',
       'openai-agents',
-      'temporal-workflow-kit',
     ]);
     const graph = buildWorkflowGraph(history([vercelCall]), {
       ...options,
@@ -882,34 +881,5 @@ describe('LLM adapter results', () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('isModelCall is true for a local activity'),
     );
-  });
-
-  it('links the workflow kit tool calls by their markers only', () => {
-    const kitRecord = {
-      'temporal.llm': {
-        v: 1,
-        attributes: {
-          'gen_ai.output.messages': [
-            {
-              role: 'assistant',
-              parts: [
-                { type: 'tool_call', id: 'c1', name: 'search', arguments: {} },
-              ],
-            },
-          ],
-        },
-      },
-    };
-    // A plain activity named like the tool, without a tool marker.
-    const graph = buildWorkflowGraph(
-      history([
-        { type: 'callModel', id: 'llm/a', result: kitRecord },
-        { type: 'search', id: 'plain-search', input: {} },
-      ]),
-      options,
-    );
-    const call = graph.nodes.find(n => n.llm)!;
-    expect(call.llm!.toolCalls).toEqual([{ id: 'c1', name: 'search' }]);
-    expect(graph.nodes.find(n => n.name === 'search')!.tool).toBeUndefined();
   });
 });

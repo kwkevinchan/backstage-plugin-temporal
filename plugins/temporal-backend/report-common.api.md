@@ -188,30 +188,6 @@ export function isValidWorkflowIdPrefix(value: string): boolean;
 // @public (undocumented)
 export function isValidWorkflowTypeName(value: string): boolean;
 
-// @alpha
-export const LLM_MARKER_PREFIX = 'llm';
-
-// @alpha
-export const LLM_RECORD_KEY = 'temporal.llm';
-
-// @alpha
-export const LLM_RECORD_VERSION = 1;
-
-// @alpha
-export const LLM_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev';
-
-// @alpha
-export const LLM_TOOL_RESULT_KEY = 'temporal.llm.tool';
-
-// @alpha
-export const LOOP_MARKER_MEMO_KEY = 'temporal.loop';
-
-// @alpha
-export const LOOP_STATE_MEMO_KEY = 'temporal.loops';
-
-// @alpha
-export const LOOP_STATE_QUERY = '__loop_state';
-
 // @public
 export function mergeWorkflowHandlers(
   reported: WorkflowHandlersResponse,
@@ -224,11 +200,6 @@ export const NAME_PATTERN_SOURCES: {
   readonly taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$';
   readonly workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$';
 };
-
-// @alpha
-export function parseLlmMarker(
-  text: string | undefined,
-): WorkflowLlmMarker | undefined;
 
 // @public
 export function parseTemporalAnnotations(entity: Entity): TemporalAnnotations;
@@ -683,9 +654,6 @@ export const temporalWorkflowTerminatePermission: ResourcePermission<'catalog-en
 // @public
 export const temporalWorkflowUpdatePermission: ResourcePermission<'catalog-entity'>;
 
-// @alpha
-export const TOOL_MARKER_PREFIX = 'tool';
-
 // @public
 export const WORKFLOW_STATUSES: readonly Exclude<WorkflowStatus, 'Unknown'>[];
 
@@ -790,8 +758,6 @@ export interface WorkflowGraphNode {
   kind: WorkflowNodeKind;
   // Warning: (ae-incompatible-release-tags) The symbol "llm" is marked as @public, but its signature references "WorkflowLlmSummary" which is marked as @alpha
   llm?: WorkflowLlmSummary;
-  // Warning: (ae-incompatible-release-tags) The symbol "loop" is marked as @public, but its signature references "WorkflowLoopMarker" which is marked as @alpha
-  loop?: WorkflowLoopMarker;
   // (undocumented)
   maximumAttempts?: number;
   name: string;
@@ -822,8 +788,6 @@ export interface WorkflowGraphResponse {
   // Warning: (ae-incompatible-release-tags) The symbol "eventGroups" is marked as @public, but its signature references "WorkflowEventGroup" which is marked as @alpha
   eventGroups?: WorkflowEventGroup[];
   eventGroupsTruncated?: boolean;
-  // Warning: (ae-incompatible-release-tags) The symbol "loops" is marked as @public, but its signature references "WorkflowLoopGroup" which is marked as @alpha
-  loops?: WorkflowLoopGroup[];
   // (undocumented)
   nodes: WorkflowGraphNode[];
   payloadsHidden: boolean;
@@ -902,18 +866,6 @@ export interface WorkflowLlmCallResponse {
   status: WorkflowNodeStatus;
   unavailable?: string;
 }
-
-// @alpha
-export type WorkflowLlmMarker =
-  | {
-      kind: 'llm';
-      call: string;
-    }
-  | {
-      kind: 'tool';
-      call: string;
-      toolCallId: string;
-    };
 
 // @alpha
 export interface WorkflowLlmMessage {
@@ -1031,96 +983,6 @@ export interface WorkflowLlmUsage {
   outputTokens?: number;
   // (undocumented)
   reasoningTokens?: number;
-}
-
-// @alpha
-export interface WorkflowLoopGroup {
-  decision?: string;
-  iteration: number;
-  // (undocumented)
-  maxIterations?: number;
-  // (undocumented)
-  name: string;
-  // (undocumented)
-  rounds: WorkflowLoopRound[];
-  // (undocumented)
-  score?: number;
-  // (undocumented)
-  status: WorkflowLoopStatus;
-}
-
-// @alpha
-export interface WorkflowLoopMarker {
-  iteration: number;
-  // (undocumented)
-  loop: string;
-  occurrence?: number;
-  // (undocumented)
-  step: string;
-}
-
-// @alpha
-export interface WorkflowLoopRound {
-  decision?: string;
-  // (undocumented)
-  endTime?: string;
-  // (undocumented)
-  iteration: number;
-  llmCalls?: number;
-  runId?: string;
-  // (undocumented)
-  score?: number;
-  segment?: number;
-  // (undocumented)
-  startTime?: string;
-  status: WorkflowNodeStatus;
-  steps: WorkflowLoopStep[];
-  usage?: WorkflowLlmUsage;
-}
-
-// @alpha
-export interface WorkflowLoopRun {
-  // (undocumented)
-  runId: string;
-  segment: number;
-  // (undocumented)
-  startTime?: string;
-  // (undocumented)
-  status: WorkflowStatus;
-}
-
-// @alpha
-export interface WorkflowLoopsResponse {
-  // (undocumented)
-  loops: WorkflowLoopGroup[];
-  runs: WorkflowLoopRun[];
-  source: 'query' | 'history';
-  truncated: boolean;
-}
-
-// @alpha
-export type WorkflowLoopStatus =
-  | 'running'
-  | 'done'
-  | 'exhausted'
-  | 'failed'
-  | 'continued';
-
-// @alpha
-export interface WorkflowLoopStep {
-  // (undocumented)
-  endTime?: string;
-  // (undocumented)
-  kind: WorkflowNodeKind;
-  llm?: 'llm' | 'tool';
-  // (undocumented)
-  name: string;
-  nodeId: string;
-  // (undocumented)
-  startTime?: string;
-  // (undocumented)
-  status: WorkflowNodeStatus;
-  usage?: WorkflowLlmUsage;
 }
 
 // @public

@@ -81,26 +81,11 @@ workflow definition.
   added with a backend module (see
   [Model calls and tool calls](#model-calls-and-tool-calls)).
 
-**Experimental, off by default.** The loop views are not part of the first
-release and will move to a separate package. Turn them on with
-`temporal.experimental.aiWorkflows: true` (no compatibility promise):
-
-- **Loops of AI workflows.** Rounds of generate, check and revise loops are
-  grouped into one box in the graph (expanded: one frame per round), one
-  group per round in the timeline,
-  and one row per round in the **Loops** tab, across continue-as-new runs
-  (with `@kwkevinchan/temporal-workflow-kit/loop`, see
-  [the workflow kit](plugins/temporal-workflow-kit)).
-
-| Workflows of an entity                                           | Step graph and step panel                                        |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![Workflow list of an entity](docs/images/entity-tab.png)        | ![Step graph with the step panel](docs/images/details-graph.png) |
-| **Timeline**                                                     | **Loop rounds** (experimental)                                   |
-| ![Timeline of a loop workflow](docs/images/timeline.png)         | ![A loop expanded, one frame per round](docs/images/loop.png)    |
-| **Large payload in S3**                                          | **Workflow controls**                                            |
-| ![An image stored in S3](docs/images/s3-payload.png)             | ![Terminate dialog](docs/images/controls.png)                    |
-| **A model call and its tool calls**                              | **LLM panel**                                                    |
-| ![A model call with three tool calls](docs/images/llm-graph.png) | ![LLM panel of a model call](docs/images/llm-panel.png)          |
+| Workflows of an entity                                    | Step graph and step panel                                        |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| ![Workflow list of an entity](docs/images/entity-tab.png) | ![Step graph with the step panel](docs/images/details-graph.png) |
+| **Large payload in S3**                                   | **Workflow controls**                                            |
+| ![An image stored in S3](docs/images/s3-payload.png)      | ![Terminate dialog](docs/images/controls.png)                    |
 
 ## Packages
 
@@ -112,7 +97,6 @@ release and will move to a separate package. Turn them on with
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                                                                             |
 | [`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](plugins/scaffolder-backend-module-temporal) | backend-plugin-module  | Backstage backend | Scaffolder actions: start a workflow, wait for it, send a signal or an update (optional). Calls a reachable Temporal backend plugin.                                                                                                                                                                                                                            |
 | [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal)                 | frontend-plugin-module | Backstage app     | Scaffolder form field `TemporalWorkflowPicker` (optional). Needs the frontend plugin.                                                                                                                                                                                                                                                                           |
-| [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)                                            | node-library           | Your workers      | Experimental, not published yet (with the AI views). Not a Backstage package. `/loop`: loop markers, a loop state query and continue-as-new helpers. `/llm`: records of model calls (OpenTelemetry GenAI).                                                                                                                                                      |
 
 Which ones to install:
 
@@ -134,9 +118,6 @@ Which ones to install:
   the tab says that it is missing.
 - **With templates:** the Scaffolder modules. The backend module may run in
   another backend than the Temporal plugin; it calls the plugin over HTTP.
-- **With loops of AI workflows (experimental):** the workflow kit in your
-  Temporal workers (not in Backstage; not published yet). Model calls of the
-  official Temporal AI integrations need nothing more.
 - **With large payloads in External Storage:** nothing more; the backend
   reads the references itself and only needs `temporal.externalStorage.s3`.
 
@@ -155,12 +136,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                                                                                                                                        |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                                                                                                                                              |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. `@kwkevinchan/temporal-workflow-kit/loop` (experimental, not published yet) needs `@temporalio/workflow` 1.12 or later (tested with 1.24); Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                             |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                   |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                 |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -381,9 +362,9 @@ step, oldest first, with offsets from the start of the run (`+1m 30s`):
   are points.
 - the first row is the whole run. For a running workflow, open steps reach
   to now (a vertical line) and grow while the page refreshes.
-- steps of a loop are grouped by round; the latest round of each loop is
-  open and the others can be expanded (one at a time, or all at once). A
-  run that continued as new shows its own rounds only.
+- the steps of an event group sit under a row with the group's bar; groups
+  can be expanded and collapsed one at a time, or all at once (**Expand
+  groups**, **Collapse groups**). See [Event groups](#event-groups).
 - drag across the chart to zoom in to that range; Ctrl (or ⌘) + scroll
   zooms around the pointer, Shift + scroll pans, and **Whole run** zooms
   out. Hovering a bar shows its times, durations and attempts; pressing it
@@ -434,47 +415,6 @@ Workflow lists show a progress column (done steps and the current step or
 failure). It is loaded for the rows on screen only, with at most four
 requests at a time; the backend reads at most 1000 events per run for it and
 keeps the progress of closed runs in memory.
-
-## Loops
-
-> **Experimental, off by default.** Set `temporal.experimental.aiWorkflows: true`. This view will move to a separate package; there is no compatibility promise.
-
-AI workflows often loop: generate, check, and revise when the check fails,
-for dozens of rounds and across continue-as-new runs. Drawn step by step,
-such a graph becomes unreadable. When the activities and child workflows of
-each round carry a loop marker (`loop/<loop>/<round>/<step>` in the activity
-ID; see [`@kwkevinchan/temporal-workflow-kit`](plugins/temporal-workflow-kit)
-for the format and a TypeScript helper, `/loop`):
-
-- the graph shows each loop as one box, `draft-review · Round 4 of 5 · Done`,
-  with the steps before it and after it. Pressing the box, or **Expand**
-  above the graph, shows every round of the run, one frame per round from
-  top to bottom: its title has the round, decision and score
-  (`Round 3 · revise · score 0.81`), a running round pulses and a failed one
-  is red. The steps of a round go left to right inside its frame and wrap
-  inside it when it is wider than the graph. Arrows lead from the step
-  before the loop to the first round, from round to round, and from the last
-  round to the step after it. Expanding brings the running round, else the
-  last failed one, else the last one into view; a round pressed in the
-  **Loops** tab is brought into view instead. Timers and signals that start
-  during a round belong to it.
-- a run that continued as new shows its own rounds only, with a note above
-  the first frame (the rounds of the earlier runs) and below the last one
-  (`The loop continues in run 3`). Its loop state is `continued`, shown as
-  **Continues in next run**.
-- the **Loops** tab has one table per loop: each round with its steps,
-  status, duration, decision and score, newest first. Pressing a round shows
-  it in the graph. Rounds of a workflow that continued as new are counted
-  across its runs (`GET .../loops` reads up to 20 runs); a round of another
-  run links to that run, opened at the round.
-- the limit, the state (`running`, `done`, `exhausted`, `failed`, and
-  `continued` for a run that continued as new while the loop ran) and the
-  decisions and scores come from the `temporal.loops` memo the helper
-  upserts after each round, and for a running workflow from its
-  `__loop_state` query when a worker answers within three seconds.
-
-Workflows without markers look as before. The loop data needs the read
-permission, like the graph; inputs and results are not part of it.
 
 <a id="llm-steps"></a>
 
@@ -561,13 +501,7 @@ Known limits:
 Other frameworks are added with a backend module and
 `temporalLlmAdapterExtensionPoint` (see
 [Extending](#extending) and the
-[public interfaces](docs/public-interfaces.md#llm-adapters)). The
-unreleased `@kwkevinchan/temporal-workflow-kit` has its own format
-(activity IDs `llm/<call>`, `tool/<call>/<tool call ID>` and a
-`temporal.llm` record with the
-[OpenTelemetry GenAI](https://github.com/open-telemetry/semantic-conventions-genai)
-attributes); the backend still reads it with an internal adapter
-(`temporal-workflow-kit`), which will be removed together with the kit.
+[public interfaces](docs/public-interfaces.md#llm-adapters)).
 
 ## Event groups
 
@@ -691,7 +625,7 @@ On the workflow page:
   cover other steps in the layout is shown as labels too.
 - **Timeline.** The steps of a group are grouped under a row with the
   group's bar, indented under the group it is in, and collapse like the
-  rounds of a loop (**Expand groups**, **Collapse groups**).
+  graph (**Expand groups**, **Collapse groups**).
 - **Event Groups tab.** Shown when the run has groups: each group with its
   kind, status, steps, groups inside, start, duration and tokens, indented
   under its parent, in the order the groups started, with a note on groups
@@ -699,9 +633,7 @@ On the workflow page:
   the graph and brings it into view.
 
 When the backend leaves groups out, a line above the graph says so. A run
-without groups is laid out as before. The loop views of the workflow kit
-([Loops](#loops)) stay as they are; when a run has both, a step in a loop
-is drawn in the loop, and the boxes of the groups hold the other steps.
+without groups is laid out as before.
 
 ## Workflow definitions
 
@@ -784,9 +716,6 @@ temporal:
     #   - host: raw.githubusercontent.com
     #     paths:
     #       - /my-org/my-workflows/
-  # Optional: views that are not part of the first release, see Loops.
-  experimental:
-    aiWorkflows: false
 ```
 
 | Key                                     | Default              | Meaning                                                                                                                                                                                               |
@@ -816,7 +745,6 @@ temporal:
 | `definitions.allow`                     | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and optional `paths` prefixes allowed for absolute `http(s)` definition URLs.                      |
 | `definitions.maxBytes`                  | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                               |
 | `definitions.readFileLocations`         | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                      |
-| `experimental.aiWorkflows`              | `false`              | Show the loops (experimental, no compatibility promise). Model calls are shown without it.                                                                                                            |
 
 All keys are under `temporal`. `maxInlineBytes` and `previewBytes` must be
 non-negative integers. The frontend reads `connection.defaultNamespace`,
@@ -1710,14 +1638,15 @@ RustFS with the variables set (`-v` also deletes the stored objects):
 docker compose -f examples/docker-compose.rustfs.yaml down -v
 ```
 
-The example worker also runs two loops: `draftReviewWorkflow` (draft,
-review, revise until the score is high enough; done in round 4 of 5) and
-`longRefineWorkflow` (25 rounds that continue as new every 10 rounds), and
-two fake LLM agents without a model: `agentWorkflow` (four rounds of model
-call and tools with loop markers, a retried tool, a local activity, and a
-long answer stored in S3 when the worker uses it) and `mixedAgentWorkflow`
-(ordinary activities, model calls, two tools in parallel and a child
-workflow).
+The example worker also runs two generate/check/revise workflows:
+`draftReviewWorkflow` (draft, review, revise until the score is high
+enough; done in round 4 of 5) and `longRefineWorkflow` (25 rounds that
+continue as new every 10 rounds), and two fake LLM agents without a model:
+`agentWorkflow` (four rounds of model call and tools, a retried tool, and a
+long answer stored in S3 when the worker uses it) and
+`mixedAgentWorkflow` (ordinary activities, model calls, two tools in
+parallel and a child workflow). Model calls use the activity type and
+payload shape of the Vercel AI SDK integration.
 
 The YAML example workflows (`examples/workflows`, shown on the Definition
 tab of `example-yaml-order-workflow`) run in Zigflow. Start a Zigflow worker
@@ -1752,8 +1681,8 @@ second test takes the details page in the dark theme. The control tests
 (`e2e-tests/workflow-controls.test.ts`, with `example-worker serve` running) start a
 ticket workflow, signal, query and update it, run the custom Escalate
 action, cancel it, rerun it and terminate the rerun, in both themes. The
-loop tests (`e2e-tests/loops.test.ts`) open both loop workflows, expand a
-loop, step through its rounds and use the Loops tab, in both themes:
+LLM tests (`e2e-tests/llm.test.ts`) open the fake agent and mixed agent
+runs, the LLM panel and the timeline:
 
 ```sh
 npx playwright install chromium

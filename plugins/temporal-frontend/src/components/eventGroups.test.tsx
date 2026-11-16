@@ -36,12 +36,7 @@ import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import { groupHues } from './graph/eventGroups';
 import type { GroupViews } from './graph/eventGroups';
-import {
-  entity,
-  failedWorkflow,
-  loopGraphResponse,
-  mockTemporalApi,
-} from '../testData';
+import { entity, failedWorkflow, mockTemporalApi } from '../testData';
 import { agentGraph } from '../testGraphs/agentGraph';
 import { codecLoopGraph } from '../testGraphs/codecLoopGraph';
 import { loopGraph } from '../testGraphs/loopGraph';
@@ -317,29 +312,6 @@ describe('event groups on the workflow page', () => {
       await screen.findByTestId('group-notice', {}, slow),
     ).toBeInTheDocument();
   }, 60_000);
-
-  it('says in the tab when the steps of a group are in a loop box', async () => {
-    await render({
-      ...loopGraphResponse,
-      eventGroups: [
-        {
-          key: 'label:in-loop',
-          kind: 'label',
-          id: 'in-loop',
-          name: 'In the loop',
-          nodeIds: ['activity-5', 'activity-8'],
-          children: [],
-          status: 'Completed',
-        },
-      ],
-    });
-    await userEvent.click(
-      await screen.findByRole('tab', { name: 'Event Groups' }),
-    );
-    expect(
-      await screen.findByTestId('group-row-note-label:in-loop'),
-    ).toHaveTextContent('Its steps are in a loop box in the graph');
-  });
 
   it('brings the box of a step selected in a collapsed group into view', async () => {
     await renderInTestApp(

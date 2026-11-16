@@ -23,83 +23,7 @@ import type { ExternalPayload } from './types';
  * steps that run the tools a model asked for. LLM adapters in the backend
  * recognize them in the history (the official Temporal AI integrations,
  * and adapters that modules add) and turn them into the types below.
- *
- * The markers and the record below are the format of the unreleased
- * `@kwkevinchan/temporal-workflow-kit`, read by a built-in adapter that
- * will be removed with it:
- *
- *   llm/<call>[/<rest>]                 one model call
- *   tool/<call>/<toolCallId>[/<rest>]   one tool call of that model call
- *
- * `<rest>` is free; a loop marker (`loop/<loop>/<round>/<step>`) there puts
- * the step in a loop round. The result of the model call holds the record
- * of the call under `temporal.llm`, with the attributes of the
- * OpenTelemetry GenAI semantic conventions.
  */
-
-/** First segment of the activity ID of a model call. @alpha */
-export const LLM_MARKER_PREFIX = 'llm';
-/** First segment of the activity ID of a tool call. @alpha */
-export const TOOL_MARKER_PREFIX = 'tool';
-/** Key of the LLM record in the result of a model call. @alpha */
-export const LLM_RECORD_KEY = 'temporal.llm';
-/**
- * Key of the tool marker in the result of a tool call, for local
- * activities, whose activity ID the backend cannot always read. @alpha
- */
-export const LLM_TOOL_RESULT_KEY = 'temporal.llm.tool';
-/** Version of the LLM record format. @alpha */
-export const LLM_RECORD_VERSION = 1;
-/**
- * Version of the OpenTelemetry GenAI semantic conventions the record
- * follows (schema URL suffix of the conventions, status Development).
- *
- * @alpha
- */
-export const LLM_SEMCONV_VERSION = 'gen-ai-dev/1.42.0-dev';
-
-/**
- * A marker of the workflow kit: a model call, or a tool call of one.
- *
- * Experimental: the shape changes before the first stable release.
- *
- * @alpha
- */
-export type WorkflowLlmMarker =
-  | { kind: 'llm'; call: string }
-  | { kind: 'tool'; call: string; toolCallId: string };
-
-const LLM_PATTERN = /^llm\/([^/]+)(?:\/|$)/;
-const TOOL_PATTERN = /^tool\/([^/]+)\/([^/]+)(?:\/|$)/;
-
-/**
- * Reads `llm/<call>[/...]` or `tool/<call>/<toolCallId>[/...]` from an
- * activity ID. Names are percent-encoded.
- *
- * Experimental: the shape changes before the first stable release.
- *
- * @alpha
- */
-export function parseLlmMarker(
-  text: string | undefined,
-): WorkflowLlmMarker | undefined {
-  if (!text) return undefined;
-  try {
-    const llm = LLM_PATTERN.exec(text);
-    if (llm) return { kind: 'llm', call: decodeURIComponent(llm[1]) };
-    const tool = TOOL_PATTERN.exec(text);
-    if (tool) {
-      return {
-        kind: 'tool',
-        call: decodeURIComponent(tool[1]),
-        toolCallId: decodeURIComponent(tool[2]),
-      };
-    }
-  } catch {
-    // Not percent-encoded: not a marker.
-  }
-  return undefined;
-}
 
 /**
  * Token counts of one model call, or a sum of several. Input tokens
@@ -172,8 +96,8 @@ export type WorkflowLlmRecordState =
  */
 export interface WorkflowLlmSummary {
   /**
-   * Name of the call, when the step records one (the workflow kit's
-   * marker). Otherwise show the step's summary or the model.
+   * Name of the call, when the step records one. Otherwise show the
+   * step's summary or the model.
    */
   call?: string;
   /**

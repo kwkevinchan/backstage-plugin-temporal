@@ -174,14 +174,5 @@ export interface Config {
         previewBytes?: number;
       };
     };
-    /**
-     * Views that are not part of the first release: the loops (the Loops
-     * tab, loops in the graph). Off by default; no compatibility promise.
-     * Model calls and tool calls are shown without a setting.
-     */
-    experimental?: {
-      /** Show the loops. Defaults to false. */
-      aiWorkflows?: boolean;
-    };
   };
 }

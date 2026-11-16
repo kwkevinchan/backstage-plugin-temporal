@@ -58,8 +58,7 @@ permission policy.
 
 The backend reads the External Storage references and the S3 objects behind
 them with its own code and the AWS SDK; it does not depend on the
-experimental driver packages of the Temporal SDK or on the workflow kit (a
-worker package).
+experimental driver packages of the Temporal SDK.
 
 ## Exports
 
@@ -90,7 +89,6 @@ in the repository README for examples.
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                     | `temporal.workflow.history.read`              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/loops` (experimental)      | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read`              |
 | GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
