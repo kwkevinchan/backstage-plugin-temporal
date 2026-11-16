@@ -336,6 +336,15 @@ describe('DefinitionReader', () => {
     );
     expect(traversal.error?.kind).toBe('read');
 
+    const strayPercentTraversal = await pathReader.read(
+      entity(),
+      spec('https://raw.example.com/my-org/workflows/%252e%252e/secret/x%'),
+    );
+    expect(strayPercentTraversal.error?.kind).toBe('read');
+    expect(readUrl).not.toHaveBeenCalledWith(
+      expect.stringContaining('secret/x%'),
+    );
+
     const defaultPort = await readerOf(readUrl, {
       allow: [{ host: 'raw.example.com' }],
     }).read(entity(), spec('https://raw.example.com:443/order.yaml'));
@@ -585,6 +594,12 @@ describe('DefinitionReader', () => {
           github: [{ host: 'github.com' }],
           gitlab: [{ host: 'gitlab.com' }],
           azure: [{ host: 'dev.azure.com' }],
+          gerrit: [
+            {
+              host: 'gerrit.example.com',
+              gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+            },
+          ],
         },
       }),
     );
@@ -619,6 +634,24 @@ describe('DefinitionReader', () => {
       (await reader.read(glSubdir, spec('../workflows/order.yaml'))).error,
     ).toBeUndefined();
 
+    const glLegacySubdir = entity(
+      'url:https://gitlab.com/grp/sub/my-repo/blob/main/services/orders/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(glLegacySubdir, spec('../workflows/order.yaml')))
+        .error,
+    ).toBeUndefined();
+    expect(
+      (await reader.read(glLegacySubdir, spec('./100%.yaml'))).error,
+    ).toBeUndefined();
+
+    const gerritEntity = entity(
+      'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/catalog-info.yaml',
+    );
+    expect(
+      (await reader.read(gerritEntity, spec('./workflows/order.yaml'))).error,
+    ).toBeUndefined();
+
     const azSubdir = entity(
       'url:https://dev.azure.com/my-org/my-project/_git/my-repo?path=/services/orders/catalog-info.yaml&version=GBmain',
     );
@@ -635,7 +668,14 @@ describe('DefinitionReader', () => {
       new ConfigReader({
         integrations: {
           github: [{ host: 'github.com' }],
+          gitlab: [{ host: 'gitlab.com' }],
           azure: [{ host: 'dev.azure.com' }],
+          gerrit: [
+            {
+              host: 'gerrit.example.com',
+              gitilesBaseUrl: 'https://gerrit.example.com/plugins/gitiles',
+            },
+          ],
         },
       }),
     );
@@ -657,6 +697,7 @@ describe('DefinitionReader', () => {
       [ghRoot, '/../outside.yaml'],
       [ghRoot, '%2e%2e/outside.yaml'],
       [ghRoot, '%252e%252e/outside.yaml'],
+      [ghRoot, '%2e%2e/%2e%2e/main/x.yaml%'],
       [ghRoot, '//evil.example.com/a.yaml'],
       [ghRoot, '%68%74%74%70%73%3a%2f%2fevil.example.com/a.yaml'],
       [ghRoot, 'ht\ttps://github.com/my-org/my-repo/blob/main/other.yaml'],
@@ -674,6 +715,36 @@ describe('DefinitionReader', () => {
       [ghOneDir, '../../../other-repo/blob/main/order.yaml'],
       [ghOneDir, '../../../../other-org/other-repo/blob/main/order.yaml'],
       [azSubdir, '../../../outside.yaml'],
+      [
+        entity(
+          'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/catalog-info.yaml',
+        ),
+        '../../../../../../secret/+/refs/heads/main/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gerrit.example.com/plugins/gitiles/team/proj/+/refs/heads/main/services/catalog-info.yaml',
+        ),
+        '../other/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://us-east-1.console.aws.amazon.com/codesuite/codecommit/repositories/repoA/browse/refs/heads/main/--/catalog-info.yaml?region=us-east-1',
+        ),
+        '../../../../../../repoB/browse/refs/heads/main/--/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://app.harness.io/ng/account/A/module/code/orgs/O/projects/P/repos/R/files/main/~/catalog-info.yaml',
+        ),
+        '../../../../../../../../O2/projects/P2/repos/R2/files/main/~/x.yaml',
+      ],
+      [
+        entity(
+          'url:https://gitlab.com/grp/sub/repo/blob/main/catalog-info.yaml',
+        ),
+        '../../../other/blob/main/x.yaml',
+      ],
     ];
     for (const [ent, target] of badCases) {
       const result = await reader.read(ent, spec(target));

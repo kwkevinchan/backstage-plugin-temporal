@@ -101,17 +101,23 @@ function hasControlChar(value: string): boolean {
   return false;
 }
 
-/** Repeatedly percent-decodes a string until it stops changing. */
+function decodePercentChunk(chunk: string): string {
+  try {
+    return decodeURIComponent(chunk);
+  } catch {
+    return chunk.replace(/%([0-9a-f]{2})/gi, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    );
+  }
+}
+
+/** Repeatedly percent-decodes valid `%XX` sequences until the string stops changing. */
 function decodeFully(value: string): string {
   let decoded = value;
   let previous: string;
   do {
     previous = decoded;
-    try {
-      decoded = decodeURIComponent(decoded);
-    } catch {
-      break;
-    }
+    decoded = decoded.replace(/(?:%[0-9a-f]{2})+/gi, decodePercentChunk);
   } while (decoded !== previous);
   return decoded;
 }
@@ -231,15 +237,20 @@ function compileAllowRule(rule: DefinitionAllowRule): CompiledAllowRule {
 }
 
 interface ParsedRepoUrl {
+  kind: 'repo' | 'folder';
   repoKey: string;
   ref?: string;
   dirSegments: string[];
+  origin: string;
+  search: string;
+  folderPrefix: string;
 }
 
 /**
  * Extracts the repository identity (`origin` + owner/repo or project/repo),
  * optional branch/ref, and file directory segments inside the repository from
- * an SCM file URL.
+ * an SCM file URL, or falls back to the entity file's folder boundary for
+ * unrecognized URL shapes (such as Gerrit, CodeCommit, or Harness).
  */
 function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
   let parsed: URL;
@@ -254,11 +265,15 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
   const pathname = decodeFully(parsed.pathname);
   if (
     pathname.includes('\\') ||
-    pathname.includes('\0') ||
+    hasControlChar(pathname) ||
     pathname.split('/').includes('..')
   ) {
     return undefined;
   }
+
+  const allSegments = pathname.split('/').filter(Boolean);
+  const folderPrefix =
+    allSegments.length >= 2 ? `/${allSegments.slice(0, -1).join('/')}/` : '/';
 
   // Azure DevOps: /{org}/{project}/_git/{repo}?path=/... (or /{project}/_git/{repo})
   const azureMatch = /^\/(.+\/_git\/[^/]+)\/?$/.exec(pathname);
@@ -268,7 +283,7 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     const decodedQueryPath = decodeFully(queryPath);
     if (
       decodedQueryPath.includes('\\') ||
-      decodedQueryPath.includes('\0') ||
+      hasControlChar(decodedQueryPath) ||
       decodedQueryPath.split('/').includes('..')
     ) {
       return undefined;
@@ -277,9 +292,13 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     if (!cleanPath) return undefined;
     const parts = cleanPath.split('/').filter(Boolean);
     return {
+      kind: 'repo',
       repoKey: `${parsed.origin}/${azureMatch[1]}`,
       ref: parsed.searchParams.get('version') ?? undefined,
       dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
@@ -290,9 +309,13 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     const [, repoPath, ref, filepath] = gitlabMatch;
     const parts = filepath.split('/').filter(Boolean);
     return {
+      kind: 'repo',
       repoKey: `${parsed.origin}/${repoPath}`,
       ref,
       dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
@@ -303,9 +326,13 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     const [, repoPath, filepath] = bbServerMatch;
     const parts = filepath.split('/').filter(Boolean);
     return {
+      kind: 'repo',
       repoKey: `${parsed.origin}/${repoPath}`,
       ref: parsed.searchParams.get('at') ?? undefined,
       dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
@@ -318,24 +345,34 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
     const [, repoPath, ref, filepath] = giteaMatch;
     const parts = filepath.split('/').filter(Boolean);
     return {
+      kind: 'repo',
       repoKey: `${parsed.origin}/${repoPath}`,
       ref,
       dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
-  // GitHub, Bitbucket Cloud and generic SCM URLs: /{owner}/{repo}/(blob|tree|raw|edit|src)/{ref}/{filepath}
-  const stdMatch =
-    /^\/([^/]+\/[^/]+)\/(?:blob|tree|raw|edit|src)\/([^/]+)\/(.+)$/.exec(
-      pathname,
-    );
+  // GitHub, Bitbucket Cloud, and GitLab legacy URLs without `/-/`:
+  // /{owner_or_group...}/{repo}/(blob|tree|raw|edit|src)/{ref}/{filepath}
+  const stdMatch = !pathname.includes('/+/')
+    ? /^\/([^/]+(?:\/[^/]+)+?)\/(?:blob|tree|raw|edit|src)\/([^/]+)\/(.+)$/.exec(
+        pathname,
+      )
+    : null;
   if (stdMatch) {
     const [, repoPath, ref, filepath] = stdMatch;
     const parts = filepath.split('/').filter(Boolean);
     return {
+      kind: 'repo',
       repoKey: `${parsed.origin}/${repoPath}`,
       ref,
       dirSegments: parts.slice(0, -1),
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
@@ -346,26 +383,28 @@ function parseRepoUrl(rawUrl: string): ParsedRepoUrl | undefined {
       const [, repoPath, ref, filepath] = rawMatch;
       const parts = filepath.split('/').filter(Boolean);
       return {
+        kind: 'repo',
         repoKey: `${parsed.origin}/${repoPath}`,
         ref,
         dirSegments: parts.slice(0, -1),
+        origin: parsed.origin,
+        search: parsed.search,
+        folderPrefix,
       };
     }
     return undefined;
   }
 
-  // Plain repository path without a blob/tree segment: /{owner}/{repo}/{filepath}
-  const segments = pathname.split('/').filter(Boolean);
-  if (
-    segments.length >= 3 &&
-    !segments.includes('-') &&
-    !['blob', 'tree', 'raw', 'edit', 'src', 'browse'].includes(segments[2])
-  ) {
-    const repoPath = `${segments[0]}/${segments[1]}`;
-    const rest = segments.slice(2);
+  // Unrecognized SCM URL structure (e.g. Gerrit, CodeCommit, Harness):
+  // bound relative targets to the folder of the entity file.
+  if (allSegments.length >= 2) {
     return {
-      repoKey: `${parsed.origin}/${repoPath}`,
-      dirSegments: rest.slice(0, -1),
+      kind: 'folder',
+      repoKey: `${parsed.origin}${folderPrefix}`,
+      dirSegments: [],
+      origin: parsed.origin,
+      search: parsed.search,
+      folderPrefix,
     };
   }
 
@@ -603,7 +642,7 @@ export class DefinitionReader {
         decodedPath.split('/').includes('..')
       ) {
         throw new TargetError(
-          'Absolute definition URL paths must not contain "..", "\\\\", or null bytes',
+          'Absolute definition URL paths must not contain "..", "\\", or control characters',
         );
       }
       const hostMatches = this.allow.filter(rule => rule.matchesHost(url));
@@ -629,7 +668,7 @@ export class DefinitionReader {
       decodedTrimmed.includes('\\')
     ) {
       throw new TargetError(
-        'Relative definition targets must be valid relative paths without "\\\\", null bytes, or empty paths',
+        'Relative definition targets must be valid relative paths without "\\", control characters, or empty paths',
       );
     }
     if (
@@ -658,6 +697,9 @@ export class DefinitionReader {
         throw new TargetError(
           `Could not determine the repository from ${ANNOTATION_LOCATION}; use an absolute URL and allow it in temporal.definitions.allow`,
         );
+      }
+      if (baseRepo.kind === 'folder' && decodedTarget.startsWith('/')) {
+        throw new TargetError(SAME_REPO_MESSAGE);
       }
       let depth = decodedTarget.startsWith('/')
         ? 0
@@ -691,8 +733,24 @@ export class DefinitionReader {
         throw new TargetError(SAME_REPO_MESSAGE);
       }
       const resolvedRepo = parseRepoUrl(resolved);
-      if (
-        !resolvedRepo ||
+      if (!resolvedRepo) {
+        throw new TargetError(SAME_REPO_MESSAGE);
+      }
+      if (baseRepo.kind === 'folder') {
+        const resolvedUrl = new URL(resolved);
+        const resolvedPathname = posix.normalize(
+          decodeFully(resolvedUrl.pathname),
+        );
+        if (
+          resolvedUrl.origin !== baseRepo.origin ||
+          resolvedUrl.search !== baseRepo.search ||
+          !resolvedPathname.startsWith(baseRepo.folderPrefix) ||
+          resolvedPathname.length <= baseRepo.folderPrefix.length
+        ) {
+          throw new TargetError(SAME_REPO_MESSAGE);
+        }
+      } else if (
+        resolvedRepo.kind !== 'repo' ||
         resolvedRepo.repoKey !== baseRepo.repoKey ||
         resolvedRepo.ref !== baseRepo.ref
       ) {
