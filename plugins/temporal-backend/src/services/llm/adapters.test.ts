@@ -538,6 +538,54 @@ describe('Vercel AI SDK tool-result fields', () => {
       },
     ]);
   });
+
+  it('keeps a result that looks like { type, value }', () => {
+    const raw = {
+      type: 'json',
+      value: { hits: ['https://example.com'] },
+    };
+    const record = vercelRecord([
+      {
+        type: 'tool-result',
+        toolCallId: 'call_web_2',
+        toolName: 'web_search',
+        result: raw,
+      },
+    ]);
+    expect(record.outputMessages[0].parts).toEqual([
+      {
+        type: 'tool_call_response',
+        id: 'call_web_2',
+        name: 'web_search',
+        response: raw,
+      },
+    ]);
+  });
+
+  it('uses a null, zero or empty-string result instead of output', () => {
+    for (const result of [null, 0, '']) {
+      const record = vercelRecord([
+        {
+          type: 'tool-result',
+          toolCallId: 'call_web_3',
+          toolName: 'web_search',
+          result,
+          output: {
+            type: 'json',
+            value: { hits: ['should-not-be-used'] },
+          },
+        },
+      ]);
+      expect(record.outputMessages[0].parts).toEqual([
+        {
+          type: 'tool_call_response',
+          id: 'call_web_3',
+          name: 'web_search',
+          response: result,
+        },
+      ]);
+    }
+  });
 });
 
 describe('LLM adapters', () => {
