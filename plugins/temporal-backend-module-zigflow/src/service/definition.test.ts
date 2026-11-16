@@ -332,6 +332,73 @@ describe('DefinitionReader', () => {
     expect(traversal.error?.kind).toBe('read');
   });
 
+  it('rejects absolute and protocol-relative targets padded with ASCII whitespace or controls', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const real = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: { github: [{ host: 'github.com' }] },
+      }),
+    );
+    const resolveUrl = jest.fn((options: { url: string; base: string }) =>
+      real.resolveUrl(options),
+    );
+    const integrations = {
+      resolveUrl,
+      byUrl: (url: string) => real.byUrl(url),
+    } as unknown as ScmIntegrations;
+    const reader = readerOf(readUrl, { integrations });
+    const located = entity(
+      'url:https://github.com/my-org/my-repo/blob/main/catalog-info.yaml',
+    );
+
+    // Leading or trailing padding must be classified as an absolute URL,
+    // not resolved as a path inside the entity repository.
+    const paddedAbsolute = [
+      ' https://evil.example.com/x',
+      'https://evil.example.com/x ',
+      '\thttps://evil.example.com/x',
+      'https://evil.example.com/x\t',
+      '\nhttps://evil.example.com/x',
+      'https://evil.example.com/x\n',
+      '\rhttps://evil.example.com/x',
+      'https://evil.example.com/x\r',
+      '\u0000https://evil.example.com/x',
+      '\u007fhttps://evil.example.com/x',
+      'https://evil.example.com/x\u007f',
+    ];
+    for (const target of paddedAbsolute) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error).toEqual(
+        expect.objectContaining({
+          kind: 'read',
+          message: expect.stringContaining(
+            'Absolute definition URLs from evil.example.com are not allowed',
+          ),
+        }),
+      );
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+
+    const paddedProtocolRelative = [
+      ' //evil.example.com/x',
+      '\t//evil.example.com/x',
+      '\n//evil.example.com/x',
+      '\r//evil.example.com/x',
+    ];
+    for (const target of paddedProtocolRelative) {
+      resolveUrl.mockClear();
+      const result = await reader.read(located, spec(target));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+      expect(readUrl).not.toHaveBeenCalled();
+      expect(resolveUrl).not.toHaveBeenCalled();
+    }
+  });
+
   it('keeps relative targets inside the same repository across integrations', async () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),

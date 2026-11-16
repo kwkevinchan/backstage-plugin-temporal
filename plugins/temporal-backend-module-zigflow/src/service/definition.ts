@@ -90,6 +90,22 @@ interface CompiledAllowRule {
 const SAME_REPO_MESSAGE =
   'Relative definition targets must stay in the repository of the entity; to read from another repository or host, use an absolute URL and allow it in temporal.definitions.allow';
 
+/**
+ * Drops ASCII controls, spaces, and DEL from both ends of a target.
+ * URL parsers do the same, so classification has to see the value they
+ * will actually parse. Otherwise " https://..." is treated as a relative
+ * path and later resolved as an absolute URL.
+ */
+function withoutEdgeControls(value: string): string {
+  // U+0000–U+0020 (C0 controls and space) and U+007F (DEL).
+  const isEdge = (code: number) => code <= 0x20 || code === 0x7f;
+  let start = 0;
+  let end = value.length;
+  while (start < end && isEdge(value.charCodeAt(start))) start += 1;
+  while (end > start && isEdge(value.charCodeAt(end - 1))) end -= 1;
+  return value.slice(start, end);
+}
+
 /** Repeatedly percent-decodes a string until it stops changing. */
 function decodeFully(value: string): string {
   let decoded = value;
@@ -547,10 +563,11 @@ export class DefinitionReader {
     entity: Entity,
     target: string,
   ): { type: 'url' | 'file'; target: string } {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) {
+    const normalizedTarget = withoutEdgeControls(target);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(normalizedTarget)) {
       let url: URL;
       try {
-        url = new URL(target);
+        url = new URL(normalizedTarget);
       } catch {
         throw new TargetError('spec.definition.target is not a valid URL');
       }
@@ -582,14 +599,14 @@ export class DefinitionReader {
       return { type: 'url', target: url.toString() };
     }
 
-    const targetPathRaw = target.split(/[?#]/, 1)[0];
+    const targetPathRaw = normalizedTarget.split(/[?#]/, 1)[0];
     const decodedTarget = decodeFully(targetPathRaw);
-    const decodedFull = decodeFully(target);
+    const decodedFull = decodeFully(normalizedTarget);
     if (
       !targetPathRaw.trim() ||
-      target.includes('\\') ||
+      normalizedTarget.includes('\\') ||
       decodedFull.includes('\\') ||
-      target.includes('\0') ||
+      normalizedTarget.includes('\0') ||
       decodedFull.includes('\0')
     ) {
       throw new TargetError(
@@ -597,7 +614,7 @@ export class DefinitionReader {
       );
     }
     if (
-      target.startsWith('//') ||
+      normalizedTarget.startsWith('//') ||
       decodedFull.startsWith('//') ||
       /^[a-z][a-z0-9+.-]*:/i.test(decodedFull)
     ) {
@@ -642,7 +659,7 @@ export class DefinitionReader {
       let resolved: string;
       try {
         resolved = this.integrations.resolveUrl({
-          url: target,
+          url: normalizedTarget,
           base: location.target,
         });
       } catch {
@@ -671,7 +688,7 @@ export class DefinitionReader {
         );
       }
       const base = dirname(location.target);
-      const file = resolve(base, target);
+      const file = resolve(base, normalizedTarget);
       const inside = relative(base, file);
       // Only files in the folder of the entity file or below it.
       if (
