@@ -463,6 +463,43 @@ describe('layoutGroupedSteps', () => {
     expect(late.refused).toEqual([]);
   });
 
+  it('lines up the rows of fifty frames, each next to a step outside it', () => {
+    // r1 → r2 → r3 in each frame, and r2 → s outside it: dagre moves a box
+    // of each row for s, and each row is checked and lined up.
+    const nodes: { id: string }[] = [];
+    const edges: WorkflowGraphEdge[] = [];
+    const groups: WorkflowEventGroup[] = [];
+    const link = (source: string, target: string) =>
+      edges.push({ id: `${source}->${target}`, source, target });
+    for (let i = 0; i < 50; i++) {
+      const [start, r1, r2, r3, s, t] = ['st', 'r1', 'r2', 'r3', 's', 't'].map(
+        id => `${id}${i}`,
+      );
+      nodes.push(...[start, r1, r2, r3, s, t].map(id => ({ id })));
+      link(start, r1);
+      link(r1, r2);
+      link(r2, r3);
+      link(r2, s);
+      link(s, t);
+      if (i < 49) {
+        link(r3, `st${i + 1}`);
+        link(t, `st${i + 1}`);
+      }
+      groups.push(group(`g${i}`, [r1, r2, r3]));
+    }
+    const started = Date.now();
+    const result = layoutGroupedSteps(nodes, edges, groups, {}, 1400);
+    expect(Date.now() - started).toBeLessThan(2500);
+    expect(result.graph.frames).toHaveLength(50);
+    const middle = (id: string) =>
+      result.layout.positions.get(id)!.y +
+      boxSize(result.layout, id).height / 2;
+    for (let i = 0; i < 50; i++) {
+      const row = ['r1', 'r2', 'r3'].map(id => middle(`${id}${i}`));
+      expect({ i, row }).toEqual({ i, row: [row[0], row[0], row[0]] });
+    }
+  });
+
   it('says which groups the user opened could not be opened', () => {
     const { nodes, edges } = chain(400);
     const groups = Array.from({ length: 40 }, (_, i) =>

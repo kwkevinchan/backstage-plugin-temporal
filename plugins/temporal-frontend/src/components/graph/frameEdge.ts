@@ -104,27 +104,24 @@ export function frameInsets(
     return insets;
   }
 
-  const frames = [...new Set(parentOf.values())].filter(
-    (f): f is string => f !== undefined,
-  );
+  const frameIds = new Set(parentOf.values());
+  const frames = [...frameIds].filter((f): f is string => f !== undefined);
   // A box of a frame around an end can be in the way out of that frame
   // (the source is not in its last column, or the target not in its first
   // one). Then the arrow turns `FRAME_GAP` outside the frames it can leave
   // without crossing a box, or next to its end when it can leave none, and
   // its way down or up crosses the bottom or top border of the others at
   // a right angle.
-  const boxes = [...parentOf.keys()].filter(
-    id => !frames.includes(id) && id !== source && id !== target,
-  );
-  const inTheWay = (y: number, x1: number, x2: number) =>
-    boxes.some(
-      id =>
-        layout.positions.has(id) &&
-        top(id) < y &&
-        bottom(id) > y &&
-        left(id) < x2 &&
-        right(id) > x1,
-    );
+  const inTheWay = (y: number, x1: number, x2: number) => {
+    for (const id of parentOf.keys()) {
+      if (frameIds.has(id) || id === source || id === target) continue;
+      const p = layout.positions.get(id);
+      if (!p || p.y >= y || p.x >= x2) continue;
+      const size = boxSize(layout, id);
+      if (p.y + size.height > y && p.x + size.width > x1) return true;
+    }
+    return false;
+  };
   const outTurns = [
     right(source) + OFFSET,
     ...own(from, to).map(f => right(f) + FRAME_GAP),
