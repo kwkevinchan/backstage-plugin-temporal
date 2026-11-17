@@ -22,10 +22,12 @@ import type {
   WorkflowGraphResponse,
 } from '../../common';
 import { Flex, Switch, Text } from '@backstage/ui';
+import { ErrorAlert } from '../feedback';
 import { isMarkerStep, isOpenStep } from '../steps';
 import {
   graphHeight,
   layoutSteps,
+  MIN_GRAPH_HEIGHT,
   StepLayout,
   stepSize,
   visibleSteps,
@@ -115,6 +117,14 @@ export interface WorkflowGraphProps {
 
 type Structure = ReturnType<typeof useStructure>;
 
+/** Used when layout throws, so the rest of the page can still render. */
+const EMPTY_LAYOUT: StepLayout = {
+  positions: new Map(),
+  width: 1,
+  height: 1,
+  wrapped: false,
+};
+
 function useStructure(
   graph: WorkflowGraphResponse,
   showMarkers: boolean,
@@ -154,18 +164,27 @@ function useStructure(
       };
     });
     let groups: GroupedLayout | undefined;
-    let layout: StepLayout;
-    if (graph.eventGroups && graph.eventGroups.length > 0) {
-      groups = layoutGroupedSteps(
-        mainNodes,
-        visibleEdges,
-        graph.eventGroups,
-        groupViews,
-        layoutWidth,
-      );
-      layout = groups.layout;
-    } else {
-      layout = layoutSteps(mainNodes, visibleEdges, layoutWidth);
+    let layout: StepLayout = EMPTY_LAYOUT;
+    let layoutError: Error | undefined;
+    try {
+      if (graph.eventGroups && graph.eventGroups.length > 0) {
+        groups = layoutGroupedSteps(
+          mainNodes,
+          visibleEdges,
+          graph.eventGroups,
+          groupViews,
+          layoutWidth,
+        );
+        layout = groups.layout;
+      } else {
+        layout = layoutSteps(mainNodes, visibleEdges, layoutWidth);
+      }
+    } catch (err) {
+      // A long chain can exhaust the call stack in dagre (`RangeError`);
+      // other layout failures must not take down the run page either.
+      layoutError = err instanceof Error ? err : new Error(String(err));
+      groups = undefined;
+      layout = EMPTY_LAYOUT;
     }
     const groupKey = groups
       ? `:${[...groups.plan.boxes.values()]
@@ -178,11 +197,14 @@ function useStructure(
       nodes: visible.nodes,
       edges,
       layout,
+      layoutError,
       toolEdges,
       nextRun,
       groups,
       hues: groupHues(graph.eventGroups),
-      key: `${visible.nodes.length}:${edges.length}:${layout.width}x${layout.height}${groupKey}`,
+      key: layoutError
+        ? 'layout-error'
+        : `${visible.nodes.length}:${edges.length}:${layout.width}x${layout.height}${groupKey}`,
     };
   }, [graph, showMarkers, layoutWidth, groupViews]);
 }
@@ -512,10 +534,9 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
       : undefined;
   const hasMarkers = props.graph.nodes.some(isMarkerStep);
   const fullscreen = useGraphFullscreen();
-  const minHeight = graphHeight(
-    structure.layout,
-    layoutWidth ?? structure.layout.width,
-  );
+  const minHeight = structure.layoutError
+    ? MIN_GRAPH_HEIGHT
+    : graphHeight(structure.layout, layoutWidth ?? structure.layout.width);
   return (
     <ReactFlowProvider>
       <div className={tp('tp-graph-column')}>
@@ -550,17 +571,26 @@ export function WorkflowGraph(props: WorkflowGraphProps) {
           aria-label="Workflow graph"
           data-testid="workflow-graph"
         >
-          <div className={tp('tp-graph-canvas')}>
-            <StepCanvas
-              {...props}
-              structure={structure}
-              layoutWidth={layoutWidth}
-              onToggleGroup={toggleGroup}
-              focusId={focusId}
-              markId={laidOut(markGroup)}
-              selectedBoxId={selectedBoxId}
-            />
-          </div>
+          {structure.layoutError ? (
+            <div style={{ padding: 12 }}>
+              <ErrorAlert
+                title="The graph could not be laid out"
+                error={structure.layoutError}
+              />
+            </div>
+          ) : (
+            <div className={tp('tp-graph-canvas')}>
+              <StepCanvas
+                {...props}
+                structure={structure}
+                layoutWidth={layoutWidth}
+                onToggleGroup={toggleGroup}
+                focusId={focusId}
+                markId={laidOut(markGroup)}
+                selectedBoxId={selectedBoxId}
+              />
+            </div>
+          )}
         </div>
       </div>
     </ReactFlowProvider>
