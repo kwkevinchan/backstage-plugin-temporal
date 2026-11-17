@@ -21,7 +21,7 @@ import type {
   WorkflowGraphNode,
 } from '../../common';
 import { routeRowGaps } from './frameEdge';
-import { GroupedLayout, layoutGroupedSteps } from './eventGroups';
+import { GroupedLayout, GroupViews, layoutGroupedSteps } from './eventGroups';
 import {
   FrameEdgeData,
   frameEdgePath,
@@ -971,6 +971,112 @@ function randomGraph(seed: number) {
   return { edges, ...randomSteps(random, ids) };
 }
 
+/**
+ * A random loop: rounds of steps one after the other, some with two or three
+ * groups of tool calls in parallel in them, steps between some rounds, and
+ * a signal received during one round, which starts a group that leads back
+ * into the round. Some of the rounds and tool groups are open, at least one
+ * round: the frames of the loop and of those rounds stack their groups.
+ */
+function randomLoop(seed: number) {
+  const random = randomFrom(seed);
+  const pick = (n: number) => Math.floor(random() * n);
+  const ids: string[] = [];
+  const edges: WorkflowGraphEdge[] = [];
+  const groups: WorkflowEventGroup[] = [];
+  const signals = new Set<string>();
+  const step = () => {
+    ids.push(`n${ids.length}`);
+    return ids[ids.length - 1];
+  };
+  const link = (source: string, target: string) =>
+    edges.push({ id: `${source}->${target}`, source, target });
+  const group = (key: string, parent?: string): WorkflowEventGroup => {
+    const made: WorkflowEventGroup = {
+      ...nested([])[0],
+      key,
+      id: key,
+      name: key,
+      nodeIds: [],
+      children: [],
+      ...(parent ? { parent } : {}),
+    };
+    groups.push(made);
+    if (parent) groups.find(g => g.key === parent)!.children.push(key);
+    return made;
+  };
+  /** Steps one after the other from `from`, into `into`; the last one. */
+  const run = (from: string, count: number, into: WorkflowEventGroup[]) => {
+    let last = from;
+    for (let i = 0; i < count; i++) {
+      const next = step();
+      link(last, next);
+      for (const g of into) g.nodeIds.push(next);
+      last = next;
+    }
+    return last;
+  };
+  let last = run(step(), pick(2), []);
+  const loop = group('label:loop');
+  const rounds = 2 + pick(3);
+  let signalled = false;
+  for (let r = 1; r <= rounds; r++) {
+    if (r > 1 && random() < 0.2) last = run(last, 1, [loop]);
+    const round = group(`label:loop:${r}`, loop.key);
+    const first = run(last, 1, [loop, round]);
+    if (random() < 0.5) {
+      const ends = Array.from({ length: 2 + pick(2) }, (_, t) => {
+        const tool = group(`label:tool:${r}:${t}`, round.key);
+        return run(first, 1 + pick(2), [loop, round, tool]);
+      });
+      last = step();
+      for (const end of ends) link(end, last);
+      loop.nodeIds.push(last);
+      round.nodeIds.push(last);
+    } else {
+      last = run(first, 1 + pick(3), [loop, round]);
+      if (random() < 0.25) {
+        const aside = run(first, 1, [loop, round]);
+        link(aside, last);
+      }
+    }
+    if (!signalled && random() < 0.5) {
+      signalled = true;
+      const signal = step();
+      signals.add(signal);
+      link(first, signal);
+      const hint: WorkflowEventGroup = {
+        ...group('event:hint'),
+        kind: 'event',
+        sourceNodeId: signal,
+      };
+      groups[groups.length - 1] = hint;
+      link(run(signal, 1 + pick(2), [hint]), last);
+    }
+  }
+  run(last, 1 + pick(3), []);
+  const views: GroupViews = {};
+  for (const g of groups) if (g.parent) views[g.key] = random() < 0.5;
+  const rounds1 = loop.children;
+  if (!rounds1.some(k => views[k])) views[rounds1[pick(rounds1.length)]] = true;
+  // Model calls, tool calls and other steps.
+  const sizeOf = (roll: number): NodeSize => {
+    if (roll < 0.15) return { width: 240, height: 86 };
+    if (roll < 0.25) return { width: 180, height: 52 };
+    return { width: 220, height: 64 };
+  };
+  const nodes = ids.map(id => ({
+    id,
+    size: sizeOf(random()),
+    ...(signals.has(id) ? { framable: true } : {}),
+  }));
+  // The groups in the order they started.
+  const at = (g: WorkflowEventGroup) =>
+    Math.min(...g.nodeIds.map(id => ids.indexOf(id)));
+  groups.sort((a, b) => at(a) - at(b));
+  return { nodes, edges, groups, views };
+}
+
 function layOutRun(
   run: ReturnType<typeof randomRun | typeof randomGraph>,
   width?: number,
@@ -1110,6 +1216,50 @@ describe('random runs', () => {
     },
     60_000,
   );
+});
+
+describe('random loops with their child groups stacked', () => {
+  it('keep the boxes apart and the arrows clear of boxes and frames', () => {
+    const found: string[] = [];
+    let stacked = 0;
+    for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
+      const run = randomLoop(seed);
+      for (const width of [undefined, 1000]) {
+        const result = layoutGroupedSteps(
+          run.nodes,
+          run.edges,
+          run.groups,
+          run.views,
+          width,
+        );
+        const at = `${seed} at ${width}`;
+        if (result.graph.frames.some(f => f.stacked)) stacked++;
+        const boxes = result.graph.nodes.map(n => rectOf(result, n.id));
+        boxes.forEach((a, i) => {
+          for (const b of boxes.slice(i + 1)) {
+            if (
+              a.left < b.right &&
+              b.left < a.right &&
+              a.top < b.bottom &&
+              b.top < a.bottom
+            ) {
+              found.push(`${at}: boxes overlap`);
+            }
+          }
+        });
+        if (result.notice) found.push(`${at}: ${result.notice}`);
+        const list = arrows(result);
+        for (const hit of throughBoxes(result)) found.push(`${at}: ${hit}`);
+        for (const hit of problems(result)) found.push(`${at}: ${hit}`);
+        for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
+        for (const hit of outside(list, result.layout.width)) {
+          found.push(`${at}: ${hit}`);
+        }
+      }
+    }
+    expect(found).toEqual([]);
+    expect(stacked).toBe(2 * SEEDS);
+  }, 120_000);
 });
 
 describe('rows of frames lined up', () => {

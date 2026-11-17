@@ -21,6 +21,8 @@ import {
   FRAME_GAP,
   FRAME_WRAP_GAP,
   MARGIN,
+  OFFSET,
+  rowGapOf,
   StepLayout,
 } from './geometry';
 
@@ -46,8 +48,7 @@ export type FrameEdgeData = {
   centerY?: number;
 };
 
-/** How far a smooth step goes out of a box before it turns. */
-export const OFFSET = 20;
+export { OFFSET } from './geometry';
 /** Radius of the corners, as a smooth step has them. */
 const RADIUS = 5;
 
@@ -91,8 +92,9 @@ export function frameInsets(
   const farTurnIn = left(target) - Math.max(insets.targetInset, OFFSET);
 
   // An arrow into a later row runs back in the gap below the row of its
-  // source (as `routeRowGaps` finds it).
-  const centerY = layout.rowGaps?.find(g => g > top(source) && g < top(target));
+  // source (as `routeRowGaps` finds it). In a stacked frame, an arrow into
+  // an earlier row runs in the gap above the row of its source.
+  const centerY = rowGapOf(layout, source, target);
   if (centerY === undefined) {
     // In one row: straight across the borders, or turning once between
     // the frames. Without room between them (the target is above or below
@@ -306,25 +308,30 @@ const EDGE_SIDE = MARGIN - EDGE_LANE_GAP;
 /**
  * The edges of a wrapped graph: a smooth step into a later row turns in the
  * gap below the row of its source. The arrows of a graph with frames
- * (`frameEdge`) that run in the same gap are spread out side by side,
- * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows. So are
- * the turns of those that leave or enter frames, down out of different
- * sources (and into different targets) at one x or less than
- * `EDGE_LANE_GAP` apart, nested: the arrow from the higher source turns
- * farther right, the one into the lower target farther left.
+ * (`frameEdge`) that run in the same gap, also between the rows of a
+ * stacked frame, are spread out side by side, `EDGE_LANE_GAP` apart, and
+ * stay `FRAME_GAP` clear of the rows. So are the turns of those that leave
+ * or enter frames, down out of different sources (and into different
+ * targets) at one x, nested: the arrow from the higher source turns farther
+ * right, the one into the lower target farther left; closer together where
+ * a box or frame next to them leaves less room. Turns less than
+ * `EDGE_LANE_GAP` apart are spread out together the same way, the full
+ * `EDGE_LANE_GAP` apart, where they all fit and none of them then runs on
+ * another arrow; otherwise only the turns at one x are spread out. The
+ * turns of an arrow up into an earlier row of a stacked frame stay where
+ * they are.
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
-  const gaps = layout.rowGaps;
-  if (!gaps?.length) return edges;
+  if (!layout.rowGaps?.length && !layout.stackGaps?.size) return edges;
   const gapOf = (edge: Edge) => {
     if (edge.type !== 'smoothstep' && edge.type !== 'frameEdge') {
       return undefined;
     }
-    const source = layout.positions.get(edge.source);
-    const target = layout.positions.get(edge.target);
-    if (!source || !target) return undefined;
-    return gaps.find(g => g > source.y && g < target.y);
+    return rowGapOf(layout, edge.source, edge.target);
   };
+  /** True for an arrow up into an earlier row, across `gap`. */
+  const rising = (edge: Edge, gap: number) =>
+    (layout.positions.get(edge.source)?.y ?? 0) > gap;
   const left = (id: string) => layout.positions.get(id)?.x ?? 0;
   const right = (id: string) => left(id) + boxSize(layout, id).width;
   const middle = (id: string) =>
@@ -340,8 +347,12 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
       left(edge.target) - Math.max(data(edge).targetInset ?? 0, OFFSET),
     );
 
-  // The arrows with frames in each gap, from the one that turns down first:
-  // it runs at the top, so the arrows cross as little as possible. Of the
+  // The arrows with frames in each gap run in lanes, from the one that
+  // turns down first out of its source at the top, where `frameInsets`
+  // turns it: an arrow that runs left in its lane then does not cross the
+  // turns down of the arrows in the lanes below it. The lanes keep that
+  // order when turns are spread out; turns spread out together from
+  // different x can change places, and their arrows can then cross. Of the
   // arrows that turn down at one x, the one from the lower source runs
   // higher, inside the turns of the others.
   // The boxes and frames that turns spread out stop at, found once.
@@ -366,9 +377,12 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     return inset === undefined ? turnIn(edge) : left(edge.target) - inset;
   };
   // Only arrows that turn outside frames: an arrow without frames to leave
-  // or enter is a smooth step, which turning elsewhere would change.
-  const framedIn = (shared: Edge[]) =>
-    shared.filter(e => data(e).sourceInset || data(e).targetInset);
+  // or enter is a smooth step, which turning elsewhere would change. Not
+  // the arrows up into an earlier row either.
+  const framedIn = (shared: Edge[], gap: number) =>
+    shared.filter(
+      e => (data(e).sourceInset || data(e).targetInset) && !rising(e, gap),
+    );
   /** Spreads out the turns of the arrows in a gap into `into`. */
   const spreadGap = (
     gap: number,
@@ -376,7 +390,7 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     into: Map<Edge, FrameEdgeData>,
     clear?: (x: number, top: number, bottom: number, run: Edge[]) => boolean,
   ) => {
-    const framed = framedIn(shared);
+    const framed = framedIn(shared, gap);
     spreadTurns(framed, {
       turn: turnOut,
       end: edge => edge.source,
@@ -427,17 +441,28 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const alone = new Map<Edge, FrameEdgeData>();
   for (const [gap, shared] of inGap) spreadGap(gap, shared, alone);
   const downs: { edge: Edge; x: number; top: number; bottom: number }[] = [];
-  const framed = new Set([...inGap.values()].flatMap(framedIn));
+  const framed = new Set(
+    [...inGap].flatMap(([gap, shared]) => framedIn(shared, gap)),
+  );
   for (const edge of edges) {
     if (edge.type !== 'frameEdge') continue;
     if (!layout.positions.has(edge.source)) continue;
     if (!layout.positions.has(edge.target)) continue;
     const gap = gapOf(edge);
     const [out, into] = [outOf(edge, alone), inTo(edge, alone)];
-    if (gap !== undefined && (framed.has(edge) || out > into)) {
+    if (
+      gap !== undefined &&
+      (framed.has(edge) || out > into || rising(edge, gap))
+    ) {
+      const [outTop, outBottom] = [middle(edge.source), gap].sort(
+        (a, b) => a - b,
+      );
+      const [inTop, inBottom] = [gap, middle(edge.target)].sort(
+        (a, b) => a - b,
+      );
       downs.push(
-        { edge, x: out, top: middle(edge.source), bottom: gap },
-        { edge, x: into, top: gap, bottom: middle(edge.target) },
+        { edge, x: out, top: outTop, bottom: outBottom },
+        { edge, x: into, top: inTop, bottom: inBottom },
       );
     } else {
       // In one row, or a smooth step to a target farther right: down

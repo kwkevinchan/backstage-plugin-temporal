@@ -21,6 +21,8 @@ import { isMarkerStep } from '../steps';
 import {
   boxSize,
   FRAME_GAP,
+  FRAME_PADDING,
+  FRAME_TOP,
   FRAME_WRAP_GAP,
   MARGIN,
   NODE_HEIGHT,
@@ -35,17 +37,28 @@ import {
   Point,
   routeRowGaps,
 } from './frameEdge';
+import {
+  LayoutEdge,
+  LayoutFrame,
+  LayoutNode,
+  layoutStacked,
+  StackBlock,
+} from './stackLayout';
 
 export {
   boxSize,
   EDGE_LANE_GAP,
   FRAME_GAP,
+  FRAME_PADDING,
+  FRAME_TITLE_HEIGHT,
+  FRAME_TOP,
   FRAME_WRAP_GAP,
   MARGIN,
   NODE_HEIGHT,
   NODE_WIDTH,
 } from './geometry';
 export type { NodeSize, StepLayout } from './geometry';
+export type { LayoutFrame, LayoutNode } from './stackLayout';
 /** A model call: three lines (name, model, tokens and tools). */
 export const LLM_NODE_WIDTH = 240;
 export const LLM_NODE_HEIGHT = 86;
@@ -189,31 +202,17 @@ export function layoutSteps(
 }
 
 /**
- * A frame around steps, laid out with them: the steps (and frames) whose
- * `parent` it is, plus room for its title bar.
- */
-export interface LayoutFrame {
-  id: string;
-  /** The frame around this one. */
-  parent?: string;
-}
-
-/** Space between a frame and the boxes in it, below and on the sides. */
-export const FRAME_PADDING = 12;
-/** Height of the title bar of a frame of steps. */
-export const FRAME_TITLE_HEIGHT = 30;
-/** Space above the boxes of a frame: its title bar and a gap. */
-export const FRAME_TOP = FRAME_TITLE_HEIGHT + 8;
-
-/**
  * {@link layoutSteps} with frames around some of the steps, any number of
  * frames deep: dagre lays out the steps as a compound graph, which keeps
  * the steps of a frame together and the steps of other frames out of it.
  * The frame boxes are then drawn around their steps, with the title bar at
  * the top. A wrapped graph never splits an outermost frame across rows.
+ *
+ * The boxes of a stacked frame (`LayoutFrame.stacked`) go in rows one below
+ * the other instead (see `layoutStacked`).
  */
 export function layoutGraph(
-  nodes: { id: string; size?: NodeSize; parent?: string }[],
+  nodes: LayoutNode[],
   edges: { source: string; target: string }[],
   width?: number,
   options: {
@@ -223,11 +222,43 @@ export function layoutGraph(
     lineUpRows?: boolean;
   } = {},
 ): StepLayout {
+  const frames = options.frames ?? [];
+  if (options.direction !== 'TB' && frames.some(f => f.stacked)) {
+    return layoutStacked(
+      nodes,
+      edges,
+      width,
+      { frames, lineUpRows: options.lineUpRows },
+      layoutBlocks,
+    );
+  }
+  return layoutBlocks(nodes, edges, width, { ...options, frames });
+}
+
+/**
+ * {@link layoutGraph} without stacked frames: the stacked frames of
+ * `blocks`, laid out on their own, are boxes of their size in it. Arrows
+ * into and out of them are lined up with the boxes in them they lead to.
+ */
+function layoutBlocks(
+  nodes: LayoutNode[],
+  edges: LayoutEdge[],
+  width: number | undefined,
+  options: {
+    direction?: 'LR' | 'TB';
+    frames?: LayoutFrame[];
+    lineUpRows?: boolean;
+    blocks?: Map<string, StackBlock>;
+  },
+): StepLayout {
   const topDown = options.direction === 'TB';
   const frames = options.frames ?? [];
+  const blocks = options.blocks ?? new Map<string, StackBlock>();
   const sizeOf = (node: { size?: NodeSize }) =>
     node.size ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
   const compound = frames.length > 0 && !topDown;
+  // Stacked frames are frames too, for the rows of a wrapped graph.
+  const framed = compound || (blocks.size > 0 && !topDown);
   const graph = new dagre.graphlib.Graph({ compound });
   graph.setGraph({
     rankdir: topDown ? 'TB' : 'LR',
@@ -273,10 +304,21 @@ export function layoutGraph(
     height: size.height ?? NODE_HEIGHT + 2 * MARGIN,
     wrapped: false,
   };
-  if (compound) {
-    const framed = { layout, nodes, edges, frames, sizes, sizeOf, width };
-    if (options.lineUpRows !== false) alignFrameRows(framed);
-    return settle(framed, positions);
+  if (framed) {
+    const framedGraph: FramedGraph = {
+      layout,
+      nodes,
+      edges,
+      frames,
+      sizes,
+      sizeOf,
+      width,
+      blocks,
+      outerBlocks: nodes.filter(n => blocks.has(n.id) && !n.parent),
+    };
+    if (options.lineUpRows !== false) alignFrameRows(framedGraph);
+    if (blocks.size > 0) alignToBlocks(framedGraph);
+    return settle(framedGraph, positions);
   }
   if (sizes.size > 0) layout.sizes = sizes;
   if (width === undefined || nodes.length === 0 || topDown) return layout;
@@ -291,14 +333,18 @@ export function layoutGraph(
  */
 interface FramedGraph {
   layout: StepLayout;
-  nodes: { id: string; size?: NodeSize; parent?: string }[];
-  edges: { source: string; target: string }[];
+  nodes: LayoutNode[];
+  edges: LayoutEdge[];
   frames: LayoutFrame[];
   /** Sizes of the boxes that are not of the default size. */
   sizes: Map<string, NodeSize>;
   sizeOf: (node: { size?: NodeSize }) => NodeSize;
   /** The width to wrap the graph into. */
   width?: number;
+  /** Stacked frames laid out on their own, boxes of this graph. */
+  blocks: Map<string, StackBlock>;
+  /** The stacked frames in no frame of this graph. */
+  outerBlocks: LayoutNode[];
 }
 
 /**
@@ -318,9 +364,14 @@ function withFrames(
   return layout;
 }
 
-/** The frames that are in no other frame. */
-const outerFramesOf = (frames: LayoutFrame[]) =>
-  frames.filter(f => !f.parent).map(f => f.id);
+/**
+ * The frames that are in no other frame, with the stacked frames laid out
+ * as boxes that are in none.
+ */
+const outerFramesOf = (graph: FramedGraph) => [
+  ...graph.frames.filter(f => !f.parent).map(f => f.id),
+  ...graph.outerBlocks.map(n => n.id),
+];
 
 /** The graph with the boxes at `positions`, as it is drawn. */
 function settle(
@@ -332,7 +383,7 @@ function settle(
   if (width === undefined || graph.nodes.length === 0) return layout;
   // Fits as it is, at a readable zoom.
   if (layout.width * READABLE_ZOOM <= width) return layout;
-  return wrapColumns(layout, width, outerFramesOf(graph.frames));
+  return wrapColumns(layout, width, outerFramesOf(graph));
 }
 
 /**
@@ -345,7 +396,7 @@ function wrappedRows(graph: FramedGraph): Map<string, number> | undefined {
   if (width === undefined || nodes.length === 0) return undefined;
   const layout = withFrames(graph, graph.layout.positions);
   if (layout.width * READABLE_ZOOM <= width) return undefined;
-  const plan = planRows(layout, width, outerFramesOf(graph.frames));
+  const plan = planRows(layout, width, outerFramesOf(graph));
   if (plan.rowCount === 1) return undefined;
   return new Map(
     nodes.map(n => [
@@ -444,6 +495,167 @@ function alignFrameRows(graph: FramedGraph) {
     for (const node of row) positions.set(node.id, lined.get(node.id)!);
     through = after;
   }
+}
+
+/**
+ * Moves the boxes and frames in no frame up or down to line up with the
+ * boxes they lead to or come from in a stacked frame, laid out as one box
+ * (`blocks`): dagre lines them up with the middle of the stacked frame.
+ * From the left, each one moves so that its first arrow from a box in a
+ * stacked frame, or from a box or frame that moved, is straight; then from
+ * the right, each one that did not move, by its first arrow into one. A
+ * box or frame moves only when both ends of that arrow are in one row of a
+ * wrapped graph, it then stays `ROW_GAP` clear of the other boxes and
+ * frames above and below it, and no arrow then runs through or along a box
+ * it did not before.
+ */
+function alignToBlocks(graph: FramedGraph) {
+  const { nodes, frames, blocks, edges, sizeOf } = graph;
+  const positions = graph.layout.positions;
+  const parentOf = new Map<string, string | undefined>([
+    ...frames.map(f => [f.id, f.parent] as const),
+    ...nodes.map(n => [n.id, n.parent] as const),
+  ]);
+  const topOf = (id: string) => {
+    let at = id;
+    for (let depth = 0; depth <= frames.length; depth++) {
+      const parent = parentOf.get(at);
+      if (parent === undefined) break;
+      at = parent;
+    }
+    return at;
+  };
+  const members = new Map<string, LayoutNode[]>();
+  for (const node of nodes) {
+    const top = topOf(node.id);
+    members.set(top, [...(members.get(top) ?? []), node]);
+  }
+  const height = new Map(nodes.map(n => [n.id, sizeOf(n).height]));
+  const middle = (id: string, inner?: string) => {
+    const block = blocks.get(id);
+    const at = positions.get(id)!.y;
+    if (!block || inner === undefined) return at + height.get(id)! / 2;
+    const p = block.positions.get(inner)!;
+    const size = block.sizes.get(inner)?.height ?? NODE_HEIGHT;
+    return at + p.y + size / 2;
+  };
+  const left = (top: string) =>
+    Math.min(...members.get(top)!.map(n => positions.get(n.id)!.x));
+  const tops = [...members.keys()].sort((a, b) => left(a) - left(b));
+  const drawing: ArrowDrawing = { parentOf, corners: new Map() };
+  let through: Map<string, number> | undefined;
+  const rows = wrappedRows(graph);
+  const top0 = Math.min(...nodes.map(n => positions.get(n.id)!.y));
+  const bottom0 = Math.max(
+    ...nodes.map(n => positions.get(n.id)!.y + height.get(n.id)!),
+  );
+  // Lined up: the stacked frames, and what moved to line up with them.
+  const lined = new Set<string>(tops.filter(top => blocks.has(top)));
+  const lineUp = (top: string, edge: LayoutEdge, into: boolean) => {
+    const [own, other] = into
+      ? [
+          middle(edge.target, edge.inner?.target),
+          middle(edge.source, edge.inner?.source),
+        ]
+      : [
+          middle(edge.source, edge.inner?.source),
+          middle(edge.target, edge.inner?.target),
+        ];
+    const dy = other - own;
+    if (Math.abs(dy) < 0.5) return true;
+    const moved = new Map(positions);
+    for (const { id } of members.get(top)!) {
+      const p = positions.get(id)!;
+      moved.set(id, { x: p.x, y: p.y + dy });
+    }
+    if (crowds(graph, moved, top, tops)) return false;
+    const before = through ?? arrowsThroughBoxes(graph, positions, drawing);
+    const after = arrowsThroughBoxes(graph, moved, drawing);
+    through = before;
+    if ([...after].some(([hit, level]) => level > (before.get(hit) ?? 0))) {
+      return false;
+    }
+    for (const { id } of members.get(top)!) positions.set(id, moved.get(id)!);
+    through = after;
+    return true;
+  };
+  // An arrow from or into something lined up: into a stacked frame, only
+  // one that leads to a box in it; only in one row of a wrapped graph.
+  const linedEnd = (edge: LayoutEdge, end: 'source' | 'target') => {
+    const id = edge[end];
+    if (blocks.has(id) && topOf(id) === id) {
+      if (edge.inner?.[end] === undefined) return false;
+    } else if (!lined.has(topOf(id))) return false;
+    return !rows || rows.get(edge.source) === rows.get(edge.target);
+  };
+  // From the left, by the arrows in; then from the right, by those out.
+  for (const top of tops) {
+    if (lined.has(top)) continue;
+    const edge = edges.find(
+      e =>
+        topOf(e.target) === top &&
+        topOf(e.source) !== top &&
+        linedEnd(e, 'source'),
+    );
+    if (edge && lineUp(top, edge, true)) lined.add(top);
+  }
+  for (const top of [...tops].reverse()) {
+    if (lined.has(top)) continue;
+    const edge = edges.find(
+      e =>
+        topOf(e.source) === top &&
+        topOf(e.target) !== top &&
+        linedEnd(e, 'target'),
+    );
+    if (edge && lineUp(top, edge, false)) lined.add(top);
+  }
+  // The graph grows by what moved past its top or bottom.
+  const top1 = Math.min(...nodes.map(n => positions.get(n.id)!.y));
+  const bottom1 = Math.max(
+    ...nodes.map(n => positions.get(n.id)!.y + height.get(n.id)!),
+  );
+  const down = Math.max(0, top0 - top1);
+  if (down > 0) {
+    for (const [id, p] of positions) {
+      positions.set(id, { x: p.x, y: p.y + down });
+    }
+  }
+  graph.layout.height += down + Math.max(0, bottom1 - bottom0);
+}
+
+/**
+ * True when the box or frame `top` (in no frame), with the boxes at
+ * `positions`, comes closer than `ROW_GAP` to another of `tops` above or
+ * below it.
+ */
+function crowds(
+  graph: FramedGraph,
+  positions: Map<string, { x: number; y: number }>,
+  top: string,
+  tops: string[],
+) {
+  const layout = withFrames(graph, positions);
+  const rect = (id: string) => {
+    const p = layout.positions.get(id)!;
+    const size = boxSize(layout, id);
+    return {
+      left: p.x,
+      top: p.y,
+      right: p.x + size.width,
+      bottom: p.y + size.height,
+    };
+  };
+  const a = rect(top);
+  return tops.some(other => {
+    if (other === top) return false;
+    const b = rect(other);
+    return (
+      a.left < b.right &&
+      b.left < a.right &&
+      a.top < b.bottom + ROW_GAP &&
+      b.top < a.bottom + ROW_GAP
+    );
+  });
 }
 
 /**
