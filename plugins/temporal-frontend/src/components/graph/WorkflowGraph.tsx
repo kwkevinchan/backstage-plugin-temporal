@@ -117,6 +117,10 @@ export interface WorkflowGraphProps {
 
 type Structure = ReturnType<typeof useStructure>;
 
+/** Shown in place of the engine's own message when the call stack ran out. */
+const TOO_MANY_STEPS =
+  'The run has too many steps in a row to lay out as a graph.';
+
 /** Used when layout throws, so the rest of the page can still render. */
 const EMPTY_LAYOUT: StepLayout = {
   positions: new Map(),
@@ -182,7 +186,11 @@ function useStructure(
     } catch (err) {
       // A long chain can exhaust the call stack in dagre (`RangeError`);
       // other layout failures must not take down the run page either.
-      layoutError = err instanceof Error ? err : new Error(String(err));
+      if (err instanceof RangeError) {
+        layoutError = new Error(TOO_MANY_STEPS);
+      } else {
+        layoutError = err instanceof Error ? err : new Error(String(err));
+      }
       groups = undefined;
       layout = EMPTY_LAYOUT;
     }

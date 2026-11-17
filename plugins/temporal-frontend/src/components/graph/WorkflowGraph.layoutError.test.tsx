@@ -89,7 +89,10 @@ describe('WorkflowGraph layout errors', () => {
     const graph = screen.getByTestId('workflow-graph');
     const alert = within(graph).getByTestId('temporal-error');
     expect(alert).toHaveTextContent('The graph could not be laid out');
-    expect(alert).toHaveTextContent('Maximum call stack size exceeded');
+    expect(alert).toHaveTextContent(
+      'The run has too many steps in a row to lay out as a graph.',
+    );
+    expect(alert).not.toHaveTextContent('Maximum call stack size exceeded');
     expect(screen.getByTestId('step-list')).toHaveTextContent('Start');
     expect(screen.getByTestId('step-list')).toHaveTextContent('reserveStock');
     expect(screen.getByTestId('step-details')).toHaveTextContent(
