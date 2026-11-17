@@ -1020,6 +1020,48 @@ describe('the group of a signal received during a round', () => {
     expect(throughBoxes(result)).toEqual([]);
   });
 
+  describe('received during a collapsed round, leading nowhere', () => {
+    // A signal received during round 3, collapsed: its group goes in a row
+    // below the round, starting where the arrow into it turns down.
+    const late = loop(3, {
+      nodes: [step('signal', { kind: 'signal' }), step('hint')],
+      edges: [
+        ['r3s3', 'signal'],
+        ['signal', 'hint'],
+      ],
+      groups: [
+        {
+          ...label('event:hint', ['hint']),
+          kind: 'event',
+          sourceNodeId: 'signal',
+        },
+      ],
+    });
+
+    it('is not moved left to stay within the widest row', () => {
+      for (const width of [undefined, 1500]) {
+        const result = laidOut(late, open(1), width);
+        const hint = rect(result, box('event:hint'));
+        expect(hint.left).toBe(
+          rect(result, box('label:r3')).right + 2 * FRAME_GAP,
+        );
+        expect(hint.right).toBeGreaterThan(rect(result, box('label:r1')).right);
+      }
+    });
+
+    it('is moved left only as far as keeps the boxes of a wrapped graph in their rows', () => {
+      // At 1300 the loop, as wide as the group not moved left needs, would
+      // put the step after the loop in another row.
+      const result = laidOut(late, open(1), 1300);
+      const hint = rect(result, box('event:hint'));
+      expect(hint.left).toBeLessThan(
+        rect(result, box('label:r3')).right + 2 * FRAME_GAP,
+      );
+      expect(hint.right).toBeGreaterThan(rect(result, box('label:r1')).right);
+      expect(result.layout.width).toBeLessThanOrEqual(1300);
+    });
+  });
+
   it('stays within the widest row when it would start past it', () => {
     // A signal received at the last step of round 2, into round 3.
     const late = loop(3, {
