@@ -1276,7 +1276,8 @@ describe('boxes of a frame in one row', () => {
   );
 
   // r1 → r2 → r3 in a frame, and r2 → s outside it: dagre puts s in the
-  // column of r3, below the frame, and moves r3 up to make room for it.
+  // column of r3, above or below the frame, and moves r3 away from it to
+  // make room for it.
   const signalNextToRow = (
     tall: string[],
     after: string[][] = [],
@@ -1315,9 +1316,16 @@ describe('boxes of a frame in one row', () => {
       expect(middles).toEqual([middles[0], middles[0], middles[0]]);
       const tallest = Math.max(...row.map(id => height(layout, id)));
       expect(height(layout, 'F')).toBe(FRAME_TOP + tallest + FRAME_PADDING);
-      // The other box stays clear of the frame.
-      const frameBottom = layout.positions.get('F')!.y + height(layout, 'F');
-      expect(layout.positions.get('s')!.y).toBeGreaterThan(frameBottom);
+      // The other box stays clear of the frame, above or below it, and off
+      // the middle of the row.
+      const frameTop = layout.positions.get('F')!.y;
+      const frameBottom = frameTop + height(layout, 'F');
+      const top = layout.positions.get('s')!.y;
+      const bottom = top + height(layout, 's');
+      expect(
+        Math.max(top, frameTop) - Math.min(bottom, frameBottom),
+      ).toBeGreaterThan(0);
+      expect(middle(layout, 's')).not.toBe(middles[0]);
     },
   );
 
@@ -1325,7 +1333,7 @@ describe('boxes of a frame in one row', () => {
     'keep a row whose middles cannot be shared within the row (taller: %j)',
     tall => {
       // The taller last box fits the shared middle of the others only past
-      // the bottom of the row: lining it up would straighten no more
+      // the top or bottom of the row: lining it up would straighten no more
       // arrows than it bends.
       const layout = signalNextToRow(tall);
       expect([...layout.positions]).toEqual([

@@ -33,6 +33,7 @@ import {
   boxSize,
   EDGE_LANE_GAP,
   layoutGraph,
+  MARGIN,
   NodeSize,
   StepLayout,
   stepSize,
@@ -743,6 +744,91 @@ describe('arrows that share the gap between two rows', () => {
     expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
   });
 
+  it('spreads turns less than a lane apart as turns at one x', () => {
+    // The two arrows turn 2px apart, out of the frames and into them.
+    const { layout, edges } = stacked(2);
+    edges[1].data = { sourceInset: 42, targetInset: 30 };
+    const result = routed(layout, edges);
+    expect(clashes(result, layout)).toEqual([]);
+    expect(outside(result, layout.width)).toEqual([]);
+    const [a, b] = result.map(({ points }) => points);
+    // Nested: the higher source turns farther right, the lower target
+    // farther left, a lane apart.
+    expect(a[1].x - b[1].x).toBe(EDGE_LANE_GAP);
+    expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
+  });
+
+  /**
+   * Three arrows into the next row with room on both sides, turning out
+   * and in by the given insets.
+   */
+  function apart(sourceInsets: number[], targetInsets: number[]) {
+    const { layout, edges } = stacked(3);
+    const width = 1400;
+    for (let i = 0; i < 3; i++) {
+      layout.positions.set(`s${i}`, { x: 600, y: 40 + 90 * i });
+      layout.positions.set(`t${i}`, { x: 600, y: 500 + 90 * i });
+      edges[i].data = {
+        sourceInset: sourceInsets[i],
+        targetInset: targetInsets[i],
+      };
+    }
+    return { layout: { ...layout, width }, edges };
+  }
+
+  it('spreads the turns a spread out run reaches as one run', () => {
+    // The lowest source turns out at 858 and the highest at 850, which
+    // spreads out to 868, where the middle one turns. Into the targets the
+    // same with the highest target at 562, the lowest at 570 and the
+    // middle one at 552.
+    const { layout, edges } = apart([30, 48, 38], [38, 48, 30]);
+    const result = routed(layout, edges);
+    const turnsOut = result.map(a => a.points[1].x);
+    const turnsIn = result.map(a => a.points[3].x);
+    // A lane apart, the higher source farther right and the lower target
+    // farther left, none closer to its box than it was.
+    expect(turnsOut).toEqual([878, 868, 858]);
+    expect(turnsIn).toEqual([562, 552, 542]);
+  });
+
+  it('keeps a turn that is farther out than a lane past the one before', () => {
+    // Out of the lowest source at 850, the middle one at 868 and the
+    // highest at 859: the middle one stays at 868, not at 860.
+    const { layout, edges } = apart([39, 48, 30], [20, 20, 20]);
+    const turnsOut = routed(layout, edges).map(a => a.points[1].x);
+    expect(turnsOut).toEqual([878, 868, 850]);
+  });
+
+  it('leaves turns less than a lane apart that would then run on another arrow', () => {
+    // The same turns out of the sources, and an arrow without frames that
+    // turns down at 878, where the highest source would turn.
+    const { layout, edges } = apart([30, 48, 38], [38, 48, 30]);
+    layout.positions.set('s3', { x: 638, y: 300 });
+    layout.positions.set('t3', { x: 600, y: 770 });
+    const plain = { ...edges[0], id: 's3->t3', source: 's3', target: 't3' };
+    const result = routed(layout, [
+      ...edges,
+      { ...plain, data: { sourceInset: 0, targetInset: 0 } },
+    ]);
+    expect(result.map(a => a.points[1].x)).toEqual([850, 868, 858, 878]);
+    // Into the targets, nothing is in the way.
+    expect(result.slice(0, 3).map(a => a.points[3].x)).toEqual([562, 552, 542]);
+  });
+
+  it('leaves turns less than a lane apart that would pass the side of the graph', () => {
+    // Out of the lowest source 26 from the side of the graph, the middle
+    // one 10 from it and the highest 18 from it: spread out a lane apart,
+    // the highest would turn outside the limit, so all three stay.
+    const { layout, edges } = stacked(3);
+    [42, 50, 34].forEach((inset, i) => {
+      edges[i].data = { sourceInset: inset, targetInset: 32 };
+    });
+    const turnsOut = routed(layout, edges).map(a => a.points[1].x);
+    const side = MARGIN - EDGE_LANE_GAP;
+    expect(Math.max(...turnsOut)).toBeLessThanOrEqual(layout.width - side);
+    expect(turnsOut).toEqual([910, 918, 902]);
+  });
+
   it('leaves the turns of an arrow without frames where a smooth step has them', () => {
     // s0 leaves no frame; it turns where the arrow out of the frame of s1
     // turns.
@@ -952,7 +1038,7 @@ function spreadTooClose(result: GroupedLayout) {
 
 describe('random runs', () => {
   it.each([
-    [163, 1100],
+    [641, 1100],
     [40, 700],
     [40, 900],
     [334, 1100],
@@ -969,13 +1055,13 @@ describe('random runs', () => {
     ['run', 5525, undefined, randomRun],
     ['run', 5525, 900, randomRun],
     ['run', 5525, 1100, randomRun],
-    ['graph', 176, 700, randomGraph],
+    ['graph', 2204, 700, randomGraph],
   ] as const)(
     'never line up a row onto an arrow as it is drawn (%s %i, width %s)',
     (_, seed, width, random) => {
-      // An arrow out of a frame runs straight to outside it before it
-      // turns (run 5525), and the turn of an arrow into the next row
-      // depends on the boxes next to it (graph 176).
+      // Lined up, an arrow would run through a box (run 5525); the turns
+      // of an arrow into the next row, out of a frame and into one, depend
+      // on the boxes next to it (graph 2204).
       const run = random(seed);
       const before = throughBoxes(layOutRun(run, width, false));
       const after = throughBoxes(layOutRun(run, width));
