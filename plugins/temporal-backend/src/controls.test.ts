@@ -1015,3 +1015,52 @@ describe('with temporal.control.enabled: false', () => {
     }
   });
 });
+
+describe('input length limits', () => {
+  const schedules = [
+    {
+      scheduleId: 'nightly',
+      workflowType: 'orderWorkflow',
+      taskQueue: 'orders',
+    },
+  ];
+
+  it('rejects terminate reason, workflowId, and schedule note longer than 1000 chars', async () => {
+    const { backend, workflowService, patchesOf } = await start({ schedules });
+    const tooLong = 'x'.repeat(1001);
+
+    await request(backend)
+      .post(`${wf}/terminate${withEntity}`)
+      .send({ reason: tooLong })
+      .expect(400);
+    await request(backend)
+      .post(`${wf}/rerun${withEntity}`)
+      .send({ workflowId: tooLong })
+      .expect(400);
+    await request(backend)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+        workflowId: tooLong,
+      })
+      .expect(400);
+    await request(backend)
+      .post(`/api/temporal/namespaces/default/workflows/${tooLong}/cancel`)
+      .send({})
+      .expect(400);
+    await request(backend)
+      .post(
+        '/api/temporal/namespaces/default/schedules/nightly/pause?entityRef=component:default/orders',
+      )
+      .send({ note: tooLong })
+      .expect(400);
+
+    expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+    expect(
+      workflowService.requestCancelWorkflowExecution,
+    ).not.toHaveBeenCalled();
+    expect(patchesOf('nightly')).toEqual([]);
+  });
+});

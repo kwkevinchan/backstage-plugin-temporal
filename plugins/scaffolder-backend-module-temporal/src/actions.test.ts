@@ -153,6 +153,64 @@ describe('temporal:workflow:start', () => {
     expect(client.start).not.toHaveBeenCalled();
     expect(ctx.output).toHaveBeenCalledWith('workflowId', 'dry-run');
   });
+
+  it('uses explicit workflowId, handles namespace with or without entityRef, and wraps scalar args', async () => {
+    const { client, options } = setup();
+
+    await createTemporalWorkflowStartAction(options).handler(
+      context({
+        entityRef: 'temporalworkflow:default/release',
+        namespace: 'ignored-ns',
+        workflowId: 'custom-release-1',
+        args: 'canary',
+      }),
+    );
+    expect(client.start).toHaveBeenLastCalledWith(
+      {
+        entityRef: 'temporalworkflow:default/release',
+        workflowType: undefined,
+        taskQueue: undefined,
+        namespace: undefined,
+        workflowId: 'custom-release-1',
+        args: ['canary'],
+      },
+      user,
+    );
+
+    await createTemporalWorkflowStartAction(options).handler(
+      context({
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+        namespace: 'billing',
+        workflowId: 'order-custom-2',
+        args: 42,
+      }),
+    );
+    expect(client.start).toHaveBeenLastCalledWith(
+      {
+        entityRef: undefined,
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+        namespace: 'billing',
+        workflowId: 'order-custom-2',
+        args: [42],
+      },
+      user,
+    );
+
+    const dryCtx = context(
+      {
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+        namespace: 'billing',
+        workflowId: 'custom-dry',
+      },
+      { isDryRun: true },
+    );
+    await createTemporalWorkflowStartAction(options).handler(dryCtx);
+    expect(dryCtx.output).toHaveBeenCalledWith('namespace', 'billing');
+    expect(dryCtx.output).toHaveBeenCalledWith('workflowId', 'custom-dry');
+  });
 });
 
 describe('temporal:workflow:wait', () => {

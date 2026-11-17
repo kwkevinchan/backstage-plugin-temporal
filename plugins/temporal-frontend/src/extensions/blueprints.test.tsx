@@ -16,6 +16,8 @@
 
 import { createExtensionTester } from '@backstage/frontend-test-utils';
 import {
+  TemporalScheduleActionBlueprint,
+  temporalScheduleActionDataRef,
   TemporalWorkflowActionBlueprint,
   temporalWorkflowActionDataRef,
   TemporalWorkflowListActionBlueprint,
@@ -83,5 +85,23 @@ describe('blueprints', () => {
     );
     expect(action.id).toBe('temporal-workflow-list-action:export');
     expect(action.filter).toBe(filter);
+  });
+
+  it('outputs a schedule action', () => {
+    const filter = () => true;
+    const extension = TemporalScheduleActionBlueprint.make({
+      name: 'custom',
+      params: { loader: async () => () => null, filter },
+    });
+    expect((extension as unknown as { attachTo: unknown }).attachTo).toEqual({
+      id: 'api:temporal/workflow-extensions',
+      input: 'scheduleActions',
+    });
+    const action = createExtensionTester(extension).get(
+      temporalScheduleActionDataRef,
+    );
+    expect(action.id).toBe('temporal-schedule-action:custom');
+    expect(action.filter).toBe(filter);
+    expect(typeof action.component).toBe('function');
   });
 });

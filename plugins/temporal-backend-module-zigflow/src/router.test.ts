@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+import { temporalWorkflowReadPermission } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import type { Entity } from '@backstage/catalog-model';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
+import type { JsonObject } from '@backstage/types';
 import request from 'supertest';
 import { createBackendPlugin } from '@backstage/backend-plugin-api';
 import { temporalModuleZigflow } from './module';
@@ -69,6 +71,21 @@ const yamlWorkflow: Entity = {
   },
 };
 
+const remoteWorkflow: Entity = {
+  ...yamlWorkflow,
+  metadata: {
+    name: 'remote-flow',
+    namespace: 'default',
+  },
+  spec: {
+    ...yamlWorkflow.spec,
+    definition: {
+      format: 'serverless-workflow',
+      target: 'https://raw.example.com/flow.yaml',
+    },
+  },
+};
+
 const badDefinition: Entity = {
   ...yamlWorkflow,
   metadata: { ...yamlWorkflow.metadata, name: 'bad-flow' },
@@ -81,10 +98,20 @@ const badDefinition: Entity = {
 const text =
   'document:\n  dsl: 1.0.0\ndo:\n  - first:\n      wait:\n        seconds: 1\n';
 
-async function start(result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY) {
+async function start(options?: {
+  result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
+  config?: JsonObject;
+}) {
   const readUrl = jest.fn(async () => ({
     buffer: async () => Buffer.from(text),
   }));
+  const permissions = mockServices.permissions.mock({
+    authorize: jest.fn(async requests =>
+      requests.map(() => ({
+        result: options?.result ?? AuthorizeResult.ALLOW,
+      })),
+    ) as any,
+  });
   const { server } = await startTestBackend({
     features: [
       temporalPluginStandIn,
@@ -94,14 +121,23 @@ async function start(result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY) {
           ordersEntity,
           orderWorkflowEntity,
           yamlWorkflow,
+          remoteWorkflow,
           badDefinition,
         ],
       }),
-      mockServices.permissions.factory(result ? { result } : undefined),
+      permissions.factory,
       mockServices.urlReader.mock({ readUrl }).factory,
+      ...(options?.config
+        ? [mockServices.rootConfig.factory({ data: options.config })]
+        : []),
     ],
   });
-  return { server: await withOpenApiValidation(server), readUrl };
+  return {
+    backend: server,
+    server: await withOpenApiValidation(server),
+    readUrl,
+    permissions,
+  };
 }
 
 const path = (name: string, kind = 'temporalworkflow') =>
@@ -124,15 +160,32 @@ describe('definition route', () => {
     });
   });
 
-  it('needs the read permission', async () => {
-    const { server, readUrl } = await start(AuthorizeResult.DENY);
+  it('needs the read permission with resourceRef on the entity', async () => {
+    const allowed = await start();
+    await request(allowed.server).get(
+      '/api/temporal/entities/TemporalWorkflow/Default/Yaml-Flow/definition',
+    );
+    expect(allowed.permissions.authorize).toHaveBeenCalledWith(
+      [
+        {
+          permission: temporalWorkflowReadPermission,
+          resourceRef: 'temporalworkflow:default/yaml-flow',
+        },
+      ],
+      expect.anything(),
+    );
+
+    const { server, readUrl } = await start({ result: AuthorizeResult.DENY });
     const res = await request(server).get(path('yaml-flow'));
     expect(res.status).toBe(403);
     expect(readUrl).not.toHaveBeenCalled();
   });
 
-  it('answers 404 for code workflows and other kinds, 400 for a bad spec', async () => {
+  it('answers 404 for missing entities, code workflows, and other kinds, and 400 for a bad spec', async () => {
     const { server, readUrl } = await start();
+    expect((await request(server).get(path('missing-entity'))).status).toBe(
+      404,
+    );
     expect((await request(server).get(path('order-workflow'))).status).toBe(
       404,
     );
@@ -141,5 +194,39 @@ describe('definition route', () => {
     ).toBe(404);
     expect((await request(server).get(path('bad-flow'))).status).toBe(400);
     expect(readUrl).not.toHaveBeenCalled();
+  });
+
+  it('wires temporal.definitions config into temporalModuleZigflow', async () => {
+    const { server, readUrl } = await start({
+      config: {
+        temporal: {
+          definitions: {
+            maxBytes: 16,
+            allow: [{ host: 'raw.example.com' }],
+          },
+        },
+      },
+    });
+    const res = await request(server).get(path('remote-flow'));
+    expect(res.status).toBe(200);
+    expect(readUrl).toHaveBeenCalledWith('https://raw.example.com/flow.yaml');
+    expect(res.body).toMatchObject({
+      entityRef: 'temporalworkflow:default/remote-flow',
+      maxBytes: 16,
+      error: {
+        kind: 'tooLarge',
+        message: 'The file is larger than 16 bytes',
+      },
+    });
+
+    await expect(
+      start({
+        config: {
+          temporal: {
+            definitions: { maxBytes: 0 },
+          },
+        },
+      }),
+    ).rejects.toThrow(/temporal\.definitions\.maxBytes must be between/);
   });
 });

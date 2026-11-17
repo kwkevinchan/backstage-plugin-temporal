@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
@@ -29,22 +29,31 @@ const workflow = (workflowId: string) => ({
   startTime: '2026-11-10T12:00:00.000Z',
 });
 
-async function render(uiOptions: object, api: object, value?: string) {
+async function render(
+  uiOptions: object,
+  api: object,
+  value?: string,
+  extra?: { description?: string; rawErrors?: string[] },
+) {
   const onChange = jest.fn();
   const props: any = {
     formData: value,
     onChange,
-    schema: { title: 'Release to approve', type: 'string' },
+    schema: {
+      title: 'Release to approve',
+      type: 'string',
+      description: extra?.description,
+    },
     uiSchema: { 'ui:options': uiOptions },
     required: true,
-    rawErrors: [],
+    rawErrors: extra?.rawErrors ?? [],
   };
-  await renderInTestApp(
+  const result = await renderInTestApp(
     <TestApiProvider apis={[[temporalApiRef, api as any]]}>
       <TemporalWorkflowPicker {...props} />
     </TestApiProvider>,
   );
-  return { onChange };
+  return { onChange, ...result };
 }
 
 describe('TemporalWorkflowPicker', () => {
@@ -117,5 +126,83 @@ describe('TemporalWorkflowPicker', () => {
     expect(
       await screen.findByText(/could not be listed: Forbidden/),
     ).toBeInTheDocument();
+  });
+
+  it('passes explicit namespace and status and renders description and rawErrors', async () => {
+    const api = {
+      listEntityWorkflows: jest.fn(),
+      listWorkflows: jest
+        .fn()
+        .mockResolvedValue({ items: [workflow('release-1')] }),
+    };
+    await render(
+      {
+        workflowType: 'demoRelease',
+        namespace: 'payments',
+        status: 'Completed',
+      },
+      api,
+      undefined,
+      {
+        description: 'Pick the release workflow to approve.',
+        rawErrors: ['Selection is required'],
+      },
+    );
+
+    expect(api.listWorkflows).toHaveBeenCalledWith({
+      namespace: 'payments',
+      workflowType: 'demoRelease',
+      status: 'Completed',
+      searchAttribute: undefined,
+      pageSize: 50,
+    });
+    expect(
+      await screen.findByText('Pick the release workflow to approve.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Selection is required')).toBeInTheDocument();
+  });
+
+  it('ignores a response that arrives after the options changed', async () => {
+    type Page = { items: ReturnType<typeof workflow>[] };
+    let resolveFirst!: (value: Page) => void;
+    const first = new Promise<Page>(resolve => {
+      resolveFirst = resolve;
+    });
+    const api = {
+      listEntityWorkflows: jest.fn(),
+      listWorkflows: jest
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockResolvedValueOnce({ items: [workflow('release-new')] }),
+    };
+    const onChange = jest.fn();
+    const picker = (workflowType: string) => {
+      const props: any = {
+        formData: 'release-new',
+        onChange,
+        schema: { title: 'Release to approve', type: 'string' },
+        uiSchema: { 'ui:options': { workflowType } },
+        required: true,
+        rawErrors: [],
+      };
+      return (
+        <TestApiProvider apis={[[temporalApiRef, api as any]]}>
+          <TemporalWorkflowPicker {...props} />
+        </TestApiProvider>
+      );
+    };
+    const { rerender } = await renderInTestApp(picker('oldRelease'));
+    rerender(picker('newRelease'));
+    await waitFor(() => expect(screen.getByRole('button')).not.toBeDisabled());
+    expect(api.listWorkflows).toHaveBeenCalledTimes(2);
+
+    // The first request answers last, with a list that does not offer the
+    // value: it must not replace the list of the current options.
+    await act(async () => {
+      resolveFirst({ items: [workflow('release-old')] });
+      await first;
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('button')).not.toBeDisabled();
   });
 });
