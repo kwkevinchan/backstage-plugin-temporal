@@ -1485,8 +1485,32 @@ describe('straight arrows and side lanes in stacked loops', () => {
     ).toBe(true);
     const n21 = rectOf(result, 'n21');
     const y = arrow.points[0].y;
-    expect(y <= n21.top || y >= n21.bottom).toBe(true);
+    // Clear of the box, not on its border.
+    expect(y < n21.top - 1 || y > n21.bottom + 1).toBe(true);
   });
+
+  it.each([
+    [2320, 'n10->n14', 'n11'],
+    [2972, 'n1->n5', 'n2'],
+  ])(
+    'keeps an arrow that turns in its row off the box beside it (seed %i)',
+    (seed, id, beside) => {
+      for (const width of [undefined, 900, 1400]) {
+        const result = lay(seed, width);
+        expect(throughBoxes(result)).toEqual([]);
+        const arrow = arrows(result).find(a => a.edge.id === id)!;
+        const box = rectOf(result, beside);
+        // The parts across that pass over the box are clear of it, not on
+        // its border.
+        for (const [p, q] of segments(arrow.points)) {
+          if (Math.abs(p.y - q.y) >= 0.01) continue;
+          const [x1, x2] = span(p.x, q.x);
+          if (x2 <= box.left || x1 >= box.right) continue;
+          expect(p.y < box.top - 1 || p.y > box.bottom + 1).toBe(true);
+        }
+      }
+    },
+  );
 
   it('keeps the side lanes a lane apart when a signal row shares them (seed 61008)', () => {
     for (const width of [undefined, 900, 1400]) {

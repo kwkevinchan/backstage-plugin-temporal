@@ -47,6 +47,7 @@ import {
   STACK_GAP,
   STACK_SIDE,
   stackGapOf,
+  stackSidePad,
   stackTurnIn,
   stackTurnOut,
 } from './geometry';
@@ -276,46 +277,6 @@ function tooClose(result: GroupedLayout) {
     }
   });
   return [...new Set(found)];
-}
-
-/**
- * Crossings of arrows, counted where a horizontal part and a vertical part
- * of two different arrows meet in their middles. Touching at a corner is
- * not a crossing.
- */
-function crossings(result: GroupedLayout): string[] {
-  const found: string[] = [];
-  const list = arrows(result);
-  list.forEach((a, i) => {
-    for (const b of list.slice(i + 1)) {
-      for (let pi = 1; pi < a.points.length; pi++) {
-        for (let qi = 1; qi < b.points.length; qi++) {
-          const [p1, p2] = [a.points[pi - 1], a.points[pi]];
-          const [q1, q2] = [b.points[qi - 1], b.points[qi]];
-          const ph = p1.y === p2.y && p1.x !== p2.x;
-          const pv = p1.x === p2.x && p1.y !== p2.y;
-          const qh = q1.y === q2.y && q1.x !== q2.x;
-          const qv = q1.x === q2.x && q1.y !== q2.y;
-          let h: [typeof p1, typeof p2] | undefined;
-          let v: [typeof p1, typeof p2] | undefined;
-          if (ph && qv) {
-            h = [p1, p2];
-            v = [q1, q2];
-          } else if (pv && qh) {
-            h = [q1, q2];
-            v = [p1, p2];
-          }
-          if (!h || !v) continue;
-          const [x1, x2] = [Math.min(h[0].x, h[1].x), Math.max(h[0].x, h[1].x)];
-          const [y1, y2] = [Math.min(v[0].y, v[1].y), Math.max(v[0].y, v[1].y)];
-          if (x1 < v[0].x && v[0].x < x2 && y1 < h[0].y && h[0].y < y2) {
-            found.push(`${a.edge.id} crosses ${b.edge.id}`);
-          }
-        }
-      }
-    }
-  });
-  return found;
 }
 
 /** Arrows that run through a box other than their ends. */
@@ -657,6 +618,99 @@ describe('arrows down the left side of a stacked frame', () => {
   });
 });
 
+describe('arrows down the right side of a stacked frame', () => {
+  it('go around an arrow that runs on past the frame next to a box', () => {
+    // The rows of frame f, and an arrow from s above the frame down to t
+    // below it, past the box x. Out of a, the way down beside b is blocked
+    // by the collapsed group m, so that arrow turns in a side lane past
+    // the inner one.
+    const positions = new Map([
+      ['f', { x: 96, y: 796 }],
+      ['a', { x: 156, y: 834 }],
+      ['g', { x: 156, y: 946 }],
+      ['c', { x: 168, y: 984 }],
+      ['m', { x: 156, y: 1120 }],
+      ['h', { x: 156, y: 1244 }],
+      ['b', { x: 168, y: 1282 }],
+      ['d', { x: 156, y: 1418 }],
+      ['s', { x: 156, y: 340 }],
+      ['x', { x: 432, y: 340 }],
+      ['t', { x: 48, y: 1644 }],
+    ]);
+    const layout: StepLayout = {
+      positions,
+      sizes: new Map([
+        ['f', { width: 364, height: 698 }],
+        ['a', { width: 180, height: 52 }],
+        ['g', { width: 244, height: 114 }],
+        ['m', { width: 240, height: 64 }],
+        ['h', { width: 244, height: 114 }],
+      ]),
+      width: 1104,
+      height: 1860,
+      wrapped: false,
+      stackGaps: new Map([['f', [916, 1090, 1214, 1388]]]),
+    };
+    const parentOf = new Map<string, string | undefined>([
+      ['a', 'f'],
+      ['g', 'f'],
+      ['c', 'g'],
+      ['m', 'f'],
+      ['h', 'f'],
+      ['b', 'h'],
+      ['d', 'f'],
+    ]);
+    const inner = 96 + 364 - STACK_SIDE + FRAME_GAP;
+    expect(stackTurnOut(layout, 'a', 'b')).toBe(inner + EDGE_LANE_GAP);
+    const edges: Edge<FrameEdgeData>[] = [
+      ['a', 'b'],
+      ['c', 'd'],
+      ['m', 'd'],
+      ['b', 'd'],
+      ['s', 't'],
+    ].map(([source, target]) => ({
+      id: `${source}->${target}`,
+      source,
+      target,
+      type: 'frameEdge',
+      data:
+        source === 's'
+          ? { sourceInset: inner - 376, targetInset: 32, centerY: 1531 }
+          : frameInsets(layout, parentOf, source, target),
+    }));
+    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
+    const downs = routed.map(edge => {
+      const end = (id: string, side: number) => ({
+        x: positions.get(id)!.x + side * boxSize(layout, id).width,
+        y: positions.get(id)!.y + boxSize(layout, id).height / 2,
+      });
+      const points = frameEdgePoints(
+        end(edge.source, 1),
+        end(edge.target, 0),
+        edge.data!,
+      );
+      return {
+        id: edge.id,
+        x: points[1].x,
+        top: points[1].y,
+        bottom: points[2].y,
+      };
+    });
+    // The arrow past the frame stays left of x.
+    const past = downs.find(d => d.id === 's->t')!;
+    expect(past.x).toBeLessThan(432);
+    // The parts down the right side, each a lane from the others there.
+    const side = downs.filter(d => d.x > inner - 1);
+    side.forEach((d, i) => {
+      for (const o of side.slice(i + 1)) {
+        const [y1, y2] = [Math.max(d.top, o.top), Math.min(d.bottom, o.bottom)];
+        if (y2 - y1 <= 1) continue;
+        expect(Math.abs(d.x - o.x)).toBeGreaterThanOrEqual(EDGE_LANE_GAP);
+      }
+    });
+  });
+});
+
 describe('the group of a signal received during a round', () => {
   const graph = loop(3, {
     nodes: [step('signal', { kind: 'signal' }), step('hint')],
@@ -795,29 +849,6 @@ describe('the group of a signal received during a round', () => {
     },
   );
 
-  it('spreads two signals in one round into lanes, with fewer crossings', () => {
-    // Before: 7 crossings either way, loop 946 wide; from one step, two
-    // arrows also ran 4px apart. The seam grows by a lane per extra arrow,
-    // and an arrow past the signal row takes the side, so it no longer
-    // crosses that row. What remains is the return from the group that
-    // sits to the right of the step it leads back to: that arrow still
-    // leaves on the right and enters on the left, so it crosses the arrows
-    // between those two x positions.
-    const cases = [
-      ['from two steps', 'r2s1', 'r2s2', 950],
-      ['from one step', 'r2s1', 'r2s1', 940],
-    ] as const;
-    for (const [, a, b, width] of cases) {
-      const result = laidOut(twoSignals(a, b), open(1, 2, 3), 1000);
-      const loopFrame = rect(result, box('label:loop'));
-      expect(loopFrame.right - loopFrame.left).toBe(width);
-      expect(crossings(result)).toHaveLength(4);
-      expect(tooClose(result)).toEqual([]);
-      expect(runningOn(result)).toEqual([]);
-      expect(throughBoxes(result)).toEqual([]);
-    }
-  });
-
   it('does not widen a loop whose one signal already has room', () => {
     const views = Object.fromEntries(
       (loopGraph.eventGroups ?? []).map(g => [g.key, true]),
@@ -944,7 +975,7 @@ describe('the group of a signal received during a round', () => {
     expect(throughBoxes(result)).toEqual([]);
   });
 
-  it('may run past the widest row instead of being pulled left onto it', () => {
+  it('stays within the widest row when it would start past it', () => {
     // A signal received at the last step of round 2, into round 3.
     const late = loop(3, {
       nodes: [step('signal', { kind: 'signal' }), step('hint')],
@@ -963,15 +994,70 @@ describe('the group of a signal received during a round', () => {
     });
     const result = laidOut(late, open(1, 2, 3));
     const hint = rect(result, box('event:hint'));
-    const round = rect(result, box('label:r2'));
-    const lastStep = rect(result, 'r2s3');
-    expect(hint.top).toBeGreaterThan(round.bottom);
-    // It starts where the arrow out of the last step turns down, so the
-    // frame grows past that row instead of the group being pulled left.
-    expect(hint.left).toBeGreaterThanOrEqual(lastStep.right + OFFSET);
-    expect(hint.right).toBeGreaterThan(round.right);
-    expect(hint.right).toBeLessThan(rect(result, box('label:loop')).right);
+    expect(hint.top).toBeGreaterThan(rect(result, box('label:r2')).bottom);
+    expect(hint.right).toBeLessThanOrEqual(rect(result, box('label:r2')).right);
     expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('keeps the wider side of a stacked frame in its group', () => {
+    // The group of the signal holds three groups, one row each. Four arrows
+    // run from the first past the second into the third, so the side of
+    // that frame is a lane wider than `STACK_SIDE`.
+    const parts = ['a', 'b', 'c'].map(k =>
+      [1, 2, 3, 4].map(i => `${k}${i}`).slice(0, k === 'b' ? 1 : 4),
+    );
+    const ids = parts.flat();
+    const chain = ids.slice(1).map((id, i) => [ids[i], id] as [string, string]);
+    const skips = [1, 2, 3, 4].map(i => [`a${i}`, `c${i}`] as [string, string]);
+    const signals = loop(3, {
+      nodes: [step('signal', { kind: 'signal' }), ...ids.map(id => step(id))],
+      edges: [
+        ['r2s1', 'signal'],
+        ['signal', 'a1'],
+        ...chain,
+        ...skips,
+        ['c4', 'r2s3'],
+      ],
+      groups: [
+        {
+          ...label('event:hint', ids, undefined, [
+            'label:a',
+            'label:b',
+            'label:c',
+          ]),
+          kind: 'event',
+          sourceNodeId: 'signal',
+        },
+        ...['a', 'b', 'c'].map((k, i) =>
+          label(`label:${k}`, parts[i], 'event:hint'),
+        ),
+      ],
+    });
+    signals.nodes = [
+      ...signals.nodes.filter(n => !['signal', ...ids].includes(n.id)),
+    ];
+    signals.nodes.splice(
+      signals.nodes.findIndex(n => n.id === 'r2s2'),
+      0,
+      step('signal', { kind: 'signal' }),
+      ...ids.map(id => step(id)),
+    );
+    const views = {
+      ...open(1, 2, 3),
+      'event:hint': true,
+      'label:a': true,
+      'label:b': true,
+      'label:c': true,
+    };
+    const result = laidOut(signals, views);
+    const hint = box('event:hint');
+    expect(result.graph.frames.find(f => f.id === hint)?.stacked).toBe(true);
+    expect(result.graph.frames.find(f => f.id === hint)?.parent).toBe(
+      box('label:loop'),
+    );
+    expect(stackSidePad(result.layout, hint)).toBe(STACK_SIDE + EDGE_LANE_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(runningOn(result)).toEqual([]);
   });
 
   it('is drawn after the stacked frame it goes in', () => {
@@ -1357,6 +1443,29 @@ describe('stackGapOf', () => {
       return p.x > frame.left + STACK_SIDE && p.x < frame.right - STACK_SIDE;
     });
     expect(cutsRound).toBe(false);
+  });
+
+  it('counts an arrow entering the frame in the gap above its row', () => {
+    // Three arrows already run from round 1 into round 2. A fourth comes
+    // into the loop from the start, to a step that is not the first in its
+    // row, so the way in from the side is blocked. The gap above round 2
+    // grows by a lane.
+    const graph = loop(3, {
+      edges: [
+        ['r1s1', 'r2s1'],
+        ['r1s2', 'r2s1'],
+        ['start', 'r2s2'],
+      ],
+    });
+    const result = laidOut(graph, open(1, 2, 3));
+    const gap =
+      rect(result, box('label:r2')).top - rect(result, box('label:r1')).bottom;
+    expect(gap).toBe(STACK_GAP + EDGE_LANE_GAP);
+    const below =
+      rect(result, box('label:r3')).top - rect(result, box('label:r2')).bottom;
+    expect(below).toBe(STACK_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(tooClose(result)).toEqual([]);
   });
 
   it('turns an arrow down the side when the way into a lower target is blocked', () => {

@@ -540,121 +540,6 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
       const offset = (i - (shared.length - 1) / 2) * step;
       lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
     });
-    // Arrows between two adjacent rows that share a source or a target and
-    // turn between the steps, rather than in a side channel, each take a
-    // lane. Arrows into one box down the side of the frame still share one.
-    if (stacked) {
-      const adjacentRow = (edge: Edge) => {
-        const sy = layout.positions.get(edge.source)?.y ?? 0;
-        const ty = layout.positions.get(edge.target)?.y ?? 0;
-        const [low, high] = sy < ty ? [sy, ty] : [ty, sy];
-        let between = 0;
-        for (const gaps of layout.stackGaps!.values()) {
-          for (const g of gaps) if (g > low && g < high) between++;
-        }
-        return between === 1;
-      };
-      const inChannel = (x: number) => {
-        for (const [frame] of layout.stackGaps!) {
-          const at = layout.positions.get(frame);
-          if (!at) continue;
-          const width = boxSize(layout, frame).width;
-          const pad = stackSidePad(layout, frame);
-          if (x > at.x && x < at.x + pad) return true;
-          if (x > at.x + width - pad && x < at.x + width) return true;
-        }
-        return false;
-      };
-      const place = (
-        list: Edge[],
-        read: (edge: Edge) => number,
-        write: (edge: Edge, x: number) => void,
-        direction: 1 | -1,
-      ) => {
-        if (list.length < 2) return;
-        const base =
-          direction > 0
-            ? Math.min(...list.map(read))
-            : Math.max(...list.map(read));
-        const limit = nearestSide(
-          obstacles(),
-          layout.width,
-          base,
-          direction,
-          gap - widest,
-          gap + widest,
-        );
-        const room = Math.max(0, (limit - base) * direction);
-        const lane =
-          list.length < 2 || room >= (list.length - 1) * EDGE_LANE_GAP
-            ? EDGE_LANE_GAP
-            : Math.min(
-                EDGE_LANE_GAP,
-                Math.floor((2 * room) / Math.max(1, list.length - 1)) / 2,
-              );
-        [...list]
-          .sort(
-            (a, b) =>
-              (read(b) - read(a)) * direction || a.id.localeCompare(b.id),
-          )
-          .forEach((edge, i) => {
-            const previous = read(edge);
-            const x = base + direction * i * lane;
-            if (Math.abs(x - previous) < 0.01) return;
-            write(edge, x);
-            for (const part of downs) {
-              if (part.edge === edge && Math.abs(part.x - previous) < 0.5) {
-                part.x = x;
-              }
-            }
-          });
-      };
-      const bySource = new Map<string, Edge[]>();
-      const byTarget = new Map<string, Edge[]>();
-      for (const edge of shared) {
-        if (!adjacentRow(edge)) continue;
-        const out = outOf(edge, turns);
-        const into = inTo(edge, turns);
-        if (!inChannel(out)) {
-          bySource.set(edge.source, [
-            ...(bySource.get(edge.source) ?? []),
-            edge,
-          ]);
-        }
-        if (!inChannel(into)) {
-          byTarget.set(edge.target, [
-            ...(byTarget.get(edge.target) ?? []),
-            edge,
-          ]);
-        }
-      }
-      for (const list of bySource.values()) {
-        place(
-          list,
-          edge => outOf(edge, turns),
-          (edge, x) => {
-            turns.set(edge, {
-              ...turns.get(edge),
-              sourceInset: x - right(edge.source),
-            });
-          },
-          1,
-        );
-      }
-      for (const list of byTarget.values()) {
-        place(
-          list,
-          edge => inTo(edge, turns),
-          (edge, x) => {
-            turns.set(edge, {
-              ...turns.get(edge),
-              targetInset: left(edge.target) - x,
-            });
-          },
-          -1,
-        );
-      }
-    }
     // An arrow up into an earlier row turns a lane farther out of its
     // source (and into its target) while it would come closer than a lane
     // to another arrow there, as far as the boxes and frames next to it
@@ -744,7 +629,9 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
  * fit), between `FRAME_GAP` from the frame and `FRAME_GAP` from its rows.
  * On the left, where arrows turn into their targets, the arrow into the
  * lower target runs farther out; on the right, where they turn out of their
- * sources, the arrow out of the higher source does.
+ * sources, the arrow out of the higher source does. An arrow that a side
+ * lane past the inner one leads past the rows (see `stackTurnOut`) takes a
+ * lane after the others, a full lane from each of them.
  */
 function spreadSides(layout: StepLayout, edges: Edge[]): Edge[] {
   /** A part of an arrow down or up, next to its source or its target. */
@@ -811,42 +698,96 @@ function spreadSides(layout: StepLayout, edges: Edge[]): Edge[] {
         const key = `${p.into}\u0000${p.end}`;
         groups.set(key, [...(groups.get(key) ?? []), p]);
       }
-      const spans = [...groups.values()].map(list => ({
+      type Span = { list: Part[]; top: number; bottom: number; end: number };
+      const spans: Span[] = [...groups.values()].map(list => ({
         list,
         top: Math.min(...list.map(p => p.top)),
         bottom: Math.max(...list.map(p => p.bottom)),
         end: middle(list[0].end),
       }));
-      if (spans.length < 2) continue;
-      // Farther out first: the lower target on the left, the higher source
-      // on the right.
-      spans.sort((a, b) => (outward < 0 ? b.end - a.end : a.end - b.end));
-      const lanes: { top: number; bottom: number }[][] = [];
-      const laneOf = spans.map(span => {
-        let k = lanes.findIndex(lane =>
-          lane.every(o => o.bottom <= span.top || o.top >= span.bottom),
-        );
-        if (k < 0) k = lanes.push([]) - 1;
-        lanes[k].push(span);
-        return k;
-      });
-      if (lanes.length < 2) continue;
       const room = pad - 2 * FRAME_GAP;
-      const step = Math.min(
-        EDGE_LANE_GAP,
-        Math.floor((2 * room) / (lanes.length - 1)) / 2,
-      );
       // The innermost lane is where the turns are, next to the rows.
       const inner = outward < 0 ? to - FRAME_GAP : from + FRAME_GAP;
-      spans.forEach((span, i) => {
-        const x = inner + outward * (lanes.length - 1 - laneOf[i]) * step;
+      /** The lanes of `list`, or nothing when they need no spreading. */
+      const spread = (list: Span[]) => {
+        if (list.length < 2) return undefined;
+        // Farther out first: the lower target on the left, the higher
+        // source on the right.
+        const sorted = [...list].sort((a, b) =>
+          outward < 0 ? b.end - a.end : a.end - b.end,
+        );
+        const lanes: Span[][] = [];
+        const laneOf = sorted.map(span => {
+          let k = lanes.findIndex(lane =>
+            lane.every(o => o.bottom <= span.top || o.top >= span.bottom),
+          );
+          if (k < 0) k = lanes.push([]) - 1;
+          lanes[k].push(span);
+          return k;
+        });
+        if (lanes.length < 2) return undefined;
+        const step = Math.min(
+          EDGE_LANE_GAP,
+          Math.floor((2 * room) / (lanes.length - 1)) / 2,
+        );
+        return new Map(
+          sorted.map((span, i) => [
+            span,
+            inner + outward * (lanes.length - 1 - laneOf[i]) * step,
+          ]),
+        );
+      };
+      // A turn that `stackTurnOut` (or `stackTurnIn`) put in a lane past the
+      // inner one, because the inner one runs through a box, goes in after
+      // the others: in the nearest lane a full lane from each of them, out
+      // to a lane from the border of the frame. With no such lane, all of
+      // them are spread out together.
+      const routed = (span: Span) =>
+        span.list.every(p => {
+          const lane = p.into
+            ? stackTurnIn(layout, p.edge.source, p.edge.target)
+            : stackTurnOut(layout, p.edge.source, p.edge.target);
+          return (
+            lane !== undefined &&
+            Math.abs(lane - p.x) < 0.5 &&
+            Math.abs(lane - inner) >= 0.5
+          );
+        });
+      const first = spans.filter(span => !routed(span));
+      const later = spans.filter(routed);
+      let xs = spread(first) ?? new Map<Span, number>();
+      const xOf = (span: Span) => xs.get(span) ?? span.list[0].x;
+      const reach = room + FRAME_GAP - EDGE_LANE_GAP;
+      for (const span of later) {
+        const placed = [...first, ...later.slice(0, later.indexOf(span))];
+        let found: number | undefined;
+        for (let k = 0; k * EDGE_LANE_GAP <= reach + 0.01; k++) {
+          const x = inner + outward * k * EDGE_LANE_GAP;
+          const clear = placed.every(
+            o =>
+              o.bottom <= span.top ||
+              o.top >= span.bottom ||
+              Math.abs(xOf(o) - x) >= EDGE_LANE_GAP,
+          );
+          if (clear) {
+            found = x;
+            break;
+          }
+        }
+        if (found === undefined) {
+          xs = spread(spans) ?? new Map();
+          break;
+        }
+        xs.set(span, found);
+      }
+      for (const [span, x] of xs) {
         for (const p of span.list) {
           const d = { ...(p.edge.data as FrameEdgeData), ...data.get(p.edge) };
           if (p.into) d.targetInset = left(p.edge.target) - x;
           else d.sourceInset = x - right(p.edge.source);
           data.set(p.edge, d);
         }
-      });
+      }
     }
   }
   return edges.map(edge =>
