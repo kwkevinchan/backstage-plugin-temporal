@@ -97,8 +97,6 @@ export type LayOutBlocks = (
   },
 ) => StepLayout;
 
-export { STACK_GAP, STACK_SIDE } from './geometry';
-
 /**
  * Lays out a graph with stacked frames (`LayoutFrame.stacked`). The rows of
  * a stacked frame start at its left side. The boxes and frames placed below
@@ -108,8 +106,10 @@ export { STACK_GAP, STACK_SIDE } from './geometry';
  * `FRAME_GAP` after the part before, moved left as far as needed (and
  * possible) to stay within the widest other row, and a lane at a time to
  * where the arrow into it turns a lane away from where the arrows out of
- * the other boxes above and of the parts before it do. The rest of the
- * graph is laid out with `layOut`, each stacked frame as one box.
+ * and into the other boxes above, and out of the parts before it, do. The
+ * gap between two rows is a lane taller for each arrow in it past three.
+ * The rest of the graph is laid out with `layOut`, each stacked frame as
+ * one box.
  */
 export function layoutStacked(
   nodes: LayoutNode[],
@@ -310,6 +310,22 @@ export function layoutStacked(
       placed.splice(placed.indexOf(row), 1);
       rows.push({ items: row.items });
     }
+    // Placed below boxes of one row: one row.
+    for (const row of [...placed]) {
+      const home = rows.find(r => r.items.includes(row.anchor!));
+      const earlier = placed.find(
+        r => r !== row && home!.items.includes(r.anchor!),
+      );
+      if (!earlier || placed.indexOf(earlier) > placed.indexOf(row)) continue;
+      earlier.items.push(...row.items);
+      for (const [after, items] of row.units!) {
+        earlier.units!.set(after, [
+          ...(earlier.units!.get(after) ?? []),
+          ...items,
+        ]);
+      }
+      placed.splice(placed.indexOf(row), 1);
+    }
     // Rows placed below a box go right after the row of that box.
     const ordered: Row[] = [];
     for (const row of rows) {
@@ -362,18 +378,18 @@ export function layoutStacked(
       // As far as the widest other row allows.
       const shift = Math.min(xs[0], Math.max(0, end - widest));
       // The arrow into a part turns down a lane away from where arrows turn
-      // down out of the other boxes and frames of the row above, and out of
-      // the parts before it: the part moves a lane at a time, within the
+      // out of and into the other boxes and frames of the row above, and out
+      // of the parts before it: the part moves a lane at a time, within the
       // widest row where it can.
       let last = -Infinity;
       parts.forEach((part, k) => {
         const turns = [
           ...[...above.positions]
             .filter(([id]) => id !== part.after)
-            .map(
-              ([id, p]) =>
-                p.x + (above.sizes.get(id)?.width ?? NODE_WIDTH) + OFFSET,
-            ),
+            .flatMap(([id, p]) => [
+              p.x + (above.sizes.get(id)?.width ?? NODE_WIDTH) + OFFSET,
+              p.x - OFFSET,
+            ]),
           ...parts
             .slice(0, k)
             .map((before, j) => xs[j] + before.laid.width + OFFSET),
@@ -426,6 +442,28 @@ export function layoutStacked(
       sizes: new Map(),
       stackGaps: new Map(),
     };
+    // The arrows in each gap between two rows: into a later row, in the gap
+    // below the row of the source (and, past rows, the one above the row of
+    // the target); into an earlier row, in the gap above the row of the
+    // source. A gap holds three lanes; it is a lane taller for each more.
+    const rowOfItem = new Map(
+      ordered.flatMap((row, i) => row.items.map(id => [id, i] as const)),
+    );
+    const inGap = laid.map(() => new Set<string>());
+    for (const e of edges) {
+      const a = rowOfItem.get(childOf(frame, e.source) ?? '');
+      const b = rowOfItem.get(childOf(frame, e.target) ?? '');
+      if (a === undefined || b === undefined || a === b) continue;
+      const key = `${e.source}\u0000${e.target}`;
+      if (a < b) {
+        inGap[a].add(key);
+        inGap[b - 1].add(key);
+      } else {
+        inGap[a - 1].add(key);
+      }
+    }
+    const gapHeight = (i: number) =>
+      STACK_GAP + Math.max(0, inGap[i].size - 3) * EDGE_LANE_GAP;
     const gaps: number[] = [];
     let y = 0;
     let right = 0;
@@ -447,8 +485,8 @@ export function layoutStacked(
       right = Math.max(right, row.width);
       y += row.height;
       if (i < laid.length - 1) {
-        gaps.push(FRAME_TOP + y + STACK_GAP / 2);
-        y += STACK_GAP;
+        gaps.push(FRAME_TOP + y + gapHeight(i) / 2);
+        y += gapHeight(i);
       }
     }
     block.width = STACK_SIDE + right + STACK_SIDE;

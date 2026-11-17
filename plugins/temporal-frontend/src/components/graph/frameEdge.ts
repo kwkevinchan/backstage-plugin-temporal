@@ -24,6 +24,7 @@ import {
   OFFSET,
   rowGapOf,
   STACK_SIDE,
+  stackGapRoom,
   stackGapOf,
   stackTurnOut,
   StepLayout,
@@ -337,10 +338,13 @@ const EDGE_SIDE = MARGIN - EDGE_LANE_GAP;
  * `EDGE_LANE_GAP` apart, where they all fit and none of them then runs on
  * another arrow; otherwise only the turns at one x are spread out. The
  * turns of an arrow up into an earlier row of a stacked frame are not
- * spread out with the others: where it would run on another arrow, it turns
- * a lane farther out of its source and into its target, while there is
- * room. At the sides of a stacked frame the arrows then run in lanes (see
- * `spreadSides`).
+ * spread out with the others: where it would come closer than a lane to
+ * another arrow (not into its target or out of its source), it turns a lane
+ * farther out of its source and into its target, while there is room. The
+ * gap between two rows of a stacked frame has room for each arrow in it a
+ * lane apart (see `layoutStacked`); in one too low for them the lanes are
+ * closer together. At the sides of a stacked frame the arrows then run in
+ * lanes (see `spreadSides`).
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   if (!layout.rowGaps?.length && !layout.stackGaps?.size) return edges;
@@ -386,7 +390,12 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     const gap = edge.type === 'frameEdge' ? gapOf(edge) : undefined;
     if (gap !== undefined) inGap.set(gap, [...(inGap.get(gap) ?? []), edge]);
   }
-  const widest = FRAME_WRAP_GAP / 2 - FRAME_GAP;
+  // How far from its middle an arrow in a gap can run: in the gap between
+  // two rows of a stacked frame, as far as its rows leave room.
+  const widestOf = (gap: number) =>
+    layout.rowGaps?.includes(gap)
+      ? FRAME_WRAP_GAP / 2 - FRAME_GAP
+      : stackGapRoom(layout, gap) ?? FRAME_WRAP_GAP / 2 - FRAME_GAP;
   // Where the turns of `into` put an arrow turn down out of its source and
   // into its target.
   const outOf = (edge: Edge, into: Map<Edge, FrameEdgeData>) => {
@@ -424,7 +433,7 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
           at,
           1,
           Math.min(...ends.map(middle)),
-          gap + widest,
+          gap + widestOf(gap),
         ),
       clear:
         clear && ((edge, at, run) => clear(at, middle(edge.source), gap, run)),
@@ -445,7 +454,7 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
           layout.width,
           at,
           -1,
-          gap - widest,
+          gap - widestOf(gap),
           Math.max(...ends.map(middle)),
         ),
       clear:
@@ -504,33 +513,54 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     );
   for (const [gap, shared] of inGap) {
     spreadGap(gap, shared, turns, clearAt);
-    // Of an arrow down and an arrow up that turn at one x, the one up runs
-    // lower: their parts down and up then do not meet.
-    const up = (edge: Edge) => (rising(edge, gap) ? 1 : 0);
     shared.sort(
       (a, b) =>
         turnOut(a) - turnOut(b) ||
-        up(a) - up(b) ||
         middle(b.source) - middle(a.source) ||
         turnIn(a) - turnIn(b) ||
         middle(b.target) - middle(a.target),
     );
+    // In a wrapped graph the lanes past the room share the outermost one;
+    // between stacked rows they are closer together instead.
+    const widest = widestOf(gap);
+    const stacked = !layout.rowGaps?.includes(gap);
+    const step =
+      stacked && shared.length > 1
+        ? Math.min(
+            EDGE_LANE_GAP,
+            Math.floor((4 * widest) / (shared.length - 1)) / 2,
+          )
+        : EDGE_LANE_GAP;
     shared.forEach((edge, i) => {
-      const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
+      const offset = (i - (shared.length - 1) / 2) * step;
       lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
     });
     // An arrow up into an earlier row turns a lane farther out of its
-    // source (and into its target) while it would run on another arrow
-    // there, as far as the boxes and frames next to it leave room.
+    // source (and into its target) while it would come closer than a lane
+    // to another arrow there, as far as the boxes and frames next to it
+    // leave room.
     for (const edge of shared) {
       if (!rising(edge, gap)) continue;
       if (!data(edge).sourceInset && !data(edge).targetInset) continue;
+      // Clear of the other arrows down there by a lane, but those into its
+      // target (or out of its source), which share the turn.
+      const free = (x: number, top: number, bottom: number, into: boolean) =>
+        !downs.some(
+          d =>
+            d.edge !== edge &&
+            (into
+              ? d.edge.target !== edge.target
+              : d.edge.source !== edge.source) &&
+            Math.abs(d.x - x) < EDGE_LANE_GAP &&
+            Math.min(d.bottom, bottom) > Math.max(d.top, top),
+        );
       const moveOff = (
         x: number,
         direction: 1 | -1,
         top: number,
         bottom: number,
       ) => {
+        const into = direction < 0;
         const limit = nearestSide(
           obstacles(),
           layout.width,
@@ -541,24 +571,24 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
         );
         let at = x;
         while (
-          !clearAt(at, top, bottom, [edge]) &&
+          !free(at, top, bottom, into) &&
           (limit - (at + direction * EDGE_LANE_GAP)) * direction >= 0
         ) {
           at += direction * EDGE_LANE_GAP;
         }
-        return clearAt(at, top, bottom, [edge]) ? at : x;
+        return free(at, top, bottom, into) ? at : x;
       };
       const out = moveOff(
         outOf(edge, turns),
         1,
-        gap - widest,
+        gap - widestOf(gap),
         middle(edge.source),
       );
       const into = moveOff(
         inTo(edge, turns),
         -1,
         middle(edge.target),
-        gap + widest,
+        gap + widestOf(gap),
       );
       // The other arrows keep clear of where it runs now.
       const [outPart, inPart] = downs.filter(d => d.edge === edge);

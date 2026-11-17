@@ -30,6 +30,7 @@ import {
 import {
   FrameEdgeData,
   frameEdgePoints,
+  OFFSET,
   frameInsets,
   routeRowGaps,
 } from './frameEdge';
@@ -42,8 +43,8 @@ import {
   StepLayout,
   visibleSteps,
 } from './layout';
-import { stackGapOf, stackTurnOut } from './geometry';
-import { STACK_GAP, STACK_SIDE } from './stackLayout';
+import { STACK_GAP, STACK_SIDE, stackGapOf, stackTurnOut } from './geometry';
+
 import { agentGraph } from '../../testGraphs/agentGraph';
 import { loopGraph } from '../../testGraphs/loopGraph';
 import { parallelGraph } from '../../testGraphs/parallelGraph';
@@ -180,6 +181,95 @@ function arrows(result: GroupedLayout) {
       };
     },
   );
+}
+
+/**
+ * Arrows of different sources and targets with parts on top of each other,
+ * down (or up) or across.
+ */
+function runningOn(result: GroupedLayout) {
+  const found: string[] = [];
+  const list = arrows(result).map(({ edge, points }) => ({
+    edge,
+    parts: points.slice(1).map((p, i) => [points[i], p] as const),
+  }));
+  list.forEach((a, i) => {
+    for (const b of list.slice(i + 1)) {
+      if (a.edge.source === b.edge.source || a.edge.target === b.edge.target) {
+        continue;
+      }
+      for (const [p1, p2] of a.parts) {
+        for (const [q1, q2] of b.parts) {
+          const lines = [
+            p1.x === p2.x && q1.x === q2.x && Math.abs(p1.x - q1.x) < 1
+              ? [p1.y, p2.y, q1.y, q2.y]
+              : undefined,
+            p1.y === p2.y && q1.y === q2.y && Math.abs(p1.y - q1.y) < 1
+              ? [p1.x, p2.x, q1.x, q2.x]
+              : undefined,
+          ];
+          for (const line of lines) {
+            if (!line) continue;
+            const [a1, a2] = [
+              Math.min(line[0], line[1]),
+              Math.max(line[0], line[1]),
+            ];
+            const [b1, b2] = [
+              Math.min(line[2], line[3]),
+              Math.max(line[2], line[3]),
+            ];
+            if (Math.min(a2, b2) - Math.max(a1, b1) > 1) {
+              found.push(`${a.edge.id} runs on ${b.edge.id}`);
+            }
+          }
+        }
+      }
+    }
+  });
+  return [...new Set(found)];
+}
+
+/**
+ * Arrows of different sources and targets with parts down (or up) side by
+ * side closer than a lane, or across side by side in a gap closer than a
+ * lane.
+ */
+function tooClose(result: GroupedLayout) {
+  const found: string[] = [];
+  const list = arrows(result).map(({ edge, points }) => ({
+    edge,
+    parts: points.slice(1).map((p, i) => [points[i], p] as const),
+  }));
+  list.forEach((a, i) => {
+    for (const b of list.slice(i + 1)) {
+      if (a.edge.source === b.edge.source || a.edge.target === b.edge.target) {
+        continue;
+      }
+      for (const [p1, p2] of a.parts) {
+        for (const [q1, q2] of b.parts) {
+          const down = p1.x === p2.x && q1.x === q2.x;
+          const across = p1.y === p2.y && q1.y === q2.y;
+          if (!down && !across) continue;
+          const [d, along] = down
+            ? [Math.abs(p1.x - q1.x), [p1.y, p2.y, q1.y, q2.y]]
+            : [Math.abs(p1.y - q1.y), [p1.x, p2.x, q1.x, q2.x]];
+          const overlap =
+            Math.min(
+              Math.max(along[0], along[1]),
+              Math.max(along[2], along[3]),
+            ) -
+            Math.max(
+              Math.min(along[0], along[1]),
+              Math.min(along[2], along[3]),
+            );
+          if (d >= 1 && d < EDGE_LANE_GAP && overlap > 1) {
+            found.push(`${a.edge.id} next to ${b.edge.id}`);
+          }
+        }
+      }
+    }
+  });
+  return [...new Set(found)];
 }
 
 /** Arrows that run through a box other than their ends. */
@@ -425,6 +515,47 @@ describe('arrows up into an earlier row of a stacked frame', () => {
   });
 });
 
+describe('arrows down the left side of a stacked frame', () => {
+  it('run the arrow into the lower target farther out', () => {
+    // Out of s1 and s2 in the first row into t1 and t2, one below the
+    // other in the second row, both down the left side.
+    const positions = new Map([
+      ['f', { x: 0, y: 0 }],
+      ['s1', { x: 300, y: 40 }],
+      ['s2', { x: 560, y: 40 }],
+      ['t1', { x: STACK_SIDE, y: 170 }],
+      ['t2', { x: STACK_SIDE, y: 250 }],
+    ]);
+    const layout: StepLayout = {
+      positions,
+      sizes: new Map([['f', { width: 900, height: 340 }]]),
+      width: 940,
+      height: 360,
+      wrapped: false,
+      stackGaps: new Map([['f', [137]]]),
+    };
+    const edges: Edge<FrameEdgeData>[] = [
+      ['s1', 't1'],
+      ['s2', 't2'],
+    ].map(([source, target]) => ({
+      id: `${source}->${target}`,
+      source,
+      target,
+      type: 'frameEdge',
+      data: { sourceInset: OFFSET, targetInset: FRAME_GAP },
+    }));
+    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
+    const into = (id: string) => {
+      const edge = routed.find(e => e.id === id)!;
+      return positions.get(edge.target)!.x - edge.data!.targetInset!;
+    };
+    expect(into('s2->t2')).toBeLessThan(into('s1->t1'));
+    expect(into('s1->t1') - into('s2->t2')).toBeGreaterThanOrEqual(
+      EDGE_LANE_GAP,
+    );
+  });
+});
+
 describe('the group of a signal received during a round', () => {
   const graph = loop(3, {
     nodes: [step('signal', { kind: 'signal' }), step('hint')],
@@ -553,12 +684,10 @@ describe('the group of a signal received during a round', () => {
         expect(hB.left - hA.right).toBeGreaterThanOrEqual(
           2 * FRAME_GAP + EDGE_LANE_GAP,
         );
-        // From one step: the arrow out of the first and into the second a
-        // lane apart.
-        const spacing = a === b ? hB.left - hA.right : undefined;
-        expect(spacing ?? 2 * FRAME_GAP + EDGE_LANE_GAP).toBe(
-          2 * FRAME_GAP + EDGE_LANE_GAP,
-        );
+        // No two arrows of different ends on top of each other, nor closer
+        // than a lane next to each other.
+        expect(runningOn(result)).toEqual([]);
+        expect(tooClose(result)).toEqual([]);
         expect(hA.top).toBeGreaterThan(rect(result, box('label:r2')).bottom);
         expect(throughBoxes(result)).toEqual([]);
       }
@@ -621,6 +750,38 @@ describe('the group of a signal received during a round', () => {
     expect(Math.abs(hB.left - FRAME_GAP - outOfR2)).toBeGreaterThanOrEqual(
       EDGE_LANE_GAP,
     );
+  });
+
+  it('go side by side in one row, received during two collapsed rounds next to each other', () => {
+    const rounds = loop(3, {
+      edges: [
+        ['r1s1', 'signalA'],
+        ['signalA', 'hintA'],
+        ['r2s1', 'signalB'],
+        ['signalB', 'hintB'],
+      ],
+      groups: (['A', 'B'] as const).map(k => ({
+        ...label(`event:hint${k}`, [`hint${k}`]),
+        kind: 'event' as const,
+        sourceNodeId: `signal${k}`,
+      })),
+    });
+    for (const [k, before] of [
+      ['A', 'r1s2'],
+      ['B', 'r2s2'],
+    ]) {
+      rounds.nodes.splice(
+        rounds.nodes.findIndex(n => n.id === before),
+        0,
+        step(`signal${k}`, { kind: 'signal' }),
+        step(`hint${k}`),
+      );
+    }
+    const result = laidOut(rounds, open(3));
+    const [hA, hB] = ['A', 'B'].map(k => rect(result, box(`event:hint${k}`)));
+    expect(hB.top).toBe(hA.top);
+    expect(hA.top).toBeGreaterThan(rect(result, box('label:r2')).bottom);
+    expect(throughBoxes(result)).toEqual([]);
   });
 
   it('stays within the widest row when it would start past it', () => {
@@ -786,6 +947,15 @@ describe('stacked frames in stacked frames', () => {
         }));
     };
     for (const r of [1, 2]) {
+      // Into the lower target farther out; into one target in one lane.
+      const turnInto = (id: string) =>
+        drawn.find(a => a.edge.id === id)!.points[3].x;
+      expect(turnInto(`r${r}a2->r${r}reply`)).toBeLessThan(
+        turnInto(`r${r}ask->r${r}b1`),
+      );
+      expect(turnInto(`r${r}b1->r${r}reply`)).toBe(
+        turnInto(`r${r}a2->r${r}reply`),
+      );
       const [toB, fromA] = [
         downs(`r${r}ask->r${r}b1`),
         downs(`r${r}a2->r${r}reply`),

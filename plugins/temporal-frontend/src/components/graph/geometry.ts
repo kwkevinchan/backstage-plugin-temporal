@@ -122,7 +122,11 @@ interface StackRoute {
  */
 const stackCache = new WeakMap<
   StepLayout,
-  { rects: Rect[]; routes: Map<string, StackRoute | undefined> }
+  {
+    rects: Rect[];
+    routes: Map<string, StackRoute | undefined>;
+    rooms: Map<number, number | undefined>;
+  }
 >();
 
 function cacheOf(layout: StepLayout) {
@@ -156,7 +160,7 @@ function cacheOf(layout: StepLayout) {
             o.bottom <= r.bottom,
         );
     });
-    cached = { rects, routes: new Map() };
+    cached = { rects, routes: new Map(), rooms: new Map() };
     stackCache.set(layout, cached);
   }
   return cached;
@@ -200,6 +204,36 @@ export function stackTurnOut(
   target: string,
 ): number | undefined {
   return stackRoute(layout, source, target)?.turnOut;
+}
+
+/**
+ * How far an arrow can run from the middle of a gap between two rows of a
+ * stacked frame (`stackGaps`), `FRAME_GAP` clear of the rows above and
+ * below it; nothing for another y.
+ */
+export function stackGapRoom(
+  layout: StepLayout,
+  gap: number,
+): number | undefined {
+  if (!layout.stackGaps) return undefined;
+  const cached = cacheOf(layout);
+  if (cached.rooms.has(gap)) return cached.rooms.get(gap);
+  let room: number | undefined;
+  const byId = new Map(cached.rects.map(r => [r.id, r]));
+  for (const [frame, gaps] of layout.stackGaps) {
+    const f = byId.get(frame);
+    if (!f || !gaps.includes(gap)) continue;
+    let [above, below] = [f.top, f.bottom];
+    for (const r of cached.rects) {
+      if (r === f || r.left < f.left || r.right > f.right) continue;
+      if (r.top < f.top || r.bottom > f.bottom) continue;
+      if (r.bottom <= gap) above = Math.max(above, r.bottom);
+      else if (r.top >= gap) below = Math.min(below, r.top);
+    }
+    room = Math.min(gap - above, below - gap) - FRAME_GAP;
+  }
+  cached.rooms.set(gap, room);
+  return room;
 }
 
 function stackRoute(
@@ -259,7 +293,6 @@ function findStackRoute(
       const near = r.frame ? FRAME_GAP : OFFSET + EDGE_LANE_GAP / 2;
       return r.left - near < x && r.right + near > x;
     });
-  /** True when a box is across a line at `y` from `x1` to `x2`. */
   /**
    * True when a box, or with `frames` a frame too, is across a line at `y`
    * from `x1` to `x2`.

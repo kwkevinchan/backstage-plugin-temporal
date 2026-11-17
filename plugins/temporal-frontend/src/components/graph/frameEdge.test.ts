@@ -217,29 +217,39 @@ function clashes(
 }
 
 /**
- * Arrows of different sources and targets with parts down (or up) on top of
- * each other, in any gap, as they are drawn.
+ * Arrows of different sources and targets with parts on top of each other
+ * (down or up, or across), in any gap, as they are drawn.
  */
 function runningOn(list: { edge: Edge; drawn: Point[] }[]) {
   const found: string[] = [];
-  const downs = list.map(({ edge, drawn }) => ({
+  const parts = list.map(({ edge, drawn }) => ({
     edge,
-    parts: segments(drawn).filter(([a, b]) => Math.abs(a.x - b.x) < 0.01),
+    parts: segments(drawn).filter(
+      ([a, b]) => Math.abs(a.x - b.x) < 0.01 || Math.abs(a.y - b.y) < 0.01,
+    ),
   }));
-  downs.forEach((a, i) => {
-    for (const b of downs.slice(i + 1)) {
+  parts.forEach((a, i) => {
+    for (const b of parts.slice(i + 1)) {
       if (a.edge.source === b.edge.source || a.edge.target === b.edge.target) {
         continue;
       }
-      for (const [p, q] of a.parts) {
-        for (const [u, v] of b.parts) {
-          const [a1, a2] = span(p.y, q.y);
-          const [b1, b2] = span(u.y, v.y);
+      for (const p of a.parts) {
+        for (const q of b.parts) {
+          const down = Math.abs(p[0].x - p[1].x) < 0.01;
+          if (down !== Math.abs(q[0].x - q[1].x) < 0.01) continue;
+          if (!down && Math.abs(p[0].y - p[1].y) >= 0.01) continue;
+          const [along, across] = down
+            ? (['y', 'x'] as const)
+            : (['x', 'y'] as const);
+          const [a1, a2] = span(p[0][along], p[1][along]);
+          const [b1, b2] = span(q[0][along], q[1][along]);
           if (
-            Math.abs(p.x - u.x) < 1 &&
+            Math.abs(p[0][across] - q[0][across]) < 1 &&
             Math.min(a2, b2) - Math.max(a1, b1) > 1
           ) {
-            found.push(`${a.edge.id} runs on ${b.edge.id} at x ${p.x}`);
+            found.push(
+              `${a.edge.id} runs on ${b.edge.id} at ${across} ${p[0][across]}`,
+            );
           }
         }
       }
@@ -1289,13 +1299,19 @@ describe('random loops with their child groups stacked', () => {
         });
         if (result.notice) found.push(`${at}: ${result.notice}`);
         const list = arrows(result);
-        // Arrows between rows never run through a box; one in a row only
-        // where it does with its frame as dagre laid it out (the steps of a
-        // round in parallel), not because the rows of frames line up.
-        const between = new Set(
-          list
-            .filter(a => a.edge.data?.centerY !== undefined)
-            .map(a => a.edge.id),
+        // Arrows never run through a box, but for an arrow in a row from a
+        // step to a step of one frame that is not stacked, past a step of
+        // that frame, as it does with the frame as dagre laid it out (the
+        // steps of a round in parallel).
+        const parentOf = new Map<string, string | undefined>([
+          ...result.graph.frames.map(f => [f.id, f.parent] as const),
+          ...result.graph.nodes.map(n => [n.id, n.parent] as const),
+        ]);
+        const stackedIds = new Set(
+          result.graph.frames.filter(f => f.stacked).map(f => f.id),
+        );
+        const inRow = new Map(
+          list.map(a => [a.edge.id, a.edge.data?.centerY === undefined]),
         );
         const unlined = new Set(
           throughBoxes(
@@ -1311,8 +1327,17 @@ describe('random loops with their child groups stacked', () => {
           ),
         );
         for (const hit of throughBoxes(result)) {
-          const id = hit.slice(0, hit.indexOf(' through '));
-          if (between.has(id) || !unlined.has(hit)) found.push(`${at}: ${hit}`);
+          const [id, box] = hit.split(' through ');
+          const edge = list.find(a => a.edge.id === id)!.edge;
+          const frame = parentOf.get(edge.source);
+          const excused =
+            inRow.get(id) &&
+            unlined.has(hit) &&
+            frame !== undefined &&
+            !stackedIds.has(frame) &&
+            parentOf.get(edge.target) === frame &&
+            parentOf.get(box) === frame;
+          if (!excused) found.push(`${at}: ${hit}`);
         }
         for (const hit of problems(result)) found.push(`${at}: ${hit}`);
         for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
