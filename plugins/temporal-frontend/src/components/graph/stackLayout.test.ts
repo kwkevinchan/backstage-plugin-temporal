@@ -43,7 +43,14 @@ import {
   StepLayout,
   visibleSteps,
 } from './layout';
-import { STACK_GAP, STACK_SIDE, stackGapOf, stackTurnOut } from './geometry';
+import {
+  STACK_GAP,
+  STACK_SIDE,
+  stackGapOf,
+  stackSidePad,
+  stackTurnIn,
+  stackTurnOut,
+} from './geometry';
 
 import { agentGraph } from '../../testGraphs/agentGraph';
 import { loopGraph } from '../../testGraphs/loopGraph';
@@ -513,6 +520,61 @@ describe('arrows up into an earlier row of a stacked frame', () => {
       expect(p[3].x).toBeLessThanOrEqual(STACK_SIDE - FRAME_GAP);
     }
   });
+
+  it('turns an arrow up a lane away from an arrow it would run next to', () => {
+    // The arrow up would turn 4px from the arrow down into the lower row.
+    // It moves right, a lane away, where that row leaves room. The two
+    // arrows share neither end, so the lanes of the gap do not separate
+    // these turns.
+    const positions = new Map([
+      ['f', { x: 0, y: 0 }],
+      ['ds', { x: 200, y: 40 }],
+      ['ut', { x: 500, y: 40 }],
+      ['us', { x: 200, y: 300 }],
+      ['dt', { x: 524, y: 300 }],
+    ]);
+    const layout: StepLayout = {
+      positions,
+      sizes: new Map([['f', { width: 900, height: 420 }]]),
+      width: 940,
+      height: 460,
+      wrapped: false,
+      stackGaps: new Map([['f', [220]]]),
+    };
+    const edges: Edge<FrameEdgeData>[] = [
+      {
+        id: 'ds->dt',
+        source: 'ds',
+        target: 'dt',
+        type: 'frameEdge',
+        data: { sourceInset: OFFSET, targetInset: 80 },
+      },
+      {
+        id: 'us->ut',
+        source: 'us',
+        target: 'ut',
+        type: 'frameEdge',
+        data: { sourceInset: 28, targetInset: FRAME_GAP },
+      },
+    ];
+    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
+    const xOf = (id: string) => {
+      const edge = routed.find(e => e.id === id)!;
+      const end = (node: string, side: number) => ({
+        x: positions.get(node)!.x + side * boxSize(layout, node).width,
+        y: positions.get(node)!.y + boxSize(layout, node).height / 2,
+      });
+      return frameEdgePoints(
+        end(edge.source, 1),
+        end(edge.target, 0),
+        edge.data!,
+      )[1].x;
+    };
+    // Down into dt stays; up out of us was 4px from it and moves a lane off.
+    expect(Math.abs(xOf('us->ut') - xOf('ds->dt'))).toBeGreaterThanOrEqual(
+      EDGE_LANE_GAP,
+    );
+  });
 });
 
 describe('arrows down the left side of a stacked frame', () => {
@@ -553,6 +615,99 @@ describe('arrows down the left side of a stacked frame', () => {
     expect(into('s1->t1') - into('s2->t2')).toBeGreaterThanOrEqual(
       EDGE_LANE_GAP,
     );
+  });
+});
+
+describe('arrows down the right side of a stacked frame', () => {
+  it('go around an arrow that runs on past the frame next to a box', () => {
+    // The rows of frame f, and an arrow from s above the frame down to t
+    // below it, past the box x. Out of a, the way down beside b is blocked
+    // by the collapsed group m, so that arrow turns in a side lane past
+    // the inner one.
+    const positions = new Map([
+      ['f', { x: 96, y: 796 }],
+      ['a', { x: 156, y: 834 }],
+      ['g', { x: 156, y: 946 }],
+      ['c', { x: 168, y: 984 }],
+      ['m', { x: 156, y: 1120 }],
+      ['h', { x: 156, y: 1244 }],
+      ['b', { x: 168, y: 1282 }],
+      ['d', { x: 156, y: 1418 }],
+      ['s', { x: 156, y: 340 }],
+      ['x', { x: 432, y: 340 }],
+      ['t', { x: 48, y: 1644 }],
+    ]);
+    const layout: StepLayout = {
+      positions,
+      sizes: new Map([
+        ['f', { width: 364, height: 698 }],
+        ['a', { width: 180, height: 52 }],
+        ['g', { width: 244, height: 114 }],
+        ['m', { width: 240, height: 64 }],
+        ['h', { width: 244, height: 114 }],
+      ]),
+      width: 1104,
+      height: 1860,
+      wrapped: false,
+      stackGaps: new Map([['f', [916, 1090, 1214, 1388]]]),
+    };
+    const parentOf = new Map<string, string | undefined>([
+      ['a', 'f'],
+      ['g', 'f'],
+      ['c', 'g'],
+      ['m', 'f'],
+      ['h', 'f'],
+      ['b', 'h'],
+      ['d', 'f'],
+    ]);
+    const inner = 96 + 364 - STACK_SIDE + FRAME_GAP;
+    expect(stackTurnOut(layout, 'a', 'b')).toBe(inner + EDGE_LANE_GAP);
+    const edges: Edge<FrameEdgeData>[] = [
+      ['a', 'b'],
+      ['c', 'd'],
+      ['m', 'd'],
+      ['b', 'd'],
+      ['s', 't'],
+    ].map(([source, target]) => ({
+      id: `${source}->${target}`,
+      source,
+      target,
+      type: 'frameEdge',
+      data:
+        source === 's'
+          ? { sourceInset: inner - 376, targetInset: 32, centerY: 1531 }
+          : frameInsets(layout, parentOf, source, target),
+    }));
+    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
+    const downs = routed.map(edge => {
+      const end = (id: string, side: number) => ({
+        x: positions.get(id)!.x + side * boxSize(layout, id).width,
+        y: positions.get(id)!.y + boxSize(layout, id).height / 2,
+      });
+      const points = frameEdgePoints(
+        end(edge.source, 1),
+        end(edge.target, 0),
+        edge.data!,
+      );
+      return {
+        id: edge.id,
+        x: points[1].x,
+        top: points[1].y,
+        bottom: points[2].y,
+      };
+    });
+    // The arrow past the frame stays left of x.
+    const past = downs.find(d => d.id === 's->t')!;
+    expect(past.x).toBeLessThan(432);
+    // The parts down the right side, each a lane from the others there.
+    const side = downs.filter(d => d.x > inner - 1);
+    side.forEach((d, i) => {
+      for (const o of side.slice(i + 1)) {
+        const [y1, y2] = [Math.max(d.top, o.top), Math.min(d.bottom, o.bottom)];
+        if (y2 - y1 <= 1) continue;
+        expect(Math.abs(d.x - o.x)).toBeGreaterThanOrEqual(EDGE_LANE_GAP);
+      }
+    });
   });
 });
 
@@ -694,6 +849,42 @@ describe('the group of a signal received during a round', () => {
     },
   );
 
+  it('does not widen a loop whose one signal already has room', () => {
+    const views = Object.fromEntries(
+      (loopGraph.eventGroups ?? []).map(g => [g.key, true]),
+    );
+    const full = laidOut(loopGraph, views, 1400);
+    const fullLoop = rect(full, box('label:loop:draft-review'));
+    expect(fullLoop.right - fullLoop.left).toBe(916);
+    expect(fullLoop.bottom - fullLoop.top).toBe(686);
+    expect(full.layout.wrapped).toBe(true);
+    expect(full.layout.width).toBe(1284);
+    expect(full.layout.height).toBe(892);
+    const round2 = laidOut(
+      loopGraph,
+      { 'label:loop:draft-review:2': true },
+      1000,
+    );
+    const openLoop = rect(round2, box('label:loop:draft-review'));
+    expect(openLoop.right - openLoop.left).toBe(916);
+    expect(openLoop.bottom - openLoop.top).toBe(586);
+    expect(round2.layout.wrapped).toBe(true);
+    expect(round2.layout.width).toBe(988);
+    expect(round2.layout.height).toBe(916);
+  });
+
+  it('keeps two groups from one step within the gap their arrows need', () => {
+    // Both groups start where the arrow out of the same step turns down.
+    // The second is two frame gaps after the first, plus the lanes those
+    // arrows take, and no farther: the gap between groups has a bound.
+    const result = laidOut(twoSignals('r2s1', 'r2s1'), open(1, 2, 3), 1000);
+    const [hA, hB] = ['A', 'B'].map(k => rect(result, box(`event:hint${k}`)));
+    const [left, right] = [hA, hB].sort((p, q) => p.left - q.left);
+    const gap = right.left - left.right;
+    expect(gap).toBeGreaterThanOrEqual(2 * FRAME_GAP);
+    expect(gap).toBeLessThanOrEqual(2 * FRAME_GAP + 6 * EDGE_LANE_GAP);
+  });
+
   it('turn into the groups a lane away from the turns out of the row above', () => {
     // Two signals received during round 1, collapsed next to round 2: the
     // arrow into the second group would turn down where the arrow out of
@@ -805,6 +996,68 @@ describe('the group of a signal received during a round', () => {
     const hint = rect(result, box('event:hint'));
     expect(hint.top).toBeGreaterThan(rect(result, box('label:r2')).bottom);
     expect(hint.right).toBeLessThanOrEqual(rect(result, box('label:r2')).right);
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('keeps the wider side of a stacked frame in its group', () => {
+    // The group of the signal holds three groups, one row each. Four arrows
+    // run from the first past the second into the third, so the side of
+    // that frame is a lane wider than `STACK_SIDE`.
+    const parts = ['a', 'b', 'c'].map(k =>
+      [1, 2, 3, 4].map(i => `${k}${i}`).slice(0, k === 'b' ? 1 : 4),
+    );
+    const ids = parts.flat();
+    const chain = ids.slice(1).map((id, i) => [ids[i], id] as [string, string]);
+    const skips = [1, 2, 3, 4].map(i => [`a${i}`, `c${i}`] as [string, string]);
+    const signals = loop(3, {
+      nodes: [step('signal', { kind: 'signal' }), ...ids.map(id => step(id))],
+      edges: [
+        ['r2s1', 'signal'],
+        ['signal', 'a1'],
+        ...chain,
+        ...skips,
+        ['c4', 'r2s3'],
+      ],
+      groups: [
+        {
+          ...label('event:hint', ids, undefined, [
+            'label:a',
+            'label:b',
+            'label:c',
+          ]),
+          kind: 'event',
+          sourceNodeId: 'signal',
+        },
+        ...['a', 'b', 'c'].map((k, i) =>
+          label(`label:${k}`, parts[i], 'event:hint'),
+        ),
+      ],
+    });
+    signals.nodes = [
+      ...signals.nodes.filter(n => !['signal', ...ids].includes(n.id)),
+    ];
+    signals.nodes.splice(
+      signals.nodes.findIndex(n => n.id === 'r2s2'),
+      0,
+      step('signal', { kind: 'signal' }),
+      ...ids.map(id => step(id)),
+    );
+    const views = {
+      ...open(1, 2, 3),
+      'event:hint': true,
+      'label:a': true,
+      'label:b': true,
+      'label:c': true,
+    };
+    const result = laidOut(signals, views);
+    const hint = box('event:hint');
+    expect(result.graph.frames.find(f => f.id === hint)?.stacked).toBe(true);
+    expect(result.graph.frames.find(f => f.id === hint)?.parent).toBe(
+      box('label:loop'),
+    );
+    expect(stackSidePad(result.layout, hint)).toBe(STACK_SIDE + EDGE_LANE_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(runningOn(result)).toEqual([]);
   });
 
   it('is drawn after the stacked frame it goes in', () => {
@@ -1099,6 +1352,30 @@ describe('stackGapOf', () => {
     expect(stackTurnOut(rows, 'a', 't')).toBe(700 - STACK_SIDE + FRAME_GAP);
   });
 
+  it('uses the next side lane when the inner one would run through a box', () => {
+    // The inner right lane is 660. A box ending at 640 covers it (the
+    // half-lane clearance is 25) and leaves 670 clear.
+    const positions = new Map([
+      ['f', { x: 0, y: 0 }],
+      ['a', { x: 40, y: 40 }],
+      ['m', { x: 40, y: 200 }],
+      ['n', { x: 420, y: 200 }],
+      ['t', { x: 40, y: 360 }],
+    ]);
+    const rows: StepLayout = {
+      positions,
+      sizes: new Map([['f', { width: 700, height: 500 }]]),
+      width: 740,
+      height: 520,
+      wrapped: false,
+      stackGaps: new Map([['f', [150, 300]]]),
+    };
+    expect(stackGapOf(rows, 'a', 't')).toBe(300);
+    expect(stackTurnOut(rows, 'a', 't')).toBe(
+      700 - STACK_SIDE + FRAME_GAP + EDGE_LANE_GAP,
+    );
+  });
+
   it('gives the gap above the row of the source into a row two up', () => {
     const three = layout();
     three.sizes!.set('f', { width: 560, height: 420 });
@@ -1111,6 +1388,109 @@ describe('stackGapOf', () => {
     // b is in the way of a out of the frame, nothing of b.
     expect(stackGapOf(layout(), 'a', 't')).toBe(150);
     expect(stackGapOf(layout(), 'b', 't')).toBeUndefined();
+  });
+
+  it('makes the gap above a later row taller for arrows that skip to it', () => {
+    // Four arrows into the last round: the one from the round above it, and
+    // three that skip the rounds between. The gap above the last round
+    // counts each of them, so it is a lane taller than the gaps that hold
+    // three arrows or fewer.
+    const graph = loop(6, {
+      edges: [
+        ['r1s3', 'r6s1'],
+        ['r2s3', 'r6s1'],
+        ['r3s3', 'r6s1'],
+      ],
+    });
+    const result = laidOut(graph, open(1, 2, 3, 4, 5, 6));
+    const aboveLast =
+      rect(result, box('label:r6')).top - rect(result, box('label:r5')).bottom;
+    const between =
+      rect(result, box('label:r3')).top - rect(result, box('label:r2')).bottom;
+    expect(between).toBe(STACK_GAP);
+    expect(aboveLast).toBe(STACK_GAP + EDGE_LANE_GAP);
+  });
+
+  it('counts an arrow leaving the frame in the gap, and turns it down the side', () => {
+    // Three arrows already run from round 1 into round 2. A fourth leaves
+    // the loop from a step that is not the last in its row, so the way out
+    // to the side is blocked. The gap grows by a lane, and the arrow down
+    // to the end turns in the side channel instead of through the rounds
+    // below.
+    const graph = loop(3, {
+      edges: [
+        ['r1s1', 'r2s1'],
+        ['r1s2', 'r2s1'],
+        ['r1s2', 'end'],
+      ],
+    });
+    const result = laidOut(graph, open(1, 2, 3));
+    const gap =
+      rect(result, box('label:r2')).top - rect(result, box('label:r1')).bottom;
+    expect(gap).toBe(STACK_GAP + EDGE_LANE_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(tooClose(result)).toEqual([]);
+    // The arrow runs across the gap and drops beside the frame, not down
+    // through the rounds below the source.
+    const frame = rect(result, box('label:loop'));
+    const r2 = rect(result, box('label:r2'));
+    const leaving = arrows(result).find(a => a.edge.id === 'r1s2->end')!;
+    const cutsRound = leaving.points.slice(1).some((q, i) => {
+      const p = leaving.points[i];
+      if (p.x !== q.x) return false;
+      const [y1, y2] = [Math.min(p.y, q.y), Math.max(p.y, q.y)];
+      if (y2 <= r2.top || y1 >= r2.bottom) return false;
+      return p.x > frame.left + STACK_SIDE && p.x < frame.right - STACK_SIDE;
+    });
+    expect(cutsRound).toBe(false);
+  });
+
+  it('counts an arrow entering the frame in the gap above its row', () => {
+    // Three arrows already run from round 1 into round 2. A fourth comes
+    // into the loop from the start, to a step that is not the first in its
+    // row, so the way in from the side is blocked. The gap above round 2
+    // grows by a lane.
+    const graph = loop(3, {
+      edges: [
+        ['r1s1', 'r2s1'],
+        ['r1s2', 'r2s1'],
+        ['start', 'r2s2'],
+      ],
+    });
+    const result = laidOut(graph, open(1, 2, 3));
+    const gap =
+      rect(result, box('label:r2')).top - rect(result, box('label:r1')).bottom;
+    expect(gap).toBe(STACK_GAP + EDGE_LANE_GAP);
+    const below =
+      rect(result, box('label:r3')).top - rect(result, box('label:r2')).bottom;
+    expect(below).toBe(STACK_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(tooClose(result)).toEqual([]);
+  });
+
+  it('turns an arrow down the side when the way into a lower target is blocked', () => {
+    // Out of the frame from a, with b in the way to the side. Down next to
+    // t would run through the rows below, so the arrow turns in the side
+    // channel instead.
+    const positions = new Map([
+      ['f', { x: 0, y: 0 }],
+      ['a', { x: 40, y: 40 }],
+      ['b', { x: 300, y: 40 }],
+      ['m', { x: 40, y: 200 }],
+      ['c', { x: 40, y: 360 }],
+      ['t', { x: 40, y: 600 }],
+    ]);
+    const rows: StepLayout = {
+      positions,
+      sizes: new Map([['f', { width: 700, height: 500 }]]),
+      width: 740,
+      height: 700,
+      wrapped: false,
+      stackGaps: new Map([['f', [150, 300]]]),
+    };
+    const side = stackTurnIn(rows, 'a', 't');
+    expect(stackGapOf(rows, 'a', 't')).toBe(150);
+    expect(side).toBe(700 - STACK_SIDE + FRAME_GAP);
   });
 
   it('gives the gap above the row of a box led into past another', () => {

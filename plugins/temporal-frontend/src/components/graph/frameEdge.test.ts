@@ -1299,46 +1299,7 @@ describe('random loops with their child groups stacked', () => {
         });
         if (result.notice) found.push(`${at}: ${result.notice}`);
         const list = arrows(result);
-        // Arrows never run through a box, but for an arrow in a row from a
-        // step to a step of one frame that is not stacked, past a step of
-        // that frame, as it does with the frame as dagre laid it out (the
-        // steps of a round in parallel).
-        const parentOf = new Map<string, string | undefined>([
-          ...result.graph.frames.map(f => [f.id, f.parent] as const),
-          ...result.graph.nodes.map(n => [n.id, n.parent] as const),
-        ]);
-        const stackedIds = new Set(
-          result.graph.frames.filter(f => f.stacked).map(f => f.id),
-        );
-        const inRow = new Map(
-          list.map(a => [a.edge.id, a.edge.data?.centerY === undefined]),
-        );
-        const unlined = new Set(
-          throughBoxes(
-            layoutGroupedSteps(
-              run.nodes,
-              run.edges,
-              run.groups,
-              run.views,
-              width,
-              (n, e, w, options) =>
-                layoutGraph(n, e, w, { ...options, lineUpRows: false }),
-            ),
-          ),
-        );
-        for (const hit of throughBoxes(result)) {
-          const [id, box] = hit.split(' through ');
-          const edge = list.find(a => a.edge.id === id)!.edge;
-          const frame = parentOf.get(edge.source);
-          const excused =
-            inRow.get(id) &&
-            unlined.has(hit) &&
-            frame !== undefined &&
-            !stackedIds.has(frame) &&
-            parentOf.get(edge.target) === frame &&
-            parentOf.get(box) === frame;
-          if (!excused) found.push(`${at}: ${hit}`);
-        }
+        for (const hit of throughBoxes(result)) found.push(`${at}: ${hit}`);
         for (const hit of problems(result)) found.push(`${at}: ${hit}`);
         for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
         for (const hit of outside(list, result.layout.width)) {
@@ -1457,4 +1418,106 @@ describe('rows of frames lined up in recorded runs', () => {
       expect(straightened > 0).toBe(straightens);
     },
   );
+});
+
+describe('straight arrows and side lanes in stacked loops', () => {
+  function lay(seed: number, width?: number) {
+    const run = randomLoop(seed);
+    return layoutGroupedSteps(
+      run.nodes,
+      run.edges,
+      run.groups,
+      run.views,
+      width,
+    );
+  }
+
+  /** Parallel parts of different arrows closer than a lane, and how close. */
+  function closePairs(result: GroupedLayout) {
+    const found: string[] = [];
+    const list = arrows(result);
+    list.forEach((a, i) => {
+      for (const b of list.slice(i + 1)) {
+        if (
+          a.edge.source === b.edge.source ||
+          a.edge.target === b.edge.target
+        ) {
+          continue;
+        }
+        for (const p of segments(a.drawn)) {
+          for (const q of segments(b.drawn)) {
+            const down = Math.abs(p[0].x - p[1].x) < 0.01;
+            if (down !== Math.abs(q[0].x - q[1].x) < 0.01) continue;
+            if (!down && Math.abs(p[0].y - p[1].y) >= 0.01) continue;
+            if (!down && Math.abs(q[0].y - q[1].y) >= 0.01) continue;
+            const [along, side] = down
+              ? (['y', 'x'] as const)
+              : (['x', 'y'] as const);
+            const [a1, a2] = span(p[0][along], p[1][along]);
+            const [b1, b2] = span(q[0][along], q[1][along]);
+            const overlap = Math.min(a2, b2) - Math.max(a1, b1);
+            const d = Math.abs(p[0][side] - q[0][side]);
+            if (overlap > 1 && d >= 1 && d < EDGE_LANE_GAP) {
+              found.push(`${a.edge.id} ~ ${b.edge.id} ${d}`);
+            }
+          }
+        }
+      }
+    });
+    return found;
+  }
+
+  it.each([61217, 61285, 71173])(
+    'keeps a straight arrow out of the box beside it (seed %i)',
+    seed => {
+      for (const width of [undefined, 900, 1400]) {
+        expect(throughBoxes(lay(seed, width))).toEqual([]);
+      }
+    },
+  );
+
+  it('keeps the straight arrow of seed 61217 off the box beside it', () => {
+    const result = lay(61217);
+    const arrow = arrows(result).find(a => a.edge.id === 'n19->n20')!;
+    expect(arrow.points.length).toBeGreaterThan(0);
+    expect(
+      arrow.points.every(p => Math.abs(p.y - arrow.points[0].y) < 0.5),
+    ).toBe(true);
+    const n21 = rectOf(result, 'n21');
+    const y = arrow.points[0].y;
+    // Clear of the box, not on its border.
+    expect(y < n21.top - 1 || y > n21.bottom + 1).toBe(true);
+  });
+
+  it.each([
+    [2320, 'n10->n14', 'n11'],
+    [2972, 'n1->n5', 'n2'],
+  ])(
+    'keeps an arrow that turns in its row off the box beside it (seed %i)',
+    (seed, id, beside) => {
+      for (const width of [undefined, 900, 1400]) {
+        const result = lay(seed, width);
+        expect(throughBoxes(result)).toEqual([]);
+        const arrow = arrows(result).find(a => a.edge.id === id)!;
+        const box = rectOf(result, beside);
+        // The parts across that pass over the box are clear of it, not on
+        // its border.
+        for (const [p, q] of segments(arrow.points)) {
+          if (Math.abs(p.y - q.y) >= 0.01) continue;
+          const [x1, x2] = span(p.x, q.x);
+          if (x2 <= box.left || x1 >= box.right) continue;
+          expect(p.y < box.top - 1 || p.y > box.bottom + 1).toBe(true);
+        }
+      }
+    },
+  );
+
+  it('keeps the side lanes a lane apart when a signal row shares them (seed 61008)', () => {
+    for (const width of [undefined, 900, 1400]) {
+      const result = lay(61008, width);
+      expect(closePairs(result)).toEqual([]);
+      expect(runningOn(arrows(result))).toEqual([]);
+      expect(throughBoxes(result)).toEqual([]);
+    }
+  });
 });
