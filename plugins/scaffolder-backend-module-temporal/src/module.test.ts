@@ -83,4 +83,49 @@ describe('scaffolderTemporalModule', () => {
       fetchMock.mockRestore();
     }
   });
+
+  it('fails to start when app.baseUrl is missing from config', async () => {
+    const addActions = jest.fn();
+    await expect(
+      startTestBackend({
+        extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
+        features: [
+          scaffolderTemporalModule,
+          catalogServiceMock.factory({ entities: [] }),
+          mockServices.rootConfig.factory({ data: {} }),
+        ],
+      }),
+    ).rejects.toThrow(/app\.baseUrl/);
+  });
+
+  it('normalizes a trailing slash in app.baseUrl for workflowUrl output', async () => {
+    const addActions = jest.fn();
+    await startTestBackend({
+      extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
+      features: [
+        scaffolderTemporalModule,
+        catalogServiceMock.factory({ entities: [] }),
+        mockServices.rootConfig.factory({
+          data: { app: { baseUrl: 'http://backstage/' } },
+        }),
+      ],
+    });
+    const start = addActions.mock.calls
+      .flat()
+      .find((a: { id: string }) => a.id === 'temporal:workflow:start');
+    const ctx = createMockActionContext({
+      input: { workflowType: 'orderWorkflow', taskQueue: 'orders' },
+    });
+    Object.assign(ctx, {
+      getInitiatorCredentials: async () =>
+        mockCredentials.user('user:default/alice'),
+      checkpoint: async ({ fn }: any) => fn(),
+      isDryRun: true,
+    });
+    await start.handler(ctx);
+    expect(ctx.output).toHaveBeenCalledWith(
+      'workflowUrl',
+      'http://backstage/temporal/namespaces/default/workflows/dry-run/runs/dry-run',
+    );
+  });
 });

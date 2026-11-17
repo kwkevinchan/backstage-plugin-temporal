@@ -22,6 +22,7 @@ import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
+import { downloadFileName, safeContentType } from './routes/download';
 import {
   createFakeWorkflowService,
   fakeTemporalServiceFactory,
@@ -228,5 +229,58 @@ describe('payload downloads', () => {
     const res = await request(server).get(download(key));
     expect(res.status).toBe(500);
     expect(res.headers['content-type']).not.toBe('image/png');
+  });
+
+  it('rejects download keys longer than 1024 characters with 400', async () => {
+    const { server } = await start({ s3: true });
+    await request(server)
+      .get(download('k'.repeat(1025)))
+      .expect(400);
+  });
+});
+
+describe('safeContentType and downloadFileName', () => {
+  it('normalizes safe media types and falls back to application/octet-stream', () => {
+    expect(safeContentType('Image/PNG')).toBe('image/png');
+    expect(safeContentType('application/vnd.custom+json')).toBe(
+      'application/vnd.custom+json',
+    );
+    for (const bad of [
+      '',
+      'text/html; charset=utf-8',
+      'image/png\r\nX-Evil: 1',
+      'plain',
+      'text/html space',
+    ]) {
+      expect(safeContentType(bad)).toBe('application/octet-stream');
+    }
+  });
+
+  it('chooses the attachment extension from the sanitized media type', () => {
+    const reference = {
+      driverName: 'aws.s3driver',
+      bucket: 'payloads',
+      key: 'payloads/abc',
+      sha256: '0123456789abcdefdeadbeef',
+      sizeBytes: 10,
+    };
+    expect(downloadFileName(reference, 'application/json')).toBe(
+      'payload-0123456789abcdef.json',
+    );
+    expect(downloadFileName(reference, 'application/pdf')).toBe(
+      'payload-0123456789abcdef.pdf',
+    );
+    expect(downloadFileName(reference, 'Image/JPEG')).toBe(
+      'payload-0123456789abcdef.jpg',
+    );
+    expect(downloadFileName(reference, 'image/gif')).toBe(
+      'payload-0123456789abcdef.gif',
+    );
+    expect(downloadFileName(reference, 'image/webp')).toBe(
+      'payload-0123456789abcdef.webp',
+    );
+    expect(downloadFileName(reference, 'text/plain; charset=utf-8')).toBe(
+      'payload-0123456789abcdef.bin',
+    );
   });
 });
