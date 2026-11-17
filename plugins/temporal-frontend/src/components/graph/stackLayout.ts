@@ -126,11 +126,6 @@ export type LayOutBlocks = (
  * channel is a lane wider for each arrow past the rows, past three.
  * The rest of the graph is laid out with `layOut`, each stacked frame as
  * one box.
- *
- * The parts placed below a box that is in no frame of the stacked frame (a
- * collapsed round) are not moved left to stay within the widest other row,
- * unless the frame, wider for them, would put boxes of a wrapped graph in
- * other rows: then they move left as little as keeps every box in its row.
  */
 export function layoutStacked(
   nodes: LayoutNode[],
@@ -139,61 +134,6 @@ export function layoutStacked(
   options: { frames: LayoutFrame[]; lineUpRows?: boolean },
   layOut: LayOutBlocks,
 ): StepLayout {
-  const lay = (reach: number) =>
-    stackedLayout(nodes, edges, width, options, layOut, reach);
-  const free = lay(Infinity);
-  if (width === undefined || !free.layout.wrapped || free.past === 0) {
-    return free.layout;
-  }
-  // The rows each box of a wrapped graph is in.
-  const rowsOf = (layout: StepLayout) => {
-    const gaps = layout.rowGaps ?? [];
-    return new Map(
-      [...layout.positions].map(([id, p]) => [
-        id,
-        gaps.filter(g => g < p.y).length,
-      ]),
-    );
-  };
-  const pulled = lay(0).layout;
-  const rows = rowsOf(pulled);
-  const sameRows = (layout: StepLayout) => {
-    const other = rowsOf(layout);
-    return (
-      (layout.rowGaps ?? []).length === (pulled.rowGaps ?? []).length &&
-      [...rows].every(([id, row]) => other.get(id) === row)
-    );
-  };
-  if (sameRows(free.layout)) return free.layout;
-  // Moved left only as far as keeps the rows of the graph.
-  let [low, high] = [0, free.past];
-  let best = pulled;
-  while (high - low > 1) {
-    const middle = Math.floor((low + high) / 2);
-    const tried = lay(middle).layout;
-    if (sameRows(tried)) {
-      [low, best] = [middle, tried];
-    } else {
-      high = middle;
-    }
-  }
-  return best;
-}
-
-/**
- * {@link layoutStacked}, with the groups placed below a collapsed box of a
- * stacked frame reaching at most `reach` past the widest other row; with
- * how far past it they reach when they are not moved left (`past`).
- */
-function stackedLayout(
-  nodes: LayoutNode[],
-  edges: { source: string; target: string }[],
-  width: number | undefined,
-  options: { frames: LayoutFrame[]; lineUpRows?: boolean },
-  layOut: LayOutBlocks,
-  reach: number,
-): { layout: StepLayout; past: number } {
-  let past = 0;
   const { frames } = options;
   const frameById = new Map(frames.map(f => [f.id, f]));
   const nodeById = new Map(nodes.map(n => [n.id, n]));
@@ -731,15 +671,8 @@ function stackedLayout(
         end = x + part.laid.width;
         return x;
       });
-      // As far as the widest other row allows. Groups placed below boxes
-      // that are not in a frame of this one (collapsed rounds) may reach
-      // `reach` past it.
-      const loose = [...row.units!.keys()].every(
-        after => parentOf.get(after) === frame && !frameById.has(after),
-      );
-      const room = loose ? widest + reach : widest;
-      if (loose) past = Math.max(past, Math.ceil(end - widest));
-      const shift = Math.min(xs[0], Math.max(0, end - room));
+      // As far as the widest other row allows.
+      const shift = Math.min(xs[0], Math.max(0, end - widest));
       // The arrow into a part turns down a lane away from where arrows turn
       // out of and into the other boxes and frames of the row above, and out
       // of the parts before it: the part moves a lane at a time, within the
@@ -761,7 +694,7 @@ function stackedLayout(
           !turns.some(t => Math.abs(x - FRAME_GAP - t) < EDGE_LANE_GAP);
         const start = Math.max(xs[k] - shift, last);
         const within = (x: number) =>
-          x + part.laid.width <= Math.max(room, start + part.laid.width);
+          x + part.laid.width <= Math.max(widest, start + part.laid.width);
         // The nearest clear place right within the widest row or left,
         // else right past the widest row.
         const lanes = Array.from(
@@ -955,7 +888,7 @@ function stackedLayout(
     return block;
   }
 
-  return { layout: region(children(undefined), width), past };
+  return region(children(undefined), width);
 }
 
 /**
