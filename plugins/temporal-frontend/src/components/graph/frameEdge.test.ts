@@ -21,6 +21,7 @@ import type {
   WorkflowGraphNode,
 } from '../../common';
 import { routeRowGaps } from './frameEdge';
+import { rowGapOf } from './geometry';
 import { GroupedLayout, GroupViews, layoutGroupedSteps } from './eventGroups';
 import {
   FrameEdgeData,
@@ -192,11 +193,7 @@ function clashes(
   list: { edge: Edge<FrameEdgeData>; points: Point[] }[],
   layout: StepLayout,
 ) {
-  const gapOf = (edge: Edge) => {
-    const source = layout.positions.get(edge.source)!.y;
-    const target = layout.positions.get(edge.target)!.y;
-    return layout.rowGaps?.find(g => g > source && g < target);
-  };
+  const gapOf = (edge: Edge) => rowGapOf(layout, edge.source, edge.target);
   const found: string[] = [];
   list.forEach((a, i) => {
     for (const b of list.slice(i + 1)) {
@@ -212,6 +209,38 @@ function clashes(
         for (const q of segments(b.points)) {
           const clash = clashOf(p, q);
           if (clash) found.push(`${a.edge.id} ${clash} ${b.edge.id}`);
+        }
+      }
+    }
+  });
+  return [...new Set(found)];
+}
+
+/**
+ * Arrows of different sources and targets with parts down (or up) on top of
+ * each other, in any gap, as they are drawn.
+ */
+function runningOn(list: { edge: Edge; drawn: Point[] }[]) {
+  const found: string[] = [];
+  const downs = list.map(({ edge, drawn }) => ({
+    edge,
+    parts: segments(drawn).filter(([a, b]) => Math.abs(a.x - b.x) < 0.01),
+  }));
+  downs.forEach((a, i) => {
+    for (const b of downs.slice(i + 1)) {
+      if (a.edge.source === b.edge.source || a.edge.target === b.edge.target) {
+        continue;
+      }
+      for (const [p, q] of a.parts) {
+        for (const [u, v] of b.parts) {
+          const [a1, a2] = span(p.y, q.y);
+          const [b1, b2] = span(u.y, v.y);
+          if (
+            Math.abs(p.x - u.x) < 1 &&
+            Math.min(a2, b2) - Math.max(a1, b1) > 1
+          ) {
+            found.push(`${a.edge.id} runs on ${b.edge.id} at x ${p.x}`);
+          }
         }
       }
     }
@@ -974,9 +1003,10 @@ function randomGraph(seed: number) {
 /**
  * A random loop: rounds of steps one after the other, some with two or three
  * groups of tool calls in parallel in them, steps between some rounds, and
- * a signal received during one round, which starts a group that leads back
- * into the round. Some of the rounds and tool groups are open, at least one
- * round: the frames of the loop and of those rounds stack their groups.
+ * one or two signals received during one round, each of which starts a
+ * group that leads back into the round. Some of the rounds and tool groups
+ * are open, at least one round: the frames of the loop and of those rounds
+ * stack their groups.
  */
 function randomLoop(seed: number) {
   const random = randomFrom(seed);
@@ -1042,16 +1072,26 @@ function randomLoop(seed: number) {
     }
     if (!signalled && random() < 0.5) {
       signalled = true;
-      const signal = step();
-      signals.add(signal);
-      link(first, signal);
-      const hint: WorkflowEventGroup = {
-        ...group('event:hint'),
-        kind: 'event',
-        sourceNodeId: signal,
-      };
-      groups[groups.length - 1] = hint;
-      link(run(signal, 1 + pick(2), [hint]), last);
+      // One signal, from the first step; or two, the other one from any
+      // step of the round but the last.
+      const back = last;
+      const anchors = [first];
+      if (random() < 0.4) {
+        const others = round.nodeIds.filter(id => id !== back);
+        anchors.push(others[pick(others.length)]);
+      }
+      anchors.forEach((anchor, k) => {
+        const signal = step();
+        signals.add(signal);
+        link(anchor, signal);
+        const hint: WorkflowEventGroup = {
+          ...group(`event:hint${k}`),
+          kind: 'event',
+          sourceNodeId: signal,
+        };
+        groups[groups.length - 1] = hint;
+        link(run(signal, 1 + pick(2), [hint]), back);
+      });
     }
   }
   run(last, 1 + pick(3), []);
@@ -1249,12 +1289,37 @@ describe('random loops with their child groups stacked', () => {
         });
         if (result.notice) found.push(`${at}: ${result.notice}`);
         const list = arrows(result);
-        for (const hit of throughBoxes(result)) found.push(`${at}: ${hit}`);
+        // Arrows between rows never run through a box; one in a row only
+        // where it does with its frame as dagre laid it out (the steps of a
+        // round in parallel), not because the rows of frames line up.
+        const between = new Set(
+          list
+            .filter(a => a.edge.data?.centerY !== undefined)
+            .map(a => a.edge.id),
+        );
+        const unlined = new Set(
+          throughBoxes(
+            layoutGroupedSteps(
+              run.nodes,
+              run.edges,
+              run.groups,
+              run.views,
+              width,
+              (n, e, w, options) =>
+                layoutGraph(n, e, w, { ...options, lineUpRows: false }),
+            ),
+          ),
+        );
+        for (const hit of throughBoxes(result)) {
+          const id = hit.slice(0, hit.indexOf(' through '));
+          if (between.has(id) || !unlined.has(hit)) found.push(`${at}: ${hit}`);
+        }
         for (const hit of problems(result)) found.push(`${at}: ${hit}`);
         for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
         for (const hit of outside(list, result.layout.width)) {
           found.push(`${at}: ${hit}`);
         }
+        for (const hit of runningOn(list)) found.push(`${at}: ${hit}`);
       }
     }
     expect(found).toEqual([]);

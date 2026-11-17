@@ -15,14 +15,16 @@
  */
 
 import {
+  EDGE_LANE_GAP,
   FRAME_GAP,
   FRAME_PADDING,
   FRAME_TOP,
-  FRAME_WRAP_GAP,
   NODE_HEIGHT,
   NODE_WIDTH,
   NodeSize,
   OFFSET,
+  STACK_GAP,
+  STACK_SIDE,
   StepLayout,
 } from './geometry';
 
@@ -95,20 +97,19 @@ export type LayOutBlocks = (
   },
 ) => StepLayout;
 
-/** Space between the rows of a stacked frame: arrows run in it. */
-export const STACK_GAP = FRAME_WRAP_GAP;
-/**
- * Space at the sides of a stacked frame: an arrow into another row turns
- * there, `FRAME_GAP` clear of the frame and of the frames in it.
- */
-export const STACK_SIDE = 2 * FRAME_GAP;
+export { STACK_GAP, STACK_SIDE } from './geometry';
 
 /**
  * Lays out a graph with stacked frames (`LayoutFrame.stacked`). The rows of
- * a stacked frame start at its left side, but a row placed below the box an
- * arrow into it comes from (`after`) starts where that arrow turns down
- * next to it, as far as the widest other row allows. The rest of the graph
- * is laid out with `layOut`, each stacked frame as one box.
+ * a stacked frame start at its left side. The boxes and frames placed below
+ * a box that an arrow into them comes from (`after`) go in a row right after
+ * the row of that box, one for all the boxes of that row: each part where
+ * its arrow turns down next to its box, from the left and at least twice
+ * `FRAME_GAP` after the part before, moved left as far as needed (and
+ * possible) to stay within the widest other row, and a lane at a time to
+ * where the arrow into it turns a lane away from where the arrows out of
+ * the other boxes above and of the parts before it do. The rest of the
+ * graph is laid out with `layOut`, each stacked frame as one box.
  */
 export function layoutStacked(
   nodes: LayoutNode[],
@@ -245,11 +246,40 @@ export function layoutStacked(
     return undefined;
   };
 
+  /**
+   * The parts of `items` (of `frame`) that arrows connect, in the order of
+   * their first items.
+   */
+  function connected(items: string[], frame: string): string[][] {
+    const partOf = new Map(items.map(id => [id, id]));
+    const find = (id: string): string =>
+      partOf.get(id) === id ? id : find(partOf.get(id)!);
+    for (const e of edges) {
+      const [a, b] = [childOf(frame, e.source), childOf(frame, e.target)];
+      if (!a || !b || !partOf.has(a) || !partOf.has(b)) continue;
+      partOf.set(find(a), find(b));
+    }
+    const parts = new Map<string, string[]>();
+    for (const id of items) {
+      const root = find(id);
+      parts.set(root, [...(parts.get(root) ?? []), id]);
+    }
+    return [...parts.values()];
+  }
+
   /** A stacked frame laid out on its own, at (0, 0). */
   function blockOf(frame: string): StackBlock {
     const cached = blocks.get(frame);
     if (cached) return cached;
-    type Row = { items: string[]; after?: string };
+    /**
+     * A row: boxes and frames of `frame`; or (`units`) the boxes and frames
+     * placed below a box of the row of `anchor`, by that box.
+     */
+    type Row = {
+      items: string[];
+      anchor?: string;
+      units?: Map<string, string[]>;
+    };
     const rows: Row[] = [];
     const placed: Row[] = [];
     const afterOf = (id: string) =>
@@ -258,45 +288,137 @@ export function layoutStacked(
       const after = afterOf(id);
       const anchor = after === undefined ? undefined : childOf(frame, after);
       if (after !== undefined && anchor !== undefined && anchor !== id) {
-        const row = placed.find(r => r.after === after);
-        if (row) row.items.push(id);
-        else placed.push({ items: [id], after });
+        let row = placed.find(r => r.anchor === anchor);
+        if (!row) {
+          row = { items: [], anchor, units: new Map() };
+          placed.push(row);
+        }
+        row.items.push(id);
+        row.units!.set(after, [...(row.units!.get(after) ?? []), id]);
         continue;
       }
       const last = rows[rows.length - 1];
-      if (
-        !frameById.has(id) &&
-        last &&
-        !last.after &&
-        !frameById.has(last.items[0])
-      ) {
+      if (!frameById.has(id) && last && !frameById.has(last.items[0])) {
         last.items.push(id);
       } else {
         rows.push({ items: [id] });
       }
+    }
+    // Placed below a box that is itself placed: a row of their own at the end.
+    for (const row of [...placed]) {
+      if (rows.some(r => r.items.includes(row.anchor!))) continue;
+      placed.splice(placed.indexOf(row), 1);
+      rows.push({ items: row.items });
     }
     // Rows placed below a box go right after the row of that box.
     const ordered: Row[] = [];
     for (const row of rows) {
       ordered.push(row);
       for (const below of placed) {
-        if (row.items.includes(childOf(frame, below.after!)!)) {
-          ordered.push(below);
-        }
+        if (row.items.includes(below.anchor!)) ordered.push(below);
       }
     }
-    for (const below of placed) {
-      if (!ordered.includes(below)) ordered.push(below);
-    }
-
-    const laid = ordered.map(row => {
-      const run = row.items.every(id => !frameById.has(id));
-      return normalized(region(row.items, undefined, run));
-    });
-    const widest = Math.max(
-      0,
-      ...laid.filter((_, i) => !ordered[i].after).map(l => l.width),
+    const lay = (items: string[], chain: boolean) =>
+      normalized(region(items, undefined, chain));
+    const laidRows = new Map(
+      rows.map(row => [
+        row,
+        lay(
+          row.items,
+          row.items.every(id => !frameById.has(id)),
+        ),
+      ]),
     );
+    const widest = Math.max(0, ...rows.map(r => laidRows.get(r)!.width));
+    for (const row of placed) {
+      const above = laidRows.get(
+        rows.find(r => r.items.includes(row.anchor!))!,
+      )!;
+      // Each part starts where the arrow into it turns down next to the box
+      // above, from the left; after the part before it, the arrow out of
+      // that one and the arrow into this one turn a lane apart.
+      const parts = [...row.units!].flatMap(([after, items]) => {
+        const at = above.positions.get(after);
+        const turn = at
+          ? at.x +
+            (above.sizes.get(after)?.width ?? NODE_WIDTH) +
+            OFFSET +
+            FRAME_GAP
+          : 0;
+        // Groups placed below one box are parts of their own.
+        return connected(items, frame).map(part => ({
+          laid: lay(part, true),
+          turn,
+          after,
+        }));
+      });
+      parts.sort((a, b) => a.turn - b.turn);
+      let end = -Infinity;
+      const xs = parts.map(part => {
+        const x = Math.max(0, part.turn, end + 2 * FRAME_GAP);
+        end = x + part.laid.width;
+        return x;
+      });
+      // As far as the widest other row allows.
+      const shift = Math.min(xs[0], Math.max(0, end - widest));
+      // The arrow into a part turns down a lane away from where arrows turn
+      // down out of the other boxes and frames of the row above, and out of
+      // the parts before it: the part moves a lane at a time, within the
+      // widest row where it can.
+      let last = -Infinity;
+      parts.forEach((part, k) => {
+        const turns = [
+          ...[...above.positions]
+            .filter(([id]) => id !== part.after)
+            .map(
+              ([id, p]) =>
+                p.x + (above.sizes.get(id)?.width ?? NODE_WIDTH) + OFFSET,
+            ),
+          ...parts
+            .slice(0, k)
+            .map((before, j) => xs[j] + before.laid.width + OFFSET),
+        ];
+        const clear = (x: number) =>
+          !turns.some(t => Math.abs(x - FRAME_GAP - t) < EDGE_LANE_GAP);
+        const start = Math.max(xs[k] - shift, last);
+        const within = (x: number) =>
+          x + part.laid.width <= Math.max(widest, start + part.laid.width);
+        // The nearest clear place right within the widest row or left,
+        // else right past the widest row.
+        const lanes = Array.from(
+          { length: turns.length + 1 },
+          (_, lane) => (lane + 1) * EDGE_LANE_GAP,
+        );
+        const near = lanes
+          .flatMap(d => [start + d, start - d])
+          .find(
+            o => clear(o) && (o > start ? within(o) : o >= Math.max(0, last)),
+          );
+        xs[k] = clear(start)
+          ? start
+          : near ?? lanes.map(d => start + d).find(clear) ?? start;
+        last = xs[k] + part.laid.width + 2 * FRAME_GAP;
+      });
+      const joined: ReturnType<typeof normalized> = {
+        positions: new Map(),
+        sizes: new Map(),
+        stackGaps: new Map(),
+        width: xs[xs.length - 1] + parts[parts.length - 1].laid.width,
+        height: Math.max(...parts.map(part => part.laid.height)),
+      };
+      parts.forEach((part, k) => {
+        const x = xs[k];
+        for (const [id, p] of part.laid.positions) {
+          joined.positions.set(id, { x: x + p.x, y: p.y });
+        }
+        for (const [id, size] of part.laid.sizes) joined.sizes.set(id, size);
+        for (const [id, list] of part.laid.stackGaps) {
+          joined.stackGaps.set(id, list);
+        }
+      });
+      laidRows.set(row, joined);
+    }
+    const laid = ordered.map(row => laidRows.get(row)!);
     const block: StackBlock = {
       width: 0,
       height: 0,
@@ -308,23 +430,9 @@ export function layoutStacked(
     let y = 0;
     let right = 0;
     for (const [i, row] of laid.entries()) {
-      let x = 0;
-      const { after } = ordered[i];
-      if (after !== undefined) {
-        // Where the arrow from the box above turns down next to it.
-        const above = laid.find((l, j) => j < i && l.positions.has(after));
-        const at = above?.positions.get(after);
-        if (above && at) {
-          const turn = at.x + (above.sizes.get(after)?.width ?? NODE_WIDTH);
-          x = Math.max(
-            0,
-            Math.min(turn + OFFSET + FRAME_GAP, widest - row.width),
-          );
-        }
-      }
       for (const [id, p] of row.positions) {
         block.positions.set(id, {
-          x: STACK_SIDE + x + p.x,
+          x: STACK_SIDE + p.x,
           y: FRAME_TOP + y + p.y,
         });
       }
@@ -336,7 +444,7 @@ export function layoutStacked(
           list.map(g => top + g),
         );
       }
-      right = Math.max(right, x + row.width);
+      right = Math.max(right, row.width);
       y += row.height;
       if (i < laid.length - 1) {
         gaps.push(FRAME_TOP + y + STACK_GAP / 2);

@@ -76,6 +76,15 @@ export const EDGE_LANE_GAP = 10;
  */
 export const FRAME_WRAP_GAP = 2 * (FRAME_GAP + EDGE_LANE_GAP);
 
+/** Space between the rows of a stacked frame: arrows run in it. */
+export const STACK_GAP = FRAME_WRAP_GAP;
+/**
+ * Space at the sides of a stacked frame: arrows into and out of its rows
+ * turn there, side by side in up to three lanes `EDGE_LANE_GAP` apart,
+ * `FRAME_GAP` clear of the frame and of the rows.
+ */
+export const STACK_SIDE = 2 * FRAME_GAP + 2 * EDGE_LANE_GAP;
+
 /** Space between a frame and the boxes in it, below and on the sides. */
 export const FRAME_PADDING = 12;
 /** Height of the title bar of a frame of steps. */
@@ -88,15 +97,81 @@ export function boxSize(layout: StepLayout, id: string): NodeSize {
   return layout.sizes?.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
 }
 
+/** A laid out box or frame. */
+interface Rect {
+  id: string;
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+  /** True for a frame: it has other boxes in it. */
+  frame: boolean;
+}
+
+/** How an arrow runs between the rows of a stacked frame. */
+interface StackRoute {
+  /** The gap it runs across. */
+  gap: number;
+  /** Where it turns out of its source, when not next to the source. */
+  turnOut?: number;
+}
+
+/**
+ * The boxes and frames of a stacked layout and the routes of its arrows,
+ * found once for each layout: a laid out graph does not change.
+ */
+const stackCache = new WeakMap<
+  StepLayout,
+  { rects: Rect[]; routes: Map<string, StackRoute | undefined> }
+>();
+
+function cacheOf(layout: StepLayout) {
+  let cached = stackCache.get(layout);
+  if (!cached) {
+    const rects = [...layout.positions].map(([id, p]) => {
+      const size = boxSize(layout, id);
+      return {
+        id,
+        left: p.x,
+        top: p.y,
+        right: p.x + size.width,
+        bottom: p.y + size.height,
+        frame: false,
+      };
+    });
+    // Larger first: a frame is larger than the boxes in it.
+    const bySize = [...rects].sort(
+      (a, b) =>
+        (b.right - b.left) * (b.bottom - b.top) -
+        (a.right - a.left) * (a.bottom - a.top),
+    );
+    bySize.forEach((r, i) => {
+      r.frame = bySize
+        .slice(i + 1)
+        .some(
+          o =>
+            o.left >= r.left &&
+            o.top >= r.top &&
+            o.right <= r.right &&
+            o.bottom <= r.bottom,
+        );
+    });
+    cached = { rects, routes: new Map() };
+    stackCache.set(layout, cached);
+  }
+  return cached;
+}
+
 /**
  * The gap between two rows of a stacked frame (`stackGaps`) that an arrow
  * from `source` to `target` runs across.
  *
  * - Both in the frame, into a later row: the gap below the row of the
- *   source. Past rows in between, the gap above the row of the target
- *   instead, when the way down next to the target would cross a box (or
- *   come closer than `FRAME_GAP` to a frame) and the way down next to the
- *   source would not.
+ *   source. Past rows in between, when the way down where the arrow turns
+ *   into the target would cross a box (or come closer than `FRAME_GAP` to
+ *   a frame, or to where arrows turn next to a box), the gap above the row of the
+ *   target instead: down where it turns out of the source, or else down
+ *   the right side of the frame (`stackTurnOut`), whichever is clear.
  * - Both in the frame, into an earlier row: the gap above the row of the
  *   source.
  * - Out of the frame, with a box between the source and the side of the
@@ -111,117 +186,173 @@ export function stackGapOf(
   source: string,
   target: string,
 ): number | undefined {
+  return stackRoute(layout, source, target)?.gap;
+}
+
+/**
+ * Where an arrow between the rows of a stacked frame turns down out of its
+ * source when the way down next to it is not clear (see `stackGapOf`): on
+ * the right side of the frame. Nothing when it turns next to its source.
+ */
+export function stackTurnOut(
+  layout: StepLayout,
+  source: string,
+  target: string,
+): number | undefined {
+  return stackRoute(layout, source, target)?.turnOut;
+}
+
+function stackRoute(
+  layout: StepLayout,
+  source: string,
+  target: string,
+): StackRoute | undefined {
   if (!layout.stackGaps) return undefined;
   const s = layout.positions.get(source);
   const t = layout.positions.get(target);
   if (!s || !t) return undefined;
+  const { rects, routes } = cacheOf(layout);
+  const key = `${source}\u0000${target}`;
+  if (routes.has(key)) return routes.get(key);
+  const route = findStackRoute(layout, rects, source, target);
+  routes.set(key, route);
+  return route;
+}
+
+function findStackRoute(
+  layout: StepLayout,
+  rects: Rect[],
+  source: string,
+  target: string,
+): StackRoute | undefined {
+  const s = layout.positions.get(source)!;
+  const t = layout.positions.get(target)!;
+  const byId = new Map(rects.map(r => [r.id, r]));
   const contains = (frame: string, id: string) => {
-    const f = layout.positions.get(frame);
-    const p = layout.positions.get(id)!;
-    if (!f) return false;
-    const outer = boxSize(layout, frame);
-    const inner = boxSize(layout, id);
+    const f = byId.get(frame);
+    const r = byId.get(id);
     return (
-      p.x >= f.x &&
-      p.y >= f.y &&
-      p.x + inner.width <= f.x + outer.width &&
-      p.y + inner.height <= f.y + outer.height
+      !!f &&
+      !!r &&
+      r.left >= f.left &&
+      r.top >= f.top &&
+      r.right <= f.right &&
+      r.bottom <= f.bottom
     );
   };
   // The boxes and frames other than the ends and the frames around them.
-  let rects:
-    | {
-        left: number;
-        top: number;
-        right: number;
-        bottom: number;
-        frame: boolean;
-      }[]
-    | undefined;
+  const others = rects.filter(
+    r =>
+      r.id !== source &&
+      r.id !== target &&
+      !contains(r.id, source) &&
+      !contains(r.id, target),
+  );
   /**
-   * True when a line down at `x` between `y1` and `y2` runs through no box,
-   * and `FRAME_GAP` clear of the sides of frames.
+   * True when a line down at `x` between `y1` and `y2` runs `FRAME_GAP`
+   * clear of the sides of frames, and clear of where arrows turn out of
+   * and into boxes (`OFFSET` from them) by half a lane.
    */
-  const clearDown = (x: number, y1: number, y2: number) => {
-    rects ??= [...layout.positions]
-      .filter(
-        ([id]) =>
-          id !== source &&
-          id !== target &&
-          !contains(id, source) &&
-          !contains(id, target),
-      )
-      .map(([id, p]) => ({
-        left: p.x,
-        top: p.y,
-        right: p.x + boxSize(layout, id).width,
-        bottom: p.y + boxSize(layout, id).height,
-        // A frame has other boxes in it.
-        frame: [...layout.positions.keys()].some(
-          o => o !== id && contains(id, o),
-        ),
-      }));
-    return !rects.some(r => {
+  const clearDown = (x: number, y1: number, y2: number) =>
+    !others.some(r => {
       if (r.top >= y2 || r.bottom <= y1) return false;
-      const near = r.frame ? FRAME_GAP : 0;
+      const near = r.frame ? FRAME_GAP : OFFSET + EDGE_LANE_GAP / 2;
       return r.left - near < x && r.right + near > x;
     });
+  /** True when a box is across a line at `y` from `x1` to `x2`. */
+  /**
+   * True when a box, or with `frames` a frame too, is across a line at `y`
+   * from `x1` to `x2`.
+   */
+  const across = (y: number, x1: number, x2: number, frames = true) =>
+    others.some(
+      r =>
+        (frames || !r.frame) &&
+        r.top < y &&
+        r.bottom > y &&
+        r.left < x2 &&
+        r.right > x1,
+    );
+  const middle = (id: string) => {
+    const r = byId.get(id)!;
+    return (r.top + r.bottom) / 2;
   };
-  for (const [frame, gaps] of layout.stackGaps) {
+  // The frames around one end only, the innermost first.
+  const own = (end: string, other: string) =>
+    rects
+      .filter(r => r.frame && contains(r.id, end) && !contains(r.id, other))
+      .sort((a, b) => a.right - a.left - (b.right - b.left));
+  /**
+   * Where the arrow turns down out of its source, as `frameInsets` turns
+   * it: outside the frames around the source it can leave without passing
+   * a box, `FRAME_GAP` clear of them, or next to the source.
+   */
+  const turnOutOf = () => {
+    const from = byId.get(source)!;
+    let at = from.right + OFFSET;
+    for (const f of own(source, target)) {
+      if (across(middle(source), from.right, f.right + FRAME_GAP, false)) {
+        break;
+      }
+      at = f.right + FRAME_GAP;
+    }
+    return at;
+  };
+  /** The same for the turn down into the target. */
+  const turnInto = () => {
+    const into = byId.get(target)!;
+    let at = into.left - OFFSET;
+    for (const f of own(target, source)) {
+      if (across(middle(target), f.left - FRAME_GAP, into.left, false)) break;
+      at = f.left - FRAME_GAP;
+    }
+    return at;
+  };
+  for (const [frame, gaps] of layout.stackGaps!) {
     if (!contains(frame, source) || !contains(frame, target)) continue;
     const between = gaps.filter(g => g > s.y && g < t.y);
     if (between.length > 1) {
-      // Past other rows: down next to the target, or else down next to the
-      // source to the gap above the row of the target.
+      // Past other rows: down next to the target, else down next to the
+      // source or on the right side of the frame to the gap above the row
+      // of the target.
       const [first, last] = [between[0], between[between.length - 1]];
-      const into = t.x - OFFSET;
-      const out = s.x + boxSize(layout, source).width + OFFSET;
-      const middleOf = (p: { y: number }, id: string) =>
-        p.y + boxSize(layout, id).height / 2;
-      if (
-        !clearDown(into, first, middleOf(t, target)) &&
-        clearDown(out, middleOf(s, source), last)
-      ) {
-        return last;
+      const end = byId.get(source)!.right;
+      if (!clearDown(turnInto(), first, middle(target))) {
+        if (clearDown(turnOutOf(), middle(source), last)) return { gap: last };
+        const side = byId.get(frame)!.right - STACK_SIDE + FRAME_GAP;
+        if (
+          !across(middle(source), end, side, false) &&
+          clearDown(side, middle(source), last)
+        ) {
+          return { gap: last, turnOut: side };
+        }
       }
     }
-    if (between.length > 0) return between[0];
+    if (between.length > 0) return { gap: between[0] };
     const up = [...gaps].reverse().find(g => g < s.y && g > t.y);
-    if (up !== undefined) return up;
+    if (up !== undefined) return { gap: up };
   }
   // Out of a stacked frame with boxes on the way to its side: the gap below
   // the row of the source; into one, the gap above the row of the target.
-  const middle = (id: string) =>
-    layout.positions.get(id)!.y + boxSize(layout, id).height / 2;
-  const inTheWay = (end: string, y: number, x1: number, x2: number) =>
-    [...layout.positions].some(([id, p]) => {
-      if (id === source || id === target || contains(id, end)) return false;
-      const size = boxSize(layout, id);
-      return (
-        p.y < y && p.y + size.height > y && p.x < x2 && p.x + size.width > x1
-      );
-    });
   let found: { gap: number; area: number } | undefined;
-  for (const [frame, gaps] of layout.stackGaps) {
-    const f = layout.positions.get(frame);
+  for (const [frame, gaps] of layout.stackGaps!) {
+    const f = byId.get(frame);
     if (!f) continue;
-    const size = boxSize(layout, frame);
-    const area = size.width * size.height;
+    const area = (f.right - f.left) * (f.bottom - f.top);
     if (found && found.area <= area) continue;
     let gap: number | undefined;
     if (contains(frame, source) && !contains(frame, target)) {
-      const from = s.x + boxSize(layout, source).width;
-      if (inTheWay(source, middle(source), from, f.x + size.width)) {
+      if (across(middle(source), byId.get(source)!.right, f.right)) {
         gap = gaps.find(g => g > s.y);
       }
     } else if (contains(frame, target) && !contains(frame, source)) {
-      if (inTheWay(target, middle(target), f.x, t.x)) {
+      if (across(middle(target), f.left, t.x)) {
         gap = [...gaps].reverse().find(g => g < t.y);
       }
     }
     if (gap !== undefined) found = { gap, area };
   }
-  return found?.gap;
+  return found && { gap: found.gap };
 }
 
 /**
