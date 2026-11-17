@@ -54,7 +54,7 @@ describe('loadEntityDefinition', () => {
 
   it('says that the backend module is missing when the route does not exist', async () => {
     await expect(load(new Response('', { status: 404 }))).rejects.toThrow(
-      MODULE_MISSING_MESSAGE,
+      /serves no workflow definitions: add @kwkevinchan\/backstage-plugin-temporal-backend-module-zigflow/,
     );
   });
 

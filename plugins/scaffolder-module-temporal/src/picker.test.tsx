@@ -18,7 +18,6 @@ import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
-import { TemporalWorkflowPickerFieldExtension } from './index';
 import { TemporalWorkflowPicker } from './components/TemporalWorkflowPicker';
 
 const workflow = (workflowId: string) => ({
@@ -163,29 +162,47 @@ describe('TemporalWorkflowPicker', () => {
     expect(screen.getByText('Selection is required')).toBeInTheDocument();
   });
 
-  it('ignores late responses after unmount and exports the legacy field extension', async () => {
-    let resolveList!: (value: { items: ReturnType<typeof workflow>[] }) => void;
-    const pending = new Promise<{ items: ReturnType<typeof workflow>[] }>(
-      resolve => {
-        resolveList = resolve;
-      },
-    );
+  it('ignores a response that arrives after the options changed', async () => {
+    type Page = { items: ReturnType<typeof workflow>[] };
+    let resolveFirst!: (value: Page) => void;
+    const first = new Promise<Page>(resolve => {
+      resolveFirst = resolve;
+    });
     const api = {
       listEntityWorkflows: jest.fn(),
-      listWorkflows: jest.fn().mockReturnValue(pending),
+      listWorkflows: jest
+        .fn()
+        .mockReturnValueOnce(first)
+        .mockResolvedValueOnce({ items: [workflow('release-new')] }),
     };
-    const { onChange, unmount } = await render(
-      { workflowType: 'demoRelease' },
-      api,
-      'release-stale',
-    );
-    unmount();
+    const onChange = jest.fn();
+    const picker = (workflowType: string) => {
+      const props: any = {
+        formData: 'release-new',
+        onChange,
+        schema: { title: 'Release to approve', type: 'string' },
+        uiSchema: { 'ui:options': { workflowType } },
+        required: true,
+        rawErrors: [],
+      };
+      return (
+        <TestApiProvider apis={[[temporalApiRef, api as any]]}>
+          <TemporalWorkflowPicker {...props} />
+        </TestApiProvider>
+      );
+    };
+    const { rerender } = await renderInTestApp(picker('oldRelease'));
+    rerender(picker('newRelease'));
+    await waitFor(() => expect(screen.getByRole('button')).not.toBeDisabled());
+    expect(api.listWorkflows).toHaveBeenCalledTimes(2);
+
+    // The first request answers last, with a list that does not offer the
+    // value: it must not replace the list of the current options.
     await act(async () => {
-      resolveList({ items: [workflow('release-1')] });
-      await pending;
+      resolveFirst({ items: [workflow('release-old')] });
+      await first;
     });
     expect(onChange).not.toHaveBeenCalled();
-
-    expect(TemporalWorkflowPickerFieldExtension).toBeDefined();
+    expect(screen.getByRole('button')).not.toBeDisabled();
   });
 });
