@@ -309,8 +309,10 @@ const EDGE_SIDE = MARGIN - EDGE_LANE_GAP;
  * (`frameEdge`) that run in the same gap are spread out side by side,
  * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows. So are
  * the turns of those that leave or enter frames, down out of different
- * sources (and into different targets) at one x, nested so that they do not cross: the arrow from the higher
- * source turns farther right, the one into the lower target farther left.
+ * sources (and into different targets) at one x or less than
+ * `EDGE_LANE_GAP` apart, nested so that they do not cross: the arrow from
+ * the higher source turns farther right, the one into the lower target
+ * farther left.
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const gaps = layout.rowGaps;
@@ -492,11 +494,12 @@ function nearestSide(
 }
 
 /**
- * Spreads out the turns of arrows that turn down at one x, for different
- * ends (sources or targets): the arrows of one end share a turn. The turn of
- * the innermost end stays; each next one is `EDGE_LANE_GAP` farther in
- * `direction`, closer together (by halves of a pixel) when that would pass
- * the `limit` for the turn and the ends.
+ * Spreads out the turns of arrows that turn down at one x, or less than
+ * `EDGE_LANE_GAP` apart, for different ends (sources or targets): the
+ * arrows of one end share a turn. The turn of the innermost end stays; each
+ * next one is `EDGE_LANE_GAP` farther in `direction` than the one before,
+ * closer together (by halves of a pixel) when that would pass the `limit`
+ * for the turn and the ends, and never closer to its end than it was.
  */
 function spreadTurns(
   edges: Edge[],
@@ -510,21 +513,44 @@ function spreadTurns(
   },
 ) {
   const { turn, end, direction } = options;
-  const byTurn = new Map<number, Edge[]>();
-  for (const edge of edges) {
-    byTurn.set(turn(edge), [...(byTurn.get(turn(edge)) ?? []), edge]);
-  }
-  for (const [at, shared] of byTurn) {
+  // The turns in `direction`, in runs of turns less than `EDGE_LANE_GAP`
+  // from the one before.
+  const sorted = [...edges].sort((a, b) => (turn(a) - turn(b)) * direction);
+  const runs: Edge[][] = [];
+  sorted.forEach((edge, i) => {
+    const close =
+      i > 0 && (turn(edge) - turn(sorted[i - 1])) * direction < EDGE_LANE_GAP;
+    if (close) runs[runs.length - 1].push(edge);
+    else runs.push([edge]);
+  });
+  for (const shared of runs) {
     const ends = [...new Set(shared.map(end))].sort(options.innerFirst);
     if (ends.length < 2) continue;
-    const room = Math.max(0, (options.limit(at, ends) - at) * direction);
+    // The farther of two turns, and the farthest turn of each end.
+    const farther = (a: number, b: number) => ((a - b) * direction > 0 ? a : b);
+    const own = ends.map(e =>
+      shared
+        .filter(edge => end(edge) === e)
+        .map(turn)
+        .reduce(farther),
+    );
+    const at = own[0];
+    const limit = options.limit(at, ends);
+    const room = Math.max(0, (limit - at) * direction);
     const step = Math.min(
       EDGE_LANE_GAP,
       Math.floor((2 * room) / (ends.length - 1)) / 2,
     );
+    // Up to the limit, and never closer to the end than its own turn.
+    const turns: number[] = [];
+    own.forEach((x, k) => {
+      const next = k === 0 ? x : turns[k - 1] + direction * step;
+      const capped = farther(next, limit) === next ? limit : next;
+      turns.push(farther(x, capped));
+    });
     for (const edge of shared) {
       const k = ends.indexOf(end(edge));
-      if (k > 0) options.set(edge, at + direction * k * step);
+      if (k > 0 || turns[k] !== turn(edge)) options.set(edge, turns[k]);
     }
   }
 }

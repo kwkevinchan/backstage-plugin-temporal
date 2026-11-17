@@ -743,6 +743,20 @@ describe('arrows that share the gap between two rows', () => {
     expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
   });
 
+  it('spreads turns less than a lane apart as turns at one x', () => {
+    // The two arrows turn 2px apart, out of the frames and into them.
+    const { layout, edges } = stacked(2);
+    edges[1].data = { sourceInset: 42, targetInset: 30 };
+    const result = routed(layout, edges);
+    expect(clashes(result, layout)).toEqual([]);
+    expect(outside(result, layout.width)).toEqual([]);
+    const [a, b] = result.map(({ points }) => points);
+    // Nested: the higher source turns farther right, the lower target
+    // farther left, a lane apart.
+    expect(a[1].x - b[1].x).toBe(EDGE_LANE_GAP);
+    expect(a[3].x - b[3].x).toBe(EDGE_LANE_GAP);
+  });
+
   it('leaves the turns of an arrow without frames where a smooth step has them', () => {
     // s0 leaves no frame; it turns where the arrow out of the frame of s1
     // turns.
