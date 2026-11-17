@@ -249,6 +249,8 @@ function layoutBlocks(
     frames?: LayoutFrame[];
     lineUpRows?: boolean;
     blocks?: Map<string, StackBlock>;
+    /** Move a box off a straight arrow that runs through it. */
+    clearThrough?: boolean;
   },
 ): StepLayout {
   const topDown = options.direction === 'TB';
@@ -317,6 +319,7 @@ function layoutBlocks(
       outerBlocks: nodes.filter(n => blocks.has(n.id) && !n.parent),
     };
     if (options.lineUpRows !== false) alignFrameRows(framedGraph);
+    if (options.clearThrough) clearStraightThrough(framedGraph);
     if (blocks.size > 0) alignToBlocks(framedGraph);
     return settle(framedGraph, positions);
   }
@@ -494,6 +497,75 @@ function alignFrameRows(graph: FramedGraph) {
     }
     for (const node of row) positions.set(node.id, lined.get(node.id)!);
     through = after;
+  }
+}
+
+/**
+ * Moves a box up or down, by as little as clears it, when a straight arrow
+ * between two other boxes runs through it. The ends stay, so the arrow stays
+ * straight. A box moves only when the new place overlaps no other box. Used
+ * for a row of a stacked frame: lining that row up puts boxes of different
+ * heights on one middle, and the arrow then runs through the taller one.
+ */
+function clearStraightThrough(graph: FramedGraph) {
+  const { nodes, edges, sizeOf } = graph;
+  const positions = graph.layout.positions;
+  const size = (id: string) => {
+    const node = nodes.find(n => n.id === id);
+    return node ? sizeOf(node) : { width: NODE_WIDTH, height: NODE_HEIGHT };
+  };
+  const middle = (id: string) => positions.get(id)!.y + size(id).height / 2;
+  for (const edge of edges) {
+    if (!positions.has(edge.source) || !positions.has(edge.target)) continue;
+    const y1 = middle(edge.source);
+    const y2 = middle(edge.target);
+    if (Math.abs(y1 - y2) >= 0.5) continue;
+    const y = (y1 + y2) / 2;
+    const source = positions.get(edge.source)!;
+    const target = positions.get(edge.target)!;
+    const [x1, x2] = [source.x + size(edge.source).width, target.x].sort(
+      (a, b) => a - b,
+    );
+    for (const node of nodes) {
+      if (node.id === edge.source || node.id === edge.target) continue;
+      // A stacked frame is one box here; moving it would shift a whole row.
+      if (graph.blocks.has(node.id)) continue;
+      const p = positions.get(node.id);
+      if (!p) continue;
+      const box = size(node.id);
+      if (p.x >= x2 || p.x + box.width <= x1) continue;
+      if (y <= p.y || y >= p.y + box.height) continue;
+      const tryMove = (dy: number) => {
+        const top = p.y + dy;
+        const bottom = top + box.height;
+        return !nodes.some(other => {
+          if (other.id === node.id) return false;
+          const q = positions.get(other.id);
+          if (!q) return false;
+          const o = size(other.id);
+          return (
+            p.x < q.x + o.width &&
+            q.x < p.x + box.width &&
+            top < q.y + o.height &&
+            q.y < bottom
+          );
+        });
+      };
+      // Clear of the line, then a few pixels more so the stroke is not on
+      // the border of the box. The exact clearance if that overlaps a box.
+      const offset = (extra: number) => {
+        const up = p.y + box.height - y + extra;
+        const down = y - p.y + extra;
+        const dy = up <= down ? -up : down;
+        const otherDy = dy < 0 ? down : -up;
+        if (tryMove(dy)) return dy;
+        if (tryMove(otherDy)) return otherDy;
+        return undefined;
+      };
+      const chosen = offset(8) ?? offset(0);
+      if (chosen === undefined) continue;
+      positions.set(node.id, { x: p.x, y: p.y + chosen });
+    }
   }
 }
 

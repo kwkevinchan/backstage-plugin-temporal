@@ -23,9 +23,10 @@ import {
   MARGIN,
   OFFSET,
   rowGapOf,
-  STACK_SIDE,
   stackGapRoom,
   stackGapOf,
+  stackSidePad,
+  stackTurnIn,
   stackTurnOut,
   StepLayout,
 } from './geometry';
@@ -179,11 +180,15 @@ export function frameInsets(
     }
     return at;
   };
-  // Down the right side of a stacked frame, past its rows.
+  // Down a side lane of a stacked frame, past its rows, when the way
+  // next to the source or the target is not clear.
+  const routedOut =
+    stackGap !== undefined ? stackTurnOut(layout, source, target) : undefined;
+  const routedIn =
+    stackGap !== undefined ? stackTurnIn(layout, source, target) : undefined;
   const turnOut =
-    (stackGap !== undefined && stackTurnOut(layout, source, target)) ||
-    clear(firstTurn, middle(source), centerY, from, 1);
-  const turnIn = clear(lastTurn, centerY, middle(target), to, -1);
+    routedOut || clear(firstTurn, middle(source), centerY, from, 1);
+  const turnIn = routedIn ?? clear(lastTurn, centerY, middle(target), to, -1);
   const sourceInset = turnOut - right(source);
   const targetInset = left(target) - turnIn;
   if (
@@ -535,6 +540,121 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
       const offset = (i - (shared.length - 1) / 2) * step;
       lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
     });
+    // Arrows between two adjacent rows that share a source or a target and
+    // turn between the steps, rather than in a side channel, each take a
+    // lane. Arrows into one box down the side of the frame still share one.
+    if (stacked) {
+      const adjacentRow = (edge: Edge) => {
+        const sy = layout.positions.get(edge.source)?.y ?? 0;
+        const ty = layout.positions.get(edge.target)?.y ?? 0;
+        const [low, high] = sy < ty ? [sy, ty] : [ty, sy];
+        let between = 0;
+        for (const gaps of layout.stackGaps!.values()) {
+          for (const g of gaps) if (g > low && g < high) between++;
+        }
+        return between === 1;
+      };
+      const inChannel = (x: number) => {
+        for (const [frame] of layout.stackGaps!) {
+          const at = layout.positions.get(frame);
+          if (!at) continue;
+          const width = boxSize(layout, frame).width;
+          const pad = stackSidePad(layout, frame);
+          if (x > at.x && x < at.x + pad) return true;
+          if (x > at.x + width - pad && x < at.x + width) return true;
+        }
+        return false;
+      };
+      const place = (
+        list: Edge[],
+        read: (edge: Edge) => number,
+        write: (edge: Edge, x: number) => void,
+        direction: 1 | -1,
+      ) => {
+        if (list.length < 2) return;
+        const base =
+          direction > 0
+            ? Math.min(...list.map(read))
+            : Math.max(...list.map(read));
+        const limit = nearestSide(
+          obstacles(),
+          layout.width,
+          base,
+          direction,
+          gap - widest,
+          gap + widest,
+        );
+        const room = Math.max(0, (limit - base) * direction);
+        const lane =
+          list.length < 2 || room >= (list.length - 1) * EDGE_LANE_GAP
+            ? EDGE_LANE_GAP
+            : Math.min(
+                EDGE_LANE_GAP,
+                Math.floor((2 * room) / Math.max(1, list.length - 1)) / 2,
+              );
+        [...list]
+          .sort(
+            (a, b) =>
+              (read(b) - read(a)) * direction || a.id.localeCompare(b.id),
+          )
+          .forEach((edge, i) => {
+            const previous = read(edge);
+            const x = base + direction * i * lane;
+            if (Math.abs(x - previous) < 0.01) return;
+            write(edge, x);
+            for (const part of downs) {
+              if (part.edge === edge && Math.abs(part.x - previous) < 0.5) {
+                part.x = x;
+              }
+            }
+          });
+      };
+      const bySource = new Map<string, Edge[]>();
+      const byTarget = new Map<string, Edge[]>();
+      for (const edge of shared) {
+        if (!adjacentRow(edge)) continue;
+        const out = outOf(edge, turns);
+        const into = inTo(edge, turns);
+        if (!inChannel(out)) {
+          bySource.set(edge.source, [
+            ...(bySource.get(edge.source) ?? []),
+            edge,
+          ]);
+        }
+        if (!inChannel(into)) {
+          byTarget.set(edge.target, [
+            ...(byTarget.get(edge.target) ?? []),
+            edge,
+          ]);
+        }
+      }
+      for (const list of bySource.values()) {
+        place(
+          list,
+          edge => outOf(edge, turns),
+          (edge, x) => {
+            turns.set(edge, {
+              ...turns.get(edge),
+              sourceInset: x - right(edge.source),
+            });
+          },
+          1,
+        );
+      }
+      for (const list of byTarget.values()) {
+        place(
+          list,
+          edge => inTo(edge, turns),
+          (edge, x) => {
+            turns.set(edge, {
+              ...turns.get(edge),
+              targetInset: left(edge.target) - x,
+            });
+          },
+          -1,
+        );
+      }
+    }
     // An arrow up into an earlier row turns a lane farther out of its
     // source (and into its target) while it would come closer than a lane
     // to another arrow there, as far as the boxes and frames next to it
@@ -668,12 +788,13 @@ function spreadSides(layout: StepLayout, edges: Edge[]): Edge[] {
     const at = layout.positions.get(frame);
     if (!at) continue;
     const size = boxSize(layout, frame);
+    const pad = stackSidePad(layout, frame);
     const sides = [
-      { from: at.x, to: at.x + STACK_SIDE, outward: -1 },
+      { from: at.x, to: at.x + pad, outward: -1 as const },
       {
-        from: at.x + size.width - STACK_SIDE,
+        from: at.x + size.width - pad,
         to: at.x + size.width,
-        outward: 1,
+        outward: 1 as const,
       },
     ];
     for (const { from, to, outward } of sides) {
@@ -710,7 +831,7 @@ function spreadSides(layout: StepLayout, edges: Edge[]): Edge[] {
         return k;
       });
       if (lanes.length < 2) continue;
-      const room = STACK_SIDE - 2 * FRAME_GAP;
+      const room = pad - 2 * FRAME_GAP;
       const step = Math.min(
         EDGE_LANE_GAP,
         Math.floor((2 * room) / (lanes.length - 1)) / 2,

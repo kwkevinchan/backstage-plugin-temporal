@@ -15,6 +15,7 @@
  */
 
 import {
+  copyStackSidePads,
   EDGE_LANE_GAP,
   FRAME_GAP,
   FRAME_PADDING,
@@ -23,8 +24,10 @@ import {
   NODE_WIDTH,
   NodeSize,
   OFFSET,
+  setStackSidePad,
   STACK_GAP,
   STACK_SIDE,
+  stackSidePadEntries,
   StepLayout,
 } from './geometry';
 
@@ -94,6 +97,12 @@ export type LayOutBlocks = (
     frames: LayoutFrame[];
     lineUpRows?: boolean;
     blocks: Map<string, StackBlock>;
+    /**
+     * Move a box off a straight arrow that runs through it. Set for the
+     * rows of a stacked frame, where a taller box lined up on the same
+     * middle hides the arrow.
+     */
+    clearThrough?: boolean;
   },
 ) => StepLayout;
 
@@ -103,11 +112,15 @@ export type LayOutBlocks = (
  * a box that an arrow into them comes from (`after`) go in a row right after
  * the row of that box, one for all the boxes of that row: each part where
  * its arrow turns down next to its box, from the left and at least twice
- * `FRAME_GAP` after the part before, moved left as far as needed (and
- * possible) to stay within the widest other row, and a lane at a time to
- * where the arrow into it turns a lane away from where the arrows out of
- * and into the other boxes above, and out of the parts before it, do. The
- * gap between two rows is a lane taller for each arrow in it past three.
+ * `FRAME_GAP` after the part before, and a lane at a time to where the
+ * arrow into it turns a lane away from where the arrows out of and into
+ * the other boxes above, and out of the parts before it, do. A row of such
+ * parts may run past the widest other row; the frame grows to hold it. The
+ * gap between two steps widens when more than one arrow down to that row,
+ * or back up from it, turns in the gap, so each of those arrows has a lane.
+ * The gap between two rows is a lane taller for each arrow in it past
+ * three, counting arrows that leave or enter the frame through it. The
+ * side channel is a lane wider for each arrow past the rows, past three.
  * The rest of the graph is laid out with `layOut`, each stacked frame as
  * one box.
  */
@@ -143,6 +156,17 @@ export function layoutStacked(
   }
   const children = (id: string | undefined) => childrenOf.get(id) ?? [];
   const blocks = new Map<string, StackBlock>();
+  /** Side channels wider than `STACK_SIDE`, by the block they belong to. */
+  const padsOfBlock = new WeakMap<StackBlock, Map<string, number>>();
+  const rememberPad = (block: StackBlock, frame: string, pad: number) => {
+    if (pad <= STACK_SIDE) return;
+    let pads = padsOfBlock.get(block);
+    if (!pads) {
+      pads = new Map();
+      padsOfBlock.set(block, pads);
+    }
+    pads.set(frame, pad);
+  };
 
   /**
    * The boxes and frames of `top` (of one frame) laid out together, with
@@ -153,6 +177,7 @@ export function layoutStacked(
     top: string[],
     regionWidth: number | undefined,
     chain = false,
+    clearThrough = false,
   ): StepLayout {
     const regionNodes: LayoutNode[] = [];
     const regionFrames: LayoutFrame[] = [];
@@ -213,6 +238,7 @@ export function layoutStacked(
       frames: regionFrames,
       lineUpRows: options.lineUpRows,
       blocks: regionBlocks,
+      clearThrough,
     });
     // The stacked frames, laid out on their own, where their boxes are.
     const sizes = new Map(layout.sizes ?? []);
@@ -232,6 +258,11 @@ export function layoutStacked(
     }
     if (sizes.size > 0) layout.sizes = sizes;
     if (stackGaps.size > 0) layout.stackGaps = stackGaps;
+    for (const block of regionBlocks.values()) {
+      for (const [frame, pad] of padsOfBlock.get(block) ?? []) {
+        setStackSidePad(layout, frame, pad);
+      }
+    }
     return layout;
   }
 
@@ -245,6 +276,80 @@ export function layoutStacked(
     }
     return undefined;
   };
+
+  /** True when `id` is a box or frame placed below the box its arrow comes from. */
+  const placedBelow = (id: string) => {
+    let at: string | undefined = id;
+    for (let depth = 0; at !== undefined && depth <= frames.length; depth++) {
+      const node = nodeById.get(at) ?? frameById.get(at);
+      if (node?.after) return true;
+      at = parentOf.get(at);
+    }
+    return false;
+  };
+
+  /**
+   * Widens the gap between two steps of a row when more than one arrow down
+   * to a group placed below, or back up from one, turns in that gap. One
+   * such arrow already fits in the gap the row was laid out with.
+   */
+  function widenSignalSeams(rowLayout: StepLayout) {
+    const sizeOf = (id: string) =>
+      rowLayout.sizes?.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+    const rects = [...rowLayout.positions].map(([id, p]) => {
+      const size = sizeOf(id);
+      return { id, x: p.x, y: p.y, w: size.width, h: size.height };
+    });
+    const frameIds = new Set(
+      rects
+        .filter(r =>
+          rects.some(
+            o =>
+              o !== r &&
+              o.x >= r.x &&
+              o.y >= r.y &&
+              o.x + o.w <= r.x + r.w + 0.5 &&
+              o.y + o.h <= r.y + r.h + 0.5 &&
+              (o.w < r.w - 0.5 || o.h < r.h - 0.5),
+          ),
+        )
+        .map(r => r.id),
+    );
+    const boxes = rects
+      .filter(r => !frameIds.has(r.id) && !placedBelow(r.id))
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    for (let i = 0; i < boxes.length - 1; i++) {
+      const [leftBox, rightBox] = [boxes[i], boxes[i + 1]];
+      if (
+        leftBox.y + leftBox.h <= rightBox.y ||
+        rightBox.y + rightBox.h <= leftBox.y
+      ) {
+        continue;
+      }
+      let down = 0;
+      let up = 0;
+      for (const e of edges) {
+        if (e.source === leftBox.id && placedBelow(e.target)) down++;
+        if (e.target === rightBox.id && placedBelow(e.source)) up++;
+      }
+      const lanes = down + up;
+      if (lanes <= 1) continue;
+      const need = OFFSET + (lanes - 1) * EDGE_LANE_GAP + OFFSET;
+      const have = rightBox.x - (leftBox.x + leftBox.w);
+      const extra = Math.max(0, Math.ceil(need - have));
+      if (extra <= 0) continue;
+      for (const [id, p] of rowLayout.positions) {
+        const size = sizeOf(id);
+        if (p.x >= rightBox.x - 0.5) {
+          rowLayout.positions.set(id, { x: p.x + extra, y: p.y });
+        } else if (frameIds.has(id) && p.x + size.width >= rightBox.x - 0.5) {
+          rowLayout.sizes!.set(id, { ...size, width: size.width + extra });
+        }
+      }
+      rowLayout.width += extra;
+      for (let j = i + 1; j < boxes.length; j++) boxes[j].x += extra;
+    }
+  }
 
   /**
    * The parts of `items` (of `frame`) that arrows connect, in the order of
@@ -335,7 +440,7 @@ export function layoutStacked(
       }
     }
     const lay = (items: string[], chain: boolean) =>
-      normalized(region(items, undefined, chain));
+      normalized(region(items, undefined, chain, true));
     const laidRows = new Map(
       rows.map(row => [
         row,
@@ -345,7 +450,7 @@ export function layoutStacked(
         ),
       ]),
     );
-    const widest = Math.max(0, ...rows.map(r => laidRows.get(r)!.width));
+    for (const row of rows) widenSignalSeams(laidRows.get(row)!);
     for (const row of placed) {
       const above = laidRows.get(
         rows.find(r => r.items.includes(row.anchor!))!,
@@ -357,7 +462,7 @@ export function layoutStacked(
         const at = above.positions.get(after);
         const turn = at
           ? at.x +
-            (above.sizes.get(after)?.width ?? NODE_WIDTH) +
+            (above.sizes?.get(after)?.width ?? NODE_WIDTH) +
             OFFSET +
             FRAME_GAP
           : 0;
@@ -375,19 +480,17 @@ export function layoutStacked(
         end = x + part.laid.width;
         return x;
       });
-      // As far as the widest other row allows.
-      const shift = Math.min(xs[0], Math.max(0, end - widest));
       // The arrow into a part turns down a lane away from where arrows turn
       // out of and into the other boxes and frames of the row above, and out
-      // of the parts before it: the part moves a lane at a time, within the
-      // widest row where it can.
+      // of the parts before it. The part moves a lane at a time. It may run
+      // past the widest other row; the frame grows to hold the row.
       let last = -Infinity;
       parts.forEach((part, k) => {
         const turns = [
           ...[...above.positions]
             .filter(([id]) => id !== part.after)
             .flatMap(([id, p]) => [
-              p.x + (above.sizes.get(id)?.width ?? NODE_WIDTH) + OFFSET,
+              p.x + (above.sizes?.get(id)?.width ?? NODE_WIDTH) + OFFSET,
               p.x - OFFSET,
             ]),
           ...parts
@@ -396,40 +499,39 @@ export function layoutStacked(
         ];
         const clear = (x: number) =>
           !turns.some(t => Math.abs(x - FRAME_GAP - t) < EDGE_LANE_GAP);
-        const start = Math.max(xs[k] - shift, last);
-        const within = (x: number) =>
-          x + part.laid.width <= Math.max(widest, start + part.laid.width);
-        // The nearest clear place right within the widest row or left,
-        // else right past the widest row.
+        const start = Math.max(xs[k], last);
         const lanes = Array.from(
           { length: turns.length + 1 },
           (_, lane) => (lane + 1) * EDGE_LANE_GAP,
         );
         const near = lanes
           .flatMap(d => [start + d, start - d])
-          .find(
-            o => clear(o) && (o > start ? within(o) : o >= Math.max(0, last)),
-          );
+          .find(o => clear(o) && o >= Math.max(0, last));
         xs[k] = clear(start)
           ? start
           : near ?? lanes.map(d => start + d).find(clear) ?? start;
         last = xs[k] + part.laid.width + 2 * FRAME_GAP;
       });
-      const joined: ReturnType<typeof normalized> = {
+      const joinedSizes = new Map<string, NodeSize>();
+      const joinedGaps = new Map<string, number[]>();
+      const joined: StepLayout = {
         positions: new Map(),
-        sizes: new Map(),
-        stackGaps: new Map(),
+        sizes: joinedSizes,
+        stackGaps: joinedGaps,
         width: xs[xs.length - 1] + parts[parts.length - 1].laid.width,
         height: Math.max(...parts.map(part => part.laid.height)),
+        wrapped: false,
       };
       parts.forEach((part, k) => {
         const x = xs[k];
         for (const [id, p] of part.laid.positions) {
           joined.positions.set(id, { x: x + p.x, y: p.y });
         }
-        for (const [id, size] of part.laid.sizes) joined.sizes.set(id, size);
-        for (const [id, list] of part.laid.stackGaps) {
-          joined.stackGaps.set(id, list);
+        for (const [id, size] of part.laid.sizes ?? []) {
+          joinedSizes.set(id, size);
+        }
+        for (const [id, list] of part.laid.stackGaps ?? []) {
+          joinedGaps.set(id, list);
         }
       });
       laidRows.set(row, joined);
@@ -462,6 +564,88 @@ export function layoutStacked(
         inGap[a - 1].add(key);
       }
     }
+    // Arrows that leave this frame, or enter it, through a gap: this is the
+    // innermost stacked frame of that end, and a box of the row is in the
+    // way out to the side (or in from it). They take a lane in that gap too.
+    const innermostStacked = (id: string) => {
+      let at = parentOf.get(id);
+      for (let depth = 0; at !== undefined && depth <= frames.length; depth++) {
+        if (frameById.get(at)?.stacked) return at;
+        at = parentOf.get(at);
+      }
+      return undefined;
+    };
+    const wayBlocked = (
+      rowLayout: StepLayout,
+      id: string,
+      toward: 'left' | 'right',
+    ) => {
+      const p = rowLayout.positions.get(id);
+      if (!p) return false;
+      const size = rowLayout.sizes?.get(id) ?? {
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      };
+      const y = p.y + size.height / 2;
+      const [x1, x2] =
+        toward === 'right' ? [p.x + size.width, rowLayout.width] : [0, p.x];
+      for (const [other, q] of rowLayout.positions) {
+        if (other === id) continue;
+        const o = rowLayout.sizes?.get(other) ?? {
+          width: NODE_WIDTH,
+          height: NODE_HEIGHT,
+        };
+        const holds =
+          q.x <= p.x + 0.5 &&
+          q.y <= p.y + 0.5 &&
+          q.x + o.width >= p.x + size.width - 0.5 &&
+          q.y + o.height >= p.y + size.height - 0.5 &&
+          (o.width > size.width + 0.5 || o.height > size.height + 0.5);
+        if (holds) continue;
+        if (q.y < y && q.y + o.height > y && q.x < x2 && q.x + o.width > x1) {
+          return true;
+        }
+      }
+      return false;
+    };
+    for (const e of edges) {
+      const fromHere = innermostStacked(e.source) === frame;
+      const toHere = innermostStacked(e.target) === frame;
+      if (fromHere === toHere) continue;
+      const key = `${e.source}\u0000${e.target}`;
+      if (fromHere) {
+        const row = rowOfItem.get(childOf(frame, e.source) ?? '');
+        if (
+          row !== undefined &&
+          row < laid.length - 1 &&
+          wayBlocked(laid[row], e.source, 'right')
+        ) {
+          inGap[row].add(key);
+        }
+      } else {
+        const row = rowOfItem.get(childOf(frame, e.target) ?? '');
+        if (
+          row !== undefined &&
+          row > 0 &&
+          wayBlocked(laid[row], e.target, 'left')
+        ) {
+          inGap[row - 1].add(key);
+        }
+      }
+    }
+    // Arrows past rows in between run in the side channel. Three lanes fit
+    // in `STACK_SIDE`; each further lane widens the channel.
+    const sideSources = new Set<string>();
+    const sideTargets = new Set<string>();
+    for (const e of edges) {
+      const a = rowOfItem.get(childOf(frame, e.source) ?? '');
+      const b = rowOfItem.get(childOf(frame, e.target) ?? '');
+      if (a === undefined || b === undefined || Math.abs(a - b) <= 1) continue;
+      sideSources.add(e.source);
+      sideTargets.add(e.target);
+    }
+    const sideLanes = Math.max(sideSources.size, sideTargets.size);
+    const sidePad = STACK_SIDE + Math.max(0, sideLanes - 3) * EDGE_LANE_GAP;
     const gapHeight = (i: number) =>
       STACK_GAP + Math.max(0, inGap[i].size - 3) * EDGE_LANE_GAP;
     const gaps: number[] = [];
@@ -470,13 +654,13 @@ export function layoutStacked(
     for (const [i, row] of laid.entries()) {
       for (const [id, p] of row.positions) {
         block.positions.set(id, {
-          x: STACK_SIDE + p.x,
+          x: sidePad + p.x,
           y: FRAME_TOP + y + p.y,
         });
       }
-      for (const [id, size] of row.sizes) block.sizes.set(id, size);
+      for (const [id, size] of row.sizes ?? []) block.sizes.set(id, size);
       const top = FRAME_TOP + y;
-      for (const [id, list] of row.stackGaps) {
+      for (const [id, list] of row.stackGaps ?? []) {
         block.stackGaps.set(
           id,
           list.map(g => top + g),
@@ -489,10 +673,15 @@ export function layoutStacked(
         y += gapHeight(i);
       }
     }
-    block.width = STACK_SIDE + right + STACK_SIDE;
+    block.width = sidePad + right + sidePad;
     block.height = FRAME_TOP + y + FRAME_PADDING;
     block.sizes.set(frame, { width: block.width, height: block.height });
     block.stackGaps.set(frame, gaps);
+    rememberPad(block, frame, sidePad);
+    for (const row of laid) {
+      for (const [id, pad] of stackSidePadEntries(row))
+        rememberPad(block, id, pad);
+    }
     blocks.set(frame, block);
     return block;
   }
@@ -527,13 +716,16 @@ function normalized(layout: StepLayout) {
       gaps.map(g => g - top),
     );
   }
-  return {
+  const next: StepLayout = {
     positions,
     sizes,
     stackGaps,
     width: right - left,
     height: bottom - top,
+    wrapped: false,
   };
+  copyStackSidePads(layout, next);
+  return next;
 }
 
 /**

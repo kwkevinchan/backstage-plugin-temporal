@@ -114,6 +114,51 @@ interface StackRoute {
   gap: number;
   /** Where it turns out of its source, when not next to the source. */
   turnOut?: number;
+  /**
+   * Where it turns down into its target, when that is a side lane of the
+   * frame rather than next to the target. The long vertical then stays in
+   * the side channel instead of running through the rows below.
+   */
+  turnIn?: number;
+}
+
+/**
+ * Side channel of a stacked frame when arrows past its rows need more than
+ * the three lanes `STACK_SIDE` holds. Absent means `STACK_SIDE`.
+ */
+const sidePads = new WeakMap<StepLayout, Map<string, number>>();
+
+/** The side channel of `frame`, or `STACK_SIDE` when it was not widened. */
+export function stackSidePad(layout: StepLayout, frame: string): number {
+  return sidePads.get(layout)?.get(frame) ?? STACK_SIDE;
+}
+
+/** Records a side channel wider than `STACK_SIDE` for `frame`. */
+export function setStackSidePad(
+  layout: StepLayout,
+  frame: string,
+  pad: number,
+): void {
+  if (pad <= STACK_SIDE) return;
+  let pads = sidePads.get(layout);
+  if (!pads) {
+    pads = new Map();
+    sidePads.set(layout, pads);
+  }
+  pads.set(frame, pad);
+}
+
+/** The side channels recorded for `layout`, if it has any wider than `STACK_SIDE`. */
+export function stackSidePadEntries(
+  layout: StepLayout,
+): Iterable<[string, number]> {
+  return sidePads.get(layout)?.entries() ?? [];
+}
+
+/** Keeps the side channels when a layout is copied into a new object. */
+export function copyStackSidePads(from: StepLayout, to: StepLayout): void {
+  const pads = sidePads.get(from);
+  if (pads) sidePads.set(to, new Map(pads));
 }
 
 /**
@@ -204,6 +249,20 @@ export function stackTurnOut(
   target: string,
 ): number | undefined {
   return stackRoute(layout, source, target)?.turnOut;
+}
+
+/**
+ * Where an arrow turns down on its way into the target when that turn is a
+ * side lane of a stacked frame (see `stackGapOf`), so the vertical that
+ * crosses the rows below runs in the side channel. Nothing when it turns
+ * next to the target.
+ */
+export function stackTurnIn(
+  layout: StepLayout,
+  source: string,
+  target: string,
+): number | undefined {
+  return stackRoute(layout, source, target)?.turnIn;
 }
 
 /**
@@ -341,24 +400,76 @@ function findStackRoute(
     }
     return at;
   };
+  /**
+   * A lane in the side channel of `frame` where a line from `y1` to `y2`
+   * stays clear of the rows. The inner right lane first (where a single
+   * side arrow already turns), then one and two lanes further out, then the
+   * same on the left. The outer lanes sit `EDGE_LANE_GAP` past the inner
+   * one, so a box that fills the row still leaves the half-lane clearance
+   * `clearDown` asks for. Nothing when every such lane is blocked.
+   */
+  const sideLane = (frame: Rect, y1: number, y2: number) => {
+    const pad = stackSidePad(layout, frame.id);
+    const [low, high] = [Math.min(y1, y2), Math.max(y1, y2)];
+    const lanes = [
+      frame.right - pad + FRAME_GAP,
+      frame.right - pad + FRAME_GAP + EDGE_LANE_GAP,
+      frame.right - pad + FRAME_GAP + 2 * EDGE_LANE_GAP,
+      frame.left + pad - FRAME_GAP,
+      frame.left + pad - FRAME_GAP - EDGE_LANE_GAP,
+      frame.left + pad - FRAME_GAP - 2 * EDGE_LANE_GAP,
+    ];
+    return lanes.find(
+      x =>
+        x >= frame.left + FRAME_GAP &&
+        x <= frame.right - FRAME_GAP &&
+        clearDown(x, low, high),
+    );
+  };
   for (const [frame, gaps] of layout.stackGaps!) {
     if (!contains(frame, source) || !contains(frame, target)) continue;
     const between = gaps.filter(g => g > s.y && g < t.y);
     if (between.length > 1) {
       // Past other rows: down next to the target, else down next to the
-      // source or on the right side of the frame to the gap above the row
-      // of the target.
+      // source or in a side lane of the frame to the gap above the row of
+      // the target. Two groups side by side in a row between them (signals
+      // received during one round) take the side lane even when the way
+      // down next to the target is clear, so the arrow does not run across
+      // that row.
       const [first, last] = [between[0], between[between.length - 1]];
+      const frameRect = byId.get(frame)!;
       const end = byId.get(source)!.right;
-      if (!clearDown(turnInto(), first, middle(target))) {
-        if (clearDown(turnOutOf(), middle(source), last)) return { gap: last };
-        const side = byId.get(frame)!.right - STACK_SIDE + FRAME_GAP;
+      const band = rects.filter(
+        r =>
+          r.frame &&
+          r.id !== frame &&
+          r.top >= first &&
+          r.bottom <= last &&
+          r.left >= frameRect.left &&
+          r.right <= frameRect.right,
+      );
+      const sideBySide = band.some(r =>
+        band.some(o => o !== r && o.top < r.bottom && r.top < o.bottom),
+      );
+      const sidePast = () => {
+        const side = sideLane(frameRect, middle(source), last);
         if (
+          side !== undefined &&
           !across(middle(source), end, side, false) &&
           clearDown(side, middle(source), last)
         ) {
           return { gap: last, turnOut: side };
         }
+        return undefined;
+      };
+      if (sideBySide) {
+        const side = sidePast();
+        if (side) return side;
+      }
+      if (!clearDown(turnInto(), first, middle(target))) {
+        if (clearDown(turnOutOf(), middle(source), last)) return { gap: last };
+        const side = sidePast();
+        if (side) return side;
       }
     }
     if (between.length > 0) return { gap: between[0] };
@@ -367,25 +478,54 @@ function findStackRoute(
   }
   // Out of a stacked frame with boxes on the way to its side: the gap below
   // the row of the source; into one, the gap above the row of the target.
-  let found: { gap: number; area: number } | undefined;
+  // When the vertical on from that gap to the other end would run through a
+  // lower row, it turns in a side lane instead (`stackTurnIn` / `turnOut`).
+  let found:
+    | { gap: number; area: number; turnOut?: number; turnIn?: number }
+    | undefined;
   for (const [frame, gaps] of layout.stackGaps!) {
     const f = byId.get(frame);
     if (!f) continue;
     const area = (f.right - f.left) * (f.bottom - f.top);
     if (found && found.area <= area) continue;
-    let gap: number | undefined;
+    let route: { gap: number; turnOut?: number; turnIn?: number } | undefined;
     if (contains(frame, source) && !contains(frame, target)) {
       if (across(middle(source), byId.get(source)!.right, f.right)) {
-        gap = gaps.find(g => g > s.y);
+        const gap = gaps.find(g => g > s.y);
+        if (gap !== undefined) {
+          const into = turnInto();
+          const turnIn = clearDown(into, gap, middle(target))
+            ? undefined
+            : sideLane(f, gap, middle(target));
+          route = { gap, ...(turnIn !== undefined ? { turnIn } : {}) };
+        }
       }
     } else if (contains(frame, target) && !contains(frame, source)) {
       if (across(middle(target), f.left, t.x)) {
-        gap = [...gaps].reverse().find(g => g < t.y);
+        const gap = [...gaps].reverse().find(g => g < t.y);
+        if (gap !== undefined) {
+          const out = turnOutOf();
+          let turnOut: number | undefined;
+          if (!clearDown(out, middle(source), gap)) {
+            const side = sideLane(f, middle(source), gap);
+            if (
+              side !== undefined &&
+              !across(middle(source), byId.get(source)!.right, side, false)
+            ) {
+              turnOut = side;
+            }
+          }
+          route = { gap, ...(turnOut !== undefined ? { turnOut } : {}) };
+        }
       }
     }
-    if (gap !== undefined) found = { gap, area };
+    if (route) found = { ...route, area };
   }
-  return found && { gap: found.gap };
+  if (!found) return undefined;
+  const route: StackRoute = { gap: found.gap };
+  if (found.turnOut !== undefined) route.turnOut = found.turnOut;
+  if (found.turnIn !== undefined) route.turnIn = found.turnIn;
+  return route;
 }
 
 /**
