@@ -31,6 +31,11 @@ import {
   StepLayout,
 } from './geometry';
 
+/** Room between a column and a part placed beside the boxes of a frame. */
+const BESIDE_GAP = 2 * (FRAME_GAP + EDGE_LANE_GAP);
+/** Room between the boxes of a frame and the lanes beside them. */
+const BESIDE_LANE_GAP = 2 * FRAME_GAP;
+
 /*
  * Frames whose boxes are stacked in rows, one below the other. Each such
  * frame is laid out on its own, from the innermost one out: its rows are
@@ -153,6 +158,8 @@ export function layoutStacked(
     list.sort((a, b) => orderOf(a) - orderOf(b));
   }
   const children = (id: string | undefined) => childrenOf.get(id) ?? [];
+  const afterOf = (id: string) =>
+    (frameById.get(id) ?? nodeById.get(id))?.after;
   const blocks = new Map<string, StackBlock>();
   /** Side channels wider than `STACK_SIDE`, by the block they belong to. */
   const padsOfBlock = new WeakMap<StackBlock, Map<string, number>>();
@@ -181,6 +188,8 @@ export function layoutStacked(
     const regionFrames: LayoutFrame[] = [];
     const regionBlocks = new Map<string, StackBlock>();
     const repOf = new Map<string, string>();
+    /** Boxes and frames beside the boxes of a frame, by that frame. */
+    const besides = new Map<string, string[]>();
     const visit = (id: string, parent?: string, rep?: string) => {
       if (rep !== undefined) {
         repOf.set(id, rep);
@@ -200,7 +209,10 @@ export function layoutStacked(
         for (const child of children(id)) visit(child, undefined, id);
       } else if (frame) {
         regionFrames.push(parent ? { id, parent } : { id });
-        for (const child of children(id)) visit(child, id);
+        for (const child of children(id)) {
+          if (afterOf(child) === undefined) visit(child, id);
+          else besides.set(id, [...(besides.get(id) ?? []), child]);
+        }
       } else {
         const { size } = nodeById.get(id)!;
         regionNodes.push({
@@ -238,6 +250,9 @@ export function layoutStacked(
       blocks: regionBlocks,
       clearThrough,
     });
+    for (const [frame, items] of besides) {
+      placeBeside(layout, frame, items, clearThrough);
+    }
     // The stacked frames, laid out on their own, where their boxes are.
     const sizes = new Map(layout.sizes ?? []);
     const stackGaps = new Map(layout.stackGaps ?? []);
@@ -296,6 +311,260 @@ export function layoutStacked(
     return [...parts.values()];
   }
 
+  /**
+   * Puts the boxes and frames placed beside the boxes of `frame` (`after`,
+   * in a frame that is not stacked) into its laid out frame: the boxes of
+   * the frame stay as they are, on their line; each part of the boxes
+   * beside them goes in a lane above or below them, starting a column after
+   * the box an arrow into it comes from (`after`) and, when it leads back
+   * to a box of the frame, reaching to a column before that box (a frame
+   * is drawn that wide; the boxes from that one on move right when the
+   * part needs more room). Parts that run side by side go in lanes of
+   * their own, below first, then above, and a part goes in a lane farther
+   * out only around the parts in the lanes between it and the boxes.
+   */
+  function placeBeside(
+    layout: StepLayout,
+    frame: string,
+    items: string[],
+    clearThrough: boolean,
+  ) {
+    const sizes = new Map(layout.sizes ?? []);
+    const size = (id: string) =>
+      sizes.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
+    const at = (id: string) => layout.positions.get(id)!;
+    const main = children(frame).filter(id => !items.includes(id));
+    const rect = (id: string) => ({
+      left: at(id).x,
+      right: at(id).x + size(id).width,
+      top: at(id).y,
+      bottom: at(id).y + size(id).height,
+    });
+    /** The column of a box of the frame: the boxes of the frame across it. */
+    const column = (id: string) => {
+      const r = rect(id);
+      const across = main
+        .map(rect)
+        .filter(o => o.left < r.right && r.left < o.right);
+      return {
+        left: Math.min(...across.map(o => o.left)),
+        right: Math.max(...across.map(o => o.right)),
+      };
+    };
+    const shift = (from: number, dx: number) => {
+      for (const [id, p] of layout.positions) {
+        const child = childOf(frame, id);
+        if (!child || child === frame || items.includes(child)) continue;
+        if (rect(child).left >= from - 0.5) {
+          layout.positions.set(id, { x: p.x + dx, y: p.y });
+        }
+      }
+    };
+    const parts = connected(items, frame).map(part => {
+      const inPart = (id: string) => part.includes(childOf(frame, id) ?? '');
+      const source = childOf(frame, afterOf(part[0])!)!;
+      const targets = edges
+        .filter(e => inPart(e.source) && !inPart(e.target))
+        .map(e => childOf(frame, e.target))
+        .filter((id): id is string => id !== undefined && main.includes(id));
+      const laid = normalized(region(part, undefined, true, clearThrough));
+      return { part, source, targets, laid, x: 0, right: 0, y: 0 };
+    });
+    /** The first box after the source that the part leads back to. */
+    const targetOf = (part: (typeof parts)[number]) => {
+      const after = part.targets.filter(
+        t => rect(t).left > rect(part.source).right,
+      );
+      return after.length === 0
+        ? undefined
+        : after.reduce((a, b) => (rect(b).left < rect(a).left ? b : a));
+    };
+    /** The gap after (or before) a column, to the next column of the frame. */
+    const gapAfter = (right: number) => {
+      const next = main.map(rect).filter(o => o.left > right - 0.5);
+      return next.length === 0
+        ? BESIDE_GAP
+        : Math.max(2 * FRAME_GAP, Math.min(...next.map(o => o.left)) - right);
+    };
+    const gapBefore = (left: number) => {
+      const before = main.map(rect).filter(o => o.right < left + 0.5);
+      return before.length === 0
+        ? BESIDE_GAP
+        : Math.max(2 * FRAME_GAP, left - Math.max(...before.map(o => o.right)));
+    };
+    // The part starts a column gap after the column of its source; the boxes
+    // from the target on move right when it needs more room than the columns
+    // between them.
+    // The gaps as the columns were laid out.
+    const gapOut = new Map(
+      parts.map(p => [p.source, gapAfter(column(p.source).right)]),
+    );
+    const gapIn = new Map(
+      parts.flatMap(p => {
+        const target = targetOf(p);
+        return target ? [[target, gapBefore(column(target).left)]] : [];
+      }),
+    );
+    const startOf = (part: (typeof parts)[number]) =>
+      column(part.source).right + gapOut.get(part.source)!;
+    for (let moved = true, i = 0; moved && i <= parts.length; i++) {
+      moved = false;
+      for (const part of parts) {
+        const target = targetOf(part);
+        if (!target) continue;
+        const left = column(target).left;
+        const need =
+          startOf(part) + part.laid.width + gapIn.get(target)! - left;
+        if (need > 0.5) {
+          shift(left, need);
+          moved = true;
+        }
+      }
+    }
+    for (const part of parts) {
+      const target = targetOf(part);
+      part.x = startOf(part);
+      part.right = target
+        ? column(target).left - gapIn.get(target)!
+        : part.x + part.laid.width;
+    }
+    // Lanes: the turns down out of the source and up into the target.
+    const span = (part: (typeof parts)[number]) => {
+      const target = targetOf(part);
+      return {
+        from: (column(part.source).right + part.x) / 2,
+        to: target ? (part.right + column(target).left) / 2 : part.right,
+      };
+    };
+    const lanes: {
+      part: (typeof parts)[number];
+      side: 1 | -1;
+      lane: number;
+    }[] = [];
+    const order = [...parts].sort((a, b) => {
+      const [p, q] = [span(a), span(b)];
+      return p.to - p.from - (q.to - q.from) || p.from - q.from;
+    });
+    for (const part of order) {
+      const own = span(part);
+      const apart = (o: { from: number; to: number }) =>
+        o.to + FRAME_GAP <= own.from || own.to + FRAME_GAP <= o.from;
+      const within = (
+        inner: { from: number; to: number },
+        outer: { from: number; to: number },
+      ) => inner.from >= outer.from && inner.to <= outer.to;
+      const fits = (side: 1 | -1, lane: number) =>
+        lanes.every(other => {
+          if (other.side !== side) return true;
+          const o = span(other.part);
+          if (other.lane === lane) return apart(o);
+          if (other.lane < lane) return apart(o) || within(o, own);
+          return apart(o) || within(own, o);
+        });
+      // Below, or above when fewer boxes of the columns of its ends are
+      // between them and the lane: the arrows down to it pass those.
+      const passed = (side: 1 | -1) =>
+        [part.source, targetOf(part)].reduce((count, end) => {
+          if (end === undefined) return count;
+          const r = rect(end);
+          return (
+            count +
+            main.filter(id => {
+              const o = rect(id);
+              const across = o.left < r.right && r.left < o.right;
+              return (
+                across && (side === 1 ? o.top >= r.bottom : o.bottom <= r.top)
+              );
+            }).length
+          );
+        }, 0);
+      const sides: (1 | -1)[] = passed(-1) < passed(1) ? [-1, 1] : [1, -1];
+      let chosen: { side: 1 | -1; lane: number } | undefined;
+      for (let lane = 0; !chosen && lane < parts.length; lane++) {
+        for (const side of sides) {
+          if (!chosen && fits(side, lane)) chosen = { side, lane };
+        }
+      }
+      chosen ??= {
+        side: 1,
+        lane: Math.max(0, ...lanes.map(l => l.lane + 1)),
+      };
+      lanes.push({ part, ...chosen });
+    }
+    const boxes = main.map(rect);
+    let below = Math.max(...boxes.map(r => r.bottom));
+    let above = Math.min(...boxes.map(r => r.top));
+    for (let lane = 0; lane < parts.length; lane++) {
+      for (const side of [1, -1] as const) {
+        const inLane = lanes.filter(l => l.side === side && l.lane === lane);
+        if (inLane.length === 0) continue;
+        const height = Math.max(...inLane.map(l => l.part.laid.height));
+        const top =
+          side === 1
+            ? below + BESIDE_LANE_GAP
+            : above - BESIDE_LANE_GAP - height;
+        for (const { part } of inLane) {
+          part.y = top + (height - part.laid.height) / 2;
+        }
+        if (side === 1) below = top + height;
+        else above = top;
+      }
+    }
+    // The parts where they go; a frame that the arrow back out of the part
+    // leaves reaches to the column before the target.
+    const stackGaps = new Map(layout.stackGaps ?? []);
+    for (const part of parts) {
+      const { laid } = part;
+      for (const [id, p] of laid.positions) {
+        layout.positions.set(id, { x: part.x + p.x, y: part.y + p.y });
+      }
+      for (const [id, s] of laid.sizes ?? []) sizes.set(id, s);
+      for (const [id, gaps] of laid.stackGaps ?? []) {
+        stackGaps.set(
+          id,
+          gaps.map(g => part.y + g),
+        );
+      }
+      for (const [id, pad] of stackSidePadEntries(laid)) {
+        setStackSidePad(layout, id, pad);
+      }
+      // Reaching to the column before the target: a part of one box or
+      // frame is drawn that wide; of more, the last ones move right.
+      const extra = part.right - part.x - laid.width;
+      if (extra > 0.5) {
+        const last = part.part.filter(id => {
+          const p = laid.positions.get(id)!;
+          return p.x + size(id).width >= laid.width - 0.5;
+        });
+        for (const item of last) {
+          if (part.part.length === 1) {
+            sizes.set(item, { ...size(item), width: size(item).width + extra });
+            continue;
+          }
+          for (const [id, p] of layout.positions) {
+            if (id !== item && childOf(item, id) === undefined) continue;
+            if (!laid.positions.has(id)) continue;
+            layout.positions.set(id, { x: p.x + extra, y: p.y });
+          }
+        }
+      }
+    }
+    // The frame around them all.
+    const all = [...main, ...items].map(rect);
+    const box = rect(frame);
+    const left = Math.min(box.left, ...all.map(r => r.left - FRAME_PADDING));
+    const top = Math.min(box.top, ...all.map(r => r.top - FRAME_TOP));
+    const right = Math.max(box.right, ...all.map(r => r.right + FRAME_PADDING));
+    const bottom = Math.max(
+      box.bottom,
+      ...all.map(r => r.bottom + FRAME_PADDING),
+    );
+    layout.positions.set(frame, { x: left, y: top });
+    sizes.set(frame, { width: right - left, height: bottom - top });
+    layout.sizes = sizes;
+    if (stackGaps.size > 0) layout.stackGaps = stackGaps;
+  }
+
   /** A stacked frame laid out on its own, at (0, 0). */
   function blockOf(frame: string): StackBlock {
     const cached = blocks.get(frame);
@@ -311,8 +580,6 @@ export function layoutStacked(
     };
     const rows: Row[] = [];
     const placed: Row[] = [];
-    const afterOf = (id: string) =>
-      (frameById.get(id) ?? nodeById.get(id))?.after;
     for (const id of children(frame)) {
       const after = afterOf(id);
       const anchor = after === undefined ? undefined : childOf(frame, after);

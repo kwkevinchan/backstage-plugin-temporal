@@ -449,7 +449,13 @@ function findStackRoute(
           r.right <= frameRect.right,
       );
       const sideBySide = band.some(r =>
-        band.some(o => o !== r && o.top < r.bottom && r.top < o.bottom),
+        band.some(
+          o =>
+            o !== r &&
+            o.top < r.bottom &&
+            r.top < o.bottom &&
+            (o.right <= r.left || r.right <= o.left),
+        ),
       );
       const sidePast = () => {
         const side = sideLane(frameRect, middle(source), last);

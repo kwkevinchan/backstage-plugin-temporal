@@ -573,7 +573,7 @@ export function stackGroups(
         : undefined;
     for (const unit of [withSource, [id]]) {
       if (!unit) continue;
-      const found = detour(unit, graph, chainOf, stacked, orderOf);
+      const found = detour(unit, graph, chainOf, stacked, laidOut, orderOf);
       if (!found) continue;
       for (const item of unit) placed.set(item, found);
       break;
@@ -638,6 +638,7 @@ function detour(
   graph: GroupedGraph,
   chainOf: (id: string) => string[],
   stacked: Set<string>,
+  frames: Set<string>,
   orderOf: (id: string) => number,
 ): { stack: string; after: string } | undefined {
   const inUnit = (id: string) =>
@@ -665,7 +666,59 @@ function detour(
   const first = into.reduce((a, b) =>
     orderOf(b.source) < orderOf(a.source) ? b : a,
   );
+  // All other ends in one expanded frame of the stacked frame that is not
+  // stacked itself (a round of a loop): the unit goes in that frame, beside
+  // its boxes. Unless an arrow out of it leads back into the box or frame
+  // of the frame that the first arrow into it comes from, or the source of
+  // that arrow is not the last box of the frames around it in that frame,
+  // or a target of an arrow out not the first one: an arrow would have to
+  // pass other boxes of those frames on its way out or in.
+  const rows = new Set(ends.map(end => childIn(stack, end, chainOf)));
+  const [row] = rows;
+  if (
+    rows.size === 1 &&
+    row !== undefined &&
+    frames.has(row) &&
+    !stacked.has(row)
+  ) {
+    const from = childIn(row, first.source, chainOf);
+    const targets = graph.edges
+      .filter(e => inUnit(e.source) && !inUnit(e.target))
+      .map(e => e.target);
+    /** True when `end` is the first (or last) box of its frames in the row. */
+    const outermost = (end: string, last: boolean) => {
+      const frameIds = chainOf(end);
+      const inner = frameIds.slice(0, frameIds.indexOf(row));
+      return inner.every(f =>
+        graph.nodes.every(
+          n =>
+            !chainOf(n.id).includes(f) ||
+            (last
+              ? orderOf(n.id) <= orderOf(end)
+              : orderOf(n.id) >= orderOf(end)),
+        ),
+      );
+    };
+    if (
+      targets.every(t => childIn(row, t, chainOf) !== from) &&
+      outermost(first.source, true) &&
+      targets.every(t => outermost(t, false))
+    ) {
+      return { stack: row, after: first.source };
+    }
+  }
   return { stack, after: first.source };
+}
+
+/** The child of `frame` that `id` is in (or is). */
+function childIn(
+  frame: string,
+  id: string,
+  chainOf: (id: string) => string[],
+): string | undefined {
+  const up = [id, ...chainOf(id)];
+  const at = up.indexOf(frame);
+  return at > 0 ? up[at - 1] : undefined;
 }
 
 interface Rect {

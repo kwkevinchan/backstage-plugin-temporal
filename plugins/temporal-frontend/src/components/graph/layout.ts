@@ -339,7 +339,7 @@ function layoutBlocks(
  * A compound graph as dagre laid it out (`layout`), before its columns are
  * spread out and its frames placed.
  */
-interface FramedGraph {
+export interface FramedGraph {
   layout: StepLayout;
   nodes: LayoutNode[];
   edges: LayoutEdge[];
@@ -507,7 +507,8 @@ function alignFrameRows(graph: FramedGraph) {
 
 /**
  * Moves a box up or down, by as little as clears it, when an arrow between
- * two other boxes of the row runs across it: a straight arrow, or one of
+ * two other boxes of the row runs across it, by more than a pixel each
+ * way: a straight arrow, or one of
  * the two parts across of an arrow that turns between its ends (out of its
  * source at the middle of the source, into its target at the middle of
  * the target, turning halfway between them). The ends stay, so the arrow
@@ -516,7 +517,7 @@ function alignFrameRows(graph: FramedGraph) {
  * a stacked frame: lining that row up puts boxes of different heights on
  * one middle, and an arrow then runs through the taller one.
  */
-function clearArrowsThrough(graph: FramedGraph) {
+export function clearArrowsThrough(graph: FramedGraph) {
   const { nodes, edges, sizeOf } = graph;
   const positions = graph.layout.positions;
   const size = (id: string) => {
@@ -554,8 +555,10 @@ function clearArrowsThrough(graph: FramedGraph) {
         const p = positions.get(node.id);
         if (!p) continue;
         const box = size(node.id);
-        if (p.x >= x2 || p.x + box.width <= x1) continue;
-        if (y <= p.y || y >= p.y + box.height) continue;
+        // Across it by more than a pixel: a part that only touches the box
+        // may turn or end clear of it once the arrows are drawn.
+        if (p.x >= x2 - 1 || p.x + box.width <= x1 + 1) continue;
+        if (y <= p.y + 1 || y >= p.y + box.height - 1) continue;
         const tryMove = (dy: number) => {
           const top = p.y + dy;
           const bottom = top + box.height;
