@@ -952,7 +952,7 @@ function spreadTooClose(result: GroupedLayout) {
 
 describe('random runs', () => {
   it.each([
-    [163, 1100],
+    [641, 1100],
     [40, 700],
     [40, 900],
     [334, 1100],
@@ -969,13 +969,13 @@ describe('random runs', () => {
     ['run', 5525, undefined, randomRun],
     ['run', 5525, 900, randomRun],
     ['run', 5525, 1100, randomRun],
-    ['graph', 176, 700, randomGraph],
+    ['graph', 2204, 700, randomGraph],
   ] as const)(
     'never line up a row onto an arrow as it is drawn (%s %i, width %s)',
     (_, seed, width, random) => {
       // An arrow out of a frame runs straight to outside it before it
       // turns (run 5525), and the turn of an arrow into the next row
-      // depends on the boxes next to it (graph 176).
+      // depends on the boxes next to it (graph 2204).
       const run = random(seed);
       const before = throughBoxes(layOutRun(run, width, false));
       const after = throughBoxes(layOutRun(run, width));
