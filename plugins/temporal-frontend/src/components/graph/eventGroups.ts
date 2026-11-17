@@ -668,11 +668,12 @@ function detour(
   );
   // All other ends in one expanded frame of the stacked frame that is not
   // stacked itself (a round of a loop): the unit goes in that frame, beside
-  // its boxes. Unless an arrow out of it leads back into the box or frame
-  // of the frame that the first arrow into it comes from, or the source of
-  // that arrow is not the last box of the frames around it in that frame,
-  // or a target of an arrow out not the first one: an arrow would have to
-  // pass other boxes of those frames on its way out or in.
+  // its boxes. Unless it leads back to more than one box, or to a box that
+  // the source of the first arrow into it does not lead to in that frame,
+  // or into the box or frame of the frame that source is in, or the source
+  // is not the last box of the frames around it in that frame, or the
+  // target not the first one: an arrow would have to pass other boxes of
+  // the frame on its way out or in.
   const rows = new Set(ends.map(end => childIn(stack, end, chainOf)));
   const [row] = rows;
   if (
@@ -682,9 +683,26 @@ function detour(
     !stacked.has(row)
   ) {
     const from = childIn(row, first.source, chainOf);
-    const targets = graph.edges
-      .filter(e => inUnit(e.source) && !inUnit(e.target))
-      .map(e => e.target);
+    const targets = [
+      ...new Set(
+        graph.edges
+          .filter(e => inUnit(e.source) && !inUnit(e.target))
+          .map(e => e.target),
+      ),
+    ];
+    // The boxes of the round that the source leads to, by the arrows
+    // between them.
+    const inRow = (id: string) => chainOf(id).includes(row);
+    const reached = new Set([first.source]);
+    for (const queue = [first.source]; queue.length > 0; ) {
+      const at = queue.pop()!;
+      for (const e of graph.edges) {
+        if (e.source !== at || reached.has(e.target)) continue;
+        if (inUnit(e.target) || !inRow(e.target)) continue;
+        reached.add(e.target);
+        queue.push(e.target);
+      }
+    }
     /** True when `end` is the first (or last) box of its frames in the row. */
     const outermost = (end: string, last: boolean) => {
       const frameIds = chainOf(end);
@@ -700,6 +718,8 @@ function detour(
       );
     };
     if (
+      targets.length <= 1 &&
+      targets.every(t => reached.has(t)) &&
       targets.every(t => childIn(row, t, chainOf) !== from) &&
       outermost(first.source, true) &&
       targets.every(t => outermost(t, false))

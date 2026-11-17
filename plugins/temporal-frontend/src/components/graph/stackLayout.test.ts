@@ -1442,6 +1442,40 @@ describe('the group of a signal received during an open round', () => {
     clean(result);
   });
 
+  it('stays in a row below the round when it leads back to two steps', () => {
+    // Back into r2s2 and r2s3: the arrow into r2s3 would pass r2s2.
+    const graph = signals([['A', 'r2s1', 'r2s2']]);
+    graph.edges.push({ id: 'hintA->r2s3', source: 'hintA', target: 'r2s3' });
+    const result = laidOut(graph, open(1, 2, 3), 1000);
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('stays in a row below the round when its step does not lead to the one it leads back to', () => {
+    // r2s1 to r2s2 and to r2p, both on to r2s3; the signal from r2s2 leads
+    // back to r2p, in the column of r2s2.
+    const graph = signals([['A', 'r2s2', 'r2p']]);
+    graph.nodes.splice(
+      graph.nodes.findIndex(n => n.id === 'r2s3'),
+      0,
+      step('r2p'),
+    );
+    graph.edges.push(
+      { id: 'r2s1->r2p', source: 'r2s1', target: 'r2p' },
+      { id: 'r2p->r2s3', source: 'r2p', target: 'r2s3' },
+    );
+    for (const g of graph.eventGroups!) {
+      if (g.key === 'label:loop' || g.key === 'label:r2') g.nodeIds.push('r2p');
+    }
+    const result = laidOut(graph, open(1, 2, 3), 1000);
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
   it('stays in a row below the round when it leads back into the group it came from', () => {
     // From the last step of a group in round 2 back to its first one.
     const graph = signals([['A', 'r2s3', 'r2s2']]);
