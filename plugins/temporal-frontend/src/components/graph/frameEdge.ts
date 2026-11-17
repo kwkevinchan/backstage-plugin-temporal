@@ -310,9 +310,8 @@ const EDGE_SIDE = MARGIN - EDGE_LANE_GAP;
  * `EDGE_LANE_GAP` apart, and stay `FRAME_GAP` clear of the rows. So are
  * the turns of those that leave or enter frames, down out of different
  * sources (and into different targets) at one x or less than
- * `EDGE_LANE_GAP` apart, nested so that they do not cross: the arrow from
- * the higher source turns farther right, the one into the lower target
- * farther left.
+ * `EDGE_LANE_GAP` apart, nested: the arrow from the higher source turns
+ * farther right, the one into the lower target farther left.
  */
 export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const gaps = layout.rowGaps;
@@ -356,24 +355,28 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
     if (gap !== undefined) inGap.set(gap, [...(inGap.get(gap) ?? []), edge]);
   }
   const widest = FRAME_WRAP_GAP / 2 - FRAME_GAP;
-  for (const shared of inGap.values()) {
-    shared.sort(
-      (a, b) =>
-        turnOut(a) - turnOut(b) ||
-        middle(b.source) - middle(a.source) ||
-        turnIn(a) - turnIn(b) ||
-        middle(b.target) - middle(a.target),
-    );
-    shared.forEach((edge, i) => {
-      const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
-      lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
-    });
-    const gap = gapOf(shared[0])!;
-    // Only arrows that turn outside frames: an arrow without frames to
-    // leave or enter is a smooth step, which turning elsewhere would change.
-    const framed = shared.filter(
-      e => data(e).sourceInset || data(e).targetInset,
-    );
+  // Where the turns of `into` put an arrow turn down out of its source and
+  // into its target.
+  const outOf = (edge: Edge, into: Map<Edge, FrameEdgeData>) => {
+    const inset = into.get(edge)?.sourceInset;
+    return inset === undefined ? turnOut(edge) : right(edge.source) + inset;
+  };
+  const inTo = (edge: Edge, into: Map<Edge, FrameEdgeData>) => {
+    const inset = into.get(edge)?.targetInset;
+    return inset === undefined ? turnIn(edge) : left(edge.target) - inset;
+  };
+  // Only arrows that turn outside frames: an arrow without frames to leave
+  // or enter is a smooth step, which turning elsewhere would change.
+  const framedIn = (shared: Edge[]) =>
+    shared.filter(e => data(e).sourceInset || data(e).targetInset);
+  /** Spreads out the turns of the arrows in a gap into `into`. */
+  const spreadGap = (
+    gap: number,
+    shared: Edge[],
+    into: Map<Edge, FrameEdgeData>,
+    clear?: (x: number, top: number, bottom: number, run: Edge[]) => boolean,
+  ) => {
+    const framed = framedIn(shared);
     spreadTurns(framed, {
       turn: turnOut,
       end: edge => edge.source,
@@ -388,9 +391,11 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
           Math.min(...ends.map(middle)),
           gap + widest,
         ),
+      clear:
+        clear && ((edge, at, run) => clear(at, middle(edge.source), gap, run)),
       set: (edge, at) =>
-        turns.set(edge, {
-          ...turns.get(edge),
+        into.set(edge, {
+          ...into.get(edge),
           sourceInset: at - right(edge.source),
         }),
     });
@@ -408,11 +413,61 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
           gap - widest,
           Math.max(...ends.map(middle)),
         ),
+      clear:
+        clear && ((edge, at, run) => clear(at, gap, middle(edge.target), run)),
       set: (edge, at) =>
-        turns.set(edge, {
-          ...turns.get(edge),
+        into.set(edge, {
+          ...into.get(edge),
           targetInset: left(edge.target) - at,
         }),
+    });
+  };
+  // The turns with the turns at each x spread out on their own, and the
+  // parts of the arrows that run down there.
+  const alone = new Map<Edge, FrameEdgeData>();
+  for (const [gap, shared] of inGap) spreadGap(gap, shared, alone);
+  const downs: { edge: Edge; x: number; top: number; bottom: number }[] = [];
+  const framed = new Set([...inGap.values()].flatMap(framedIn));
+  for (const edge of edges) {
+    if (edge.type !== 'frameEdge') continue;
+    if (!layout.positions.has(edge.source)) continue;
+    if (!layout.positions.has(edge.target)) continue;
+    const gap = gapOf(edge);
+    const [out, into] = [outOf(edge, alone), inTo(edge, alone)];
+    if (gap !== undefined && (framed.has(edge) || out > into)) {
+      downs.push(
+        { edge, x: out, top: middle(edge.source), bottom: gap },
+        { edge, x: into, top: gap, bottom: middle(edge.target) },
+      );
+    } else {
+      // In one row, or a smooth step to a target farther right: down
+      // halfway between the ends.
+      const [top, bottom] = [middle(edge.source), middle(edge.target)].sort(
+        (a, b) => a - b,
+      );
+      downs.push({ edge, x: (out + into) / 2, top, bottom });
+    }
+  }
+  /** True when no arrow but those of `run` runs down at `x` there. */
+  const clearAt = (x: number, top: number, bottom: number, run: Edge[]) =>
+    !downs.some(
+      d =>
+        !run.includes(d.edge) &&
+        Math.abs(d.x - x) < EDGE_LANE_GAP / 2 &&
+        Math.min(d.bottom, bottom) > Math.max(d.top, top),
+    );
+  for (const [gap, shared] of inGap) {
+    spreadGap(gap, shared, turns, clearAt);
+    shared.sort(
+      (a, b) =>
+        turnOut(a) - turnOut(b) ||
+        middle(b.source) - middle(a.source) ||
+        turnIn(a) - turnIn(b) ||
+        middle(b.target) - middle(a.target),
+    );
+    shared.forEach((edge, i) => {
+      const offset = (i - (shared.length - 1) / 2) * EDGE_LANE_GAP;
+      lanes.set(edge, Math.max(-widest, Math.min(widest, offset)));
     });
   }
   return edges.map(edge => {
@@ -494,12 +549,15 @@ function nearestSide(
 }
 
 /**
- * Spreads out the turns of arrows that turn down at one x, or less than
- * `EDGE_LANE_GAP` apart, for different ends (sources or targets): the
- * arrows of one end share a turn. The turn of the innermost end stays; each
- * next one is `EDGE_LANE_GAP` farther in `direction` than the one before,
- * closer together (by halves of a pixel) when that would pass the `limit`
- * for the turn and the ends, and never closer to its end than it was.
+ * Spreads out the turns of arrows that turn down at one x, for different
+ * ends (sources or targets): the arrows of one end share a turn. The turn of
+ * the innermost end stays; each next one is `EDGE_LANE_GAP` farther in
+ * `direction`, closer together (by halves of a pixel) when that would pass
+ * the `limit` for the turn and the ends. With `clear`, turns at other x
+ * that turns spread out before them come within `EDGE_LANE_GAP` of join
+ * them and are spread out together, the full `EDGE_LANE_GAP` apart and each
+ * one never closer to its end than it was, when all of them fit within the
+ * `limit` and none of them then runs on another arrow.
  */
 function spreadTurns(
   edges: Edge[],
@@ -509,45 +567,91 @@ function spreadTurns(
     innerFirst(a: string, b: string): number;
     direction: 1 | -1;
     limit(at: number, ends: string[]): number;
+    /**
+     * False when the turn of `edge` at `at` runs on another arrow. Without
+     * it, only the turns at one x are spread out.
+     */
+    clear?(edge: Edge, at: number, run: Edge[]): boolean;
     set(edge: Edge, at: number): void;
   },
 ) {
   const { turn, end, direction } = options;
-  // The turns in `direction`, in runs of turns less than `EDGE_LANE_GAP`
-  // from the one before.
-  const sorted = [...edges].sort((a, b) => (turn(a) - turn(b)) * direction);
-  const runs: Edge[][] = [];
-  sorted.forEach((edge, i) => {
-    const close =
-      i > 0 && (turn(edge) - turn(sorted[i - 1])) * direction < EDGE_LANE_GAP;
-    if (close) runs[runs.length - 1].push(edge);
-    else runs.push([edge]);
-  });
-  for (const shared of runs) {
+  const beyond = (a: number, b: number) => (a - b) * direction > 0;
+  const farther = (a: number, b: number) => (beyond(a, b) ? a : b);
+  type Run = { shared: Edge[]; ends: string[]; turns: number[] };
+  /**
+   * The turns of a run of arrows spread out, by the index of their end; for
+   * turns at more than one x (`full`), the full `EDGE_LANE_GAP` apart, and
+   * nothing when they do not fit.
+   */
+  const spread = (shared: Edge[], full: boolean): Run | undefined => {
     const ends = [...new Set(shared.map(end))].sort(options.innerFirst);
-    if (ends.length < 2) continue;
-    // The farther of two turns, and the farthest turn of each end.
-    const farther = (a: number, b: number) => ((a - b) * direction > 0 ? a : b);
+    // The farthest turn of each end.
     const own = ends.map(e =>
       shared
         .filter(edge => end(edge) === e)
         .map(turn)
         .reduce(farther),
     );
+    if (ends.length < 2) return { shared, ends, turns: own };
     const at = own[0];
     const limit = options.limit(at, ends);
     const room = Math.max(0, (limit - at) * direction);
-    const step = Math.min(
-      EDGE_LANE_GAP,
-      Math.floor((2 * room) / (ends.length - 1)) / 2,
-    );
-    // Up to the limit, and never closer to the end than its own turn.
+    const step = full
+      ? EDGE_LANE_GAP
+      : Math.min(EDGE_LANE_GAP, Math.floor((2 * room) / (ends.length - 1)) / 2);
     const turns: number[] = [];
-    own.forEach((x, k) => {
+    for (const [k, x] of own.entries()) {
       const next = k === 0 ? x : turns[k - 1] + direction * step;
-      const capped = farther(next, limit) === next ? limit : next;
-      turns.push(farther(x, capped));
-    });
+      // Never closer to the end than its own turn, nor past the limit.
+      if (full && beyond(next, x) && beyond(next, limit)) return undefined;
+      turns.push(farther(x, next));
+    }
+    return { shared, ends, turns };
+  };
+
+  // The turns at each x, in `direction`.
+  const atX = new Map<number, Edge[]>();
+  for (const edge of edges) {
+    atX.set(turn(edge), [...(atX.get(turn(edge)) ?? []), edge]);
+  }
+  // Runs of turns that join, each one closed with the turns at each x of
+  // it on their own when they do not all fit or one runs on another arrow.
+  const runs: Run[] = [];
+  let joined: Edge[][] = [];
+  let run: Run | undefined;
+  const close = (fits: boolean) => {
+    if (!run) return;
+    const onTop = (edge: Edge) => {
+      const at = run!.turns[run!.ends.indexOf(end(edge))];
+      return at !== turn(edge) && !options.clear?.(edge, at, run!.shared);
+    };
+    if (joined.length > 1 && (!fits || run.shared.some(onTop))) {
+      runs.push(...joined.map(at => spread(at, false)!));
+    } else {
+      runs.push(run);
+    }
+  };
+  for (const [x, shared] of [...atX].sort(
+    (a, b) => (a[0] - b[0]) * direction,
+  )) {
+    const reaches =
+      run &&
+      options.clear &&
+      (x - run.turns.reduce(farther)) * direction < EDGE_LANE_GAP;
+    const merged = reaches && spread([...run!.shared, ...shared], true);
+    if (merged) {
+      run = merged;
+      joined.push(shared);
+      continue;
+    }
+    close(!reaches);
+    joined = [shared];
+    run = spread(shared, false)!;
+  }
+  close(true);
+  for (const { shared, ends, turns } of runs) {
+    if (ends.length < 2) continue;
     for (const edge of shared) {
       const k = ends.indexOf(end(edge));
       if (k > 0 || turns[k] !== turn(edge)) options.set(edge, turns[k]);
