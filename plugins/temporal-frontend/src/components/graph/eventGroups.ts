@@ -325,9 +325,10 @@ export interface GroupedGraph {
   /**
    * Boxes of the laid out graph: the steps and other boxes outside a
    * collapsed group, and the collapsed groups. `parent` is the expanded
-   * group around it.
+   * group around it; `after` places it in a stacked frame (see
+   * `stackGroups`).
    */
-  nodes: { id: string; parent?: string }[];
+  nodes: { id: string; parent?: string; after?: string }[];
   /** Arrows; those into and out of a collapsed group go to its box. */
   edges: WorkflowGraphEdge[];
   /** Expanded groups shown, outer ones first. */
@@ -508,6 +509,165 @@ export function groupGraph(
   };
 }
 
+/**
+ * The graph with the child groups of some frames stacked in rows: a frame
+ * with two or more child groups, at least one of them a frame, stacks them
+ * (`LayoutFrame.stacked`), in the order they started. Boxes are listed in
+ * the order their first steps ran (`stepIds`).
+ *
+ * The group of a signal or update that arrows from a stacked frame lead
+ * to, and whose arrows out lead nowhere but back into it (a signal received
+ * during a round of a loop), goes in that frame, in a row below the row the
+ * first arrow into it comes from (`after`): its box, and the signal or
+ * update when it is drawn. Its frame or box gets the stacked frame as its
+ * parent. Of stacked frames in each other, the innermost one around every
+ * other end of these arrows is the one, unless the group is in a frame that
+ * is not around that one.
+ *
+ * Without such frames, the graph is as it was.
+ */
+export function stackGroups(
+  graph: GroupedGraph,
+  plan: GroupPlan,
+  stepIds: string[],
+): GroupedGraph {
+  const laidOut = new Set(graph.frames.map(f => f.id));
+  const stacked = new Set(
+    graph.frames
+      .filter(({ id }) => {
+        const { children } = plan.boxes.get(id)!;
+        return children.length >= 2 && children.some(c => laidOut.has(c));
+      })
+      .map(f => f.id),
+  );
+  if (stacked.size === 0) return graph;
+
+  const index = new Map(stepIds.map((id, i) => [id, i]));
+  const orderOf = (id: string) => {
+    const box = plan.boxes.get(id);
+    if (!box) return index.get(id) ?? Infinity;
+    return Math.min(...box.stepIds.map(s => index.get(s) ?? Infinity));
+  };
+  const parentOf = new Map<string, string | undefined>([
+    ...graph.frames.map(f => [f.id, f.parent] as const),
+    ...graph.nodes.map(n => [n.id, n.parent] as const),
+  ]);
+  const chainOf = (id: string) => {
+    const chain: string[] = [];
+    for (let p = parentOf.get(id); p && chain.length <= parentOf.size; ) {
+      chain.push(p);
+      p = parentOf.get(p);
+    }
+    return chain;
+  };
+  const shown = new Set(graph.nodes.map(n => n.id));
+  const placed = new Map<string, { stack: string; after: string }>();
+  for (const box of plan.boxes.values()) {
+    const { group, id } = box;
+    if (group.kind !== 'event' && group.kind !== 'update') continue;
+    if (!parentOf.has(id) || placed.has(id)) continue;
+    const source = group.sourceNodeId;
+    const withSource =
+      source && shown.has(source) && parentOf.get(source) === parentOf.get(id)
+        ? [id, source]
+        : undefined;
+    for (const unit of [withSource, [id]]) {
+      if (!unit) continue;
+      const found = detour(unit, graph, chainOf, stacked, orderOf);
+      if (!found) continue;
+      for (const item of unit) placed.set(item, found);
+      break;
+    }
+  }
+  if (placed.size === 0) {
+    return {
+      ...graph,
+      frames: graph.frames.map(f =>
+        stacked.has(f.id) ? { ...f, stacked: true } : f,
+      ),
+      nodes: sortByTime(graph.nodes, orderOf),
+    };
+  }
+  const moved = <T extends { id: string; parent?: string }>(item: T): T => {
+    const to = placed.get(item.id);
+    return to ? ({ ...item, parent: to.stack, after: to.after } as T) : item;
+  };
+  const frames = graph.frames.map(f => ({
+    ...moved(f),
+    ...(stacked.has(f.id) ? { stacked: true } : {}),
+  }));
+  // Outer frames first, also for the frames that moved in another.
+  const frameParent = new Map(frames.map(f => [f.id, f.parent]));
+  const depthOf = (id: string) => {
+    let depth = 0;
+    for (let p = frameParent.get(id); p && depth <= frames.length; depth++) {
+      p = frameParent.get(p);
+    }
+    return depth;
+  };
+  const depths = new Map(frames.map(f => [f.id, depthOf(f.id)]));
+  return {
+    ...graph,
+    frames: frames
+      .map((f, i) => ({ f, i }))
+      .sort((a, b) => depths.get(a.f.id)! - depths.get(b.f.id)! || a.i - b.i)
+      .map(({ f }) => f),
+    nodes: sortByTime(graph.nodes.map(moved), orderOf),
+  };
+}
+
+/** The boxes in the order their first steps ran. */
+function sortByTime<T extends { id: string }>(
+  nodes: T[],
+  orderOf: (id: string) => number,
+): T[] {
+  return nodes
+    .map((n, i) => ({ n, i, order: orderOf(n.id) }))
+    .sort((a, b) => a.order - b.order || a.i - b.i)
+    .map(({ n }) => n);
+}
+
+/**
+ * The stacked frame that the arrows into the boxes and frames of `unit`
+ * come from and the arrows out of them lead back to, and the box the first
+ * arrow into them comes from; nothing without an arrow into them, when
+ * they also lead elsewhere, or when their frame is not around that one.
+ */
+function detour(
+  unit: string[],
+  graph: GroupedGraph,
+  chainOf: (id: string) => string[],
+  stacked: Set<string>,
+  orderOf: (id: string) => number,
+): { stack: string; after: string } | undefined {
+  const inUnit = (id: string) =>
+    unit.includes(id) || chainOf(id).some(f => unit.includes(f));
+  const ends: string[] = [];
+  const into: { source: string }[] = [];
+  for (const e of graph.edges) {
+    const [s, t] = [inUnit(e.source), inUnit(e.target)];
+    if (s === t) continue;
+    ends.push(s ? e.target : e.source);
+    if (t) into.push(e);
+  }
+  if (into.length === 0) return undefined;
+  // The innermost stacked frame around every other end.
+  const around = chainOf(ends[0]).filter(
+    f => stacked.has(f) && ends.every(end => chainOf(end).includes(f)),
+  );
+  const stack = around[0];
+  if (!stack) return undefined;
+  // The unit stays in the frames around the stacked frame.
+  const outer = chainOf(unit[0])[0];
+  if (outer !== undefined && !chainOf(stack).includes(outer)) {
+    return undefined;
+  }
+  const first = into.reduce((a, b) =>
+    orderOf(b.source) < orderOf(a.source) ? b : a,
+  );
+  return { stack, after: first.source };
+}
+
 interface Rect {
   x: number;
   y: number;
@@ -657,7 +817,7 @@ export function layoutGroupedSteps(
       .map(k => byKey.get(k))
       .filter((g): g is WorkflowEventGroup => Boolean(g));
   const layOut = (p: GroupPlan, notice?: GroupNotice): GroupedLayout => {
-    const graph = groupGraph(nodes, edges, p);
+    const graph = stackGroups(groupGraph(nodes, edges, p), p, ids);
     const layout = lay(
       graph.nodes.map(n => {
         const size = p.boxes.has(n.id)

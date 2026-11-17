@@ -154,6 +154,7 @@ export interface StepLayout {
   >;
   rowGaps?: number[];
   sizes?: Map<string, NodeSize>;
+  stackGaps?: Map<string, number[]>;
   width: number;
   wrapped: boolean;
 }
