@@ -24,7 +24,6 @@ import {
   TemporalAccessService,
   temporalWorkflowEnricherExtensionPoint,
 } from './node/alpha';
-import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
@@ -38,37 +37,13 @@ import {
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
-/** Objects of the mocked S3 service, by key. */
-const mockObjects = new Map<string, Buffer>();
-/** The requests of the mocked S3 client. */
-const mockSend = jest.fn(async (command: any) => {
-  const data = mockObjects.get(command.input.Key);
-  if (!data) throw new Error('NoSuchKey');
-  const stream = Readable.from([data]) as any;
-  stream.transformToByteArray = async () => new Uint8Array(data);
-  return { Body: stream, ContentLength: data.length };
-});
-
-jest.mock('@aws-sdk/client-s3', () => {
-  const actual = jest.requireActual('@aws-sdk/client-s3');
-  return {
-    ...actual,
-    S3Client: jest.fn().mockImplementation(() => ({
-      send: (command: any) => mockSend(command),
-    })),
-  };
-});
-
 const ref = 'component:default/orders';
 let memoField: unknown;
 
+let stored: Awaited<ReturnType<typeof storeExternally>>;
+
 beforeAll(async () => {
-  const s3 = memoryS3();
-  const stored = await storeExternally(s3, { plan: 'gold' });
-  mockObjects.set(
-    stored.key,
-    Buffer.from(s3.objects.get(`payloads/${stored.key}`)!),
-  );
+  stored = await storeExternally(memoryS3(), { plan: 'gold' });
   memoField = stored.payload;
 });
 
@@ -136,38 +111,36 @@ async function start(
             }),
           ]
         : []),
-      mockServices.rootConfig.factory({
-        data: {
-          temporal: {
-            externalStorage: {
-              s3: {
-                bucket: 'payloads',
-                endpoint: 'http://localhost:9100',
-                forcePathStyle: true,
-                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
-              },
-            },
-          },
-        },
-      }),
     ],
   });
   return { server: await withOpenApiValidation(server), workflowService };
 }
 
-describe('opening one workflow', () => {
-  beforeEach(() => mockSend.mockClear());
+/** The memo field as the route shows it: where the payload is stored. */
+function externalMemo() {
+  return {
+    encoding: 'json/protobuf',
+    external: {
+      store: 's3',
+      bucket: 'payloads',
+      key: stored.key,
+      size: stored.size,
+      sha256: stored.sha256,
+    },
+  };
+}
 
+describe('opening one workflow', () => {
   const path = '/api/temporal/namespaces/default/workflows/wf-1';
 
-  it('describes it once for an entity, with the memo from S3 and the enrichers', async () => {
+  it('describes it once for an entity, with the memo and the enrichers', async () => {
     const { server, workflowService } = await start();
     const res = await request(server).get(`${path}?entityRef=${ref}`);
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       workflowId: 'wf-1',
       runId: 'wf-1-run',
-      memo: { customer: { plan: 'gold' } },
+      memo: { customer: externalMemo() },
       extensions: { test: true },
     });
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
@@ -179,38 +152,35 @@ describe('opening one workflow', () => {
     // The fake workflow has no entity reference attribute: the Workflows
     // page permissions decide, and the enrichers need an entity.
     expect(res.status).toBe(200);
-    expect(res.body.memo).toEqual({ customer: { plan: 'gold' } });
+    expect(res.body.memo).toEqual({ customer: externalMemo() });
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
   });
 
-  it('does not describe or read S3 when the permission on the entity is denied', async () => {
+  it('does not describe when the permission on the entity is denied', async () => {
     const { server, workflowService } = await start({
       permission: AuthorizeResult.DENY,
     });
     await request(server).get(`${path}?entityRef=${ref}`).expect(403);
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
-    expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it("answers 404 without reading S3 when the workflow is not the entity's", async () => {
+  it("answers 404 when the workflow is not the entity's", async () => {
     const { server, workflowService } = await start();
     await request(server)
       .get(`${path}?entityRef=component:default/billing`)
       .expect(404);
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
-    expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it('answers 403 without reading S3 when the list permission is denied and no entity is linked', async () => {
+  it('answers 403 when the list permission is denied and no entity is linked', async () => {
     const { server, workflowService } = await start({
       permission: AuthorizeResult.DENY,
     });
     await request(server).get(path).expect(403);
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
-    expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it('describes the authorized run when another access service returns its own copy', async () => {
+  it('answers with the workflow of another access service as it is', async () => {
     const { server, workflowService } = await start({
       access: {
         loadWorkflow: async () => ({
@@ -221,17 +191,14 @@ describe('opening one workflow', () => {
             workflowType: 'orderWorkflow',
             taskQueue: 'orders',
             status: 'Running',
+            pendingActivities: [],
           } as any,
         }),
       },
     });
     const res = await request(server).get(path);
     expect(res.status).toBe(200);
-    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
-    expect(
-      workflowService.describeWorkflowExecution.mock.calls[0][0].execution,
-    ).toMatchObject({ workflowId: 'wf-1', runId: 'run-authorized' });
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
     expect(res.body.runId).toBe('run-authorized');
-    expect(res.body.memo).toEqual({ customer: { plan: 'gold' } });
   });
 });

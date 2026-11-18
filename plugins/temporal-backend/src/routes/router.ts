@@ -49,7 +49,6 @@ import {
   WorkflowQueries,
 } from '../services/WorkflowQueries';
 import { parseStatus } from '../services/query';
-import { sendStoredPayload } from './download';
 import {
   entityRefFromParams,
   optionalString,
@@ -198,17 +197,11 @@ export async function createRouter(
   );
 
   router.get(workflowPaths, async (req, res) => {
-    const { credentials, context, ref, workflow } = await loadWorkflow(
-      req,
-      'read',
-    );
-    // The access service's copy has no memo from External Storage; the
-    // plugin's queries resolve it from the same describe, not a second one.
-    const detail = await queries.withPayloads(workflow, ref);
+    const { credentials, context, workflow } = await loadWorkflow(req, 'read');
     res.json(
       context
-        ? await queries.enrichDetail(detail, context, credentials)
-        : detail,
+        ? await queries.enrichDetail(workflow, context, credentials)
+        : workflow,
     );
   });
 
@@ -261,23 +254,6 @@ export async function createRouter(
   router.get(workflowSubpaths('progress'), async (req, res) => {
     const { workflow } = await loadWorkflow(req, 'read');
     res.json(await lists.progress(workflow));
-  });
-
-  router.get(workflowSubpaths('payloads/download'), async (req, res) => {
-    const key = optionalString(req.query.key, 'key');
-    if (!key || key.length > 1024) throw new InputError('Invalid key');
-    const { ref, workflow } = await loadWorkflow(req, 'history');
-    if (!queries.payloads.configured) {
-      throw new NotFoundError('External Storage (S3) is not configured');
-    }
-    const reference = await queries.findStorageReference(
-      { ...ref, runId: workflow.runId },
-      key,
-    );
-    if (!reference) {
-      throw new NotFoundError(`No stored payload ${key} in this run`);
-    }
-    await sendStoredPayload(res, reference, queries.payloads);
   });
 
   // The signals, updates and queries a workflow defines (for the operation

@@ -41,9 +41,9 @@ connection. The layers are described in
    workflow's `entityRef` search attribute decides which entity the permission
    is checked on.
 4. `WorkflowQueries` reads the workflow through `TemporalReadRepository` and turns
-   the Temporal data into the plugin's own API types. Details of a workflow whose
-   memo is stored in S3 are resolved by `PayloadStore`, which also checks the
-   SHA-256.
+   the Temporal data into the plugin's own API types. A payload that a worker
+   stored in S3 is not read: the plugin shows its location from the reference in
+   the history.
 5. The JSON goes back to the page. Errors from Temporal become HTTP statuses, for
    example `503` when Temporal cannot be reached.
 

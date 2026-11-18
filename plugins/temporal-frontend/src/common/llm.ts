@@ -260,7 +260,7 @@ export interface WorkflowLlmCallResponse {
   raw?: JsonValue;
   /** Why there is no record, in words. */
   unavailable?: string;
-  /** The payload in External Storage the record was read from. */
+  /** The payload in External Storage that holds the record; with `unavailable`. */
   external?: ExternalPayload;
   /** True when the record is of a failed attempt (failure details). */
   fromFailure?: boolean;

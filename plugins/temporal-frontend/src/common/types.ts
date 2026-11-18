@@ -209,23 +209,9 @@ export interface WorkflowHistoryResponse {
 }
 
 /**
- * A payload in Temporal External Storage (the S3 driver of the Temporal
- * SDKs), with a reference payload in the history.
- *
- * - `inline`: the data was downloaded and is shown as the `value` of the
- *   payload;
- * - `preview`: the data is larger than the backend shows inline, or not
- *   JSON; `preview` holds the start of text data;
- * - `unconfigured`: the backend has no S3 configuration
- *   (`temporal.externalStorage.s3`), only the reference is shown;
- * - `error`: the data could not be read or did not match the reference.
- *
- * `size`, `encoding` and `contentType` describe the stored payload once it
- * is read; before that (`unconfigured`, `error`), `size` is the size the
- * reference records and `encoding` and `contentType` are empty.
- *
- * `downloadable` payloads can be downloaded through the backend:
- * `GET <workflow path>/payloads/download?key=<key>`.
+ * Where a payload in Temporal External Storage (the S3 driver of the
+ * Temporal SDKs) is stored, from the reference payload in the history. The
+ * backend does not read the stored data.
  *
  * @public
  */
@@ -233,37 +219,22 @@ export interface ExternalPayload {
   store: string;
   bucket: string;
   key: string;
-  /** Size of the data in bytes. */
+  /** Size of the stored payload in bytes, as the reference records it. */
   size: number;
   /** SHA-256 of the stored object, lowercase hex. */
   sha256: string;
-  /** Encoding of the stored payload, for example `json/plain`. */
-  encoding: string;
-  /**
-   * Media type of the data, for example `application/json` or `image/png`
-   * (from the encoding, and for binary data from its first bytes).
-   */
-  contentType: string;
-  state: 'inline' | 'preview' | 'unconfigured' | 'error';
-  /** Start of the data as UTF-8 text, for text media types. */
-  preview?: string;
-  /** True when `preview` is shorter than the data. */
-  previewTruncated?: boolean;
-  downloadable?: boolean;
-  error?: string;
 }
 
 /**
  * A payload decoded with the default data converter. JSON payloads have a
  * `value`; payloads that cannot be decoded (binary, encrypted by a codec)
  * only show their encoding and size in bytes. Payloads in External Storage
- * have `external`: with a `value` when the data is shown inline, without one
- * otherwise.
+ * have `external`, where they are stored, and no value.
  *
  * @public
  */
 export type DecodedPayload =
-  | { encoding: string; value: JsonValue; external?: ExternalPayload }
+  | { encoding: string; value: JsonValue }
   | {
       encoding: string;
       size: number;

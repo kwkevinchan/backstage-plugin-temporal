@@ -243,27 +243,6 @@ describe('TemporalClient requests and responses', () => {
     expect(fetch).toHaveBeenLastCalledWith(
       `${base}/namespaces/default/workflows/wf-1/runs/run-1/handlers?entityRef=component%3Adefault%2Forders`,
     );
-
-    const downloader = createClientHarness(
-      () =>
-        new Response('binary-content', {
-          status: 200,
-          headers: { 'Content-Type': 'application/octet-stream' },
-        }),
-    );
-    const blob = await downloader.client.downloadPayload(ref, {
-      key: 'payloads/k1',
-      entityRef: 'component:default/orders',
-    });
-    expect(blob).toBeInstanceOf(Blob);
-    expect(downloader.fetch).toHaveBeenCalledWith(
-      `${base}/namespaces/default/workflows/wf-1/runs/run-1/payloads/download?entityRef=component%3Adefault%2Forders&key=payloads%2Fk1`,
-    );
-
-    const missingDownload = createClientHarness(noBody);
-    await expect(
-      missingDownload.client.downloadPayload(ref, { key: 'k1' }),
-    ).rejects.toThrow(BACKEND_MISSING_MESSAGE);
   });
 
   it('serializes query, start, signal, update, cancel, terminate, rerun, and schedule operations', async () => {

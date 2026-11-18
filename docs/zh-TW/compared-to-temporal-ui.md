@@ -29,7 +29,7 @@ Temporal Web UI 提供哪些功能取決於它的版本，請看 [Temporal 文�
 | 主畫面             | 事件紀錄和時間軸                                                              | 步驟流程圖；選一個方塊看輸入和輸出。時間軸和事件是分頁                                    |
 | 操作               | Start、Signal、Update、Query、Cancel、Terminate、Reset、批次操作、Schedule 等 | Start、Signal、Update、Query、Cancel、Terminate、Rerun，以及暫停、恢復、立即執行 Schedule |
 | 叢集區域           | Namespace、Task Queue、Worker、Worker Versioning、Codec Server、建立 Schedule | 沒有；用 **Open in Temporal UI**                                                          |
-| 大型資料           | 顯示 External Storage 的參照                                                  | 從 S3 讀回物件並顯示內容、預覽或縮圖，可下載                                              |
+| 大型資料           | 顯示 External Storage 的參照                                                  | 顯示物件的位置（`s3://bucket/key`、SHA-256），附複製按鈕和選用的連結；不讀取物件          |
 | AI 流程（實驗性）  | 一長串 Activity                                                               | 迴圈收成一輪一輪，每次模型呼叫有專屬面板                                                  |
 | Catalog 脈絡       | 沒有                                                                          | 流程旁邊就是 owner、系統、相依關係和 catalog 圖                                           |
 

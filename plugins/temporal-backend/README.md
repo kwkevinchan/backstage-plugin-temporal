@@ -50,15 +50,14 @@ It needs the catalog and the permission framework, and
 `temporal.connection` in the app config. Allow the kind in the catalog
 rules to use `TemporalWorkflow` entities. In a backend without the catalog
 plugin the catalog module is skipped. Payloads that workers store in S3
-with Temporal External Storage are shown when `temporal.externalStorage.s3`
-is configured, with credentials of the plugin's own (an access key, an
-account of `aws.accounts`, or the default AWS credential chain when asked
-for); allow `blob:` in `backend.csp.img-src` for their image thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
+with Temporal External Storage are shown by their location (`s3://bucket/key`
+and the SHA-256); the backend never reads the bucket, so it needs no
+credentials for it. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
 permission policy.
 
-The backend reads the External Storage references and the S3 objects behind
-them with its own code and the AWS SDK; it does not depend on the
-experimental driver packages of the Temporal SDK.
+The backend reads the External Storage references in the history with its
+own code; it does not depend on the experimental driver packages of the
+Temporal SDK.
 
 ## Exports
 
@@ -90,7 +89,6 @@ in the repository README for examples.
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read`              |
 | GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
 | POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read              |
 

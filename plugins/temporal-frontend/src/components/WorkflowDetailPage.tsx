@@ -59,7 +59,7 @@ import type { GroupViews } from './graph/eventGroups';
 import type { GroupDisplay } from './graph/WorkflowGraph';
 import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
-import { JsonView } from './PayloadView';
+import { JsonView, MemoView } from './PayloadView';
 import { PendingActivities } from './PendingActivities';
 import { RunHelp } from './RunHelp';
 import { DefinitionList, StepDrawer } from './StepDrawer';
@@ -192,7 +192,7 @@ function DetailsTab(props: { workflow: WorkflowDetail }) {
           <Text as="h3" variant="title-x-small">
             Memo
           </Text>
-          <JsonView value={workflow.memo} />
+          <MemoView memo={workflow.memo} />
         </div>
       )}
     </Flex>

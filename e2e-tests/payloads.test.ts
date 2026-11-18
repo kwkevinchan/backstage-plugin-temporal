@@ -14,19 +14,24 @@
  * limitations under the License.
  */
 
-import { mkdirSync, statSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, Page, test } from '@playwright/test';
 
 /*
- * Payloads in Temporal External Storage. Needs an S3-compatible service (for
- * example RustFS), `temporal.externalStorage.s3` in the backend config and the example
- * worker started with PAYLOAD_S3_ENDPOINT, so that `reportWorkflow` ran.
+ * Payloads in Temporal External Storage. The backend does not read the
+ * bucket: the test needs an S3-compatible service (for example RustFS) only
+ * for the example worker, started with PAYLOAD_S3_ENDPOINT, so that
+ * `reportWorkflow` ran with its large payloads stored. The "Open" link is
+ * checked against `temporal.externalStorage.objectUrl` when the app is
+ * started with it (for example through
+ * APP_CONFIG_temporal_externalStorage_objectUrl).
  * Runs only when SMOKE_S3 is set.
  */
 
 const app = process.env.SMOKE_APP ?? 'app';
 const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
+const objectUrl = process.env.APP_CONFIG_temporal_externalStorage_objectUrl;
 
 test.skip(!process.env.SMOKE_S3, 'SMOKE_S3 is not set');
 
@@ -91,7 +96,7 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: join(shotDir, `${name}.png`), fullPage: true });
 }
 
-test('large payloads stored in S3: preview, inline value, image and download', async ({
+test('large payloads stored in S3: the location is shown, the content is not', async ({
   page,
 }) => {
   const serverErrors: string[] = [];
@@ -126,45 +131,57 @@ test('large payloads stored in S3: preview, inline value, image and download', a
     .first()
     .click();
 
-  // About 1 MB of JSON: size, a preview and a download button.
-  await step(page, /^buildReport, Completed/).click();
   const output = page.getByTestId('step-drawer').getByTestId('step-output');
-  await expect(output.getByTestId('external-payload')).toContainText(
-    'Stored in S3',
+  const bucket = process.env.PAYLOAD_S3_BUCKET ?? 'temporal-payloads';
+
+  // About 1 MB of JSON: where it is stored, and none of its content.
+  await step(page, /^buildReport, Completed/).click();
+  const stored = output.getByTestId('external-payload');
+  await expect(stored).toContainText('Stored in External Storage');
+  await expect(stored).toContainText(/1(\.\d)? MB/);
+  await expect(stored.getByTestId('external-location')).toContainText(
+    new RegExp(`^s3://${bucket}/v0/`),
   );
-  await expect(output).toContainText(/1(\.\d)? MB · application\/json/);
-  await expect(output.getByTestId('payload-preview')).toContainText(
-    '"reportId":"weekly-sales"',
+  await expect(stored.getByTestId('external-sha256')).toContainText(
+    /SHA-256 [0-9a-f]{64}/,
   );
+  await expect(output).not.toContainText('weekly-sales');
+  await expect(output.getByRole('button', { name: 'Download' })).toHaveCount(0);
+  await expect(
+    stored.getByRole('button', { name: 'Copy location' }),
+  ).toBeVisible();
+  const open = stored.getByRole('link', { name: 'Open' });
+  if (objectUrl) {
+    const location = await stored.getByTestId('external-location').innerText();
+    const key = location.slice(`s3://${bucket}/`.length);
+    await expect(open).toHaveAttribute(
+      'href',
+      objectUrl
+        .replace('{bucket}', encodeURIComponent(bucket))
+        .replace('{key}', encodeURIComponent(key)),
+    );
+  } else {
+    await expect(open).toHaveCount(0);
+  }
   // A graph of three activities: with the panel open, it is laid out for
   // the narrower area and every box stays in view.
   await expect.poll(() => boxesOutsideGraph(page)).toEqual([]);
   await graphSettled(page);
   expect(await boxesOutsideGraph(page)).toEqual([]);
   await shot(page, '30-s3-large-json');
-  const downloadPromise = page.waitForEvent('download');
-  await output.getByRole('button', { name: 'Download' }).click();
-  const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^payload-[0-9a-f]{16}\.json$/);
-  const saved = join(shotDir, 'downloaded-report.json');
-  await download.saveAs(saved);
-  expect(statSync(saved).size).toBeGreaterThan(1024 * 1024);
 
-  // About 180 KiB of JSON: shown inline, with the S3 note.
+  // About 180 KiB of JSON: the location too, not the data.
   await step(page, /^summarizeReport, Completed/).click();
-  await expect(output).toContainText('SKU-0001');
-  await expect(output).toContainText('Stored in S3');
-  await shot(page, '31-s3-inline-json');
+  await expect(output.getByTestId('external-payload')).toContainText(
+    'Stored in External Storage',
+  );
+  await expect(output).not.toContainText('SKU-0001');
+  await shot(page, '31-s3-reference');
 
-  // A PNG: shown as a thumbnail.
+  // A PNG: no thumbnail.
   await step(page, /^renderChart, Completed/).click();
-  const thumbnail = output.getByTestId('payload-thumbnail');
-  await expect(thumbnail).toBeVisible();
-  await expect
-    .poll(() =>
-      thumbnail.evaluate(img => (img as HTMLImageElement).naturalWidth),
-    )
-    .toBe(480);
+  await expect(output.getByTestId('external-payload')).toBeVisible();
+  await expect(output.getByTestId('payload-thumbnail')).toHaveCount(0);
   await shot(page, '32-s3-image');
 
   expect(serverErrors).toEqual([]);

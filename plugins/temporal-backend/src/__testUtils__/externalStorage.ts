@@ -24,8 +24,8 @@ import { temporal } from '@temporalio/proto';
 
 /*
  * Test data of Temporal External Storage, written by the official S3 driver
- * of the TypeScript SDK into an in-memory S3, so the tests read exactly what
- * workers store.
+ * of the TypeScript SDK into an in-memory S3, so the tests use exactly the
+ * references workers store.
  */
 
 /** An in-memory S3: objects by bucket and key. */
@@ -47,17 +47,6 @@ export function memoryS3() {
         if (!data) throw new Error(`NoSuchKey ${key}`);
         return data;
       },
-    },
-    /** What `PayloadStore` reads with, for one bucket. */
-    store(bucket = 'payloads') {
-      return {
-        bucket,
-        get: jest.fn(async (key: string) => {
-          const data = objects.get(id(bucket, key));
-          if (!data) throw new Error(`NoSuchKey ${key}`);
-          return data;
-        }),
-      };
     },
   };
 }
