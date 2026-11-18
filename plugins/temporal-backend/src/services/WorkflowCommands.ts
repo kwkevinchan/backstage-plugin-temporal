@@ -22,7 +22,7 @@ import {
   ServiceUnavailableError,
 } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import type { ScheduleOverlapPolicy } from '@temporalio/client';
+import type { Connection, ScheduleOverlapPolicy } from '@temporalio/client';
 import type {
   TemporalScheduleOperation,
   WorkflowDetail,
@@ -37,6 +37,7 @@ import {
   TemporalJsonPayload,
 } from './payloads';
 import { isScheduleNotFound, mapCommandError } from '../repositories/errors';
+import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -122,8 +123,12 @@ export class WorkflowCommands {
     readonly options: ControlOptions,
   ) {}
 
-  private async service() {
-    return (await this.temporal.getConnection()).workflowService;
+  /** A call to Temporal, with the errors of operations. */
+  private call<T>(
+    timeoutMs: number,
+    fn: (connection: Connection) => Promise<T>,
+  ): Promise<T> {
+    return callTemporal(this.temporal, timeoutMs, mapCommandError, fn);
   }
 
   checkSignal(name: string) {
@@ -147,17 +152,16 @@ export class WorkflowCommands {
     identity: string,
   ): Promise<void> {
     this.checkSignal(name);
-    const service = await this.service();
-    await service
-      .signalWorkflowExecution({
+    await this.call(TEMPORAL_DEADLINES.operation, c =>
+      c.workflowService.signalWorkflowExecution({
         namespace: ref.namespace,
         workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
         signalName: name,
         input: encodeJsonPayloads(args),
         identity,
         requestId: randomUUID(),
-      })
-      .catch(mapCommandError);
+      }),
+    );
   }
 
   async update(
@@ -167,15 +171,16 @@ export class WorkflowCommands {
     identity: string,
   ): Promise<JsonValue | undefined> {
     this.checkUpdate(name);
-    const service = await this.service();
     const workflowExecution = {
       workflowId: ref.workflowId,
       runId: ref.runId,
     };
     const updateId = randomUUID();
     const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
-    let response: any = await service
-      .updateWorkflowExecution({
+    // Each call has its own deadline: a slow update that finishes within
+    // the polls is not cut short.
+    let response: any = await this.call(TEMPORAL_DEADLINES.update, c =>
+      c.workflowService.updateWorkflowExecution({
         namespace: ref.namespace,
         workflowExecution,
         waitPolicy,
@@ -183,19 +188,19 @@ export class WorkflowCommands {
           meta: { updateId, identity },
           input: { name, args: encodeJsonPayloads(args) },
         },
-      })
-      .catch(mapCommandError);
+      }),
+    );
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await service
-        .pollWorkflowExecutionUpdate({
+      response = await this.call(TEMPORAL_DEADLINES.update, c =>
+        c.workflowService.pollWorkflowExecutionUpdate({
           namespace: ref.namespace,
           updateRef: { workflowExecution, updateId },
           identity,
           waitPolicy,
-        })
-        .catch(mapCommandError);
+        }),
+      );
     }
     const outcome = response?.outcome;
     if (!outcome) {
@@ -208,15 +213,14 @@ export class WorkflowCommands {
   }
 
   async cancel(ref: Required<WorkflowRef>, identity: string): Promise<void> {
-    const service = await this.service();
-    await service
-      .requestCancelWorkflowExecution({
+    await this.call(TEMPORAL_DEADLINES.operation, c =>
+      c.workflowService.requestCancelWorkflowExecution({
         namespace: ref.namespace,
         workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
         identity,
         requestId: randomUUID(),
-      })
-      .catch(mapCommandError);
+      }),
+    );
   }
 
   async terminate(
@@ -224,23 +228,21 @@ export class WorkflowCommands {
     reason: string,
     identity: string,
   ): Promise<void> {
-    const service = await this.service();
-    await service
-      .terminateWorkflowExecution({
+    await this.call(TEMPORAL_DEADLINES.operation, c =>
+      c.workflowService.terminateWorkflowExecution({
         namespace: ref.namespace,
         workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
         reason,
         identity,
-      })
-      .catch(mapCommandError);
+      }),
+    );
   }
 
   async start(options: StartOptions): Promise<WorkflowStartResponse> {
-    const service = await this.service();
     const workflowId =
       options.workflowId || newWorkflowId(options.workflowType);
-    const response = await service
-      .startWorkflowExecution({
+    const response = await this.call(TEMPORAL_DEADLINES.operation, c =>
+      c.workflowService.startWorkflowExecution({
         namespace: options.namespace,
         workflowId,
         workflowType: { name: options.workflowType },
@@ -251,8 +253,8 @@ export class WorkflowCommands {
         searchAttributes: {
           indexedFields: keywordAttributes(options.searchAttributes),
         },
-      })
-      .catch(mapCommandError);
+      }),
+    );
     return {
       namespace: options.namespace,
       workflowId,
@@ -274,14 +276,13 @@ export class WorkflowCommands {
       identity: string;
     },
   ): Promise<WorkflowStartResponse> {
-    const service = await this.service();
-    const history = await service
-      .getWorkflowExecutionHistory({
+    const history = await this.call(TEMPORAL_DEADLINES.read, c =>
+      c.workflowService.getWorkflowExecutionHistory({
         namespace: workflow.namespace,
         execution: { workflowId: workflow.workflowId, runId: workflow.runId },
         maximumPageSize: 1,
-      })
-      .catch(mapCommandError);
+      }),
+    );
     const started =
       history.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
     if (!started) {
@@ -290,8 +291,8 @@ export class WorkflowCommands {
     const workflowId =
       options.workflowId ||
       newWorkflowId(`${workflow.workflowId.replace(RERUN_SUFFIX, '')}-rerun`);
-    const response = await service
-      .startWorkflowExecution({
+    const response = await this.call(TEMPORAL_DEADLINES.operation, c =>
+      c.workflowService.startWorkflowExecution({
         namespace: workflow.namespace,
         workflowId,
         workflowType: {
@@ -315,8 +316,8 @@ export class WorkflowCommands {
             ...keywordAttributes(options.searchAttributes),
           },
         },
-      })
-      .catch(mapCommandError);
+      }),
+    );
     return {
       namespace: workflow.namespace,
       workflowId,
@@ -329,16 +330,17 @@ export class WorkflowCommands {
     namespace: string,
     scheduleId: string,
   ): Promise<ScheduleTarget> {
-    const handle = scheduleClientOf(
-      await this.temporal.getConnection(),
-      namespace,
-    ).getHandle(scheduleId);
-    const description = await handle.describe().catch(error => {
-      if (isScheduleNotFound(error)) {
-        throw new NotFoundError(`No schedule ${scheduleId}`);
-      }
-      return mapCommandError(error);
-    });
+    const description = await this.call(TEMPORAL_DEADLINES.read, c =>
+      scheduleClientOf(c, namespace)
+        .getHandle(scheduleId)
+        .describe()
+        .catch(error => {
+          if (isScheduleNotFound(error)) {
+            throw new NotFoundError(`No schedule ${scheduleId}`);
+          }
+          throw error;
+        }),
+    );
     return {
       namespace,
       scheduleId,
@@ -359,12 +361,11 @@ export class WorkflowCommands {
     operation: TemporalScheduleOperation,
     options: { note?: string; requestedBy: string },
   ): Promise<void> {
-    const handle = scheduleClientOf(
-      await this.temporal.getConnection(),
-      schedule.namespace,
-    ).getHandle(schedule.scheduleId);
     const { note, requestedBy } = options;
-    try {
+    await this.call(TEMPORAL_DEADLINES.operation, async c => {
+      const handle = scheduleClientOf(c, schedule.namespace).getHandle(
+        schedule.scheduleId,
+      );
       if (operation === 'pause') {
         await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
       } else if (operation === 'unpause') {
@@ -374,8 +375,6 @@ export class WorkflowCommands {
       } else {
         await handle.trigger(schedule.overlap);
       }
-    } catch (error) {
-      mapCommandError(error);
-    }
+    });
   }
 }

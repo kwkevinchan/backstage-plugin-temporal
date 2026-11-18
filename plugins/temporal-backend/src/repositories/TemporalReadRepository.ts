@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import type { Connection } from '@temporalio/client';
 import type { WorkflowRef } from '../common';
 import type { TemporalService } from '../node';
 import { mapQueryError, mapTemporalError } from './errors';
+import { callTemporal, TEMPORAL_DEADLINES } from './temporalCall';
 
 /** The protobuf JSON of a Temporal response message. */
 function toJson(message: unknown): any {
@@ -38,20 +40,29 @@ export interface TemporalPage<T> {
 export class TemporalReadRepository {
   constructor(private readonly temporal: TemporalService) {}
 
+  /** A read call to the workflow service, with the errors of reads. */
+  private call<T>(
+    timeoutMs: number,
+    fn: (service: Connection['workflowService']) => Promise<T>,
+  ): Promise<T> {
+    return callTemporal(this.temporal, timeoutMs, mapTemporalError, c =>
+      fn(c.workflowService),
+    );
+  }
+
   async listExecutions(
     namespace: string,
     query: string,
     page: { pageSize: number; nextPageToken?: Uint8Array },
   ): Promise<TemporalPage<any>> {
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .listWorkflowExecutions({
+    const response = await this.call(TEMPORAL_DEADLINES.list, service =>
+      service.listWorkflowExecutions({
         namespace,
         query,
         pageSize: page.pageSize,
         nextPageToken: page.nextPageToken,
-      })
-      .catch(mapTemporalError);
+      }),
+    );
     return {
       items: (response.executions ?? []).map(toJson),
       nextPageToken: response.nextPageToken ?? undefined,
@@ -59,34 +70,31 @@ export class TemporalReadRepository {
   }
 
   async countExecutions(namespace: string, query: string): Promise<number> {
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .countWorkflowExecutions({ namespace, query })
-      .catch(mapTemporalError);
+    const response = await this.call(TEMPORAL_DEADLINES.list, service =>
+      service.countWorkflowExecutions({ namespace, query }),
+    );
     return Number(response.count ?? 0);
   }
 
   async describeExecution(ref: WorkflowRef): Promise<any> {
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .describeWorkflowExecution({
+    const response = await this.call(TEMPORAL_DEADLINES.read, service =>
+      service.describeWorkflowExecution({
         namespace: ref.namespace,
         execution: { workflowId: ref.workflowId, runId: ref.runId },
-      })
-      .catch(mapTemporalError);
+      }),
+    );
     return toJson(response);
   }
 
   /** The last event of a run's history. */
   async lastEvent(ref: WorkflowRef & { runId: string }): Promise<any> {
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .getWorkflowExecutionHistoryReverse({
+    const response = await this.call(TEMPORAL_DEADLINES.read, service =>
+      service.getWorkflowExecutionHistoryReverse({
         namespace: ref.namespace,
         execution: { workflowId: ref.workflowId, runId: ref.runId },
         maximumPageSize: 1,
-      })
-      .catch(mapTemporalError);
+      }),
+    );
     return toJson(response.history?.events?.[0]);
   }
 
@@ -95,15 +103,14 @@ export class TemporalReadRepository {
     ref: WorkflowRef & { runId: string },
     page: { pageSize: number; nextPageToken?: Uint8Array },
   ): Promise<TemporalPage<any>> {
-    const connection = await this.temporal.getConnection();
-    const response = await connection.workflowService
-      .getWorkflowExecutionHistory({
+    const response = await this.call(TEMPORAL_DEADLINES.read, service =>
+      service.getWorkflowExecutionHistory({
         namespace: ref.namespace,
         execution: { workflowId: ref.workflowId, runId: ref.runId },
         maximumPageSize: page.pageSize,
         nextPageToken: page.nextPageToken,
-      })
-      .catch(mapTemporalError);
+      }),
+    );
     return {
       items: (response.history?.events ?? []).map(toJson),
       nextPageToken:
@@ -115,25 +122,26 @@ export class TemporalReadRepository {
 
   /**
    * Runs a query on a workflow, with encoded `args`, giving up after
-   * `timeoutMs` when given. Returns the encoded result (protobuf JSON
-   * payloads), or `rejected` when the workflow's state rejects queries.
+   * `timeoutMs` (by default, the deadline of a query). Returns the encoded
+   * result (protobuf JSON payloads), or `rejected` when the workflow's state
+   * rejects queries.
    */
   async query(
     ref: WorkflowRef & { runId: string },
     queryType: string,
     options: { args?: unknown; timeoutMs?: number } = {},
   ): Promise<{ rejected: boolean; result?: any }> {
-    const connection = await this.temporal.getConnection();
-    const call = () =>
-      connection.workflowService.queryWorkflow({
-        namespace: ref.namespace,
-        execution: { workflowId: ref.workflowId, runId: ref.runId },
-        query: { queryType, queryArgs: options.args as any },
-      });
-    const response: any = await (options.timeoutMs
-      ? connection.withDeadline(Date.now() + options.timeoutMs, call)
-      : call()
-    ).catch(mapQueryError);
+    const response: any = await callTemporal(
+      this.temporal,
+      options.timeoutMs ?? TEMPORAL_DEADLINES.query,
+      mapQueryError,
+      connection =>
+        connection.workflowService.queryWorkflow({
+          namespace: ref.namespace,
+          execution: { workflowId: ref.workflowId, runId: ref.runId },
+          query: { queryType, queryArgs: options.args as any },
+        }),
+    );
     if (response.queryRejected) return { rejected: true };
     return { rejected: false, result: toJson(response.queryResult) };
   }

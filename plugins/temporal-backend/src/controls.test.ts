@@ -30,7 +30,9 @@ import { TemporalService, temporalServiceRef } from './node';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './alpha';
 import {
+  createFakeConnection,
   createFakeWorkflowService,
+  deadlineExceeded,
   executionInfo,
   orderWorkflowEntity,
   ordersEntity,
@@ -132,6 +134,8 @@ async function start(options?: {
   /** gRPC errors of the schedule calls, by method name. */
   scheduleErrors?: { describeSchedule?: unknown; patchSchedule?: unknown };
   logger?: ReturnType<typeof mockServices.logger.mock>;
+  /** An error of opening the connection to Temporal. */
+  connectionError?: unknown;
 }) {
   const workflowService = {
     ...createControlWorkflowService(options?.status, options?.entityAttribute),
@@ -169,6 +173,7 @@ async function start(options?: {
   const auditEvent = { success: jest.fn(), fail: jest.fn() };
   auditor.createEvent.mockResolvedValue(auditEvent);
   const client = { workflow: { getHandle: jest.fn() } };
+  const connection = createFakeConnection(workflowService);
   /** The patches sent to a schedule: `{ pause }`, `{ unpause }`, ... */
   const patchesOf = (scheduleId: string) =>
     workflowService.patchSchedule.mock.calls
@@ -177,7 +182,10 @@ async function start(options?: {
       .map(req => req.patch);
   const service: TemporalService = {
     getClient: async () => client as any,
-    getConnection: async () => ({ workflowService } as any),
+    getConnection: async () => {
+      if (options?.connectionError) throw options.connectionError;
+      return connection as any;
+    },
     getDefaultNamespace: () => 'default',
     getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
@@ -232,6 +240,7 @@ async function start(options?: {
     auditEvent,
     client,
     patchesOf,
+    connection,
   };
 }
 
@@ -1082,5 +1091,125 @@ describe('input length limits', () => {
       workflowService.requestCancelWorkflowExecution,
     ).not.toHaveBeenCalled();
     expect(patchesOf('nightly')).toEqual([]);
+  });
+});
+
+describe('deadlines of the operations', () => {
+  const schedules = [
+    {
+      scheduleId: 'nightly',
+      workflowType: 'orderWorkflow',
+      taskQueue: 'orders',
+    },
+  ];
+  const schedulePath = (op: string) =>
+    `/api/temporal/namespaces/default/schedules/nightly/${op}${withEntity}`;
+
+  it('operates under a deadline of 10 seconds', async () => {
+    const { server, connection } = await start({ schedules });
+    await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote' })
+      .expect(202);
+    await request(server)
+      .post(`${wf}/cancel${withEntity}`)
+      .send({})
+      .expect(202);
+    await request(server)
+      .post(`${wf}/terminate${withEntity}`)
+      .send({ reason: 'stuck' })
+      .expect(200);
+    await request(server)
+      .post(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .send({ workflowId: 'my-order' })
+      .expect(201);
+    await request(server).post(schedulePath('pause')).send({}).expect(202);
+    for (const method of [
+      'signalWorkflowExecution',
+      'requestCancelWorkflowExecution',
+      'terminateWorkflowExecution',
+      'startWorkflowExecution',
+      'patchSchedule',
+    ]) {
+      expect([method, connection.timeoutsOf(method)]).toEqual([
+        method,
+        [10_000],
+      ]);
+    }
+    // The schedule's describe before the pause is a read.
+    expect(connection.timeoutsOf('describeSchedule')).toEqual([10_000]);
+    expect(connection.calls.filter(c => c.timeoutMs === undefined)).toEqual([]);
+  });
+
+  it('reruns with a read of the history and a start, each under 10 seconds', async () => {
+    const { server, connection } = await start({ status: 'FAILED' });
+    await request(server).post(`${wf}/rerun${withEntity}`).send({}).expect(201);
+    expect(connection.timeoutsOf('startWorkflowExecution')).toEqual([10_000]);
+    expect(
+      new Set(connection.timeoutsOf('getWorkflowExecutionHistory')),
+    ).toEqual(new Set([10_000]));
+  });
+
+  it.each([
+    ['a signal', 'signal', 'signalWorkflowExecution', { name: 'addNote' }],
+    ['a cancel', 'cancel', 'requestCancelWorkflowExecution', {}],
+    ['an update', 'update', 'updateWorkflowExecution', { name: 'setPriority' }],
+  ])('answers 503 when %s times out', async (_name, route, method, body) => {
+    const { server, workflowService, auditEvent } = await start();
+    (workflowService as any)[method].mockRejectedValue(deadlineExceeded());
+    const res = await request(server)
+      .post(`${wf}/${route}${withEntity}`)
+      .send(body);
+    expect(res.status).toBe(503);
+    expect(auditEvent.fail).toHaveBeenCalled();
+  });
+
+  it('answers 503 when a schedule operation times out', async () => {
+    const { server } = await start({
+      schedules,
+      scheduleErrors: { patchSchedule: deadlineExceeded() },
+    });
+    const res = await request(server).post(schedulePath('trigger')).send({});
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toContain('Temporal did not answer in time');
+  });
+
+  it('gives the update and each poll its own deadline, so a slow update finishes', async () => {
+    const { server, workflowService, connection } = await start();
+    // The server answers each call after its wait, before the update is done.
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({} as any);
+    workflowService.pollWorkflowExecutionUpdate
+      .mockResolvedValueOnce({} as any)
+      .mockResolvedValueOnce({} as any)
+      .mockResolvedValueOnce({
+        outcome: { success: { payloads: [json('done')] } },
+      } as any);
+    const res = await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ result: 'done' });
+    expect(connection.timeoutsOf('updateWorkflowExecution')).toEqual([30_000]);
+    expect(connection.timeoutsOf('pollWorkflowExecutionUpdate')).toEqual([
+      30_000, 30_000, 30_000,
+    ]);
+    // Each call has a deadline of its own, not one for all of them.
+    expect(connection.deadlines.filter(ms => ms === 30_000)).toHaveLength(4);
+  });
+
+  it('answers 503 when the connection to Temporal cannot be opened', async () => {
+    const { server, workflowService } = await start({
+      connectionError: new Error('Failed to connect before the deadline'),
+    });
+    const res = await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote' });
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toBe(
+      'Temporal is not reachable: Failed to connect before the deadline',
+    );
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 });

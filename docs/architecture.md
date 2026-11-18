@@ -89,12 +89,12 @@ A request in `temporal-backend` goes down four folders in order
 and the classes are described in
 [CONTRIBUTING.md](../CONTRIBUTING.md#backend-layout); in short:
 
-| Layer           | Responsibility                                                                                                                                                  | In clean-architecture terms |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                  | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                          | Authorization               |
-| `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references.                      | Gateways                    |
+| Layer           | Responsibility                                                                                                                                                                                                | In clean-architecture terms |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                                                                | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                                                                        | Authorization               |
+| `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types.                                               | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (the read calls), `callTemporal` (the deadline and the error mapping of every call), the Temporal error mapping, the schedule client, and the parser of External Storage references. | Gateways                    |
 
 The model (the API types) is in `src/common`, and the shared client in
 `src/node`. The classes are plain; `plugin.ts` creates and wires them, and
@@ -104,8 +104,40 @@ the plugin. The routes that change workflows are their own router
 `temporal.control.enabled` is false. Reads go through
 `TemporalReadRepository`. `WorkflowCommands` (the operations) and the
 schedule list in `WorkflowListQueries` call Temporal on the shared
-connection themselves: each of their methods is already one call. The LLM
+connection themselves: each of their methods is already one call. All of
+them call through `callTemporal` (see [Deadlines](#deadlines)). The LLM
 adapters of the official Temporal AI integrations are in `services/llm/`.
+
+### Deadlines
+
+The Temporal client sets no deadline on a call: a call to a server that does
+not answer would wait for ever. Every call of the backend has one, set by
+`callTemporal` in `repositories/` with `connection.withDeadline`; it covers
+every gRPC request made inside the call, those of a schedule client too.
+The deadlines are constants, not settings:
+
+| Calls                                                                                                         | Deadline  |
+| ------------------------------------------------------------------------------------------------------------- | --------- |
+| One read: a workflow's describe, a page of history, a schedule's describe                                     | 10 s      |
+| A list or a count (`listWorkflowExecutions`, `countWorkflowExecutions`, the schedule list with all its pages) | 15 s      |
+| An operation: signal, cancel, terminate, start, rerun, a schedule's pause, unpause and trigger                | 10 s      |
+| A query of the user                                                                                           | 35 s      |
+| The queries that read a workflow's metadata                                                                   | 5 s       |
+| An update: its send, and each of up to five polls for its outcome                                             | 30 s each |
+
+The Temporal server ends a query that no worker answers after 30 seconds,
+and answers the send or a poll of an update after at most 20 seconds, with
+the update's stage when it is not finished yet. The deadlines of queries and
+updates are a little longer, so that the server's own answer arrives first;
+an update that is slow but finishes within its polls succeeds.
+
+A call that misses its deadline answers `503` ("Temporal did not answer in
+time", or "No worker answered in time" for a query, an update or an
+operation). So do a call that Temporal rate limits (`RESOURCE_EXHAUSTED`:
+the backend's own connection is limited, not the user), and a connection
+that cannot be opened ("Temporal is not reachable", as for an unavailable
+server). The deadline does not follow the HTTP request: a request that the
+browser abandons still waits for its call to end.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query

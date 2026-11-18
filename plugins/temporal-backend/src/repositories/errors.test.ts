@@ -19,7 +19,11 @@ import {
   ScheduleNotFoundError,
   ServiceError,
 } from '@temporalio/client';
-import { mapCommandError, mapTemporalError } from './errors';
+import {
+  mapCommandError,
+  mapConnectionError,
+  mapTemporalError,
+} from './errors';
 
 const grpc = (code: number) =>
   Object.assign(new Error(`code ${code}`), { code });
@@ -32,6 +36,9 @@ describe('mapTemporalError', () => {
     // The backend's own credentials were refused: not the user's fault.
     [7, 'ServiceUnavailableError'],
     [16, 'ServiceUnavailableError'],
+    // No answer in time, and the backend's connection rate limited.
+    [4, 'ServiceUnavailableError'],
+    [8, 'ServiceUnavailableError'],
   ])('maps gRPC code %i to %s', (code, name) => {
     expect(() => mapTemporalError(grpc(code))).toThrow(
       expect.objectContaining({ name }),
@@ -63,9 +70,42 @@ describe('mapTemporalError', () => {
     ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
   });
 
+  it('says why Temporal did not answer', () => {
+    expect(() => mapTemporalError(grpc(4))).toThrow(
+      'Temporal did not answer in time: code 4',
+    );
+    expect(() => mapTemporalError(grpc(8))).toThrow(
+      'Temporal is rate limiting the backend: code 8',
+    );
+  });
+
   it('keeps other errors', () => {
     const error = grpc(13);
     expect(() => mapTemporalError(error)).toThrow(error);
+  });
+});
+
+describe('mapConnectionError', () => {
+  it('maps a failed connection to a 503, like an unavailable server', () => {
+    const failed = new ServiceError('Failed to connect to Temporal server', {
+      cause: Object.assign(new Error('code 14'), {
+        code: 14,
+        details: 'connection refused',
+      }),
+    });
+    expect(() => mapConnectionError(failed)).toThrow(
+      expect.objectContaining({
+        name: 'ServiceUnavailableError',
+        message:
+          'Temporal is not reachable: Failed to connect to Temporal server: connection refused',
+      }),
+    );
+    expect(() => mapConnectionError(new Error('timed out'))).toThrow(
+      expect.objectContaining({
+        name: 'ServiceUnavailableError',
+        message: 'Temporal is not reachable: timed out',
+      }),
+    );
   });
 });
 
@@ -80,6 +120,7 @@ describe('mapCommandError', () => {
     [14, 'ServiceUnavailableError'],
     [7, 'ServiceUnavailableError'],
     [16, 'ServiceUnavailableError'],
+    [8, 'ServiceUnavailableError'],
   ])('maps gRPC code %i to %s', (code, name) => {
     expect(() => mapCommandError(grpc(code))).toThrow(
       expect.objectContaining({ name }),
