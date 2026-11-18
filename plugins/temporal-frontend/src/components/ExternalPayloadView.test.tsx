@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import type { JsonObject } from '@backstage/types';
+import { configApiRef } from '@backstage/core-plugin-api';
+import { MockConfigApi, renderInTestApp } from '@backstage/test-utils';
 import { TestApiProvider } from '@backstage/test-utils';
 import type { ExternalPayload } from '../common';
-import { temporalApiRef, TemporalWorkflowProvider } from '../extensions';
 import { formatBytes } from './ExternalPayloadView';
-import { PayloadView } from './PayloadView';
+import { MemoView, PayloadView } from './PayloadView';
 
-const base: ExternalPayload = {
+const external: ExternalPayload = {
   store: 's3',
   bucket: 'payloads',
   key: `v0/ns/default/wt/reportWorkflow/wi/wf-1/ri/run-1/d/sha256/${'a'.repeat(
@@ -29,52 +31,18 @@ const base: ExternalPayload = {
   )}`,
   size: 1048576,
   sha256: 'a'.repeat(64),
-  encoding: 'json/plain',
-  contentType: 'application/json',
-  state: 'preview',
-  preview: '{"rows":[1,2',
-  previewTruncated: true,
-  downloadable: true,
 };
+const reference = { encoding: 'json/protobuf', external };
 
-const workflow = {
-  namespace: 'default',
-  workflowId: 'wf-1',
-  runId: 'run-1',
-  workflowType: 'reportWorkflow',
-  status: 'Completed' as const,
-};
-
-function renderWithApi(payload: unknown, downloadPayload = jest.fn()) {
-  render(
-    <TestApiProvider apis={[[temporalApiRef, { downloadPayload } as any]]}>
-      <TemporalWorkflowProvider
-        value={
-          {
-            workflow,
-            entity: undefined,
-            reload: () => {},
-            workflowHref: () => '/x',
-          } as any
-        }
-      >
-        <PayloadView payload={payload as any} />
-      </TemporalWorkflowProvider>
+async function render(node: JSX.Element, temporal: JsonObject = {}) {
+  return renderInTestApp(
+    <TestApiProvider apis={[[configApiRef, new MockConfigApi({ temporal })]]}>
+      {node}
     </TestApiProvider>,
   );
-  return downloadPayload;
 }
 
-describe('payloads stored in S3', () => {
-  beforeAll(() => {
-    (URL as any).createObjectURL = jest.fn(() => 'blob:x');
-    (URL as any).revokeObjectURL = jest.fn();
-    // jsdom does not navigate.
-    jest
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {});
-  });
-
+describe('payloads in External Storage', () => {
   it('formats sizes', () => {
     expect(formatBytes(10)).toBe('10 B');
     expect(formatBytes(1536)).toBe('1.5 KB');
@@ -82,82 +50,90 @@ describe('payloads stored in S3', () => {
     expect(formatBytes(300 * 1024 * 1024)).toBe('300 MB');
   });
 
-  it('shows size, preview and a download button', async () => {
-    const download = renderWithApi(
-      { encoding: 'json/plain', external: base },
-      jest.fn(async () => new Blob(['{}'])),
+  it('shows where the payload is and its SHA-256, and no content', async () => {
+    await render(<PayloadView payload={reference as any} />);
+    expect(screen.getByText('Stored in External Storage')).toBeInTheDocument();
+    expect(screen.getByText('1 MB')).toBeInTheDocument();
+    expect(screen.getByTestId('external-location')).toHaveTextContent(
+      `s3://payloads/${external.key}`,
     );
-    expect(screen.getByText('Stored in S3')).toBeInTheDocument();
-    expect(screen.getByText('1 MB · application/json')).toBeInTheDocument();
-    expect(screen.getByTestId('payload-preview')).toHaveTextContent(
-      '{"rows":[1,2…',
+    expect(screen.getByTestId('external-sha256')).toHaveTextContent(
+      `SHA-256 ${external.sha256}`,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
-    await waitFor(() =>
-      expect(download).toHaveBeenCalledWith(
-        { namespace: 'default', workflowId: 'wf-1', runId: 'run-1' },
-        { key: base.key, entityRef: undefined },
-      ),
-    );
+    expect(screen.queryByRole('link', { name: 'Open' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
   });
 
-  it('shows the value of payloads shown inline', () => {
-    renderWithApi({
-      encoding: 'json/plain',
-      value: { rows: [1] },
-      external: { ...base, state: 'inline', size: 2048, preview: undefined },
+  it('copies the location and the SHA-256', async () => {
+    const writeText = jest.fn(async () => undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
     });
-    expect(screen.getByText('{"rows":[1]}')).toBeInTheDocument();
-    expect(screen.getByText('2 KB · application/json')).toBeInTheDocument();
+    await render(<PayloadView payload={reference as any} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy location' }));
+    expect(writeText).toHaveBeenLastCalledWith(`s3://payloads/${external.key}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Copy SHA-256' }));
+    expect(writeText).toHaveBeenLastCalledWith(external.sha256);
   });
 
-  it('shows images as a thumbnail', async () => {
-    renderWithApi(
-      {
-        encoding: 'binary/plain',
-        external: {
-          ...base,
-          contentType: 'image/png',
-          encoding: 'binary/plain',
-          preview: undefined,
-        },
-      },
-      jest.fn(async () => new Blob([new Uint8Array([1])])),
-    );
-    expect(await screen.findByTestId('payload-thumbnail')).toHaveAttribute(
-      'src',
-      'blob:x',
-    );
-  });
-
-  it('shows the reference when S3 is not configured', () => {
-    render(
+  it('shows several arguments, one of them stored externally', async () => {
+    await render(
       <PayloadView
-        payload={{
-          encoding: 'json/protobuf',
-          external: {
-            ...base,
-            size: 2048,
-            encoding: '',
-            contentType: '',
-            state: 'unconfigured',
-            preview: undefined,
-            previewTruncated: undefined,
-            downloadable: undefined,
-          },
-        }}
+        payload={
+          [{ encoding: 'json/plain', value: { a: 1 } }, reference] as any
+        }
       />,
     );
-    expect(
-      screen.getByText(
-        'Stored in External Storage (S3 is not configured in Backstage)',
-      ),
-    ).toBeInTheDocument();
-    // No media type before the payload is read.
-    expect(screen.getByText('2 KB')).toBeInTheDocument();
-    expect(
-      screen.getByText(`s3://payloads/${base.key} · SHA-256 ${base.sha256}`),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Download' })).toBeNull();
+    expect(screen.getByText('{"a":1}')).toBeInTheDocument();
+    expect(screen.getAllByTestId('external-payload')).toHaveLength(1);
+  });
+
+  describe('with temporal.externalStorage.objectUrl', () => {
+    it('links to the object, with the bucket and key encoded', async () => {
+      await render(<PayloadView payload={reference as any} />, {
+        externalStorage: {
+          objectUrl: 'https://console.example.com/s3/{bucket}?prefix={key}',
+        },
+      });
+      const link = screen.getByRole('link', { name: 'Open' });
+      expect(link).toHaveAttribute(
+        'href',
+        `https://console.example.com/s3/payloads?prefix=${encodeURIComponent(
+          external.key,
+        )}`,
+      );
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
+
+    it('does not link when the template is not https', async () => {
+      await render(<PayloadView payload={reference as any} />, {
+        externalStorage: { objectUrl: 'http://console.example.com/{bucket}' },
+      });
+      expect(screen.queryByRole('link', { name: 'Open' })).toBeNull();
+      expect(screen.getByTestId('external-location')).toBeInTheDocument();
+    });
+  });
+
+  describe('in a memo', () => {
+    it('shows an entry that is stored externally like a step payload', async () => {
+      await render(
+        <MemoView memo={{ customer: 'acme', report: reference } as any} />,
+      );
+      expect(screen.getByText('report')).toBeInTheDocument();
+      expect(screen.getByTestId('external-location')).toHaveTextContent(
+        `s3://payloads/${external.key}`,
+      );
+      // The other entries stay JSON, and the reference is not dumped as JSON.
+      expect(screen.getByText('{"customer":"acme"}')).toBeInTheDocument();
+      expect(screen.queryByText(/"external"/)).toBeNull();
+    });
+
+    it('shows a memo without references as JSON', async () => {
+      await render(<MemoView memo={{ customer: 'acme' }} />);
+      expect(screen.getByText('{"customer":"acme"}')).toBeInTheDocument();
+      expect(screen.queryByTestId('external-payload')).toBeNull();
+    });
   });
 });

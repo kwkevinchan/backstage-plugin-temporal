@@ -24,25 +24,9 @@ import { decodePayloads } from './convert';
 import { buildWorkflowGraphWithLlm } from './graph';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
 
-/** Largest record of a model call read from S3 (8 MiB). */
-export const MAX_LLM_RECORD_BYTES = 8 * 1024 * 1024;
-
-/** Why a record stored in S3 is not shown. */
-function externalReason(external: ExternalPayload): string {
-  if (external.state === 'unconfigured') {
-    return 'The record is stored in S3, and the backend has no S3 configuration.';
-  }
-  if (external.state === 'error') {
-    return `The record stored in S3 could not be read: ${
-      external.error ?? ''
-    }`.trim();
-  }
-  return 'The record stored in S3 is larger than the backend reads.';
-}
-
 /**
- * The payload in External Storage a result or failure was read from, and
- * why a model call would have no record from it.
+ * The payload in External Storage that holds a result or failure, if any,
+ * and why a model call would have no record from it.
  */
 function readState(roots: unknown[]): {
   external?: ExternalPayload;
@@ -63,8 +47,12 @@ function readState(roots: unknown[]): {
   const external = candidates
     .map(c => (c as any)?.external as ExternalPayload | undefined)
     .find(e => e !== undefined);
-  if (external && external.state !== 'inline') {
-    return { external, reason: externalReason(external) };
+  if (external) {
+    return {
+      external,
+      reason:
+        'The record is stored in External Storage; the backend shows where it is and does not read it.',
+    };
   }
   if (candidates.some(c => (c as any)?.undecodable)) {
     return {
@@ -86,8 +74,9 @@ export class AiWorkflowQueries {
   /**
    * The full record of one model call of a run, by the event ID of its
    * `ActivityTaskScheduled` event, and for a step with several model calls
-   * by its position (`index`, from 0). The payloads of the step stored in
-   * S3 are downloaded and verified, up to {@link MAX_LLM_RECORD_BYTES}.
+   * by its position (`index`, from 0). Payloads of the step stored in
+   * External Storage are not read: the record is unavailable and the
+   * response says where the payload is.
    */
   async llmCall(
     workflow: WorkflowDetail,
@@ -100,15 +89,10 @@ export class AiWorkflowQueries {
       runId: workflow.runId,
     };
     const { events } = await this.queries.readEvents(ref, MAX_STEP_EVENTS);
-    // The input, the result and the failures of the step.
-    const roots: unknown[] = [];
+    // The result and the failures of the step.
     let result: unknown;
     const failures: unknown[] = [];
     for (const event of events as any[]) {
-      const scheduled = event.activityTaskScheduledEventAttributes;
-      if (scheduled && String(event.eventId) === scheduledEventId) {
-        if (scheduled.input) roots.push(scheduled.input);
-      }
       const completed = event.activityTaskCompletedEventAttributes;
       if (
         completed?.result &&
@@ -136,10 +120,6 @@ export class AiWorkflowQueries {
         }
       }
     }
-    roots.push(...(result ? [result] : []), ...failures);
-    await this.queries.payloads.resolve(roots, {
-      maxInlineBytes: MAX_LLM_RECORD_BYTES,
-    });
     const { graph, llm } = buildWorkflowGraphWithLlm(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
@@ -177,8 +157,6 @@ export class AiWorkflowQueries {
       response.record = call.record;
       if (call.raw !== undefined) response.raw = call.raw;
       if (!result && failures.length > 0) response.fromFailure = true;
-      const { external } = readState(result ? [result] : []);
-      if (external) response.external = external;
       return response;
     }
     if (!result && failures.length === 0) {

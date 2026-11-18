@@ -24,8 +24,8 @@ The Temporal backend plugin can run in another backend; the actions reach
 it through the discovery service and only over HTTP. The module depends on
 the whole backend package `@kwkevinchan/backstage-plugin-temporal-backend`
 (for its shared definitions), so a backend that runs only the Scaffolder
-also installs that package's dependencies, such as `@temporalio/client` and
-the AWS SDK; it does not start the Temporal plugin. Starting, signals and updates need its
+also installs that package's dependencies, such as `@temporalio/client`; it
+does not start the Temporal plugin. Starting, signals and updates need its
 operations: when `temporal.control.enabled` is false there, `start` and
 `signal` fail with a message that names that key, and `wait` keeps working.
 A task

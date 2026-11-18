@@ -64,13 +64,6 @@ export interface TemporalApi {
       entityRef?: string;
     },
   ): Promise<void>;
-  downloadPayload(
-    ref: WorkflowRef,
-    options: {
-      key: string;
-      entityRef?: string;
-    },
-  ): Promise<Blob>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowStatsResponse" needs to be exported by the entry point index.d.ts
   getEntityWorkflowStats(
     entityRef: string,
@@ -244,14 +237,6 @@ export class TemporalClient implements TemporalApi {
       entityRef?: string;
     },
   ): Promise<void>;
-  // (undocumented)
-  downloadPayload(
-    ref: WorkflowRef,
-    options: {
-      key: string;
-      entityRef?: string;
-    },
-  ): Promise<Blob>;
   // (undocumented)
   getEntityWorkflowStats(
     entityRef: string,

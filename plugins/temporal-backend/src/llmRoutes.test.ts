@@ -18,7 +18,6 @@ import { createBackendModule } from '@backstage/backend-plugin-api';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
-import { Readable } from 'node:stream';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { readHistoryFixture } from './__testUtils__/fixtures';
@@ -36,28 +35,6 @@ import {
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
-/** Objects of the mocked S3 service, by key, and the keys read. */
-const mockObjects = new Map<string, Buffer>();
-const mockReads: string[] = [];
-
-jest.mock('@aws-sdk/client-s3', () => {
-  const actual = jest.requireActual('@aws-sdk/client-s3');
-  return {
-    ...actual,
-    S3Client: jest.fn().mockImplementation(() => ({
-      send: async (command: any) => {
-        mockReads.push(command.input.Key);
-        const data = mockObjects.get(command.input.Key);
-        if (!data) throw new Error('NoSuchKey');
-        const body = data;
-        const stream = Readable.from([body]) as any;
-        stream.transformToByteArray = async () => new Uint8Array(body);
-        return { Body: stream, ContentLength: body.length };
-      },
-    })),
-  };
-});
-
 const b64 = (s: string | Buffer) => Buffer.from(s).toString('base64');
 const ref = 'component:default/orders';
 const plain = (value: unknown) => ({
@@ -65,7 +42,7 @@ const plain = (value: unknown) => ({
   data: b64(JSON.stringify(value)),
 });
 
-/** A Vercel AI SDK result larger than the backend shows inline (maxInlineBytes 1000). */
+/** A Vercel AI SDK result that a worker stores in External Storage. */
 const bigResult = {
   content: [
     { type: 'reasoning', text: 'thinking hard' },
@@ -99,24 +76,11 @@ const smallInput = {
   },
 };
 
-/** The two records stored with the official S3 driver, and their objects. */
-const stored: Record<
-  'big' | 'small',
-  { payload: unknown; key: string; object: Buffer }
-> = {} as any;
+/** The result of `bigResult` as the official S3 driver stores it. */
+let stored: Awaited<ReturnType<typeof storeExternally>>;
 
 beforeAll(async () => {
-  const s3 = memoryS3();
-  for (const [name, value] of [
-    ['big', bigResult],
-    ['small', smallResult],
-  ] as const) {
-    const { payload, key } = await storeExternally(s3, value, {
-      workflowId: name,
-    });
-    const object = Buffer.from(s3.objects.get(`payloads/${key}`)!);
-    stored[name] = { payload, key, object };
-  }
+  stored = await storeExternally(memoryS3(), bigResult);
 });
 
 function events() {
@@ -134,7 +98,7 @@ function events() {
       eventId: '3',
       activityTaskCompletedEventAttributes: {
         scheduledEventId: '2',
-        result: { payloads: [structuredClone(stored.big.payload)] },
+        result: { payloads: [structuredClone(stored.payload)] },
       },
     },
     {
@@ -149,7 +113,7 @@ function events() {
       eventId: '5',
       activityTaskCompletedEventAttributes: {
         scheduledEventId: '4',
-        result: { payloads: [structuredClone(stored.small.payload)] },
+        result: { payloads: [plain(smallResult)] },
       },
     },
     {
@@ -252,7 +216,6 @@ const agentEvents = () => [
 
 async function start(options: {
   history: boolean;
-  s3?: boolean;
   events?: () => unknown[];
   features?: any[];
 }) {
@@ -284,22 +247,6 @@ async function start(options: {
       })),
     ) as any,
   });
-  const config =
-    options.s3 === false
-      ? { temporal: {} }
-      : {
-          temporal: {
-            externalStorage: {
-              s3: {
-                bucket: 'payloads',
-                endpoint: 'http://localhost:9100',
-                forcePathStyle: true,
-                maxInlineBytes: 1000,
-                credentials: { accessKeyId: 'a', secretAccessKey: 's' },
-              },
-            },
-          },
-        };
   const { server } = await startTestBackend({
     features: [
       temporalPlugin,
@@ -307,7 +254,6 @@ async function start(options: {
       catalogServiceMock.factory({ entities: [ordersEntity] }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
-      mockServices.rootConfig.factory({ data: config }),
       ...(options.features ?? []),
     ],
   });
@@ -326,14 +272,6 @@ const decoded = (payload: any) =>
   JSON.parse(Buffer.from(payload.data, 'base64').toString());
 
 describe('LLM routes', () => {
-  beforeEach(() => {
-    mockReads.length = 0;
-    mockObjects.clear();
-    for (const { key, object } of Object.values(stored)) {
-      mockObjects.set(key, object);
-    }
-  });
-
   it('shows model calls of the official adapters', async () => {
     const { server } = await start({ history: true });
     const graph = await request(server).get(path('/graph'));
@@ -424,7 +362,7 @@ describe('LLM routes', () => {
     ).rejects.toThrow('Duplicate LLM adapter id: vercel-ai-sdk');
   });
 
-  it('restores a record stored in S3 that is larger than the inline limit', async () => {
+  it('says where a record stored in External Storage is, without reading it', async () => {
     const { server } = await start({ history: true });
     const res = await request(server).get(path('/llm-calls/2'));
     expect(res.status).toBe(200);
@@ -433,20 +371,16 @@ describe('LLM routes', () => {
       activityId: 'model-big',
       activityType: 'invokeModel',
       status: 'Completed',
-      external: { key: stored.big.key, state: 'inline' },
-      record: {
-        requestModel: 'gpt-big',
-        usage: { inputTokens: 5000, outputTokens: 900 },
+      unavailable: expect.stringMatching(/External Storage/),
+      external: {
+        store: 's3',
+        bucket: 'payloads',
+        key: stored.key,
+        sha256: stored.sha256,
       },
     });
-    expect(res.body.record.inputMessages[0].parts[0].content).toHaveLength(
-      4000,
-    );
-    expect(res.body.record.outputMessages[0].parts[0]).toEqual({
-      type: 'reasoning',
-      content: 'thinking hard',
-    });
-    expect(res.body.raw).toEqual({ input: bigInput, result: bigResult });
+    expect(res.body.record).toBeUndefined();
+    expect(res.body.raw).toBeUndefined();
   });
 
   it('explains records it cannot read', async () => {
@@ -460,19 +394,12 @@ describe('LLM routes', () => {
     expect((await request(server).get(path('/llm-calls/x2'))).status).toBe(400);
   });
 
-  it('says when S3 is not configured', async () => {
-    const { server } = await start({ history: true, s3: false });
-    const res = await request(server).get(path('/llm-calls/2'));
-    expect(res.body.unavailable).toMatch(/no S3 configuration/);
-    expect(res.body.external.state).toBe('unconfigured');
-  });
-
   it('needs the history permission for the record', async () => {
     const { server } = await start({ history: false });
     expect((await request(server).get(path('/llm-calls/2'))).status).toBe(403);
   });
 
-  it('shows summaries without the history permission, reading small records from S3', async () => {
+  it('shows summaries without the history permission', async () => {
     const { server } = await start({ history: false });
     const res = await request(server).get(path('/graph'));
     expect(res.status).toBe(200);
@@ -484,7 +411,7 @@ describe('LLM routes', () => {
       usage: { inputTokens: 10 },
     });
     expect(byId('activity-4').result).toBeUndefined();
-    // Larger than the inline limit: the summary needs the record route.
+    // Stored in External Storage: there is nothing to read.
     expect(byId('activity-2').llm.record).toBe('unreadable');
     expect(byId('activity-8').llm.record).toBe('unreadable');
     expect(byId('activity-6').llm).toBeUndefined();
@@ -533,31 +460,26 @@ describe('LLM routes', () => {
     }
   });
 
-  it('does not read the input of a model call from S3 for the graph', async () => {
-    const s3 = memoryS3();
+  it('shows a model call whose input is in External Storage without its model name', async () => {
     const history = integrationEvents('openai-agents-agent');
     const scheduled = history.find(
       (e: any) => e.eventId === '17',
     ).activityTaskScheduledEventAttributes;
-    const { payload, key } = await storeExternally(
-      s3,
+    const { payload } = await storeExternally(
+      memoryS3(),
       decoded(scheduled.input.payloads[0]),
       { workflowId: 'openai-input' },
     );
     scheduled.input = { payloads: [payload] };
-    const store = () => {
-      mockObjects.set(key, Buffer.from(s3.objects.get(`payloads/${key}`)!));
-    };
 
-    const reader = await start({
-      history: false,
+    const { server } = await start({
+      history: true,
       events: () => structuredClone(history),
     });
-    store();
-    const graph = await request(reader.server).get(path('/graph'));
+    const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
     const node = (id: string) => graph.body.nodes.find((n: any) => n.id === id);
-    // The model name is only in the input: not on the graph.
+    // The model name is only in the input.
     expect(node('activity-17').llm).toMatchObject({
       framework: 'openai-agents',
       record: 'available',
@@ -570,18 +492,8 @@ describe('LLM routes', () => {
       llmNodeId: 'activity-5',
       inferred: true,
     });
-    expect(mockReads).not.toContain(key);
-
-    // The record route reads it.
-    const { server } = await start({
-      history: true,
-      events: () => structuredClone(history),
-    });
-    store();
     const res = await request(server).get(path('/llm-calls/17'));
     expect(res.status).toBe(200);
-    expect(res.body.record.requestModel).toBe('fake-model');
-    expect(res.body.record.inputMessages).toHaveLength(3);
-    expect(mockReads).toContain(key);
+    expect(res.body.record.requestModel).toBeUndefined();
   });
 });

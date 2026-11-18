@@ -31,6 +31,7 @@ import {
   FrameEdgeData,
   frameEdgePoints,
   OFFSET,
+  Point,
   frameInsets,
   routeRowGaps,
 } from './frameEdge';
@@ -277,6 +278,50 @@ function tooClose(result: GroupedLayout) {
     }
   });
   return [...new Set(found)];
+}
+
+/** Arrows of different sources and targets that cross each other. */
+function crossings(result: GroupedLayout) {
+  const found: string[] = [];
+  const list = arrows(result).map(({ edge, points }) => ({
+    edge,
+    parts: points.slice(1).map((p, i) => [points[i], p] as const),
+  }));
+  list.forEach((a, i) => {
+    for (const b of list.slice(i + 1)) {
+      if (a.edge.source === b.edge.source || a.edge.target === b.edge.target) {
+        continue;
+      }
+      for (const [p1, p2] of a.parts) {
+        for (const [q1, q2] of b.parts) {
+          let [across, down]: (readonly Point[])[] = [];
+          if (p1.y === p2.y && q1.x === q2.x) {
+            [across, down] = [
+              [p1, p2],
+              [q1, q2],
+            ];
+          } else if (p1.x === p2.x && q1.y === q2.y) {
+            [across, down] = [
+              [q1, q2],
+              [p1, p2],
+            ];
+          }
+          if (!across || !down) continue;
+          const x = down[0].x;
+          const y = across[0].y;
+          if (
+            x > Math.min(across[0].x, across[1].x) + 0.5 &&
+            x < Math.max(across[0].x, across[1].x) - 0.5 &&
+            y > Math.min(down[0].y, down[1].y) + 0.5 &&
+            y < Math.max(down[0].y, down[1].y) - 0.5
+          ) {
+            found.push(`${a.edge.id} crosses ${b.edge.id}`);
+          }
+        }
+      }
+    }
+  });
+  return found;
 }
 
 /** Arrows that run through a box other than their ends. */
@@ -738,8 +783,8 @@ describe('the group of a signal received during a round', () => {
     step('hint'),
   );
 
-  it('goes in the loop, between the round and the next one', () => {
-    for (const views of [open(1, 2, 3), open(2)]) {
+  it('goes in the loop, between the collapsed round and the next one', () => {
+    for (const views of [open(1, 3), open(3)]) {
       const result = laidOut(graph, views);
       const hint = rect(result, box('event:hint'));
       const frame = rect(result, box('label:loop'));
@@ -755,12 +800,12 @@ describe('the group of a signal received during a round', () => {
   });
 
   it('starts where the arrow into it turns down out of the round', () => {
-    const result = laidOut(graph, open(1, 2, 3));
+    const result = laidOut(graph, open(1, 3));
     const into = arrows(result).find(a => a.edge.target === 'hint')!;
-    // Straight down from the step of the round, then into the group.
+    // Straight down from the collapsed round, then into the group.
     expect(into.points[1].x).toBe(into.points[3].x);
     expect(rect(result, box('event:hint')).left).toBe(
-      rect(result, 'r2s1').right + 2 * FRAME_GAP,
+      rect(result, box('label:r2')).right + 2 * FRAME_GAP,
     );
   });
 
@@ -769,7 +814,7 @@ describe('the group of a signal received during a round', () => {
       ...graph,
       edges: graph.edges.filter(e => e.id !== 'hint->r2s3'),
     };
-    const result = laidOut(dead, open(1, 2, 3));
+    const result = laidOut(dead, open(1, 3));
     const hint = rect(result, box('event:hint'));
     expect(hint.top).toBeGreaterThan(rect(result, box('label:r2')).bottom);
     expect(hint.bottom).toBeLessThan(rect(result, box('label:r3')).top);
@@ -828,9 +873,9 @@ describe('the group of a signal received during a round', () => {
     ['from two steps', 'r2s1', 'r2s2'],
     ['from one step', 'r2s1', 'r2s1'],
   ])(
-    'go side by side in one row, two received during one round %s',
+    'go side by side in one row, two received during one collapsed round %s',
     (_, a, b) => {
-      for (const views of [open(2), open(1, 2, 3)]) {
+      for (const views of [open(3), open(1, 3)]) {
         const result = laidOut(twoSignals(a, b), views, 1000);
         const [hA, hB] = ['A', 'B'].map(k =>
           rect(result, box(`event:hint${k}`)),
@@ -849,35 +894,35 @@ describe('the group of a signal received during a round', () => {
     },
   );
 
-  it('does not widen a loop whose one signal already has room', () => {
+  it('keeps the loop of the recorded run with its signal at the size it is drawn', () => {
     const views = Object.fromEntries(
       (loopGraph.eventGroups ?? []).map(g => [g.key, true]),
     );
     const full = laidOut(loopGraph, views, 1400);
     const fullLoop = rect(full, box('label:loop:draft-review'));
-    expect(fullLoop.right - fullLoop.left).toBe(916);
-    expect(fullLoop.bottom - fullLoop.top).toBe(686);
+    expect(fullLoop.right - fullLoop.left).toBe(940);
+    expect(fullLoop.bottom - fullLoop.top).toBe(666);
     expect(full.layout.wrapped).toBe(true);
-    expect(full.layout.width).toBe(1284);
-    expect(full.layout.height).toBe(892);
+    expect(full.layout.width).toBe(1308);
+    expect(full.layout.height).toBe(872);
     const round2 = laidOut(
       loopGraph,
       { 'label:loop:draft-review:2': true },
       1000,
     );
     const openLoop = rect(round2, box('label:loop:draft-review'));
-    expect(openLoop.right - openLoop.left).toBe(916);
-    expect(openLoop.bottom - openLoop.top).toBe(586);
+    expect(openLoop.right - openLoop.left).toBe(940);
+    expect(openLoop.bottom - openLoop.top).toBe(566);
     expect(round2.layout.wrapped).toBe(true);
-    expect(round2.layout.width).toBe(988);
-    expect(round2.layout.height).toBe(916);
+    expect(round2.layout.width).toBe(1012);
+    expect(round2.layout.height).toBe(896);
   });
 
   it('keeps two groups from one step within the gap their arrows need', () => {
     // Both groups start where the arrow out of the same step turns down.
     // The second is two frame gaps after the first, plus the lanes those
     // arrows take, and no farther: the gap between groups has a bound.
-    const result = laidOut(twoSignals('r2s1', 'r2s1'), open(1, 2, 3), 1000);
+    const result = laidOut(twoSignals('r2s1', 'r2s1'), open(1, 3), 1000);
     const [hA, hB] = ['A', 'B'].map(k => rect(result, box(`event:hint${k}`)));
     const [left, right] = [hA, hB].sort((p, q) => p.left - q.left);
     const gap = right.left - left.right;
@@ -1043,7 +1088,7 @@ describe('the group of a signal received during a round', () => {
       ...ids.map(id => step(id)),
     );
     const views = {
-      ...open(1, 2, 3),
+      ...open(1, 3),
       'event:hint': true,
       'label:a': true,
       'label:b': true,
@@ -1076,19 +1121,23 @@ describe('the group of a signal received during a round', () => {
     );
   });
 
-  it('goes in the loop of the recorded run, between rounds 2 and 3', () => {
+  it('goes in round 2 of the recorded run, below its steps', () => {
     const views = Object.fromEntries(
       (loopGraph.eventGroups ?? []).map(g => [g.key, true]),
     );
+    const round = box('label:loop:draft-review:2');
     for (const width of [undefined, 1400, 1000]) {
       const result = laidOut(loopGraph, views, width);
+      expect(
+        result.graph.frames.find(f => f.id === box('event:29'))!.parent,
+      ).toBe(round);
       const hint = rect(result, box('event:29'));
-      expect(hint.top).toBeGreaterThan(
-        rect(result, box('label:loop:draft-review:2')).bottom,
-      );
-      expect(hint.bottom).toBeLessThan(
-        rect(result, box('label:loop:draft-review:3')).top,
-      );
+      const steps = result.graph.nodes
+        .filter(n => n.parent === round && n.id !== box('event:29'))
+        .map(n => rect(result, n.id));
+      expect(steps.length).toBeGreaterThan(0);
+      expect(hint.top).toBeGreaterThan(Math.max(...steps.map(r => r.bottom)));
+      expect(hint.bottom).toBeLessThan(rect(result, round).bottom);
       expect(throughBoxes(result)).toEqual([]);
     }
     // Wrapped, the steps after the loop stay in one line in their row.
@@ -1097,6 +1146,430 @@ describe('the group of a signal received during a round', () => {
     expect(rect(wrapped, 'activity-66').middle).toBe(
       rect(wrapped, 'activity-72').middle,
     );
+  });
+});
+
+describe('the group of a signal received during an open round', () => {
+  /**
+   * The loop, with the groups of signals received during it: each from a
+   * step, back into a step or into none. Round 2 has `steps` steps.
+   */
+  function signals(
+    list: [key: string, from: string, back?: string][],
+    steps = 3,
+  ): Graph {
+    const graph = loop(3, {
+      edges: list.flatMap(([k, from, back]) => [
+        [from, `signal${k}`] as [string, string],
+        [`signal${k}`, `hint${k}`] as [string, string],
+        ...(back ? [[`hint${k}`, back] as [string, string]] : []),
+      ]),
+      groups: list.map(([k]) => ({
+        ...label(`event:hint${k}`, [`hint${k}`]),
+        kind: 'event' as const,
+        sourceNodeId: `signal${k}`,
+      })),
+    });
+    const more = Array.from({ length: steps - 3 }, (_, i) => `r2x${i + 1}`);
+    if (more.length > 0) {
+      const chain = ['r2s2', ...more, 'r2s3'];
+      graph.edges = [
+        ...graph.edges.filter(e => e.id !== 'r2s2->r2s3'),
+        ...chain.slice(1).map((id, i) => ({
+          id: `${chain[i]}->${id}`,
+          source: chain[i],
+          target: id,
+        })),
+      ];
+      graph.nodes.splice(
+        graph.nodes.findIndex(n => n.id === 'r2s3'),
+        0,
+        ...more.map(id => step(id)),
+      );
+      for (const g of graph.eventGroups!) {
+        if (g.key === 'label:loop' || g.key === 'label:r2') {
+          g.nodeIds.push(...more);
+        }
+      }
+    }
+    // Each signal and its step right after the step it came from.
+    for (const [k, from] of list) {
+      graph.nodes.splice(
+        graph.nodes.findIndex(n => n.id === from) + 1,
+        0,
+        step(`signal${k}`, { kind: 'signal' }),
+        step(`hint${k}`),
+      );
+    }
+    return graph;
+  }
+  const clean = (result: GroupedLayout) => {
+    expect(crossings(result)).toEqual([]);
+    expect(throughBoxes(result)).toEqual([]);
+    expect(runningOn(result)).toEqual([]);
+    expect(tooClose(result)).toEqual([]);
+  };
+  const oneLine = (result: GroupedLayout, ids: string[]) => {
+    const middles = ids.map(id => rect(result, id).middle);
+    expect(new Set(middles).size).toBe(1);
+  };
+
+  it('goes in the round beside its steps, which stay on one line', () => {
+    for (const views of [open(1, 2, 3), open(2)]) {
+      const result = laidOut(signals([['A', 'r2s1', 'r2s3']]), views, 1000);
+      expect(
+        result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+      ).toBe(box('label:r2'));
+      oneLine(result, ['r2s1', 'r2s2', 'r2s3']);
+      const hint = rect(result, box('event:hintA'));
+      const round = rect(result, box('label:r2'));
+      expect(hint.top).toBeGreaterThan(rect(result, 'r2s2').bottom);
+      expect(hint.left).toBeGreaterThan(rect(result, 'r2s1').right);
+      expect(hint.right).toBeLessThan(rect(result, 'r2s3').left);
+      expect(hint.bottom).toBeLessThan(round.bottom);
+      clean(result);
+    }
+  });
+
+  it('puts the groups of two signals from one step in one column with the step next to them', () => {
+    const result = laidOut(
+      signals([
+        ['A', 'r2s1', 'r2s3'],
+        ['B', 'r2s1', 'r2s3'],
+      ]),
+      open(1, 2, 3),
+      1000,
+    );
+    const column = ['event:hintA', 'event:hintB']
+      .map(k => rect(result, box(k)))
+      .concat(rect(result, 'r2s2'))
+      .sort((a, b) => a.top - b.top);
+    // One above the other, the step above the two groups.
+    expect(column[0]).toEqual(rect(result, 'r2s2'));
+    for (const [a, b] of [
+      [column[0], column[1]],
+      [column[1], column[2]],
+    ]) {
+      expect(b.top).toBeGreaterThan(a.bottom);
+      expect(a.left < b.right && b.left < a.right).toBe(true);
+    }
+    // The arrows into the next step come in from the right of all three.
+    const into = rect(result, 'r2s3');
+    const right = Math.max(...column.map(r => r.right));
+    for (const { edge, points } of arrows(result)) {
+      if (edge.target !== 'r2s3') continue;
+      const turns = points.slice(1, -1);
+      for (const p of turns) {
+        expect(p.x).toBeGreaterThan(right);
+        expect(p.x).toBeLessThan(into.left);
+      }
+    }
+    oneLine(result, ['r2s1', 'r2s2', 'r2s3']);
+    clean(result);
+  });
+
+  it.each([
+    [
+      'two signals from two steps',
+      [
+        ['A', 'r2s1', 'r2s3'],
+        ['B', 'r2s2', 'r2s3'],
+      ],
+    ],
+    [
+      'three signals',
+      [
+        ['A', 'r2s1', 'r2s3'],
+        ['B', 'r2s2', 'r2s3'],
+        ['C', 'r2s1', 'r2s3'],
+      ],
+    ],
+  ] as [string, [string, string, string][]][])(
+    'keep the arrows of %s clear of each other and of the boxes',
+    (_, list) => {
+      for (const views of [open(1, 2, 3), open(2)]) {
+        const result = laidOut(signals(list), views, 1000);
+        expect(
+          result.graph.frames.filter(f => f.parent === box('label:r2')),
+        ).toHaveLength(list.length);
+        oneLine(result, ['r2s1', 'r2s2', 'r2s3']);
+        clean(result);
+      }
+    },
+  );
+
+  it('ends in the round when it leads nowhere else', () => {
+    for (const from of ['r2s2', 'r2s3']) {
+      const result = laidOut(signals([['A', from]]), open(1, 2, 3), 1000);
+      expect(
+        result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+      ).toBe(box('label:r2'));
+      const hint = rect(result, box('event:hintA'));
+      const round = rect(result, box('label:r2'));
+      expect(hint.left).toBeGreaterThan(rect(result, from).right);
+      expect(hint.right).toBeLessThan(round.right);
+      expect(hint.bottom).toBeLessThan(round.bottom);
+      oneLine(result, ['r2s1', 'r2s2', 'r2s3']);
+      clean(result);
+    }
+  });
+
+  it('moves the steps from the one it leads back to right when it needs the room', () => {
+    // Back into the very next step: no column between them.
+    const result = laidOut(signals([['A', 'r2s1', 'r2s2']]), open(1, 2, 3));
+    const hint = rect(result, box('event:hintA'));
+    expect(rect(result, 'r2s2').left).toBeGreaterThan(hint.right);
+    oneLine(result, ['r2s1', 'r2s2', 'r2s3']);
+    clean(result);
+  });
+
+  it('reaches to the column before the step it leads back to', () => {
+    // Two steps between the source and the target: the frame spans both,
+    // so the arrows turn down and up next to their ends.
+    const result = laidOut(signals([['A', 'r2s1', 'r2s3']], 4), open(1, 2, 3));
+    const hint = rect(result, box('event:hintA'));
+    expect(hint.left).toBeLessThan(rect(result, 'r2x1').right);
+    expect(hint.right).toBeGreaterThanOrEqual(rect(result, 'r2x1').right);
+    oneLine(result, ['r2s1', 'r2s2', 'r2x1', 'r2s3']);
+    clean(result);
+  });
+
+  it('goes below the steps also from the upper of two steps side by side', () => {
+    // Round 2 with a branch: r2s1 to r2s2 and to r2p, both on to r2s3. The
+    // signal from the upper one of the two goes below both, clear of them.
+    const graph = signals([]);
+    graph.nodes.splice(
+      graph.nodes.findIndex(n => n.id === 'r2s3'),
+      0,
+      step('r2p'),
+    );
+    graph.edges.push(
+      { id: 'r2s1->r2p', source: 'r2s1', target: 'r2p' },
+      { id: 'r2p->r2s3', source: 'r2p', target: 'r2s3' },
+    );
+    for (const g of graph.eventGroups!) {
+      if (g.key === 'label:loop' || g.key === 'label:r2') g.nodeIds.push('r2p');
+    }
+    const plain = laidOut(graph, open(1, 2, 3));
+    const [upper, lower] = ['r2s2', 'r2p'].sort(
+      (a, b) => rect(plain, a).top - rect(plain, b).top,
+    );
+    const withSignal = signals([['A', upper]]);
+    // The signal and its step right after the step they came from.
+    withSignal.nodes = withSignal.nodes.filter(
+      n => !['signalA', 'hintA'].includes(n.id),
+    );
+    withSignal.nodes.splice(
+      withSignal.nodes.findIndex(n => n.id === 'r2s3'),
+      0,
+      step('r2p'),
+    );
+    withSignal.nodes.splice(
+      withSignal.nodes.findIndex(n => n.id === upper) + 1,
+      0,
+      step('signalA', { kind: 'signal' }),
+      step('hintA'),
+    );
+    withSignal.edges.push(...graph.edges.filter(e => e.id.includes('r2p')));
+    for (const g of withSignal.eventGroups!) {
+      if (g.key === 'label:loop' || g.key === 'label:r2') g.nodeIds.push('r2p');
+    }
+    const result = laidOut(withSignal, open(1, 2, 3));
+    expect(rect(result, box('event:hintA')).top).toBeGreaterThan(
+      rect(result, lower).bottom,
+    );
+    expect(rect(result, upper).top).toBeLessThan(rect(result, lower).top);
+    // No more crossings than without the signal, and no arrow through a box.
+    expect(crossings(result)).toEqual(crossings(plain));
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it.each([
+    [
+      'two groups from one step',
+      [
+        ['A', 'r2s1', 'r2s3'],
+        ['B', 'r2s1', 'r2s3'],
+      ],
+    ],
+    [
+      'three groups',
+      [
+        ['A', 'r2s1', 'r2s3'],
+        ['B', 'r2s2', 'r2s3'],
+        ['C', 'r2s1', 'r2s3'],
+      ],
+    ],
+  ] as [string, [string, string, string][]][])(
+    'puts %s all below the steps, one below the other',
+    (_, list) => {
+      const result = laidOut(signals(list), open(1, 2, 3), 1000);
+      const steps = Math.max(
+        ...['r2s1', 'r2s2', 'r2s3'].map(id => rect(result, id).bottom),
+      );
+      const hints = list
+        .map(([k]) => rect(result, box(`event:hint${k}`)))
+        .sort((a, b) => a.top - b.top);
+      expect(hints[0].top).toBeGreaterThan(steps);
+      hints.slice(1).forEach((h, i) => {
+        expect(h.top).toBeGreaterThan(hints[i].bottom);
+      });
+      clean(result);
+    },
+  );
+
+  it('stays in a row below the round when its arrow leads into a step after others of a group in the round', () => {
+    // r2s2 and r2s3 in a group of their own in round 2: the arrow back into
+    // r2s3 would pass r2s2.
+    const graph = signals([['A', 'r2s1', 'r2s3']]);
+    graph.eventGroups!.push(label('label:inner', ['r2s2', 'r2s3'], 'label:r2'));
+    graph
+      .eventGroups!.find(g => g.key === 'label:r2')!
+      .children.push('label:inner');
+    const result = laidOut(graph, { ...open(1, 2, 3), 'label:inner': true });
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+    expect(rect(result, box('event:hintA')).top).toBeGreaterThan(
+      rect(result, box('label:r2')).bottom,
+    );
+  });
+
+  it('stays in a row below the round when its arrow comes from a step before others of a group in the round', () => {
+    // r2s1 and r2s2 in a group of their own in round 2: the arrow out of
+    // r2s1 would pass r2s2.
+    const graph = signals([['A', 'r2s1', 'r2s3']]);
+    graph.eventGroups!.push(label('label:inner', ['r2s1', 'r2s2'], 'label:r2'));
+    graph
+      .eventGroups!.find(g => g.key === 'label:r2')!
+      .children.push('label:inner');
+    const result = laidOut(graph, { ...open(1, 2, 3), 'label:inner': true });
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+  });
+
+  it('keeps the groups of a round in a row below it when their arrows would cross there', () => {
+    // Z (r2s1 to r2x1) and X (r2s2 to r2x2) overlap without one around
+    // the other: in lanes one below the other their arrows would cross. W
+    // (r2x2 to r2s3) would fit, but stays with them.
+    const result = laidOut(
+      signals(
+        [
+          ['Z', 'r2s1', 'r2x1'],
+          ['X', 'r2s2', 'r2x2'],
+          ['W', 'r2x2', 'r2s3'],
+        ],
+        5,
+      ),
+      open(1, 2, 3),
+    );
+    for (const k of ['Z', 'X', 'W']) {
+      expect(
+        result.graph.frames.find(f => f.id === box(`event:hint${k}`))!.parent,
+      ).toBe(box('label:loop'));
+    }
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('keeps the groups of a round in a row below it when arrows from two steps of a column would turn at one place', () => {
+    // r2s1 to r2s2 and to r2p, both on to r2s3; a signal from each, back
+    // into r2s3.
+    const graph = signals([
+      ['A', 'r2s2', 'r2s3'],
+      ['B', 'r2p', 'r2s3'],
+    ]);
+    graph.nodes = graph.nodes.filter(n => !['signalB', 'hintB'].includes(n.id));
+    graph.nodes.splice(
+      graph.nodes.findIndex(n => n.id === 'r2s3'),
+      0,
+      step('r2p'),
+      step('signalB', { kind: 'signal' }),
+      step('hintB'),
+    );
+    graph.edges.push(
+      { id: 'r2s1->r2p', source: 'r2s1', target: 'r2p' },
+      { id: 'r2p->r2s3', source: 'r2p', target: 'r2s3' },
+    );
+    for (const g of graph.eventGroups!) {
+      if (g.key === 'label:loop' || g.key === 'label:r2') g.nodeIds.push('r2p');
+    }
+    const result = laidOut(graph, open(1, 2, 3), 1000);
+    for (const k of ['A', 'B']) {
+      expect(
+        result.graph.frames.find(f => f.id === box(`event:hint${k}`))!.parent,
+      ).toBe(box('label:loop'));
+    }
+    expect(runningOn(result)).toEqual([]);
+  });
+
+  it('stays in a row below the round when it leads back to two steps', () => {
+    // Back into r2s2 and r2s3: the arrow into r2s3 would pass r2s2.
+    const graph = signals([['A', 'r2s1', 'r2s2']]);
+    graph.edges.push({ id: 'hintA->r2s3', source: 'hintA', target: 'r2s3' });
+    const result = laidOut(graph, open(1, 2, 3), 1000);
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('stays in a row below the round when its step does not lead to the one it leads back to', () => {
+    // r2s1 to r2s2 and to r2p, both on to r2s3; the signal from r2s2 leads
+    // back to r2p, in the column of r2s2.
+    const graph = signals([['A', 'r2s2', 'r2p']]);
+    graph.nodes.splice(
+      graph.nodes.findIndex(n => n.id === 'r2s3'),
+      0,
+      step('r2p'),
+    );
+    graph.edges.push(
+      { id: 'r2s1->r2p', source: 'r2s1', target: 'r2p' },
+      { id: 'r2p->r2s3', source: 'r2p', target: 'r2s3' },
+    );
+    for (const g of graph.eventGroups!) {
+      if (g.key === 'label:loop' || g.key === 'label:r2') g.nodeIds.push('r2p');
+    }
+    const result = laidOut(graph, open(1, 2, 3), 1000);
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+    expect(throughBoxes(result)).toEqual([]);
+  });
+
+  it('stays in a row below the round when the steps it moves right would land on an arrow past them', () => {
+    // Back into the very next step, which moves right; an arrow out of r2s1
+    // runs on past it, out of the loop.
+    const graph = signals([['A', 'r2s1', 'r2s2']]);
+    graph.edges.push({ id: 'r2s1->end', source: 'r2s1', target: 'end' });
+    const result = laidOut(graph, open(1, 2, 3));
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+  });
+
+  it('stays in a row below the round when the steps it moves right would land on an arrow past a column', () => {
+    // Back into r2s3, which moves right; an arrow from r2s1 to r2s3 runs
+    // past the column of r2s2.
+    const graph = signals([['A', 'r2s2', 'r2s3']]);
+    graph.edges.push({ id: 'r2s1->r2s3', source: 'r2s1', target: 'r2s3' });
+    const result = laidOut(graph, open(1, 2, 3));
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+  });
+
+  it('stays in a row below the round when it leads back into the group it came from', () => {
+    // From the last step of a group in round 2 back to its first one.
+    const graph = signals([['A', 'r2s3', 'r2s2']]);
+    graph.eventGroups!.push(label('label:inner', ['r2s2', 'r2s3'], 'label:r2'));
+    graph
+      .eventGroups!.find(g => g.key === 'label:r2')!
+      .children.push('label:inner');
+    const result = laidOut(graph, { ...open(1, 2, 3), 'label:inner': true });
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
   });
 });
 

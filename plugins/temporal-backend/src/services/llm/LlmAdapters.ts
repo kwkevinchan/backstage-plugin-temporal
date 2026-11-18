@@ -243,11 +243,8 @@ export class LlmAdapters {
     return [...this.added, ...this.builtIn];
   }
 
-  /**
-   * A reader for the steps of one run. `silent` logs nothing, for a pass
-   * whose steps are read again by another reader.
-   */
-  reader(options: { silent?: boolean } = {}): LlmStepReader {
+  /** A reader for the steps of one run. */
+  reader(): LlmStepReader {
     const adapters = this.all();
     // The built-in adapters return plain JSON: copying them would copy
     // whole conversations (`raw`) on every graph.
@@ -259,7 +256,7 @@ export class LlmAdapters {
       eventId: string | undefined,
       message: string,
     ) => {
-      if (options.silent || warned.has(adapter.id)) return;
+      if (warned.has(adapter.id)) return;
       warned.add(adapter.id);
       this.logger?.warn(
         `LLM adapter ${adapter.id}: ${message} (activity type ${

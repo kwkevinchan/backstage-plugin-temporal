@@ -38,7 +38,9 @@ import {
 } from '@remixicon/react';
 import { ErrorAlert, Loading } from '../feedback';
 import { FailureView } from '../FailureView';
-import { CopyButton, JsonView, PayloadView } from '../PayloadView';
+import { CopyButton } from '../CopyButton';
+import { ExternalPayloadView } from '../ExternalPayloadView';
+import { JsonView, PayloadView } from '../PayloadView';
 import { WorkflowStatusLabel } from '../WorkflowStatusLabel';
 import { tp } from '../styles';
 import {
@@ -594,6 +596,7 @@ export function LlmPanel(props: {
           {data.unavailable}
         </Text>
       )}
+      {data?.external && <ExternalPayloadView external={data.external} />}
       {data?.fromFailure && (
         <Text as="p" variant="body-small" color="secondary">
           Record of a failed attempt, from the failure details.

@@ -92,7 +92,6 @@ export type DecodedPayload =
   | {
       encoding: string;
       value: JsonValue;
-      external?: ExternalPayload;
     }
   | {
       encoding: string;
@@ -112,20 +111,10 @@ export function exampleArgs(example: JsonValue | undefined): JsonValue[];
 export interface ExternalPayload {
   // (undocumented)
   bucket: string;
-  contentType: string;
-  // (undocumented)
-  downloadable?: boolean;
-  encoding: string;
-  // (undocumented)
-  error?: string;
   // (undocumented)
   key: string;
-  preview?: string;
-  previewTruncated?: boolean;
   sha256: string;
   size: number;
-  // (undocumented)
-  state: 'inline' | 'preview' | 'unconfigured' | 'error';
   // (undocumented)
   store: string;
 }

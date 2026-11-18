@@ -64,8 +64,8 @@ code: it polls the service for work, executes it and reports back.
   To process more work, run more Workers on the same task queue.
 
 The plugin is a Client that also reads. It connects to the service's frontend
-(gRPC) and, for large payloads, to S3. It never talks to a Worker and never
-touches Temporal's database.
+(gRPC). It never talks to a Worker, never reads the S3 bucket of External
+Storage and never touches Temporal's database.
 
 ### Inside the Temporal Service
 
@@ -289,8 +289,8 @@ encrypts, what lands in S3 is already encrypted.
 - **External Storage.** An SDK feature (public preview) that stores payloads
   above a threshold in S3 and keeps a reference in the history. See
   [External Storage](https://docs.temporal.io/external-storage) for the
-  thresholds and versions. Screen: the step panel shows the stored content, a
-  preview or a thumbnail and lets you download it
+  thresholds and versions. Screen: the plugin does not read the bucket; the step panel shows where the
+  payload is stored (`s3://bucket/key` and the SHA-256)
   ([setup](../README.md#large-payloads-external-storage)).
 
 ## A minimal example in TypeScript

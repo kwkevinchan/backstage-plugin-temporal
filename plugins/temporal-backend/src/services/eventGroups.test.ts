@@ -424,6 +424,32 @@ describe('event groups in the graph', () => {
     expect(group('loop:draft-review').children).toHaveLength(3);
   });
 
+  it('names a group whose label is in External Storage by its ID', () => {
+    const stored = {
+      metadata: {
+        encoding: b64('json/protobuf'),
+        messageType: b64('temporal.api.sdk.v1.ExternalStorageReference'),
+      },
+      data: b64(
+        JSON.stringify({
+          driverName: 'aws.s3driver',
+          claimData: {
+            bucket: 'payloads',
+            key: 'v0/d/sha256/abc',
+            hash_algorithm: 'sha256',
+            hash_value: 'a'.repeat(64),
+          },
+        }),
+      ),
+      externalPayloads: [{ sizeBytes: '300000' }],
+    };
+    const { group } = graphOf(
+      activities([{ label: { id: 'stored-label', label: stored } }]),
+    );
+    expect(group('stored-label').name).toBe('stored-label');
+    expect(group('stored-label').labelUnreadable).toBe(true);
+  });
+
   it('counts the continued-as-new event in the group it was called in', () => {
     const { graph, group, node } = graphOf(fixture('continue-as-new'), {
       status: 'ContinuedAsNew',

@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
-import type { JsonValue } from '@backstage/types';
+import type { JsonObject, JsonValue } from '@backstage/types';
 import type { DecodedPayload, ExternalPayload } from '../common';
-import { ButtonIcon, Text } from '@backstage/ui';
-import { RiCheckLine, RiFileCopyLine } from '@remixicon/react';
+import { Text } from '@backstage/ui';
+import { CopyButton } from './CopyButton';
 import { ExternalPayloadView } from './ExternalPayloadView';
 import { tp } from './styles';
 
@@ -32,29 +31,26 @@ function isDecoded(value: unknown): value is DecodedPayload {
   );
 }
 
+/** A payload in External Storage: where it is stored, and no value. */
+function isReference(
+  value: unknown,
+): value is { encoding: string; external: ExternalPayload } {
+  if (!isDecoded(value) || !('external' in value)) return false;
+  const e = (value as { external?: Partial<ExternalPayload> }).external;
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    typeof e.store === 'string' &&
+    typeof e.bucket === 'string' &&
+    typeof e.key === 'string' &&
+    typeof e.sha256 === 'string' &&
+    typeof e.size === 'number'
+  );
+}
+
 function summary(value: JsonValue): string {
   const text = JSON.stringify(value);
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
-}
-
-/** Copies text to the clipboard and shows a check mark for a moment. */
-export function CopyButton(props: { text: string; label?: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <ButtonIcon
-      size="small"
-      variant="tertiary"
-      aria-label={props.label ?? 'Copy'}
-      icon={copied ? <RiCheckLine /> : <RiFileCopyLine />}
-      onPress={async () => {
-        await window.navigator.clipboard
-          ?.writeText(props.text)
-          .catch(() => undefined);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 1500);
-      }}
-    />
-  );
 }
 
 /** JSON that can be folded and copied. Objects start folded unless `open`. */
@@ -89,18 +85,8 @@ function One(props: { payload: JsonValue; open?: boolean }) {
       </Text>
     );
   }
-  const stored = isDecoded(payload)
-    ? (payload as { external?: ExternalPayload; value?: JsonValue })
-    : undefined;
-  if (stored?.external) {
-    // Stored in S3: with the value when the backend shows it inline.
-    return (
-      <ExternalPayloadView external={stored.external}>
-        {'value' in stored && (
-          <JsonView value={stored.value ?? null} open={props.open} />
-        )}
-      </ExternalPayloadView>
-    );
+  if (isReference(payload)) {
+    return <ExternalPayloadView external={payload.external} />;
   }
   const value =
     isDecoded(payload) && 'value' in payload ? payload.value : payload;
@@ -109,8 +95,8 @@ function One(props: { payload: JsonValue; open?: boolean }) {
 
 /**
  * A decoded payload, or an array of them (several arguments). Payloads that
- * could not be decoded show their encoding and size; payloads stored in S3
- * show their size, a preview and a download button.
+ * could not be decoded show their encoding and size; payloads stored in
+ * External Storage show where they are stored.
  */
 export function PayloadView(props: { payload?: JsonValue; open?: boolean }) {
   const { payload } = props;
@@ -131,4 +117,30 @@ export function PayloadView(props: { payload?: JsonValue; open?: boolean }) {
     );
   }
   return <One payload={payload} open={props.open} />;
+}
+
+/**
+ * The memo of a workflow: its JSON, with the entries that are stored in
+ * External Storage shown like the inputs and results of steps.
+ */
+export function MemoView(props: { memo: JsonObject }) {
+  const entries = Object.entries(props.memo);
+  const stored = entries.filter(([, value]) => isReference(value));
+  if (stored.length === 0) return <JsonView value={props.memo} />;
+  const rest = Object.fromEntries(
+    entries.filter(([, value]) => !isReference(value)),
+  );
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {Object.keys(rest).length > 0 && <JsonView value={rest as JsonObject} />}
+      {stored.map(([name, value]) => (
+        <div key={name} style={{ display: 'grid', gap: 4 }}>
+          <Text as="span" variant="body-small" weight="bold">
+            {name}
+          </Text>
+          <PayloadView payload={value} />
+        </div>
+      ))}
+    </div>
+  );
 }

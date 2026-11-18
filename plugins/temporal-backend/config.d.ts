@@ -107,72 +107,19 @@ export interface Config {
     };
     /**
      * Temporal External Storage: payloads that workers store outside the
-     * workflow history with the `ExternalStorage` of the Temporal SDKs.
+     * workflow history with the `ExternalStorage` of the Temporal SDKs. The
+     * plugin never reads them: it shows where they are stored.
      */
     externalStorage?: {
       /**
-       * The S3 driver (`@temporalio/external-storage-s3` and the drivers of
-       * the other SDKs). Without it, stored payloads are shown as stored
-       * externally, with their key and size. The credentials are the
-       * plugin's own, from exactly one of `credentials`, `accountId` and
-       * `defaultCredentials`; do not use those of `integrations.awsS3`.
+       * Template of a link to a stored payload, for example a page of your
+       * S3 console: `https://console.example.com/s3/{bucket}?prefix={key}`.
+       * `{bucket}` and `{key}` are replaced with the URL-encoded bucket and
+       * key. Only `https:` templates are used. Without it there is no link;
+       * the location (`s3://bucket/key`) is shown with a copy button.
+       * @visibility frontend
        */
-      s3?: {
-        /**
-         * Bucket of the payloads, the same as the workers' driver uses.
-         * Payloads in other buckets are not read.
-         */
-        bucket: string;
-        /**
-         * Driver name the workers' driver writes into the references.
-         * Defaults to `aws.s3driver`, the default of the S3 driver.
-         */
-        driverName?: string;
-        /**
-         * Endpoint of an S3-compatible service, for example
-         * `http://localhost:9100`. Leave it out for AWS S3.
-         */
-        endpoint?: string;
-        /** Region of the bucket. Defaults to `us-east-1`. */
-        region?: string;
-        /** Bucket in the path instead of the host name. */
-        forcePathStyle?: boolean;
-        /**
-         * An access key of the plugin with read access (`s3:GetObject`) to
-         * the bucket.
-         */
-        credentials?: {
-          /** @visibility secret */
-          accessKeyId: string;
-          /** @visibility secret */
-          secretAccessKey: string;
-          /** @visibility secret */
-          sessionToken?: string;
-        };
-        /**
-         * An AWS account of Backstage's `aws.accounts`, whose credentials
-         * (access key, profile or role) are used. The entry needs its own role,
-         * access key or profile; without them the backend does not start.
-         * Write it as a string.
-         */
-        accountId?: string;
-        /**
-         * Read with the AWS SDK's default credential chain (environment
-         * variables, profile, the role of the instance or pod). Without `aws.mainAccount`, Backstage's
-         * URL reader also reads with this identity, so use it only when the
-         * identity of the machine should let Backstage read this bucket; the
-         * backend logs a warning.
-         */
-        defaultCredentials?: boolean;
-        /**
-         * JSON payloads up to this many bytes are downloaded and shown like
-         * payloads in the history. Larger ones show their size and a
-         * preview, and can be downloaded. Defaults to 262144 (256 KiB).
-         */
-        maxInlineBytes?: number;
-        /** Bytes of text shown as the preview of a larger payload. Defaults to 2048. */
-        previewBytes?: number;
-      };
+      objectUrl?: string;
     };
   };
 }

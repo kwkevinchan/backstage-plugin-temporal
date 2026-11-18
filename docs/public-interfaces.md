@@ -271,12 +271,12 @@ integrations (`vercel-ai-sdk`, `openai-agents`, see the
 [README](../README.md#model-calls-and-tool-calls)). A `TemporalLlmAdapter`
 has:
 
-| Member                           | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                             | Unique; shown as the `framework` of the calls it reads. A taken ID (also a built-in one) fails the startup                                                                                                                                                                                                                                                                                                                     |
-| `isModelCall(step)`              | From `TemporalLlmStep` (`kind`, `activityType`, `activityId?`, `summary?`; no payloads): may the step be one of your model calls? Only activities are read as model calls; true for a local activity is logged and has no effect. For the graph of a caller without the history permission the backend reads the result from External Storage, not the input (an input stored there is left out); the record route passes both |
-| `readModelCalls(step, payloads)` | The model calls of the step, usually one, several when the step runs a whole agent (at most 100): `{ name?, record?, raw? }`, `record` a `WorkflowLlmRecord` of `./common`. Check the shape of `payloads` (`input?`, `result?`, `failureDetails?`); return `[]` when it does not match                                                                                                                                         |
-| `readToolCall?(step, payloads)`  | Whether the step ran a tool a model call asked for: `{ toolName?, toolCallId?, modelCall? }`, else undefined                                                                                                                                                                                                                                                                                                                   |
+| Member                           | Meaning                                                                                                                                                                                                                                                                                           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                             | Unique; shown as the `framework` of the calls it reads. A taken ID (also a built-in one) fails the startup                                                                                                                                                                                        |
+| `isModelCall(step)`              | From `TemporalLlmStep` (`kind`, `activityType`, `activityId?`, `summary?`; no payloads): may the step be one of your model calls? Only activities are read as model calls; true for a local activity is logged and has no effect. Payloads in External Storage are not read, so they are left out |
+| `readModelCalls(step, payloads)` | The model calls of the step, usually one, several when the step runs a whole agent (at most 100): `{ name?, record?, raw? }`, `record` a `WorkflowLlmRecord` of `./common`. Check the shape of `payloads` (`input?`, `result?`, `failureDetails?`); return `[]` when it does not match            |
+| `readToolCall?(step, payloads)`  | Whether the step ran a tool a model call asked for: `{ toolName?, toolCallId?, modelCall? }`, else undefined                                                                                                                                                                                      |
 
 The adapters of modules are asked first, in the order they were added, then
 the built-in ones; the first that reads a step decides, and an adapter that
@@ -493,7 +493,6 @@ Reads are always served:
 | `GET /:wf/handlers`                                   | read level                                                                                              | `entityRef`                                                                                                         | `WorkflowHandlersResponse`     |
 | `GET /:wf/history`                                    | history level                                                                                           | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowHistoryResponse`      |
 | `GET /:wf/steps`                                      | history level                                                                                           | `entityRef`                                                                                                         | `WorkflowStepsResponse`        |
-| `GET /:wf/payloads/download`                          | history level                                                                                           | `entityRef`, `key`                                                                                                  | The payload's bytes            |
 | `POST /:wf/query`                                     | read level and `temporal.workflow.query`; audited                                                       | `WorkflowMessageRequest`                                                                                            | `WorkflowMessageResponse`      |
 | `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                                                                         | `entityRef`, `index`                                                                                                | `WorkflowLlmCallResponse`      |
 
@@ -590,29 +589,21 @@ keys below except `definitions`), [`temporal-frontend`](../plugins/temporal-fron
 [`temporal-backend-module-zigflow`](../plugins/temporal-backend-module-zigflow/config.d.ts).
 Defaults and meanings are in the [README](../README.md#configuration).
 
-| Key                                                                                                                       | Read by                                                             | Visible in the browser |
-| ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
-| `connection.address`                                                                                                      | backend (`temporalServiceRef`)                                      |                        |
-| `connection.namespaces`, `connection.tls`, `connection.auth.type`                                                         | backend                                                             |                        |
-| `connection.auth.token`                                                                                                   | backend; secret                                                     |                        |
-| `connection.defaultNamespace`                                                                                             | backend, frontend, Scaffolder backend module                        | yes                    |
-| `webUi.baseUrl`                                                                                                           | backend, frontend                                                   | yes                    |
-| `searchAttributes.entityRef`, `searchAttributes.initiator`                                                                | backend                                                             |                        |
-| `control.enabled`                                                                                                         | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
-| `control.allowedSignals`, `control.allowedUpdates`                                                                        | backend (rejects), frontend (offers)                                | yes                    |
-| `externalStorage.s3.bucket`, `.driverName`, `.endpoint`, `.region`, `.forcePathStyle`, `.maxInlineBytes`, `.previewBytes` | backend                                                             |                        |
-| `externalStorage.s3.credentials.accessKeyId`, `.secretAccessKey`, `.sessionToken`                                         | backend; secret                                                     |                        |
-| `externalStorage.s3.accountId`, `.defaultCredentials`                                                                     | backend (with Backstage's `aws` config)                             |                        |
-| `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations`                                              | Zigflow backend module                                              |                        |
+| Key                                                                          | Read by                                                             | Visible in the browser |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `connection.address`                                                         | backend (`temporalServiceRef`)                                      |                        |
+| `connection.namespaces`, `connection.tls`, `connection.auth.type`            | backend                                                             |                        |
+| `connection.auth.token`                                                      | backend; secret                                                     |                        |
+| `connection.defaultNamespace`                                                | backend, frontend, Scaffolder backend module                        | yes                    |
+| `webUi.baseUrl`                                                              | backend, frontend                                                   | yes                    |
+| `searchAttributes.entityRef`, `searchAttributes.initiator`                   | backend                                                             |                        |
+| `control.enabled`                                                            | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
+| `control.allowedSignals`, `control.allowedUpdates`                           | backend (rejects), frontend (offers)                                | yes                    |
+| `externalStorage.objectUrl`                                                  | frontend                                                            | yes                    |
+| `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations` | Zigflow backend module                                              |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
-the `workflowUrl` output. With `externalStorage.s3.accountId`, the backend
-also reads Backstage's `aws` config (`aws.accounts`, `aws.accountDefaults`,
-`aws.mainAccount`) for that account; those keys belong to Backstage. The
-`accountId` entry needs its own `roleName`, `accessKeyId` or `profile`
-(otherwise the backend does not start), and with `defaultCredentials: true`
-the backend reads `aws.mainAccount` to warn when Backstage's URL reader
-shares the identity of the machine.
+the `workflowUrl` output.
 
 ## Catalog: annotations and the `TemporalWorkflow` kind
 
@@ -676,7 +667,8 @@ Other systems can read these, so they are interfaces too:
 
 The plugin shows a workflow's memo on the details page. It also reads the
 references of Temporal External Storage, written by the SDK's S3 driver in
-its own format.
+its own format, to show where a stored payload is (the plugin does not read
+the stored data).
 
 ## Scaffolder
 

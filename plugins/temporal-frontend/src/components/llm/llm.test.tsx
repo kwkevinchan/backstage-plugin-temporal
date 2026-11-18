@@ -193,6 +193,31 @@ describe('LLM panel', () => {
     );
   });
 
+  it('shows where a record in External Storage is', async () => {
+    const api = mockTemporalApi();
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: undefined,
+      raw: undefined,
+      unavailable: 'The record is stored in External Storage.',
+      external: {
+        store: 's3',
+        bucket: 'payloads',
+        key: 'v0/d/sha256/abc',
+        size: 4096,
+        sha256: 'a'.repeat(64),
+      },
+    });
+    await renderDrawer('activity-5', { api });
+    expect(await screen.findByTestId('llm-unavailable')).toHaveTextContent(
+      'External Storage',
+    );
+    expect(screen.getByTestId('external-location')).toHaveTextContent(
+      's3://payloads/v0/d/sha256/abc',
+    );
+    expect(screen.queryByTestId('llm-output')).toBeNull();
+  });
+
   it('links a tool call back to its model call', async () => {
     const { api, onSelectStep } = await renderDrawer('activity-8');
     expect(api.getLlmCall).not.toHaveBeenCalled();

@@ -258,16 +258,14 @@ development backend allows everything; see
    (`notifyCustomerWorkflow`): the step panel shows its input and output, and its
    **Workflow** field links to the child's own details page.
 3. **Large payloads (optional, needs Docker).** Temporal can store large payloads
-   in S3 and keep only a reference in the history. This needs a different
-   configuration for the backend and the worker, so restart them. The README's
-   [Development section](../README.md#development) lists the same commands in two
-   blocks; here they are numbered, with the order that matters (stop, set the
-   variables, RustFS, app and backend, worker):
+   in S3 and keep only a reference in the history. The plugin does not read the
+   bucket, so only the worker needs the S3 settings; the app and the backend keep
+   running. The README's [Development section](../README.md#development) lists the
+   same commands; here they are numbered:
 
-   1. Stop what is running: the worker from step 1.5 (Ctrl+C) and `yarn start`
-      (Ctrl+C; this stops the frontend and the backend). Keep the Temporal
-      development server.
-   2. In every terminal below, set the variables for a local RustFS:
+   1. Stop the worker from step 1.5 (Ctrl+C). Keep the Temporal development
+      server and `yarn start`.
+   2. In the terminal for the worker, set the variables for a local RustFS:
 
       ```sh
       export PAYLOAD_S3_ENDPOINT=http://localhost:9100 PAYLOAD_S3_BUCKET=temporal-payloads
@@ -276,32 +274,21 @@ development backend allows everything; see
 
    3. Start RustFS:
       `docker compose -f examples/docker-compose.rustfs.yaml up -d`.
-   4. Start the app and the backend again, with the extra config file (the paths
-      are relative to `packages/app` and `packages/backend`). Set
-      `TEMPORAL_UI_URL` again as in step 1.3 if you use **Open in Temporal UI**:
+   4. Run `yarn workspace example-worker start` with the same variables. It creates
+      the bucket, starts a fresh set of workflows, now including `reportWorkflow`,
+      and stores payloads above 128 KiB in S3. When it has exited, run
+      `yarn workspace example-worker serve` with the same variables if you want to
+      operate workflows again.
 
-      ```sh
-      yarn start --config ../../app-config.yaml --config ../../app-config.s3.yaml
-      ```
-
-      Only the listed files are read: if you keep local settings in
-      `app-config.local.yaml`, add `--config ../../app-config.local.yaml`.
-
-   5. In another terminal run `yarn workspace example-worker start` with the same
-      variables. It creates the bucket, starts a fresh set of workflows, now
-      including `reportWorkflow`, and stores payloads above 128 KiB in S3. When it
-      has exited, run `yarn workspace example-worker serve` with the same variables
-      if you want to operate workflows again.
-
-   Open `example-report-…` and select `buildReport` and `renderChart`. The output
-   shows **Stored in S3**, the size and the media type: the JSON (1 MB) is larger
-   than the inline limit, so the panel shows a short preview and a **Download**
-   button, and the PNG chart (430 KB) has a **Download** button too.
-   The plugin read the objects from S3 and checked their SHA-256. Stop RustFS when
-   you are done (`docker compose -f examples/docker-compose.rustfs.yaml down -v`,
-   with the variables set).
-
-   ![A payload stored in S3, shown as an image.](images/s3-payload.png)
+   Open `example-report-…` and select `buildReport`, `summarizeReport` and
+   `renderChart`. The output shows **Stored in External Storage**, the size, the
+   location (`s3://temporal-payloads/…`) and the SHA-256, each with a copy button,
+   and no content: the plugin does not read the objects. To get an **Open** link
+   next to the location, set `temporal.externalStorage.objectUrl` (see the
+   README's [Large payloads](../README.md#large-payloads-external-storage)) and
+   restart the backend. Stop RustFS when you are done
+   (`docker compose -f examples/docker-compose.rustfs.yaml down -v`, with the
+   variables set).
 
 **Why:** the event history has a size limit, so long workflows continue as new and
 big payloads go outside. See the primer's

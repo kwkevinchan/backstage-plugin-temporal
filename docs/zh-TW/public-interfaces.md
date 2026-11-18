@@ -201,12 +201,12 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `./alpha`，`@alpha`，實驗性。`addLlmAdapter(adapter)` 讓後端認得某個框架的模型呼叫：轉接器讀得出的步驟顯示成模型呼叫（訊息、tool call、token），其他步驟就是一般步驟。後端內建了 Temporal 官方 AI 整合的轉接器（`vercel-ai-sdk`、`openai-agents`，見 [README](../../README.md#model-calls-and-tool-calls)）。`TemporalLlmAdapter` 有：
 
-| 成員                             | 意思                                                                                                                                                                                                                                                                                                                                 |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                             | 不可重複，顯示成它讀出的呼叫的 `framework`。用了已有的 id（包括內建的）會讓啟動失敗                                                                                                                                                                                                                                                  |
-| `isModelCall(step)`              | 只看 `TemporalLlmStep`（`kind`、`activityType`、`activityId?`、`summary?`，不含 payload）：這個步驟可能是你的模型呼叫嗎？只有 activity 會被當成模型呼叫；對 local activity 回 true 沒有效果，會記一筆警告。沒有 history 權限的人看流程圖時，只從 External Storage 讀結果、不讀輸入（存在那裡的輸入會被略過）；完整紀錄的路由兩者都給 |
-| `readModelCalls(step, payloads)` | 這個步驟的模型呼叫，通常一次，一個步驟跑完整個 agent 時是多次（最多 100 次）：`{ name?, record?, raw? }`，`record` 是 `./common` 的 `WorkflowLlmRecord`。先檢查 `payloads`（`input?`、`result?`、`failureDetails?`）的形狀，不符就回 `[]`                                                                                            |
-| `readToolCall?(step, payloads)`  | 這個步驟是不是執行了某次模型呼叫要求的工具：`{ toolName?, toolCallId?, modelCall? }`，不是就回 undefined                                                                                                                                                                                                                             |
+| 成員                             | 意思                                                                                                                                                                                                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                             | 不可重複，顯示成它讀出的呼叫的 `framework`。用了已有的 id（包括內建的）會讓啟動失敗                                                                                                                                                                               |
+| `isModelCall(step)`              | 只看 `TemporalLlmStep`（`kind`、`activityType`、`activityId?`、`summary?`，不含 payload）：這個步驟可能是你的模型呼叫嗎？只有 activity 會被當成模型呼叫；對 local activity 回 true 沒有效果，會記一筆警告。External Storage 裡的 Payload 不會被讀取，所以會被略過 |
+| `readModelCalls(step, payloads)` | 這個步驟的模型呼叫，通常一次，一個步驟跑完整個 agent 時是多次（最多 100 次）：`{ name?, record?, raw? }`，`record` 是 `./common` 的 `WorkflowLlmRecord`。先檢查 `payloads`（`input?`、`result?`、`failureDetails?`）的形狀，不符就回 `[]`                         |
+| `readToolCall?(step, payloads)`  | 這個步驟是不是執行了某次模型呼叫要求的工具：`{ toolName?, toolCallId?, modelCall? }`，不是就回 undefined                                                                                                                                                          |
 
 模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別或不是單純的 JSON（循環結構、函式、class 實例）時，那個步驟就是一般步驟，並記一筆警告，只含轉接器 id、事件 id 和錯誤名稱，每讀一次 run 每個轉接器一筆；錯誤訊息不會被記錄，也不會傳回去。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
 
@@ -321,7 +321,6 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 | `GET /:wf/handlers`                                   | read 層級                                                                            | `entityRef`                                                                                                        | `WorkflowHandlersResponse`     |
 | `GET /:wf/history`                                    | history 層級                                                                         | `entityRef`、`pageSize`、`pageToken`                                                                               | `WorkflowHistoryResponse`      |
 | `GET /:wf/steps`                                      | history 層級                                                                         | `entityRef`                                                                                                        | `WorkflowStepsResponse`        |
-| `GET /:wf/payloads/download`                          | history 層級                                                                         | `entityRef`、`key`                                                                                                 | payload 的內容                 |
 | `POST /:wf/query`                                     | read 層級加 `temporal.workflow.query`；有稽核                                        | `WorkflowMessageRequest`                                                                                           | `WorkflowMessageResponse`      |
 | `GET /:wf/llm-calls/:eventId`                         | history 層級。**實驗性**                                                             | `entityRef`、`index`                                                                                               | `WorkflowLlmCallResponse`      |
 
@@ -384,22 +383,20 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 所有鍵都在 `temporal` 底下。schema 是三個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表除了 `definitions` 的全部）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）和 [`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)。預設值和意思見 [README](../../README.md#configuration)。
 
-| 鍵                                                                                                                        | 誰讀                                   | 瀏覽器看得到 |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------ |
-| `connection.address`                                                                                                      | 後端（`temporalServiceRef`）           |              |
-| `connection.namespaces`、`connection.tls`、`connection.auth.type`                                                         | 後端                                   |              |
-| `connection.auth.token`                                                                                                   | 後端；secret                           |              |
-| `connection.defaultNamespace`                                                                                             | 後端、前端、Scaffolder 後端模組        | 是           |
-| `webUi.baseUrl`                                                                                                           | 後端、前端                             | 是           |
-| `searchAttributes.entityRef`、`searchAttributes.initiator`                                                                | 後端                                   |              |
-| `control.enabled`                                                                                                         | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
-| `control.allowedSignals`、`control.allowedUpdates`                                                                        | 後端（拒絕）、前端（提供選項）         | 是           |
-| `externalStorage.s3.bucket`、`.driverName`、`.endpoint`、`.region`、`.forcePathStyle`、`.maxInlineBytes`、`.previewBytes` | 後端                                   |              |
-| `externalStorage.s3.credentials.accessKeyId`、`.secretAccessKey`、`.sessionToken`                                         | 後端；secret                           |              |
-| `externalStorage.s3.accountId`、`.defaultCredentials`                                                                     | 後端（搭配 Backstage 的 `aws` 設定）   |              |
-| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations`                                              | Zigflow 後端模組                       |              |
+| 鍵                                                                           | 誰讀                                   | 瀏覽器看得到 |
+| ---------------------------------------------------------------------------- | -------------------------------------- | ------------ |
+| `connection.address`                                                         | 後端（`temporalServiceRef`）           |              |
+| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                   |              |
+| `connection.auth.token`                                                      | 後端；secret                           |              |
+| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組        | 是           |
+| `webUi.baseUrl`                                                              | 後端、前端                             | 是           |
+| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                   |              |
+| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
+| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）         | 是           |
+| `externalStorage.objectUrl`                                                  | 前端                                   | 是           |
+| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                       |              |
 
-Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。設了 `externalStorage.s3.accountId` 時，後端另外讀 Backstage 的 `aws` 設定（`aws.accounts`、`aws.accountDefaults`、`aws.mainAccount`）取得那個帳號的憑證；這些鍵屬於 Backstage。`accountId` 那一筆必須有自己的 `roleName`、`accessKeyId` 或 `profile`（否則後端不啟動）；設了 `defaultCredentials: true` 時，後端會讀 `aws.mainAccount`，在 Backstage 的 URL reader 與外掛共用機器身分時記一行警告。
+Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
 
 ## Catalog：標註和 `TemporalWorkflow` kind
 
@@ -439,7 +436,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 - **Identity。** 操作以 `backstage:<使用者實體 reference>`（或 `backstage:<服務 subject>`）作為 Temporal identity，會顯示在歷史裡。
 - **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體。severity：`workflow-query` 是 `low`，`workflow-terminate` 是 `high`，其餘是 `medium`。
 
-外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference，那是 SDK 的 S3 driver 用它自己的格式寫的。
+外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。
 
 ## Scaffolder
 

@@ -282,7 +282,6 @@ export class WorkflowListQueries {
     const graph = await this.queries.graph(workflow, {
       includePayloads: false,
       maxEvents: MAX_PROGRESS_EVENTS,
-      llm: false,
     });
     const progress: WorkflowProgressResponse = {
       status: graph.status,

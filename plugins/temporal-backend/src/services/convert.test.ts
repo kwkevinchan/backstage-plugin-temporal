@@ -63,6 +63,68 @@ describe('decodePayload', () => {
   });
 });
 
+describe('payloads in External Storage', () => {
+  const reference = {
+    metadata: {
+      encoding: b64('json/protobuf'),
+      messageType: b64('temporal.api.sdk.v1.ExternalStorageReference'),
+    },
+    data: b64(
+      JSON.stringify({
+        driverName: 'aws.s3driver',
+        claimData: {
+          bucket: 'payloads',
+          key: 'v0/d/sha256/abc',
+          hash_algorithm: 'sha256',
+          hash_value: 'a'.repeat(64),
+        },
+      }),
+    ),
+    externalPayloads: [{ sizeBytes: '4096' }],
+  };
+  const external = {
+    store: 's3',
+    bucket: 'payloads',
+    key: 'v0/d/sha256/abc',
+    size: 4096,
+    sha256: 'a'.repeat(64),
+  };
+
+  it('shows where the payload is, without its data', () => {
+    expect(decodePayload(reference)).toEqual({
+      encoding: 'json/protobuf',
+      external,
+    });
+  });
+
+  it('shows the reference in the history and in a map of payloads', () => {
+    expect(
+      toHistoryEvent({
+        eventId: '5',
+        eventType: 'EVENT_TYPE_ACTIVITY_TASK_COMPLETED',
+        activityTaskCompletedEventAttributes: {
+          scheduledEventId: '3',
+          result: { payloads: [reference] },
+        },
+      }).attributes,
+    ).toMatchObject({
+      result: { payloads: [{ encoding: 'json/protobuf', external }] },
+    });
+    expect(
+      decodeSearchAttributes({ indexedFields: { report: reference } }),
+    ).toEqual({ report: { encoding: 'json/protobuf', external } });
+  });
+
+  it('treats a JSON payload that only looks like a reference as JSON', () => {
+    expect(
+      decodePayload({
+        metadata: { encoding: b64('json/protobuf') },
+        data: b64('{"driverName":"x"}'),
+      }),
+    ).toEqual({ encoding: 'json/protobuf', value: { driverName: 'x' } });
+  });
+});
+
 describe('toWorkflowFailure', () => {
   it('keeps the cause chain', () => {
     const failure = toWorkflowFailure({

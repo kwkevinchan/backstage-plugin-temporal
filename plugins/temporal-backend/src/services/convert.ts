@@ -29,13 +29,10 @@ import {
 import { LlmLinkNode, LlmStepEntry, readLlmSteps } from './llm/llm';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
-  EXTERNAL_PAYLOAD,
   referenceInfo,
   referenceOf,
-} from '../repositories/PayloadStore';
-
-/** Encoding of a reference payload in the history. */
-const EXTERNAL_STORAGE_ENCODING = 'json/protobuf';
+  REFERENCE_ENCODING,
+} from '../repositories/storageReference';
 
 /*
  * Conversion from Temporal API messages to the plugin's JSON types. The input
@@ -116,26 +113,14 @@ function isPayload(value: Json): boolean {
  * `{ encoding, value }`. Anything else (binary, protobuf, encrypted by a
  * codec, broken JSON) becomes `{ encoding, size, undecodable: true }`, since
  * the backend has no codec; the data itself is not sent. References of
- * payloads in External Storage become `{ encoding, external }` (the
- * encoding of the stored payload once it is read), or the decoded data with
- * `external` when it is shown inline (see `PayloadStore.resolve`).
+ * payloads in External Storage become `{ encoding, external }`: the
+ * backend shows where the payload is and never reads it.
  */
 export function decodePayload(payload: Json): JsonObject {
-  const external = payload[EXTERNAL_PAYLOAD];
-  if (external) {
-    if (external.state === 'inline') {
-      return { ...decodePlainPayload(payload), external };
-    }
-    return {
-      encoding: external.encoding || EXTERNAL_STORAGE_ENCODING,
-      external,
-    };
-  }
-  // A reference that was not looked at (no S3 configured).
   const reference = referenceOf(payload);
   if (reference) {
     return {
-      encoding: EXTERNAL_STORAGE_ENCODING,
+      encoding: REFERENCE_ENCODING,
       external: referenceInfo(reference) as unknown as JsonObject,
     };
   }

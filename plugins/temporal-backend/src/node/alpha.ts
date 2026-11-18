@@ -357,7 +357,7 @@ export interface TemporalLlmStep {
 
 /**
  * The decoded payloads of a step. A payload that a codec encoded, or one
- * in External Storage that the backend does not read here, is left out.
+ * in External Storage (the backend does not read those), is left out.
  *
  * @alpha
  */
@@ -429,10 +429,7 @@ export interface TemporalLlmAdapter {
   /**
    * True when the step may be a model call of this framework, from what
    * the history says without payloads (usually the activity type). The
-   * backend then calls `readModelCalls`. For the graph of a caller without
-   * the history permission it reads the result from External Storage, not
-   * the input: an input stored there is left out, and only the full record
-   * route (`/llm-calls`) passes it. True for a local activity has no
+   * backend then calls `readModelCalls`. True for a local activity has no
    * effect, and is logged once.
    */
   isModelCall(step: TemporalLlmStep): boolean;

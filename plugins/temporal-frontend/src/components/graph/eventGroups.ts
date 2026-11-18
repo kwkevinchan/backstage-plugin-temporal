@@ -19,6 +19,7 @@ import type {
   WorkflowGraphEdge,
   WorkflowGraphNode,
 } from '../../common';
+import { unplacedBeside } from './stackLayout';
 import {
   boxSize,
   hideSteps,
@@ -530,6 +531,8 @@ export function stackGroups(
   graph: GroupedGraph,
   plan: GroupPlan,
   stepIds: string[],
+  /** Boxes and frames that stay in a row below their round. */
+  below: ReadonlySet<string> = new Set(),
 ): GroupedGraph {
   const laidOut = new Set(graph.frames.map(f => f.id));
   const stacked = new Set(
@@ -573,7 +576,15 @@ export function stackGroups(
         : undefined;
     for (const unit of [withSource, [id]]) {
       if (!unit) continue;
-      const found = detour(unit, graph, chainOf, stacked, orderOf);
+      const found = detour(
+        unit,
+        graph,
+        chainOf,
+        stacked,
+        laidOut,
+        orderOf,
+        below,
+      );
       if (!found) continue;
       for (const item of unit) placed.set(item, found);
       break;
@@ -638,7 +649,9 @@ function detour(
   graph: GroupedGraph,
   chainOf: (id: string) => string[],
   stacked: Set<string>,
+  frames: Set<string>,
   orderOf: (id: string) => number,
+  below: ReadonlySet<string>,
 ): { stack: string; after: string } | undefined {
   const inUnit = (id: string) =>
     unit.includes(id) || chainOf(id).some(f => unit.includes(f));
@@ -665,7 +678,77 @@ function detour(
   const first = into.reduce((a, b) =>
     orderOf(b.source) < orderOf(a.source) ? b : a,
   );
+  // All other ends in one expanded frame of the stacked frame that is not
+  // stacked itself (a round of a loop): the unit goes in that frame, beside
+  // its boxes. Unless it leads back to more than one box, or to a box that
+  // the source of the first arrow into it does not lead to in that frame,
+  // or the source is not the last box of the frames around it in that frame, or the
+  // target not the first one: an arrow would have to pass other boxes of
+  // the frame on its way out or in.
+  const rows = new Set(ends.map(end => childIn(stack, end, chainOf)));
+  const [row] = rows;
+  if (
+    rows.size === 1 &&
+    row !== undefined &&
+    !unit.some(id => below.has(id)) &&
+    frames.has(row) &&
+    !stacked.has(row)
+  ) {
+    const targets = [
+      ...new Set(
+        graph.edges
+          .filter(e => inUnit(e.source) && !inUnit(e.target))
+          .map(e => e.target),
+      ),
+    ];
+    // The boxes of the round that the source leads to, by the arrows
+    // between them.
+    const inRow = (id: string) => chainOf(id).includes(row);
+    const reached = new Set([first.source]);
+    for (const queue = [first.source]; queue.length > 0; ) {
+      const at = queue.pop()!;
+      for (const e of graph.edges) {
+        if (e.source !== at || reached.has(e.target)) continue;
+        if (inUnit(e.target) || !inRow(e.target)) continue;
+        reached.add(e.target);
+        queue.push(e.target);
+      }
+    }
+    /** True when `end` is the first (or last) box of its frames in the row. */
+    const outermost = (end: string, last: boolean) => {
+      const frameIds = chainOf(end);
+      const inner = frameIds.slice(0, frameIds.indexOf(row));
+      return inner.every(f =>
+        graph.nodes.every(
+          n =>
+            !chainOf(n.id).includes(f) ||
+            (last
+              ? orderOf(n.id) <= orderOf(end)
+              : orderOf(n.id) >= orderOf(end)),
+        ),
+      );
+    };
+    if (
+      targets.length <= 1 &&
+      targets.every(t => reached.has(t)) &&
+      outermost(first.source, true) &&
+      targets.every(t => outermost(t, false))
+    ) {
+      return { stack: row, after: first.source };
+    }
+  }
   return { stack, after: first.source };
+}
+
+/** The child of `frame` that `id` is in (or is). */
+function childIn(
+  frame: string,
+  id: string,
+  chainOf: (id: string) => string[],
+): string | undefined {
+  const up = [id, ...chainOf(id)];
+  const at = up.indexOf(frame);
+  return at > 0 ? up[at - 1] : undefined;
 }
 
 interface Rect {
@@ -817,18 +900,28 @@ export function layoutGroupedSteps(
       .map(k => byKey.get(k))
       .filter((g): g is WorkflowEventGroup => Boolean(g));
   const layOut = (p: GroupPlan, notice?: GroupNotice): GroupedLayout => {
-    const graph = stackGroups(groupGraph(nodes, edges, p), p, ids);
-    const layout = lay(
-      graph.nodes.map(n => {
-        const size = p.boxes.has(n.id)
-          ? { width: GROUP_NODE_WIDTH, height: GROUP_NODE_HEIGHT }
-          : sizes.get(n.id);
-        return { ...n, ...(size ? { size } : {}) };
-      }),
-      graph.edges,
-      width,
-      { frames: graph.frames },
-    );
+    // Groups that find no lane beside the steps of their round go in a
+    // row below it, and the graph is laid out again.
+    const below = new Set<string>();
+    let graph: GroupedGraph;
+    let layout: StepLayout;
+    for (;;) {
+      graph = stackGroups(groupGraph(nodes, edges, p), p, ids, below);
+      layout = lay(
+        graph.nodes.map(n => {
+          const size = p.boxes.has(n.id)
+            ? { width: GROUP_NODE_WIDTH, height: GROUP_NODE_HEIGHT }
+            : sizes.get(n.id);
+          return { ...n, ...(size ? { size } : {}) };
+        }),
+        graph.edges,
+        width,
+        { frames: graph.frames },
+      );
+      const unplaced = unplacedBeside(layout).filter(id => !below.has(id));
+      if (unplaced.length === 0) break;
+      for (const id of unplaced) below.add(id);
+    }
     const result: GroupedLayout = {
       layout,
       plan: p,

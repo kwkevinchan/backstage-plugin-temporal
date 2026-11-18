@@ -570,9 +570,6 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),
     getWorkflowProgress: jest.fn().mockResolvedValue(progressResponse),
     getLlmCall: jest.fn().mockResolvedValue(llmCallResponse),
-    downloadPayload: jest
-      .fn()
-      .mockResolvedValue(new Blob(['{}'], { type: 'application/json' })),
     queryWorkflow: jest.fn().mockResolvedValue({ result: { notes: [] } }),
     getWorkflowHandlers: jest.fn().mockResolvedValue({
       signals: [{ name: 'approve' }],

@@ -38,7 +38,6 @@ import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
 import { createRouter } from './routes/router';
-import { PayloadStore } from './repositories/PayloadStore';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { LlmAdapters } from './services/llm/LlmAdapters';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
@@ -147,7 +146,7 @@ export const temporalPlugin = createBackendPlugin({
         }
         // Layers: routes → access (permissions, catalog; shared with the
         // modules through temporalAccessServiceRef) → services (use cases)
-        // → repositories (Temporal, S3).
+        // → repositories (Temporal).
         const temporalReads = new TemporalReadRepository(temporal);
         // The built-in adapters go through the same registration; an ID a
         // module took fails the start.
@@ -159,7 +158,6 @@ export const temporalPlugin = createBackendPlugin({
           enrichers,
           logger,
           sources,
-          PayloadStore.fromConfig(config, logger),
           temporalReads,
           { llmAdapters: adapters },
         );

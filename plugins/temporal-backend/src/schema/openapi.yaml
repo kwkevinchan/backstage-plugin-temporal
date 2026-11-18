@@ -191,16 +191,6 @@ components:
         minimum: 1
         maximum: 500
         default: 100
-    payloadKey:
-      name: key
-      in: query
-      required: true
-      allowReserved: true
-      description: The `key` of the `ExternalPayload`.
-      schema:
-        type: string
-        minLength: 1
-        maxLength: 1024
     scheduleId:
       name: scheduleId
       in: path
@@ -645,16 +635,13 @@ components:
       additionalProperties: false
     ExternalPayload:
       type: object
-      description: A payload in Temporal External Storage (the S3 driver of the Temporal SDKs). Downloadable payloads are served by `GET <workflow path>/payloads/download?key=<key>`.
+      description: Where a payload in Temporal External Storage (the S3 driver of the Temporal SDKs) is stored, from the reference payload in the history. The data is not read.
       required:
         - store
         - bucket
         - key
         - size
         - sha256
-        - encoding
-        - contentType
-        - state
       properties:
         store:
           type: string
@@ -664,33 +651,10 @@ components:
           type: string
         size:
           type: integer
-          description: Size of the data in bytes.
+          description: Size of the stored payload in bytes, as the reference records it.
         sha256:
           type: string
           description: SHA-256 of the stored object, lowercase hex.
-        encoding:
-          type: string
-          description: Encoding of the stored payload, for example `json/plain`.
-        contentType:
-          type: string
-          description: Media type of the data, for example `application/json` or `image/png`.
-        state:
-          type: string
-          enum:
-            - inline
-            - preview
-            - unconfigured
-            - error
-        preview:
-          type: string
-          description: Start of the data as UTF-8 text, for text media types.
-        previewTruncated:
-          type: boolean
-          description: True when `preview` is shorter than the data.
-        downloadable:
-          type: boolean
-        error:
-          type: string
       additionalProperties: false
     ActivityStep:
       type: object
@@ -1807,49 +1771,6 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/payloads/download:
-    get:
-      operationId: downloadWorkflowPayload
-      summary: Download a payload from External Storage
-      description: |-
-        The data of a payload stored in S3 by Temporal External Storage, as an attachment. The object is checked against the SHA-256 of its reference before anything is sent. 404 when `temporal.externalStorage.s3` is not configured or the run has no payload with the key.
-
-        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.history.read
-        - temporal.workflow.list
-        - temporal.workflow.history.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/payloadKey'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: The data, with the media type of the payload, for example `application/json` or `image/png` (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
-          headers:
-            Content-Disposition:
-              description: '`attachment; filename="payload-<sha256 prefix>.<ext>"`'
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                description: The stored data, as it is.
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
   /namespaces/{namespace}/workflows/{workflowId}/handlers:
     get:
       operationId: getWorkflowHandlers
@@ -2436,50 +2357,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowLlmCallResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/payloads/download:
-    get:
-      operationId: downloadWorkflowRunPayload
-      summary: Download a payload from External Storage (one run)
-      description: |-
-        The data of a payload stored in S3 by Temporal External Storage, as an attachment. The object is checked against the SHA-256 of its reference before anything is sent. 404 when `temporal.externalStorage.s3` is not configured or the run has no payload with the key.
-
-        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.history.read
-        - temporal.workflow.list
-        - temporal.workflow.history.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/runId'
-        - $ref: '#/components/parameters/payloadKey'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: The data, with the media type of the payload, for example `application/json` or `image/png` (`application/octet-stream` when it is not a safe one). The `X-Payload-Sha256` header has the SHA-256 of the stored object, lowercase hex.
-          headers:
-            Content-Disposition:
-              description: '`attachment; filename="payload-<sha256 prefix>.<ext>"`'
-              schema:
-                type: string
-          content:
-            '*/*':
-              schema:
-                description: The stored data, as it is.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

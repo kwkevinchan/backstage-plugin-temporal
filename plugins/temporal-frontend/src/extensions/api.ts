@@ -148,16 +148,6 @@ export interface TemporalApi {
   ): Promise<WorkflowProgressResponse>;
 
   /**
-   * Downloads a payload of a run that is stored in S3 (an `ExternalPayload`
-   * with `downloadable`), through the backend. Needs the permission to read
-   * the history.
-   */
-  downloadPayload(
-    ref: WorkflowRef,
-    options: { key: string; entityRef?: string },
-  ): Promise<Blob>;
-
-  /**
    * Runs a query on a workflow and returns its result. Needs
    * `temporal.workflow.query` on the entity, besides the permission to see
    * the workflow.

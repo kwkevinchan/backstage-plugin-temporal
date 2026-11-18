@@ -42,17 +42,12 @@ import {
   ConvertOptions,
   decodePageToken,
   encodePageToken,
-  summaryOf,
   toHistoryEvent,
   toWorkflowDetail,
   toWorkflowSteps,
 } from './convert';
 import { buildWorkflowGraph } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
-import {
-  findReferencePayloads,
-  PayloadStore,
-} from '../repositories/PayloadStore';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { workflowBelongsToEntity } from './query';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
@@ -88,52 +83,6 @@ export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
 ];
 
 /**
- * Payloads with the results (and failure details) of the steps that the
- * LLM adapters take for model calls, for reading them from S3 without the
- * other payloads. Inputs are left out: a model call's input is the whole
- * conversation, and the graph needs names and numbers only. The adapters
- * still get inputs stored in the history itself; the full record route
- * reads the rest.
- */
-export function llmPayloads(
-  events: unknown[],
-  adapters: LlmAdapters = builtInOnlyLlmAdapters(),
-): unknown[] {
-  // The graph reads the steps again and logs what fails there.
-  const reader = adapters.reader({ silent: true });
-  const calls = new Set<string>();
-  const roots: unknown[] = [];
-  for (const event of events as any[]) {
-    const scheduled = event.activityTaskScheduledEventAttributes;
-    if (
-      scheduled &&
-      reader.isModelCall({
-        kind: 'activity',
-        activityType: scheduled.activityType?.name ?? '',
-        activityId: scheduled.activityId || undefined,
-        summary: summaryOf(event),
-      })
-    ) {
-      calls.add(String(event.eventId));
-      continue;
-    }
-    const completed = event.activityTaskCompletedEventAttributes;
-    if (completed && calls.has(String(completed.scheduledEventId))) {
-      roots.push(completed.result);
-    }
-    const failed = event.activityTaskFailedEventAttributes;
-    if (failed && calls.has(String(failed.scheduledEventId))) {
-      roots.push(failed.failure);
-    }
-  }
-  return roots;
-}
-
-/** What `WorkflowQueries.describe` read, by the detail it returned. */
-type Described = { json: any; closeEvent?: any };
-const described = new WeakMap<WorkflowDetail, Described>();
-
-/**
  * The read use cases of the plugin for one workflow: details, membership of
  * an entity, history, steps, graph, run position, queries and handlers. Callers check permissions first (see
  * `access/`); this class checks that namespaces are allowed and reads
@@ -148,7 +97,6 @@ export class WorkflowQueries {
     private readonly enrichers: TemporalWorkflowEnricher[],
     private readonly logger: LoggerService,
     private readonly sources: EntityWorkflowSources,
-    readonly payloads: PayloadStore = new PayloadStore(),
     private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
       temporal,
     ),
@@ -193,66 +141,22 @@ export class WorkflowQueries {
     return current;
   }
 
-  /**
-   * Describes a run without any entity check. The memo is resolved from External Storage only when
-   * this instance has a configured `PayloadStore` (the plugin's does; the
-   * access service's does not).
-   */
+  /** Describes a run without any entity check. */
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.sources.checkNamespace(ref.namespace);
     const json = await this.temporalReads.describeExecution(ref);
-    await this.payloads.resolve(json.workflowExecutionInfo?.memo);
     const detail = toWorkflowDetail(json, this.convertOptions(ref.namespace));
     if (CLOSED_WITH_FAILURE.includes(detail.status)) {
       const closeEvent = await this.temporalReads.lastEvent({
         ...ref,
         runId: detail.runId,
       });
-      const closed = toWorkflowDetail(json, {
+      return toWorkflowDetail(json, {
         ...this.convertOptions(ref.namespace),
         closeEvent,
       });
-      this.remember(closed, { json, closeEvent });
-      return closed;
     }
-    this.remember(detail, { json });
     return detail;
-  }
-
-  /**
-   * Keeps the response only on an instance without a payload store (the
-   * access service's), the one whose detail `withPayloads` completes.
-   */
-  private remember(detail: WorkflowDetail, read: Described) {
-    if (!this.payloads.configured) described.set(detail, read);
-  }
-
-  /**
-   * The detail of a workflow that `describe` returned, with the memo
-   * resolved by this instance's `PayloadStore`. `ref` is the reference the
-   * workflow was loaded with. It reuses what that `describe` read from
-   * Temporal, so no second request is made; a workflow that did not come
-   * from `describe` (another access service), or that is not the one `ref`
-   * names, is described here, pinned to the run of `workflow`.
-   */
-  async withPayloads(
-    workflow: WorkflowDetail,
-    ref: WorkflowRef,
-  ): Promise<WorkflowDetail> {
-    const read = described.get(workflow);
-    if (
-      !read ||
-      workflow.workflowId !== ref.workflowId ||
-      workflow.namespace !== ref.namespace ||
-      (ref.runId && workflow.runId !== ref.runId)
-    ) {
-      return this.describe({ ...ref, runId: workflow.runId });
-    }
-    await this.payloads.resolve(read.json.workflowExecutionInfo?.memo);
-    return toWorkflowDetail(read.json, {
-      ...this.convertOptions(ref.namespace),
-      closeEvent: read.closeEvent,
-    });
   }
 
   /**
@@ -287,7 +191,7 @@ export class WorkflowQueries {
       }
       // Child workflows run in the namespace of their parent here; the
       // parent's namespace in describe is an ID, not a name. Only what
-      // membership needs is read: no memo from S3, no close event.
+      // membership needs is read: no close event.
       const ref = {
         namespace: workflow.namespace,
         workflowId: current.parent.workflowId,
@@ -325,22 +229,18 @@ export class WorkflowQueries {
       pageSize: options.pageSize,
       nextPageToken,
     });
-    const events = response.items;
-    await this.payloads.resolve(events);
     return {
-      events: events.map(toHistoryEvent),
+      events: response.items.map(toHistoryEvent),
       nextPageToken: encodePageToken(response.nextPageToken),
     };
   }
 
   /**
-   * Reads the history of one run, oldest first, up to `max` events. With
-   * `payloads`, payloads in External Storage are resolved for display.
+   * Reads the history of one run, oldest first, up to `max` events.
    */
   async readEvents(
     ref: WorkflowRef & { runId: string },
     max: number,
-    options: { payloads?: boolean; llmPayloads?: boolean } = {},
   ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.sources.checkNamespace(ref.namespace);
     const events: unknown[] = [];
@@ -353,10 +253,6 @@ export class WorkflowQueries {
       events.push(...response.items);
       nextPageToken = response.nextPageToken;
     } while (nextPageToken && events.length < max);
-    if (options.payloads) await this.payloads.resolve(events);
-    else if (options.llmPayloads) {
-      await this.payloads.resolve(llmPayloads(events, this.llmAdapters));
-    }
     return { events, truncated: Boolean(nextPageToken) };
   }
 
@@ -364,25 +260,8 @@ export class WorkflowQueries {
   async steps(
     ref: WorkflowRef & { runId: string },
   ): Promise<WorkflowStepsResponse> {
-    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS, {
-      payloads: true,
-    });
+    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS);
     return toWorkflowSteps(events, truncated, this.llmAdapters);
-  }
-
-  /**
-   * The storage reference with `key` in the history of one run (inputs,
-   * results, memo, failure details), or undefined. Downloads are limited to
-   * these, so a caller can only read data of runs it may read the history
-   * of.
-   */
-  async findStorageReference(
-    ref: WorkflowRef & { runId: string },
-    key: string,
-  ) {
-    const { events } = await this.readEvents(ref, MAX_STEP_EVENTS);
-    return findReferencePayloads(events).find(f => f.reference.key === key)
-      ?.reference;
   }
 
   /**
@@ -395,11 +274,6 @@ export class WorkflowQueries {
     options: {
       includePayloads: boolean;
       maxEvents?: number;
-      /**
-       * False skips reading the payloads of model calls stored in S3, for
-       * lists.
-       */
-      llm?: boolean;
     },
   ): Promise<WorkflowGraphResponse> {
     const ref = {
@@ -410,10 +284,6 @@ export class WorkflowQueries {
     const { events, truncated } = await this.readEvents(
       ref,
       options.maxEvents ?? MAX_STEP_EVENTS,
-      {
-        payloads: options.includePayloads,
-        llmPayloads: options.llm !== false,
-      },
     );
     const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,

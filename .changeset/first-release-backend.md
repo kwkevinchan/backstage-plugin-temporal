@@ -10,10 +10,9 @@ catalog module with the `TemporalWorkflow` kind; the named exports
 
 - Permission-checked routes under `/api/temporal` for the workflows of an
   entity and of the Workflows page: lists, details, the step graph,
-  progress, the event history, Temporal schedules and downloads of large
-  payloads in Temporal External Storage (`temporal.externalStorage.s3`: the
-  references of the SDKs' S3 driver, read and verified by the backend
-  itself).
+  progress, the event history and Temporal schedules. Payloads that workers
+  store with Temporal External Storage are shown by their location (the
+  references of the SDKs' S3 driver); the backend never reads the bucket.
 - The operations that change workflows: start, signal, update, cancel,
   terminate, rerun, custom actions, and pause, unpause and trigger of
   schedules, each checked with its permission and recorded with the
