@@ -182,7 +182,8 @@ const withEntity = '?entityRef=component:default/orders';
 
 describe('query routes of the core plugin', () => {
   it('runs a query with the read and query permissions and records it', async () => {
-    const { server, workflowService, permissions, auditEvent } = await start();
+    const { server, workflowService, permissions, auditor, auditEvent } =
+      await start();
     const res = await request(server)
       .post(`${wf}/query${withEntity}`)
       .send({ name: 'state' });
@@ -198,6 +199,12 @@ describe('query routes of the core plugin', () => {
       'temporal.workflow.read',
       'temporal.workflow.query',
     ]);
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-query',
+        severityLevel: 'medium',
+      }),
+    );
     expect(auditEvent.success).toHaveBeenCalled();
   });
 
