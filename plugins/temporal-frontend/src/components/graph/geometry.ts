@@ -59,6 +59,17 @@ export interface StepLayout {
    * another row of the frame runs across one of them.
    */
   stackGaps?: Map<string, number[]>;
+  /**
+   * The side channel of a stacked frame, by the ID of the frame, where it
+   * is wider than `STACK_SIDE`: more arrows run past its rows.
+   */
+  stackSidePads?: Map<string, number>;
+  /**
+   * The boxes and frames placed beside the boxes of a frame that found no
+   * lane there (see `layoutStacked`): they go in a row below that frame
+   * instead.
+   */
+  unplacedBeside?: string[];
 }
 
 /**
@@ -112,6 +123,8 @@ interface Rect {
 interface StackRoute {
   /** The gap it runs across. */
   gap: number;
+  /** The stacked frame of that gap. */
+  frame: string;
   /** Where it turns out of its source, when not next to the source. */
   turnOut?: number;
   /**
@@ -122,15 +135,9 @@ interface StackRoute {
   turnIn?: number;
 }
 
-/**
- * Side channel of a stacked frame when arrows past its rows need more than
- * the three lanes `STACK_SIDE` holds. Absent means `STACK_SIDE`.
- */
-const sidePads = new WeakMap<StepLayout, Map<string, number>>();
-
 /** The side channel of `frame`, or `STACK_SIDE` when it was not widened. */
 export function stackSidePad(layout: StepLayout, frame: string): number {
-  return sidePads.get(layout)?.get(frame) ?? STACK_SIDE;
+  return layout.stackSidePads?.get(frame) ?? STACK_SIDE;
 }
 
 /** Records a side channel wider than `STACK_SIDE` for `frame`. */
@@ -140,25 +147,8 @@ export function setStackSidePad(
   pad: number,
 ): void {
   if (pad <= STACK_SIDE) return;
-  let pads = sidePads.get(layout);
-  if (!pads) {
-    pads = new Map();
-    sidePads.set(layout, pads);
-  }
-  pads.set(frame, pad);
-}
-
-/** The side channels recorded for `layout`, if it has any wider than `STACK_SIDE`. */
-export function stackSidePadEntries(
-  layout: StepLayout,
-): Iterable<[string, number]> {
-  return sidePads.get(layout)?.entries() ?? [];
-}
-
-/** Keeps the side channels when a layout is copied into a new object. */
-export function copyStackSidePads(from: StepLayout, to: StepLayout): void {
-  const pads = sidePads.get(from);
-  if (pads) sidePads.set(to, new Map(pads));
+  layout.stackSidePads ??= new Map();
+  layout.stackSidePads.set(frame, pad);
 }
 
 /**
@@ -464,7 +454,7 @@ function findStackRoute(
           !across(middle(source), end, side, false) &&
           clearDown(side, middle(source), last)
         ) {
-          return { gap: last, turnOut: side };
+          return { gap: last, frame, turnOut: side };
         }
         return undefined;
       };
@@ -473,28 +463,28 @@ function findStackRoute(
         if (side) return side;
       }
       if (!clearDown(turnInto(), first, middle(target))) {
-        if (clearDown(turnOutOf(), middle(source), last)) return { gap: last };
+        if (clearDown(turnOutOf(), middle(source), last)) {
+          return { gap: last, frame };
+        }
         const side = sidePast();
         if (side) return side;
       }
     }
-    if (between.length > 0) return { gap: between[0] };
+    if (between.length > 0) return { gap: between[0], frame };
     const up = [...gaps].reverse().find(g => g < s.y && g > t.y);
-    if (up !== undefined) return { gap: up };
+    if (up !== undefined) return { gap: up, frame };
   }
   // Out of a stacked frame with boxes on the way to its side: the gap below
   // the row of the source; into one, the gap above the row of the target.
   // When the vertical on from that gap to the other end would run through a
   // lower row, it turns in a side lane instead (`stackTurnIn` / `turnOut`).
-  let found:
-    | { gap: number; area: number; turnOut?: number; turnIn?: number }
-    | undefined;
+  let found: (StackRoute & { area: number }) | undefined;
   for (const [frame, gaps] of layout.stackGaps!) {
     const f = byId.get(frame);
     if (!f) continue;
     const area = (f.right - f.left) * (f.bottom - f.top);
     if (found && found.area <= area) continue;
-    let route: { gap: number; turnOut?: number; turnIn?: number } | undefined;
+    let route: StackRoute | undefined;
     if (contains(frame, source) && !contains(frame, target)) {
       if (across(middle(source), byId.get(source)!.right, f.right)) {
         const gap = gaps.find(g => g > s.y);
@@ -503,7 +493,7 @@ function findStackRoute(
           const turnIn = clearDown(into, gap, middle(target))
             ? undefined
             : sideLane(f, gap, middle(target));
-          route = { gap, ...(turnIn !== undefined ? { turnIn } : {}) };
+          route = { gap, frame, ...(turnIn !== undefined ? { turnIn } : {}) };
         }
       }
     } else if (contains(frame, target) && !contains(frame, source)) {
@@ -521,14 +511,14 @@ function findStackRoute(
               turnOut = side;
             }
           }
-          route = { gap, ...(turnOut !== undefined ? { turnOut } : {}) };
+          route = { gap, frame, ...(turnOut !== undefined ? { turnOut } : {}) };
         }
       }
     }
     if (route) found = { ...route, area };
   }
   if (!found) return undefined;
-  const route: StackRoute = { gap: found.gap };
+  const route: StackRoute = { gap: found.gap, frame: found.frame };
   if (found.turnOut !== undefined) route.turnOut = found.turnOut;
   if (found.turnIn !== undefined) route.turnIn = found.turnIn;
   return route;
@@ -551,4 +541,25 @@ export function rowGapOf(
     layout.rowGaps?.find(g => g > s.y && g < t.y) ??
     stackGapOf(layout, source, target)
   );
+}
+
+/**
+ * Which gap between two rows an arrow from `source` to `target` runs across
+ * (see `rowGapOf`): a gap of a wrapped graph by its row, one of a stacked
+ * frame by that frame and its row. Gaps of two frames can be at one y.
+ */
+export function rowGapKeyOf(
+  layout: StepLayout,
+  source: string,
+  target: string,
+): string | undefined {
+  const s = layout.positions.get(source);
+  const t = layout.positions.get(target);
+  if (!s || !t) return undefined;
+  const row = layout.rowGaps?.findIndex(g => g > s.y && g < t.y) ?? -1;
+  if (row >= 0) return `row ${row}`;
+  const route = stackRoute(layout, source, target);
+  if (!route) return undefined;
+  const index = layout.stackGaps!.get(route.frame)!.indexOf(route.gap);
+  return `${route.frame}\u0000${index}`;
 }

@@ -22,6 +22,7 @@ import {
   FRAME_WRAP_GAP,
   MARGIN,
   OFFSET,
+  rowGapKeyOf,
   rowGapOf,
   stackGapRoom,
   stackGapOf,
@@ -390,10 +391,16 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   const obstacles = () => (rects ??= obstaclesOf(layout));
   const lanes = new Map<Edge, number>();
   const turns = new Map<Edge, FrameEdgeData>();
-  const inGap = new Map<number, Edge[]>();
+  // By the gap of a wrapped graph or of a stacked frame, not by its y: two
+  // frames can have gaps at one y.
+  const inGap = new Map<string, { gap: number; shared: Edge[] }>();
   for (const edge of edges) {
     const gap = edge.type === 'frameEdge' ? gapOf(edge) : undefined;
-    if (gap !== undefined) inGap.set(gap, [...(inGap.get(gap) ?? []), edge]);
+    if (gap === undefined) continue;
+    const key = rowGapKeyOf(layout, edge.source, edge.target)!;
+    const entry = inGap.get(key) ?? { gap, shared: [] };
+    entry.shared.push(edge);
+    inGap.set(key, entry);
   }
   // How far from its middle an arrow in a gap can run: in the gap between
   // two rows of a stacked frame, as far as its rows leave room.
@@ -474,10 +481,12 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
   // The turns with the turns at each x spread out on their own, and the
   // parts of the arrows that run down there.
   const alone = new Map<Edge, FrameEdgeData>();
-  for (const [gap, shared] of inGap) spreadGap(gap, shared, alone);
+  for (const { gap, shared } of inGap.values()) {
+    spreadGap(gap, shared, alone);
+  }
   const downs: { edge: Edge; x: number; top: number; bottom: number }[] = [];
   const framed = new Set(
-    [...inGap].flatMap(([gap, shared]) => framedIn(shared, gap)),
+    [...inGap.values()].flatMap(({ gap, shared }) => framedIn(shared, gap)),
   );
   for (const edge of edges) {
     if (edge.type !== 'frameEdge') continue;
@@ -516,7 +525,7 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
         Math.abs(d.x - x) < EDGE_LANE_GAP / 2 &&
         Math.min(d.bottom, bottom) > Math.max(d.top, top),
     );
-  for (const [gap, shared] of inGap) {
+  for (const { gap, shared } of inGap.values()) {
     spreadGap(gap, shared, turns, clearAt);
     shared.sort(
       (a, b) =>

@@ -258,6 +258,10 @@ function layoutBlocks(
     clearThrough?: boolean;
   },
 ): StepLayout {
+  // dagre gives a graph without boxes a size of -Infinity.
+  if (nodes.length === 0) {
+    return { positions: new Map(), width: 0, height: 0, wrapped: false };
+  }
   const topDown = options.direction === 'TB';
   const frames = options.frames ?? [];
   const blocks = options.blocks ?? new Map<string, StackBlock>();

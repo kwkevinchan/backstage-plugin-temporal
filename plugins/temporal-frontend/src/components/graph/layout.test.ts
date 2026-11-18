@@ -72,6 +72,14 @@ function chain(count: number) {
 }
 
 describe('layoutSteps', () => {
+  it('lays out a graph without steps at no size', () => {
+    for (const width of [undefined, 800]) {
+      const layout = layoutSteps([], [], width);
+      expect(layout.positions.size).toBe(0);
+      expect([layout.width, layout.height]).toEqual([0, 0]);
+    }
+  });
+
   it('lays out steps left to right and leaves out internal steps', () => {
     const { nodes, edges } = visibleSteps(
       graphResponse.nodes,
