@@ -123,10 +123,28 @@ export function frameInsets(
   // one). Then the arrow turns `FRAME_GAP` outside the frames it can leave
   // without crossing a box, or next to its end when it can leave none, and
   // its way down or up crosses the bottom or top border of the others at
-  // a right angle.
+  // a right angle. In a stacked frame, a frame around neither end is in the
+  // way too: the arrow would run across it between its rows.
+  const stacked = new Set(layout.stackGaps?.keys());
+  const inStack = (id: string) => {
+    for (
+      let at: string | undefined = id, depth = 0;
+      at !== undefined && depth <= parentOf.size;
+      at = parentOf.get(at), depth++
+    ) {
+      if (stacked.has(at)) return true;
+    }
+    return false;
+  };
   const inTheWay = (y: number, x1: number, x2: number) => {
     for (const id of parentOf.keys()) {
-      if (frameIds.has(id) || id === source || id === target) continue;
+      if (id === source || id === target) continue;
+      if (
+        frameIds.has(id) &&
+        (from.includes(id) || to.includes(id) || !inStack(id))
+      ) {
+        continue;
+      }
       const p = layout.positions.get(id);
       if (!p || p.y >= y || p.x >= x2) continue;
       const size = boxSize(layout, id);

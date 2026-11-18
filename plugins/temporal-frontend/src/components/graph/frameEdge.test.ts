@@ -28,11 +28,13 @@ import {
   frameEdgePath,
   frameEdgePoints,
   frameInsets,
+  OFFSET,
   Point,
 } from './frameEdge';
 import {
   boxSize,
   EDGE_LANE_GAP,
+  FRAME_GAP,
   layoutGraph,
   MARGIN,
   NodeSize,
@@ -613,6 +615,57 @@ describe('arrows and the boxes on their way', () => {
     ).toBe(true);
     expect(throughBoxes(result)).toEqual([]);
     expect(problems(result)).toEqual([]);
+  });
+});
+
+describe('arrows out of a frame next to another frame', () => {
+  /**
+   * A frame f with the rows r and t. In r, the step a and next to it the
+   * frame g, whose step g1 is below the middle of a, so no box of r is in
+   * the way of a straight line out of a to the right side of r.
+   */
+  function rows(stacked: boolean): StepLayout {
+    return {
+      positions: new Map([
+        ['f', { x: 0, y: 0 }],
+        ['r', { x: 40, y: 40 }],
+        ['a', { x: 60, y: 110 }],
+        ['g', { x: 340, y: 80 }],
+        ['g1', { x: 360, y: 160 }],
+        ['t', { x: 60, y: 300 }],
+      ]),
+      sizes: new Map([
+        ['f', { width: 900, height: 420 }],
+        ['r', { width: 800, height: 170 }],
+        ['g', { width: 480, height: 120 }],
+        ['g1', { width: 220, height: 30 }],
+      ]),
+      width: 940,
+      height: 440,
+      wrapped: !stacked,
+      ...(stacked
+        ? { stackGaps: new Map([['f', [250]]]) }
+        : { rowGaps: [250] }),
+    };
+  }
+  const parentOf = new Map<string, string | undefined>([
+    ['f', undefined],
+    ['r', 'f'],
+    ['a', 'r'],
+    ['g', 'r'],
+    ['g1', 'g'],
+    ['t', 'f'],
+  ]);
+
+  it('turn next to the step in a stacked frame, not across the frame next to it', () => {
+    const data = frameInsets(rows(true), parentOf, 'a', 't');
+    expect(data.sourceInset).toBe(OFFSET);
+  });
+
+  it('leave the frames they can leave past a frame outside stacked frames', () => {
+    // As before: only boxes are in the way out of r.
+    const data = frameInsets(rows(false), parentOf, 'a', 't');
+    expect(data.sourceInset).toBe(800 + 40 + FRAME_GAP - 280);
   });
 });
 
