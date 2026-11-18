@@ -229,9 +229,11 @@ export interface TemporalControlActionContext {
   credentials: BackstageCredentials;
   /**
    * The client the plugin changes workflows with (today the shared
-   * connection of `temporalServiceRef`). It reaches every workflow of the
-   * namespace, but the permission was only checked for `workflow`: an action
-   * that changes other workflows must check those itself.
+   * connection of `temporalServiceRef`). It carries the backend's connection:
+   * it reaches every workflow of the namespace and every other namespace the
+   * credentials of that connection can reach, but the permission was only
+   * checked for `workflow`: an action that changes other workflows must check
+   * those itself.
    */
   client: Client;
 }
