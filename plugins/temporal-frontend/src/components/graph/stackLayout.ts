@@ -422,6 +422,25 @@ export function layoutStacked(
     );
     const startOf = (part: (typeof parts)[number]) =>
       column(part.source).right + gapOut.get(part.source)!;
+    /**
+     * True when an arrow out of a box of the frame left of `x` runs on past
+     * the column there: out of the frame, or into a box past the column
+     * right after its own.
+     */
+    const crossed = (x: number) => {
+      const before = main.map(rect).filter(o => o.right < x + 0.5);
+      if (before.length === 0) return false;
+      const last = Math.max(...before.map(o => o.right));
+      return edges.some(e => {
+        const from = childOf(frame, e.source);
+        if (!from || items.includes(from)) return false;
+        if (rect(from).right >= x + 0.5) return false;
+        const to = childOf(frame, e.target);
+        if (to === undefined) return true;
+        if (items.includes(to) || rect(to).left < x - 0.5) return false;
+        return column(from).right < last - 0.5;
+      });
+    };
     for (let moved = true, i = 0; moved && i <= parts.length; i++) {
       moved = false;
       for (const part of parts) {
@@ -431,6 +450,11 @@ export function layoutStacked(
         const need =
           startOf(part) + part.laid.width + gapIn.get(target)! - left;
         if (need > 0.5) {
+          if (crossed(left)) {
+            // An arrow of the frame runs on past where the boxes move: the
+            // groups go in a row below the frame instead.
+            unplaced.push(...items);
+          }
           shift(left, need);
           moved = true;
         }

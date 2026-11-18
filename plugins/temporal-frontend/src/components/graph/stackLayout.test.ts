@@ -1537,6 +1537,28 @@ describe('the group of a signal received during an open round', () => {
     expect(throughBoxes(result)).toEqual([]);
   });
 
+  it('stays in a row below the round when the steps it moves right would land on an arrow past them', () => {
+    // Back into the very next step, which moves right; an arrow out of r2s1
+    // runs on past it, out of the loop.
+    const graph = signals([['A', 'r2s1', 'r2s2']]);
+    graph.edges.push({ id: 'r2s1->end', source: 'r2s1', target: 'end' });
+    const result = laidOut(graph, open(1, 2, 3));
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+  });
+
+  it('stays in a row below the round when the steps it moves right would land on an arrow past a column', () => {
+    // Back into r2s3, which moves right; an arrow from r2s1 to r2s3 runs
+    // past the column of r2s2.
+    const graph = signals([['A', 'r2s2', 'r2s3']]);
+    graph.edges.push({ id: 'r2s1->r2s3', source: 'r2s1', target: 'r2s3' });
+    const result = laidOut(graph, open(1, 2, 3));
+    expect(
+      result.graph.frames.find(f => f.id === box('event:hintA'))!.parent,
+    ).toBe(box('label:loop'));
+  });
+
   it('stays in a row below the round when it leads back into the group it came from', () => {
     // From the last step of a group in round 2 back to its first one.
     const graph = signals([['A', 'r2s3', 'r2s2']]);
