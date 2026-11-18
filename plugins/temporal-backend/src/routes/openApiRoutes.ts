@@ -39,6 +39,29 @@ export function loadOpenApiSpec(): OpenApiDocument {
 }
 
 /**
+ * The operation of the route itself. It is added when the document is
+ * served, not written in `openapi.yaml`: the lint of the spec files does not
+ * allow a file extension in a path.
+ */
+const SPEC_OPERATION = {
+  get: {
+    operationId: 'getOpenApiSpec',
+    summary: 'Get this API description',
+    description:
+      'This OpenAPI document as JSON, for the catalog module `@backstage/plugin-catalog-backend-module-backstage-openapi` and other tools. The paths carry the base URL of the plugin (`/api/temporal` in a default backend), so a tool can merge the document with those of other plugins. The operations that change workflows are left out when `temporal.control.enabled` is false. The definition route of the Zigflow backend module stays in the document whether or not the module is installed; without the module it answers 404.\n\nNeeds Backstage credentials, like every route; no permission is checked.',
+    tags: ['Specification'],
+    responses: {
+      '200': {
+        description: 'The OpenAPI document.',
+        content: { 'application/json': { schema: { type: 'object' } } },
+      },
+      '401': { $ref: '#/components/responses/Unauthorized' },
+      '500': { $ref: '#/components/responses/InternalServerError' },
+    },
+  },
+};
+
+/**
  * The document as one backend serves it: the paths under `basePath` (the
  * plugin's URL path, which the document itself does not know), and without
  * the operations that change workflows when `controlEnabled` is false.
@@ -59,7 +82,15 @@ export function openApiSpecFor(
       paths[`${options.basePath}${path}`] = kept;
     }
   }
-  return { ...spec, paths };
+  paths[`${options.basePath}${SPEC_ROUTE}`] = SPEC_OPERATION;
+  return {
+    ...spec,
+    tags: [
+      ...(spec.tags ?? []),
+      { name: 'Specification', description: 'This API description.' },
+    ],
+    paths,
+  };
 }
 
 /**

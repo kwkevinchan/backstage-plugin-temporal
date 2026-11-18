@@ -71,7 +71,7 @@ describe('GET /api/temporal/openapi.json', () => {
     expect(response.headers['content-type']).toMatch(/application\/json/);
     expect(response.body.openapi).toBe('3.1.0');
     const paths = Object.keys(response.body.paths);
-    expect(paths.length).toBe(Object.keys(loadOpenApiSpec().paths).length);
+    expect(paths.length).toBe(Object.keys(loadOpenApiSpec().paths).length + 1);
     expect(paths.every(p => p.startsWith('/api/temporal/'))).toBe(true);
     expect(paths).toContain('/api/temporal/openapi.json');
     expect(paths).toContain('/api/temporal/workflows');

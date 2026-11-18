@@ -183,8 +183,8 @@ the Zigflow backend module (`x-temporal-module`). The tests of the routes
 check their requests and responses against it.
 
 The backend serves the same document as JSON at `GET /api/temporal/openapi.json`,
-with the paths under `/api/temporal` (the document in the package has them
-relative), and without the operations that change workflows when
+with the paths under `/api/temporal` (the file in the package has them
+relative and does not list this route), and without the operations that change workflows when
 `temporal.control.enabled` is false. It needs Backstage credentials, like
 every route, and checks no permission. The definition route of the Zigflow
 backend module stays in it whether or not the module is installed.
