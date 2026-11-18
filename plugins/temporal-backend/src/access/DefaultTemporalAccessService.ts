@@ -61,7 +61,10 @@ import {
   TemporalWorkflowQuery,
 } from '../node/alpha';
 import { inQuery, isValidEntityRefValue } from '../services/query';
-import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
+import {
+  EntityWorkflowSources,
+  logSkippedWorkflowEntity,
+} from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
@@ -164,6 +167,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     return this.decisionAllows(
       await this.listDecision(permission, credentials),
       workflow,
+      permission.name,
     );
   }
 
@@ -171,6 +175,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   private decisionAllows(
     decision: PolicyDecision,
     workflow: WorkflowSummary,
+    permissionName: string,
   ): boolean {
     if (decision.result !== AuthorizeResult.CONDITIONAL) {
       return decision.result === AuthorizeResult.ALLOW;
@@ -180,8 +185,15 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         decision,
         workflow,
       );
-    } catch {
-      // A condition with an unknown rule allows nothing.
+    } catch (error) {
+      // A condition with an unknown rule allows nothing. The policy is at
+      // fault, which the caller cannot tell from a refusal: the log can.
+      this.logger
+        .child({
+          permission: permissionName,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        .warn('A permission condition cannot be applied, so it allows nothing');
       return false;
     }
   }
@@ -232,6 +244,14 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       });
     } catch (error) {
       if (error instanceof NotAllowedError) throw error;
+      this.logger
+        .child({
+          permission: temporalWorkflowListPermission.name,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        .warn(
+          'A permission condition cannot be applied, so the list shows nothing',
+        );
       throw new NotAllowedError(
         `The workflow list conditions cannot be applied: ${error}`,
       );
@@ -395,7 +415,9 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       const workflow = await this.queries.describe(ref);
       if (
         listMayAllow &&
-        listDecisions.every(d => this.decisionAllows(d, workflow))
+        listDecisions.every((d, i) =>
+          this.decisionAllows(d, workflow, listPermissions[i].name),
+        )
       ) {
         return { workflow };
       }
@@ -403,6 +425,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       const linked = workflow.entityRef
         ? canonicalEntityRef(workflow.entityRef)
         : undefined;
+      if (workflow.entityRef && !linked) {
+        this.logger
+          .child({ namespace: ref.namespace, workflowId: ref.workflowId })
+          .debug('The entity reference of a workflow is not valid');
+      }
       if (!entityMayAllow || !linked) throw notFound();
       let context: TemporalEntityContext;
       try {
@@ -447,7 +474,12 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
           return [];
         }
         return [{ ref: stringifyEntityRef(entity), spec }];
-      } catch {
+      } catch (error) {
+        logSkippedWorkflowEntity(
+          this.logger,
+          stringifyEntityRef(entity),
+          error,
+        );
         return [];
       }
     });
@@ -481,11 +513,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     const queried = refs.length;
     const relatedWorkflows = total > 0 ? { total, queried } : undefined;
     if (total > queried) {
-      this.logger.debug(
-        `${stringifyEntityRef(
-          entity,
-        )} depends on ${total} TemporalWorkflow entities; querying the first ${queried}`,
-      );
+      this.logger
+        .child({ entityRef: stringifyEntityRef(entity), total, queried })
+        .debug(
+          'An entity depends on more TemporalWorkflow entities than are queried',
+        );
     }
     if (refs.length === 0) return { entities: [], relatedWorkflows };
     const decisions = await this.permissions.authorize(

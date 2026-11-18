@@ -40,6 +40,11 @@ import {
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 import {
+  recordingLogger,
+  recordingLoggerFactory,
+  type RecordingLogger,
+} from './__testUtils__/recordingLogger';
+import {
   fakeScheduleService,
   FakeSchedule,
   grpcError,
@@ -142,6 +147,8 @@ async function start(options?: {
   /** gRPC errors of the schedule calls, by method name. */
   scheduleErrors?: { describeSchedule?: unknown; patchSchedule?: unknown };
   logger?: ReturnType<typeof mockServices.logger.mock>;
+  /** Records what the plugin logs, with the fields of its child loggers. */
+  recorder?: RecordingLogger;
   /** An error of opening the connection to Temporal. */
   connectionError?: unknown;
   /** An error of getting the client of a namespace. */
@@ -226,6 +233,9 @@ async function start(options?: {
     }),
   ];
   if (options?.logger) features.push(options.logger.factory);
+  if (options?.recorder) {
+    features.push(recordingLoggerFactory(options.recorder));
+  }
   if (options?.action) {
     const action = options.action;
     features.push(
@@ -1153,9 +1163,10 @@ describe('with temporal.control.enabled: false', () => {
         handle,
       },
     });
+    expect(logger.child).toHaveBeenCalledWith({ actionId: 'escalate' });
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringMatching(
-        /Ignoring the control action escalate: temporal\.control\.enabled is false/,
+        /^Ignoring a control action: temporal\.control\.enabled is false/,
       ),
     );
     await request(backend)
@@ -1365,5 +1376,138 @@ describe('deadlines of the operations', () => {
       'Temporal is not reachable: Failed to connect before the deadline',
     );
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+  });
+});
+
+describe('logs', () => {
+  it('warns when a permission condition cannot be applied, and answers as it did', async () => {
+    const recorder = recordingLogger();
+    const { server } = await start({
+      entityAttribute: null,
+      conditional: ['temporal.workflow.list'],
+      recorder,
+    });
+    const missing = await request(server).get(
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
+    );
+    expect(missing.status).toBe(404);
+    expect(missing.body.error.message).toBe('Workflow wf-1 was not found');
+    expect(recorder.records).toContainEqual({
+      level: 'warn',
+      message: 'A permission condition cannot be applied, so it allows nothing',
+      meta: { permission: 'temporal.workflow.list', errorName: 'Error' },
+    });
+    // The workflow is not named in a log that tells a caller's 404 apart.
+    expect(
+      recorder.records.filter(r => r.level === 'warn' || r.level === 'info'),
+    ).toHaveLength(1);
+
+    const list = await request(server).get(
+      '/api/temporal/workflows?namespace=default',
+    );
+    expect(list.status).toBe(403);
+    expect(recorder.records).toContainEqual({
+      level: 'warn',
+      message:
+        'A permission condition cannot be applied, so the list shows nothing',
+      meta: { permission: 'temporal.workflow.list', errorName: 'Error' },
+    });
+  });
+
+  it('logs the gRPC status when Temporal refuses the credentials of the backend, and keeps it out of the response', async () => {
+    const recorder = recordingLogger();
+    const { server, workflowService } = await start({ recorder });
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      Object.assign(new Error('7 PERMISSION_DENIED: bearer rejected'), {
+        code: 7,
+        metadata: { authorization: 'SECRET-TOKEN' },
+      }),
+    );
+    const res = await request(server).get(`${wf}${withEntity}`);
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toContain(
+      'Temporal refused the credentials of the backend',
+    );
+    expect(JSON.stringify(res.body)).not.toContain('SECRET-TOKEN');
+    expect(recorder.records).toContainEqual({
+      level: 'warn',
+      message: 'Call to Temporal failed',
+      meta: {
+        temporalCall: 'describeWorkflowExecution',
+        namespace: 'default',
+        durationMs: expect.any(Number),
+        timeoutMs: 10_000,
+        errorName: 'Error',
+        grpcCode: 7,
+        grpcStatus: 'PERMISSION_DENIED',
+      },
+    });
+    expect(JSON.stringify(recorder.records)).not.toContain('SECRET-TOKEN');
+  });
+
+  it('warns with the update ID when an update does not finish within the polls', async () => {
+    const recorder = recordingLogger();
+    const { server, workflowService } = await start({ recorder });
+    workflowService.updateWorkflowExecution.mockResolvedValue({} as any);
+    workflowService.pollWorkflowExecutionUpdate.mockResolvedValue({} as any);
+    const res = await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority', args: ['high'] });
+    expect(res.status).toBe(503);
+    const { updateId } =
+      workflowService.updateWorkflowExecution.mock.calls[0][0].request.meta;
+    expect(recorder.records).toContainEqual({
+      level: 'warn',
+      message: 'The update did not finish within the polls',
+      meta: {
+        namespace: 'default',
+        workflowId: 'wf-1',
+        runId: 'wf-1-run',
+        messageName: 'setPriority',
+        updateId,
+      },
+    });
+  });
+
+  it('never logs the arguments or the result of a signal, update or query', async () => {
+    const recorder = recordingLogger();
+    const { server, workflowService } = await start({ recorder });
+    const marker = 'MARKER-5f3a9c';
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({
+      outcome: { success: { payloads: [json({ echoed: marker })] } },
+    } as any);
+    workflowService.queryWorkflow.mockResolvedValueOnce({
+      queryResult: { payloads: [json({ echoed: marker })] },
+    } as any);
+    await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote', args: [marker] })
+      .expect(202);
+    await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority', args: [marker] })
+      .expect(200);
+    await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state', args: [marker] })
+      .expect(200);
+    // A failing call is logged too.
+    workflowService.signalWorkflowExecution.mockRejectedValueOnce(
+      Object.assign(new Error('14 UNAVAILABLE'), { code: 14 }),
+    );
+    await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote', args: [marker] })
+      .expect(503);
+    const calls = recorder.records.map(r => r.meta.temporalCall);
+    expect(calls).toEqual(
+      expect.arrayContaining([
+        'signalWorkflowExecution',
+        'updateWorkflowExecution',
+        'queryWorkflow',
+      ]),
+    );
+    expect(recorder.records.some(r => r.level === 'warn')).toBe(true);
+    expect(JSON.stringify(recorder.records)).not.toContain(marker);
   });
 });

@@ -123,6 +123,7 @@ export const temporalPlugin = createBackendPlugin({
           const commands = new WorkflowCommands(
             temporal,
             readControlOptions(config),
+            logger,
           );
           httpRouter.use(
             createControlRouter({
@@ -137,15 +138,17 @@ export const temporalPlugin = createBackendPlugin({
           );
         } else {
           for (const action of actions) {
-            logger.warn(
-              `Ignoring the control action ${action.id}: temporal.control.enabled is false, so the routes that change workflows are not served`,
-            );
+            logger
+              .child({ actionId: action.id })
+              .warn(
+                'Ignoring a control action: temporal.control.enabled is false, so the routes that change workflows are not served',
+              );
           }
         }
         // Layers: routes → access (permissions, catalog; shared with the
         // modules through temporalAccessServiceRef) → services (use cases)
         // → repositories (Temporal).
-        const temporalReads = new TemporalReadRepository(temporal);
+        const temporalReads = new TemporalReadRepository(temporal, logger);
         // The built-in adapters go through the same registration; an ID a
         // module took fails the start.
         const adapters = new LlmAdapters(logger);
@@ -164,6 +167,7 @@ export const temporalPlugin = createBackendPlugin({
           temporalReads,
           sources,
           queries,
+          logger,
         );
         const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permissions.
@@ -180,9 +184,9 @@ export const temporalPlugin = createBackendPlugin({
                   const name = error instanceof Error ? error.name : 'Error';
                   // A workflow that does not exist is an ordinary answer.
                   if (name === 'NotFoundError') return undefined;
-                  logger.warn(
-                    `Failed to describe permission resource ${resourceRef}: ${name}`,
-                  );
+                  logger
+                    .child({ resourceRef })
+                    .warn('Failed to describe a permission resource', error);
                   return undefined;
                 });
               }),

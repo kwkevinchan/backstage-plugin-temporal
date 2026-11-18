@@ -17,6 +17,7 @@
 import { ConfigReader } from '@backstage/config';
 import * as grpc from '@grpc/grpc-js';
 import { Connection } from '@temporalio/client';
+import { recordingLogger } from '../__testUtils__/recordingLogger';
 import {
   DefaultTemporalService,
   readTemporalServiceOptions,
@@ -280,5 +281,55 @@ describe('connection options', () => {
       tls: true,
       apiKey: 'test-token',
     });
+  });
+});
+
+describe('logs of the connection', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const options = {
+    address: 'temporal.example.com:7233',
+    defaultNamespace: 'default',
+    namespaces: ['default'],
+    searchAttributes: {},
+    tls: true,
+    auth: { type: 'bearer' as const, token: 'test-token' },
+  };
+
+  it('says how the backend connects, without the token', async () => {
+    jest.spyOn(Connection, 'connect').mockResolvedValue({} as Connection);
+    const logger = recordingLogger();
+    await new DefaultTemporalService(options, logger).getConnection();
+    expect(logger.records).toEqual([
+      {
+        level: 'info',
+        message: 'Connecting to Temporal',
+        meta: {
+          address: 'temporal.example.com:7233',
+          tls: true,
+          authType: 'bearer',
+        },
+      },
+    ]);
+    expect(JSON.stringify(logger.records)).not.toContain('test-token');
+  });
+
+  it('warns when the connection cannot be opened, and tries again on the next call', async () => {
+    const failure = new Error('Failed to connect before the deadline');
+    const connect = jest
+      .spyOn(Connection, 'connect')
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValue({} as Connection);
+    const logger = recordingLogger();
+    const service = new DefaultTemporalService(options, logger);
+    await expect(service.getConnection()).rejects.toBe(failure);
+    expect(logger.records).toContainEqual({
+      level: 'warn',
+      message: 'Could not open the connection to Temporal',
+      meta: { address: 'temporal.example.com:7233' },
+      error: failure,
+    });
+    await service.getConnection();
+    expect(connect).toHaveBeenCalledTimes(2);
   });
 });

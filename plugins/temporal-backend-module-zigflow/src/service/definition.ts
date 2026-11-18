@@ -867,6 +867,9 @@ export class DefinitionReader {
     try {
       where = this.resolve(entity, spec.target);
     } catch (error) {
+      this.logger
+        ?.child({ entityRef: base.entityRef })
+        .debug('The target of a definition cannot be used', error as Error);
       return {
         ...base,
         error: {
@@ -895,9 +898,9 @@ export class DefinitionReader {
         };
       }
       const name = error instanceof Error ? error.name : '';
-      this.logger?.warn(
-        `Could not read the definition of ${base.entityRef}: ${error}`,
-      );
+      this.logger
+        ?.child({ entityRef: base.entityRef, targetType: where.type })
+        .warn('Could not read the definition of an entity', error as Error);
       return {
         ...base,
         url,

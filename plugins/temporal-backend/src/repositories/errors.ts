@@ -60,6 +60,91 @@ export function grpcErrorOf(error: unknown): {
   };
 }
 
+/** Names of the errors of `@backstage/errors` that have an HTTP status. */
+const BACKSTAGE_ERRORS = new Set([
+  'InputError',
+  'AuthenticationError',
+  'NotAllowedError',
+  'NotFoundError',
+  'ConflictError',
+  'NotModifiedError',
+  'NotImplementedError',
+  'ServiceUnavailableError',
+]);
+
+/** Names of the gRPC status codes, as they appear in log fields. */
+const GRPC_STATUS_NAMES: Record<number, string> = {
+  1: 'CANCELLED',
+  2: 'UNKNOWN',
+  3: 'INVALID_ARGUMENT',
+  4: 'DEADLINE_EXCEEDED',
+  5: 'NOT_FOUND',
+  6: 'ALREADY_EXISTS',
+  7: 'PERMISSION_DENIED',
+  8: 'RESOURCE_EXHAUSTED',
+  9: 'FAILED_PRECONDITION',
+  10: 'ABORTED',
+  11: 'OUT_OF_RANGE',
+  12: 'UNIMPLEMENTED',
+  13: 'INTERNAL',
+  14: 'UNAVAILABLE',
+  15: 'DATA_LOSS',
+  16: 'UNAUTHENTICATED',
+};
+
+/** gRPC statuses that the user causes, not the server or its credentials. */
+const USER_CAUSED_STATUSES = new Set([
+  GRPC_NOT_FOUND,
+  GRPC_INVALID_ARGUMENT,
+  GRPC_ALREADY_EXISTS,
+  GRPC_FAILED_PRECONDITION,
+]);
+
+/** Errors of the Temporal client that the user's request causes. */
+const USER_CAUSED_ERRORS = new Set([
+  'ScheduleNotFoundError',
+  'NamespaceNotFoundError',
+  'WorkflowNotFoundError',
+  'WorkflowUpdateFailedError',
+]);
+
+/**
+ * What to log about a failed call to Temporal: the gRPC status (read before
+ * the error is mapped, because the mapped error keeps neither), the name of
+ * the error and the log level. A failure that the server or the backend's
+ * credentials cause is a `warn`; one that the user's request causes is a
+ * `debug`. A query that no worker answers in time is the user's workflow.
+ */
+export function describeTemporalFailure(
+  error: unknown,
+  options: { query?: boolean } = {},
+): {
+  level: 'warn' | 'debug';
+  errorName: string;
+  grpcCode?: number;
+  grpcStatus?: string;
+} {
+  const errorName = error instanceof Error ? error.name : 'Error';
+  const { code } = grpcErrorOf(error);
+  if (typeof code === 'number') {
+    const user =
+      USER_CAUSED_STATUSES.has(code) ||
+      (code === GRPC_DEADLINE_EXCEEDED && options.query === true);
+    return {
+      level: user ? 'debug' : 'warn',
+      errorName,
+      grpcCode: code,
+      grpcStatus: GRPC_STATUS_NAMES[code] ?? 'UNKNOWN',
+    };
+  }
+  const user =
+    USER_CAUSED_ERRORS.has(errorName) || BACKSTAGE_ERRORS.has(errorName);
+  return {
+    level: user && errorName !== 'ServiceUnavailableError' ? 'debug' : 'warn',
+    errorName,
+  };
+}
+
 /** The schedule client's error for a schedule that does not exist. */
 export function isScheduleNotFound(error: unknown): boolean {
   return (error as Error)?.name === 'ScheduleNotFoundError';
@@ -135,18 +220,6 @@ export function mapCommandError(error: unknown): never {
   if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
   return mapTemporalError(error);
 }
-
-/** Names of the errors of `@backstage/errors` that have an HTTP status. */
-const BACKSTAGE_ERRORS = new Set([
-  'InputError',
-  'AuthenticationError',
-  'NotAllowedError',
-  'NotFoundError',
-  'ConflictError',
-  'NotModifiedError',
-  'NotImplementedError',
-  'ServiceUnavailableError',
-]);
 
 /**
  * For custom actions: Backstage errors are kept, the errors of the Temporal

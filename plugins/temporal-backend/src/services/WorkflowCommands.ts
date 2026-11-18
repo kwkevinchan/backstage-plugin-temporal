@@ -15,6 +15,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import { Config } from '@backstage/config';
 import {
   InputError,
@@ -130,14 +131,27 @@ export class WorkflowCommands {
   constructor(
     private readonly temporal: TemporalService,
     readonly options: ControlOptions,
+    private readonly logger: LoggerService,
   ) {}
 
   /** A call to Temporal, with the errors of operations. */
   private call<T>(
+    temporalCall: string,
+    namespace: string,
     timeoutMs: number,
     fn: (connection: Connection) => Promise<T>,
   ): Promise<T> {
-    return callTemporal(this.temporal, timeoutMs, mapCommandError, fn);
+    return callTemporal(
+      this.temporal,
+      {
+        timeoutMs,
+        mapError: mapCommandError,
+        temporalCall,
+        namespace,
+        logger: this.logger,
+      },
+      fn,
+    );
   }
 
   /**
@@ -148,8 +162,13 @@ export class WorkflowCommands {
   runAction<T>(namespace: string, run: (client: Client) => Promise<T>) {
     return callTemporal(
       this.temporal,
-      TEMPORAL_DEADLINES.action,
-      mapActionError,
+      {
+        timeoutMs: TEMPORAL_DEADLINES.action,
+        mapError: mapActionError,
+        temporalCall: 'customAction',
+        namespace,
+        logger: this.logger,
+      },
       async () =>
         run(
           await this.temporal
@@ -180,15 +199,19 @@ export class WorkflowCommands {
     identity: string,
   ): Promise<void> {
     this.checkSignal(name);
-    await this.call(TEMPORAL_DEADLINES.operation, c =>
-      c.workflowService.signalWorkflowExecution({
-        namespace: ref.namespace,
-        workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
-        signalName: name,
-        input: encodeJsonPayloads(args),
-        identity,
-        requestId: randomUUID(),
-      }),
+    await this.call(
+      'signalWorkflowExecution',
+      ref.namespace,
+      TEMPORAL_DEADLINES.operation,
+      c =>
+        c.workflowService.signalWorkflowExecution({
+          namespace: ref.namespace,
+          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+          signalName: name,
+          input: encodeJsonPayloads(args),
+          identity,
+          requestId: randomUUID(),
+        }),
     );
   }
 
@@ -207,31 +230,49 @@ export class WorkflowCommands {
     const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
     // Each call has its own deadline: a slow update that finishes within
     // the polls is not cut short.
-    let response: any = await this.call(TEMPORAL_DEADLINES.update, c =>
-      c.workflowService.updateWorkflowExecution({
-        namespace: ref.namespace,
-        workflowExecution,
-        waitPolicy,
-        request: {
-          meta: { updateId, identity },
-          input: { name, args: encodeJsonPayloads(args) },
-        },
-      }),
+    let response: any = await this.call(
+      'updateWorkflowExecution',
+      ref.namespace,
+      TEMPORAL_DEADLINES.update,
+      c =>
+        c.workflowService.updateWorkflowExecution({
+          namespace: ref.namespace,
+          workflowExecution,
+          waitPolicy,
+          request: {
+            meta: { updateId, identity },
+            input: { name, args: encodeJsonPayloads(args) },
+          },
+        }),
     );
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await this.call(TEMPORAL_DEADLINES.update, c =>
-        c.workflowService.pollWorkflowExecutionUpdate({
-          namespace: ref.namespace,
-          updateRef: { workflowExecution, updateId },
-          identity,
-          waitPolicy,
-        }),
+      response = await this.call(
+        'pollWorkflowExecutionUpdate',
+        ref.namespace,
+        TEMPORAL_DEADLINES.update,
+        c =>
+          c.workflowService.pollWorkflowExecutionUpdate({
+            namespace: ref.namespace,
+            updateRef: { workflowExecution, updateId },
+            identity,
+            waitPolicy,
+          }),
       );
     }
     const outcome = response?.outcome;
     if (!outcome) {
+      // The update may still finish; a retry would send it again.
+      this.logger
+        .child({
+          namespace: ref.namespace,
+          workflowId: ref.workflowId,
+          runId: ref.runId,
+          messageName: name,
+          updateId,
+        })
+        .warn('The update did not finish within the polls');
       throw new ServiceUnavailableError('The update did not finish in time');
     }
     if (outcome.failure) {
@@ -241,13 +282,17 @@ export class WorkflowCommands {
   }
 
   async cancel(ref: Required<WorkflowRef>, identity: string): Promise<void> {
-    await this.call(TEMPORAL_DEADLINES.operation, c =>
-      c.workflowService.requestCancelWorkflowExecution({
-        namespace: ref.namespace,
-        workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
-        identity,
-        requestId: randomUUID(),
-      }),
+    await this.call(
+      'requestCancelWorkflowExecution',
+      ref.namespace,
+      TEMPORAL_DEADLINES.operation,
+      c =>
+        c.workflowService.requestCancelWorkflowExecution({
+          namespace: ref.namespace,
+          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+          identity,
+          requestId: randomUUID(),
+        }),
     );
   }
 
@@ -256,32 +301,40 @@ export class WorkflowCommands {
     reason: string,
     identity: string,
   ): Promise<void> {
-    await this.call(TEMPORAL_DEADLINES.operation, c =>
-      c.workflowService.terminateWorkflowExecution({
-        namespace: ref.namespace,
-        workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
-        reason,
-        identity,
-      }),
+    await this.call(
+      'terminateWorkflowExecution',
+      ref.namespace,
+      TEMPORAL_DEADLINES.operation,
+      c =>
+        c.workflowService.terminateWorkflowExecution({
+          namespace: ref.namespace,
+          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+          reason,
+          identity,
+        }),
     );
   }
 
   async start(options: StartOptions): Promise<WorkflowStartResponse> {
     const workflowId =
       options.workflowId || newWorkflowId(options.workflowType);
-    const response = await this.call(TEMPORAL_DEADLINES.operation, c =>
-      c.workflowService.startWorkflowExecution({
-        namespace: options.namespace,
-        workflowId,
-        workflowType: { name: options.workflowType },
-        taskQueue: { name: options.taskQueue },
-        input: encodeJsonPayloads(options.args),
-        identity: options.identity,
-        requestId: randomUUID(),
-        searchAttributes: {
-          indexedFields: keywordAttributes(options.searchAttributes),
-        },
-      }),
+    const response = await this.call(
+      'startWorkflowExecution',
+      options.namespace,
+      TEMPORAL_DEADLINES.operation,
+      c =>
+        c.workflowService.startWorkflowExecution({
+          namespace: options.namespace,
+          workflowId,
+          workflowType: { name: options.workflowType },
+          taskQueue: { name: options.taskQueue },
+          input: encodeJsonPayloads(options.args),
+          identity: options.identity,
+          requestId: randomUUID(),
+          searchAttributes: {
+            indexedFields: keywordAttributes(options.searchAttributes),
+          },
+        }),
     );
     return {
       namespace: options.namespace,
@@ -304,12 +357,16 @@ export class WorkflowCommands {
       identity: string;
     },
   ): Promise<WorkflowStartResponse> {
-    const history = await this.call(TEMPORAL_DEADLINES.read, c =>
-      c.workflowService.getWorkflowExecutionHistory({
-        namespace: workflow.namespace,
-        execution: { workflowId: workflow.workflowId, runId: workflow.runId },
-        maximumPageSize: 1,
-      }),
+    const history = await this.call(
+      'getWorkflowExecutionHistory',
+      workflow.namespace,
+      TEMPORAL_DEADLINES.read,
+      c =>
+        c.workflowService.getWorkflowExecutionHistory({
+          namespace: workflow.namespace,
+          execution: { workflowId: workflow.workflowId, runId: workflow.runId },
+          maximumPageSize: 1,
+        }),
     );
     const started =
       history.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
@@ -319,32 +376,36 @@ export class WorkflowCommands {
     const workflowId =
       options.workflowId ||
       newWorkflowId(`${workflow.workflowId.replace(RERUN_SUFFIX, '')}-rerun`);
-    const response = await this.call(TEMPORAL_DEADLINES.operation, c =>
-      c.workflowService.startWorkflowExecution({
-        namespace: workflow.namespace,
-        workflowId,
-        workflowType: {
-          name: started.workflowType?.name ?? workflow.workflowType,
-        },
-        taskQueue: {
-          name: started.taskQueue?.name ?? workflow.taskQueue ?? '',
-        },
-        input: started.input,
-        header: started.header,
-        memo: started.memo,
-        workflowExecutionTimeout: started.workflowExecutionTimeout,
-        workflowRunTimeout: started.workflowRunTimeout,
-        workflowTaskTimeout: started.workflowTaskTimeout,
-        retryPolicy: started.retryPolicy,
-        identity: options.identity,
-        requestId: randomUUID(),
-        searchAttributes: {
-          indexedFields: {
-            ...(started.searchAttributes?.indexedFields ?? {}),
-            ...keywordAttributes(options.searchAttributes),
+    const response = await this.call(
+      'startWorkflowExecution',
+      workflow.namespace,
+      TEMPORAL_DEADLINES.operation,
+      c =>
+        c.workflowService.startWorkflowExecution({
+          namespace: workflow.namespace,
+          workflowId,
+          workflowType: {
+            name: started.workflowType?.name ?? workflow.workflowType,
           },
-        },
-      }),
+          taskQueue: {
+            name: started.taskQueue?.name ?? workflow.taskQueue ?? '',
+          },
+          input: started.input,
+          header: started.header,
+          memo: started.memo,
+          workflowExecutionTimeout: started.workflowExecutionTimeout,
+          workflowRunTimeout: started.workflowRunTimeout,
+          workflowTaskTimeout: started.workflowTaskTimeout,
+          retryPolicy: started.retryPolicy,
+          identity: options.identity,
+          requestId: randomUUID(),
+          searchAttributes: {
+            indexedFields: {
+              ...(started.searchAttributes?.indexedFields ?? {}),
+              ...keywordAttributes(options.searchAttributes),
+            },
+          },
+        }),
     );
     return {
       namespace: workflow.namespace,
@@ -358,16 +419,20 @@ export class WorkflowCommands {
     namespace: string,
     scheduleId: string,
   ): Promise<ScheduleTarget> {
-    const description = await this.call(TEMPORAL_DEADLINES.read, c =>
-      scheduleClientOf(c, namespace)
-        .getHandle(scheduleId)
-        .describe()
-        .catch(error => {
-          if (isScheduleNotFound(error)) {
-            throw new NotFoundError(`No schedule ${scheduleId}`);
-          }
-          throw error;
-        }),
+    const description = await this.call(
+      'schedule.describe',
+      namespace,
+      TEMPORAL_DEADLINES.read,
+      c =>
+        scheduleClientOf(c, namespace)
+          .getHandle(scheduleId)
+          .describe()
+          .catch(error => {
+            if (isScheduleNotFound(error)) {
+              throw new NotFoundError(`No schedule ${scheduleId}`);
+            }
+            throw error;
+          }),
     );
     return {
       namespace,
@@ -390,19 +455,24 @@ export class WorkflowCommands {
     options: { note?: string; requestedBy: string },
   ): Promise<void> {
     const { note, requestedBy } = options;
-    await this.call(TEMPORAL_DEADLINES.operation, async c => {
-      const handle = scheduleClientOf(c, schedule.namespace).getHandle(
-        schedule.scheduleId,
-      );
-      if (operation === 'pause') {
-        await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
-      } else if (operation === 'unpause') {
-        await handle.unpause(
-          note ?? `Resumed from Backstage by ${requestedBy}`,
+    await this.call(
+      `schedule.${operation}`,
+      schedule.namespace,
+      TEMPORAL_DEADLINES.operation,
+      async c => {
+        const handle = scheduleClientOf(c, schedule.namespace).getHandle(
+          schedule.scheduleId,
         );
-      } else {
-        await handle.trigger(schedule.overlap);
-      }
-    });
+        if (operation === 'pause') {
+          await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
+        } else if (operation === 'unpause') {
+          await handle.unpause(
+            note ?? `Resumed from Backstage by ${requestedBy}`,
+          );
+        } else {
+          await handle.trigger(schedule.overlap);
+        }
+      },
+    );
   }
 }

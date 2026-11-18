@@ -49,6 +49,25 @@ export function readEntityWorkflowFilter(entity: Entity): TemporalAnnotations {
 }
 
 /**
+ * Logs that a `TemporalWorkflow` entity is left out because its spec is not
+ * valid, with the field that is not.
+ */
+export function logSkippedWorkflowEntity(
+  logger: LoggerService,
+  entityRef: string,
+  error: unknown,
+): void {
+  logger
+    .child({
+      entityRef,
+      ...(error instanceof InvalidTemporalWorkflowSpecError
+        ? { field: error.field }
+        : { errorName: error instanceof Error ? error.name : 'Error' }),
+    })
+    .warn('Skipping a TemporalWorkflow entity with an invalid spec');
+}
+
+/**
  * The workflow sources of entities: validates their annotations (or
  * `TemporalWorkflow` spec), resolves their namespace and builds the search
  * filter of their workflows. The other query classes build on it.
@@ -111,15 +130,17 @@ export class EntityWorkflowSources {
       try {
         spec = parseTemporalWorkflowSpec(relatedEntity);
       } catch (error) {
-        this.logger.warn(`Skipping ${relatedRef}: ${error}`);
+        logSkippedWorkflowEntity(this.logger, relatedRef, error);
         continue;
       }
       const relatedNamespace =
         spec.namespace ?? this.temporal.getDefaultNamespace();
       if (relatedNamespace !== namespace) {
-        this.logger.debug(
-          `Skipping ${relatedRef}: namespace ${relatedNamespace} differs from ${namespace}`,
-        );
+        this.logger
+          .child({ entityRef: relatedRef, namespace })
+          .debug(
+            'Skipping a related TemporalWorkflow entity of another namespace',
+          );
         continue;
       }
       related.push({

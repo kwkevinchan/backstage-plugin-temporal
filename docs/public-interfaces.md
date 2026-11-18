@@ -717,6 +717,38 @@ Other systems can read these, so they are interfaces too:
           level: debug
   ```
 
+- **Logs** (logger service, plugin `temporal`). Messages are fixed
+  strings; what varies is in fields, so a log can be filtered by field
+  (`logger.child({ ... }).warn('Fixed message')`), also for a workflow ID,
+  which is free text. The fields are:
+  `namespace`, `workflowId`, `runId`, `workflowType`, `taskQueue`,
+  `entityRef`, `scheduleId` (the names the audit events use), and
+  `temporalCall` (the category of a call to Temporal, such as
+  `describeWorkflowExecution` or `schedule.list`), `grpcCode`, `grpcStatus`,
+  `durationMs`, `timeoutMs`, `enricherId`, `llmAdapterId`, `activityType`,
+  `historyEventId`, `resourceRef`, `permission`, `updateId`, `messageName`
+  (the name of a signal, update or query) and `errorName`. They avoid the
+  names Backstage's logger already uses (`plugin`, `service`, `type`,
+  `status`, `level`, `message`, `stack`).
+
+  Every call to Temporal is logged at `debug` with its category, namespace
+  and duration. A failed call is logged with the gRPC status: at `warn`
+  when the server or the backend's own credentials are at fault
+  (`UNAVAILABLE`, `RESOURCE_EXHAUSTED`, `PERMISSION_DENIED`,
+  `UNAUTHENTICATED`, `INTERNAL`, `UNKNOWN`, `UNIMPLEMENTED`, and a missed
+  deadline of any call but a query), at `debug` when the request is (`NOT_FOUND`,
+  `INVALID_ARGUMENT`, `ALREADY_EXISTS`, `FAILED_PRECONDITION`, a schedule or
+  namespace that does not exist, a query that no worker answers). Other
+  `warn` entries: a permission condition the plugin cannot apply (a policy
+  problem, which callers see only as a refusal), a `TemporalWorkflow` entity
+  whose spec is not valid, a connection that cannot be opened, an update
+  that did not finish within the polls, a failing enricher, LLM adapter or
+  definition file.
+
+  Never logged: payloads, the arguments and results of signals, updates and
+  queries, tokens, and request or response bodies. Fields hold IDs, names,
+  status codes and durations.
+
 The plugin shows a workflow's memo on the details page. It also reads the
 references of Temporal External Storage, written by the SDK's S3 driver in
 its own format, to show where a stored payload is (the plugin does not read

@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import { mockServices } from '@backstage/backend-test-utils';
 import type { Entity } from '@backstage/catalog-model';
 import { ConfigReader } from '@backstage/config';
@@ -60,6 +61,7 @@ function readerOf(
     readFileLocations?: boolean;
     allow?: DefinitionAllowRule[];
     integrations?: ScmIntegrations;
+    logger?: LoggerService;
   } = {},
 ) {
   const { integrations, ...rest } = options;
@@ -159,6 +161,42 @@ describe('parseDefinition', () => {
 });
 
 describe('DefinitionReader', () => {
+  it('logs a target that cannot be used at debug and a file that cannot be read at warn, with the entity', async () => {
+    const logger = mockServices.logger.mock();
+    logger.child.mockReturnValue(logger);
+    const failure = new Error('connection reset');
+    const readUrl = jest.fn(async () => {
+      throw failure;
+    });
+    const reader = readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+      logger,
+    });
+    const denied = await reader.read(
+      entity(),
+      spec('https://other.example.com/order.yaml'),
+    );
+    expect(denied.error?.kind).toBe('read');
+    expect(logger.child).toHaveBeenLastCalledWith({
+      entityRef: 'temporalworkflow:default/order-flow',
+    });
+    expect(logger.debug).toHaveBeenCalledWith(
+      'The target of a definition cannot be used',
+      expect.any(Error),
+    );
+    expect(logger.warn).not.toHaveBeenCalled();
+
+    await reader.read(entity(), spec('https://raw.example.com/order.yaml'));
+    expect(logger.child).toHaveBeenLastCalledWith({
+      entityRef: 'temporalworkflow:default/order-flow',
+      targetType: 'url',
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Could not read the definition of an entity',
+      failure,
+    );
+  });
+
   it('reads a target relative to the entity location', async () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from(fixture),

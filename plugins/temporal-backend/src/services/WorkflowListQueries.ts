@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { BackstageCredentials } from '@backstage/backend-plugin-api';
+import {
+  BackstageCredentials,
+  LoggerService,
+} from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import {
   WorkflowListResponse,
@@ -69,6 +72,7 @@ export class WorkflowListQueries {
     private readonly temporalReads: TemporalReadRepository,
     private readonly sources: EntityWorkflowSources,
     private readonly queries: WorkflowQueries,
+    private readonly logger: LoggerService,
   ) {}
 
   /**
@@ -91,8 +95,13 @@ export class WorkflowListQueries {
     // One deadline for the whole list: its pages are read as it is iterated.
     await callTemporal(
       this.temporal,
-      TEMPORAL_DEADLINES.list,
-      mapTemporalError,
+      {
+        timeoutMs: TEMPORAL_DEADLINES.list,
+        mapError: mapTemporalError,
+        temporalCall: 'schedule.list',
+        namespace,
+        logger: this.logger,
+      },
       async connection => {
         const client = scheduleClientOf(connection, namespace);
         for await (const summary of client.list({ pageSize: 100 })) {
@@ -125,8 +134,13 @@ export class WorkflowListQueries {
         batch.map(schedule =>
           callTemporal(
             this.temporal,
-            TEMPORAL_DEADLINES.read,
-            mapTemporalError,
+            {
+              timeoutMs: TEMPORAL_DEADLINES.read,
+              mapError: mapTemporalError,
+              temporalCall: 'schedule.describe',
+              namespace,
+              logger: this.logger,
+            },
             connection =>
               scheduleClientOf(connection, namespace)
                 .getHandle(schedule.scheduleId)

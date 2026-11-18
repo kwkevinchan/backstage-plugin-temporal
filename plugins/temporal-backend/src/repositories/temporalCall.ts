@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Connection } from '@temporalio/client';
 import type { TemporalService } from '../node';
-import { mapConnectionError } from './errors';
+import { describeTemporalFailure, mapConnectionError } from './errors';
 
 /**
  * How long the backend waits for one call to Temporal, in milliseconds. The
@@ -50,20 +51,63 @@ export const TEMPORAL_DEADLINES = {
   action: 60_000,
 } as const;
 
+/** The category of a query of the user, whose missed deadline is not Temporal's. */
+export const QUERY_CALL = 'queryWorkflow';
+
+/** What {@link callTemporal} needs to know about one call. */
+export interface TemporalCallOptions {
+  /** Deadline of the call, in milliseconds. */
+  timeoutMs: number;
+  /** Rethrows the errors of the call. */
+  mapError: (error: unknown) => never;
+  /**
+   * The category of the call, a fixed string such as `describeWorkflowExecution`
+   * or `schedule.list`, logged as `temporalCall`.
+   */
+  temporalCall: string;
+  namespace?: string;
+  logger: LoggerService;
+}
+
 /**
  * Calls Temporal: gets the connection, runs `call` under a deadline of
  * `timeoutMs` (every gRPC request made inside it, by the workflow service
  * or by a schedule client of the connection), and rethrows its errors with
  * `mapError`. A connection that cannot be opened is a 503.
+ *
+ * Every call is logged: a `debug` with the category, namespace and duration;
+ * a failure with the gRPC status as well, read before the error is mapped
+ * (the mapped error does not keep it), at `warn` when the server or the
+ * backend's credentials are at fault and at `debug` when the request is.
+ * Only IDs, names, statuses and durations are logged, never what a call
+ * sends or receives.
  */
 export async function callTemporal<T>(
   temporal: Pick<TemporalService, 'getConnection'>,
-  timeoutMs: number,
-  mapError: (error: unknown) => never,
+  options: TemporalCallOptions,
   call: (connection: Connection) => Promise<T>,
 ): Promise<T> {
+  const { timeoutMs, mapError, temporalCall, namespace } = options;
   const connection = await temporal.getConnection().catch(mapConnectionError);
-  return await connection
-    .withDeadline(Date.now() + timeoutMs, () => call(connection))
-    .catch(mapError);
+  const started = Date.now();
+  const fields = () => ({
+    temporalCall,
+    ...(namespace !== undefined ? { namespace } : {}),
+    durationMs: Date.now() - started,
+  });
+  try {
+    const result = await connection.withDeadline(started + timeoutMs, () =>
+      call(connection),
+    );
+    options.logger.child(fields()).debug('Called Temporal');
+    return result;
+  } catch (error) {
+    const { level, ...failure } = describeTemporalFailure(error, {
+      query: temporalCall === QUERY_CALL,
+    });
+    options.logger
+      .child({ ...fields(), timeoutMs, ...failure })
+      [level]('Call to Temporal failed');
+    return mapError(error);
+  }
 }
