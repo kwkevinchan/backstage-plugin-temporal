@@ -340,9 +340,18 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       permission,
       credentials,
     );
-    const workflow = await this.queries.describe(ref);
-    await this.queries.assertBelongs(workflow, context);
-    return { context, workflow };
+    try {
+      const workflow = await this.queries.describe(ref);
+      await this.queries.assertBelongs(workflow, context);
+      return { context, workflow };
+    } catch (error) {
+      // A workflow of another entity gets the answer of one that does not
+      // exist.
+      if (error instanceof NotFoundError) {
+        throw new NotFoundError(`Workflow ${ref.workflowId} was not found`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -395,7 +404,14 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         ? canonicalEntityRef(workflow.entityRef)
         : undefined;
       if (!entityMayAllow || !linked) throw notFound();
-      const context = await this.loadEntity(linked, permission, credentials);
+      let context: TemporalEntityContext;
+      try {
+        context = await this.loadEntity(linked, permission, credentials);
+      } catch (error) {
+        // A linked entity that cannot be used counts as none.
+        if (error instanceof InputError) throw notFound();
+        throw error;
+      }
       await this.queries.assertBelongs(workflow, context);
       return { context, workflow };
     } catch (error) {

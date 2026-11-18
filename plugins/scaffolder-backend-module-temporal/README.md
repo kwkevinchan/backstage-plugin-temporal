@@ -65,7 +65,11 @@ run. Without `runId`, `wait` and `signal` look up the latest run in the run
 list of the workflow ID (the running run, else the one that closed last, as
 the user who runs the template). A workflow that has just started can take a
 moment to be listed: `wait` looks again until its timeout, `signal` fails. After
-a `start`, pass its `runId` output. `wait` follows a run that continued as new
+a `start`, pass its `runId` output: when the workflow ID was used before, the
+list can still show the earlier run first, and `wait` would report that run.
+The run list needs `temporal.workflow.list` (with conditions that cover the
+run) when no `entityRef` is given, and with `entityRef` it does not include
+child workflows: pass `runId` in both cases. `wait` follows a run that continued as new
 to the run it continued as and outputs the run it ended on. `signal` outputs
 the run it sent to; when the run it looked up continued as new before the
 signal arrived (a 409 that names the run it continued as), it sends once more

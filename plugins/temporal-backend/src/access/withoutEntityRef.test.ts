@@ -70,6 +70,8 @@ interface Setup {
   entity?: AuthorizeResult;
   /** The entity reference search attribute of the workflow. */
   linked?: string;
+  /** The task queue of the workflow; the entity's by default. */
+  taskQueue?: string;
 }
 
 async function start(setup: Setup) {
@@ -90,6 +92,7 @@ async function start(setup: Setup) {
           ...executionInfo({
             workflowId: req.execution.workflowId,
             status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+            ...(setup.taskQueue ? { taskQueue: setup.taskQueue } : {}),
           }),
           searchAttributes: {
             indexedFields: setup.linked
@@ -253,6 +256,23 @@ describe('opening a workflow without entityRef', () => {
     const res = await backend.get({ exists: true });
     expect(res.status).toBe(200);
     expect(res.body.entityRef).toBe('component:default/orders');
+  });
+
+  it("answers with entityRef as for a workflow that does not exist when the workflow is not the entity's", async () => {
+    const backend = await start({
+      list: DENY,
+      entityAny: entityConditional,
+      entity: AuthorizeResult.ALLOW,
+      linked: 'component:default/other',
+      taskQueue: 'billing',
+    });
+    const path = '?entityRef=component:default/orders';
+    const other = await backend.get({ exists: true, path });
+    const missing = await backend.get({ exists: false, path });
+    expect(missing.status).toBe(404);
+    expect(other.status).toBe(404);
+    expect(other.body).toEqual(missing.body);
+    expect(other.body.error.message).toBe('Workflow wf-1 was not found');
   });
 
   it("answers Temporal's 404 when the list permission allows every workflow", async () => {
