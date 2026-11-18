@@ -559,6 +559,38 @@ describe('event groups on the workflow page', () => {
     expect(tool.getAttribute('class')).toMatch(/tp-edge-tool/);
   });
 
+  it('colors arrows by the kind of the step they lead to', async () => {
+    const { unmount } = await renderInTestApp(
+      <WorkflowGraph graph={withoutGroups(loopGraph)} onSelect={() => {}} />,
+    );
+    const cls = (id: string) =>
+      screen.getByTestId(`rf__edge-${id}`).getAttribute('class') ?? '';
+    expect(cls('start->activity-5')).toMatch(/tp-edge-kind-activity/);
+    expect(cls('activity-5->timer-11')).toMatch(/tp-edge-kind-timer/);
+    expect(cls('activity-22->signal-29')).toMatch(/tp-edge-kind-message/);
+    expect(cls('activity-72->end')).not.toMatch(/tp-edge-kind-/);
+    unmount();
+  });
+
+  it('keeps the kind class off a label group and on a signal group', async () => {
+    // Default layout: the loop frame is open, its rounds are collapsed.
+    // An arrow into a collapsed round (a label group) stays gray. The
+    // wrap-up step sits after the loop, so the arrow out of the last
+    // round is a label-group endpoint on the source side only.
+    const { unmount } = await renderInTestApp(
+      <WorkflowGraph graph={loopGraph} onSelect={() => {}} />,
+    );
+    const edges = [...document.querySelectorAll('[data-testid^="rf__edge-"]')];
+    const intoRound = edges.find(el =>
+      /rf__edge-.*->group:label:loop:draft-review:/.test(
+        el.getAttribute('data-testid') ?? '',
+      ),
+    );
+    expect(intoRound).toBeTruthy();
+    expect(intoRound!.getAttribute('class')).not.toMatch(/tp-edge-kind-/);
+    unmount();
+  });
+
   it('gives each outermost group a color, the same for the groups inside', async () => {
     const hues = () =>
       Object.fromEntries(

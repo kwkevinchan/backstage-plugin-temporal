@@ -328,8 +328,12 @@ The details page of a run shows, from top to bottom:
 - the step graph: one box per step and arrows between them. Colors follow
   the status, running steps pulse, waiting steps are dashed, retried
   activities show their attempt (`×3`), and a child workflow links to its own
-  details. The graph can be zoomed, panned and fitted to the view. Selecting
-  a step opens a panel with its input, output, error, attempts and events.
+  details. Arrows take the color of the kind of step they lead to, the same
+  hues as the boxes but strong enough to read against the background; start,
+  end and wait stay gray. The moving arrow into a running step and the dashed
+  arrow of a tool call keep their own colors. The graph can be zoomed, panned
+  and fitted to the view. Selecting a step opens a panel with its input,
+  output, error, attempts and events.
 - tabs: **Steps** (a table of the steps), **Timeline** (see below),
   **Events** (grouped by step, or the raw history), **Details** (the summary table, failure, pending activities,
   search attributes and memo), and one tab per workflow section.
