@@ -19,6 +19,7 @@ import {
   createBackendModule,
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
+import { temporalAccessServiceRef } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
 import { createRouter } from './router';
 import { DefinitionReader } from './service/definition';
 
@@ -41,7 +42,7 @@ export const temporalModuleZigflow = createBackendModule({
         config: coreServices.rootConfig,
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
-        permissions: coreServices.permissions,
+        access: temporalAccessServiceRef,
         urlReader: coreServices.urlReader,
         catalog: catalogServiceRef,
       },
@@ -50,14 +51,14 @@ export const temporalModuleZigflow = createBackendModule({
         config,
         httpAuth,
         httpRouter,
-        permissions,
+        access,
         urlReader,
         catalog,
       }) {
         httpRouter.use(
           await createRouter({
             httpAuth,
-            permissions,
+            access,
             catalog,
             definitions: DefinitionReader.fromConfig(config, urlReader, logger),
           }),
