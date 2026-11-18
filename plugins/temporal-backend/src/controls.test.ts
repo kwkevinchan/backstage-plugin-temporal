@@ -662,12 +662,18 @@ describe('workflow controls', () => {
     it('answers 409 when the filter does not match and 404 for unknown actions', async () => {
       const { server } = await start({ action, status: 'COMPLETED' });
       expect(
-        (await request(server).post(`${wf}/actions/escalate${withEntity}`))
-          .status,
+        (
+          await request(server)
+            .post(`${wf}/actions/escalate${withEntity}`)
+            .send({})
+        ).status,
       ).toBe(409);
       expect(
-        (await request(server).post(`${wf}/actions/unknown${withEntity}`))
-          .status,
+        (
+          await request(server)
+            .post(`${wf}/actions/unknown${withEntity}`)
+            .send({})
+        ).status,
       ).toBe(404);
       expect(handle).not.toHaveBeenCalled();
     });

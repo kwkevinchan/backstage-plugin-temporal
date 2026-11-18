@@ -165,10 +165,15 @@ module. Change it together with the routes and the types in `src/common`:
   `createControlRouter`; the Zigflow module has the same test for its route.
 - The route tests send their requests through the validating proxy of
   `@backstage/backend-openapi-utils` (`withOpenApiValidation` in
-  `src/__testUtils__/openapi.ts`): a parameter, body, status code or
-  response field that the spec does not describe fails the test. Requests to
-  paths that are not in the spec (other plugins, routes that are switched
-  off) go to the test backend directly.
+  `src/__testUtils__/openapi.ts`): a status code or response field that the
+  spec does not describe fails the test. The proxy does not inspect the
+  request when the response is 400, so it cannot catch a check the program
+  makes that the spec omits. `src/schema/openapiReconciliation.test.ts`
+  compares the two sides: `createValidatedOpenApiRouter` is the spec's
+  judgement, and each case checks that an invalid request is rejected by the
+  spec and by the plugin with 4xx, and that a valid request is accepted by
+  both. Requests to paths that are not in the spec (other plugins, routes
+  that are switched off) go to the test backend directly.
 
 The routers are plain Express routers; nothing is generated from the spec.
 

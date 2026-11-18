@@ -433,8 +433,10 @@ plugin on behalf of a user.
 The contract of the HTTP API is the OpenAPI spec
 [`plugins/temporal-backend/src/schema/openapi.yaml`](../plugins/temporal-backend/src/schema/openapi.yaml),
 published with the backend package: every parameter, body and response,
-and the permissions of each route. The route tests check requests and
-responses against it, and CI validates it (`yarn lint:openapi`); see
+and the permissions of each route. The route tests check responses against
+it (and requests that do not get a 400). A reconciliation test checks the
+spec and the program both ways. CI validates the spec
+(`yarn lint:openapi`); see
 [OpenAPI spec](../plugins/temporal-backend/README.md#openapi-spec). The
 tables below are the overview.
 
@@ -1166,8 +1168,8 @@ and commit the changed reports with the code. A change of a public
 interface then shows up in the pull request as a diff of the report. The
 HTTP API has its own contract, the
 [OpenAPI spec](../plugins/temporal-backend/src/schema/openapi.yaml): change
-it together with the routes; the route tests and `yarn lint:openapi` check
-it. Update
+it together with the routes; the route tests, the reconciliation test and
+`yarn lint:openapi` check it. Update
 this guide in the same pull request when the change adds, removes or
 renames a name listed here.
 
