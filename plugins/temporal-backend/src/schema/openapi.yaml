@@ -289,7 +289,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     ServiceUnavailable:
-      description: Temporal is not reachable, refused the credentials of the backend, or no worker answered in time (`ServiceUnavailableError`).
+      description: Temporal is not reachable, did not answer within the deadline of the call, rate limits the backend or refused its credentials, or no worker answered a query or an update in time (`ServiceUnavailableError`).
       content:
         application/json:
           schema:

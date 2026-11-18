@@ -28,12 +28,15 @@ import {
   TemporalWorkflowEnricher,
 } from './node/alpha';
 import request from 'supertest';
+import { stringifyTemporalWorkflowResourceRef } from './common';
 import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
   badEntity,
+  createFakeConnection,
   createFakeWorkflowService,
+  deadlineExceeded,
   executionInfo,
   fakeTemporalServiceFactory,
   FakeWorkflowService,
@@ -69,9 +72,12 @@ async function start(options?: {
   entityRefAttribute?: string;
   entities?: Entity[];
   logger?: ReturnType<typeof mockServices.logger.mock>;
+  /** An error of opening the connection to Temporal. */
+  connectionError?: unknown;
 }) {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
+  const connection = createFakeConnection(workflowService);
   const decide = (r: any) => ({
     result:
       options?.deny?.includes(r.resourceRef) ||
@@ -91,6 +97,8 @@ async function start(options?: {
     catalogServiceMock.factory({ entities: options?.entities ?? entities }),
     fakeTemporalServiceFactory(workflowService, {
       entityRefAttribute: options?.entityRefAttribute,
+      connection,
+      connectionError: options?.connectionError,
     }),
     permissions.factory,
   ];
@@ -114,13 +122,80 @@ async function start(options?: {
   }
   const { server } = await startTestBackend({ features });
   return {
+    backend: server,
     server: await withOpenApiValidation(server),
     workflowService,
     permissions,
+    connection,
   };
 }
 
 describe('temporal backend plugin', () => {
+  describe('deadlines of the reads', () => {
+    const detail = `/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`;
+    const list = '/api/temporal/entities/component/default/orders/workflows';
+
+    it('reads under a deadline: 15 seconds for lists, 10 for one read', async () => {
+      const { server, connection } = await start();
+      expect((await request(server).get(list)).status).toBe(200);
+      expect((await request(server).get(detail)).status).toBe(200);
+      expect(
+        (await request(server).get(`${detail.replace('?', '/history?')}`))
+          .status,
+      ).toBe(200);
+      expect(connection.timeoutsOf('listWorkflowExecutions')).toEqual([15_000]);
+      const reads = [
+        ...connection.timeoutsOf('describeWorkflowExecution'),
+        ...connection.timeoutsOf('getWorkflowExecutionHistory'),
+      ];
+      expect(reads.length).toBeGreaterThan(1);
+      expect(new Set(reads)).toEqual(new Set([10_000]));
+      // No call to Temporal without a deadline.
+      expect(connection.calls.filter(c => c.timeoutMs === undefined)).toEqual(
+        [],
+      );
+    });
+
+    it.each([
+      ['a list', 'listWorkflowExecutions', list],
+      ['a describe', 'describeWorkflowExecution', detail],
+    ])('answers 503 when %s times out', async (_name, method, path) => {
+      const { server, workflowService } = await start();
+      (workflowService as any)[method].mockRejectedValue(deadlineExceeded());
+      const res = await request(server).get(path);
+      expect(res.status).toBe(503);
+      expect(res.body.error.message).toContain(
+        'Temporal did not answer in time',
+      );
+    });
+
+    it('answers 503 when Temporal rate limits the backend', async () => {
+      const { server, workflowService } = await start();
+      workflowService.listWorkflowExecutions.mockRejectedValue(
+        Object.assign(new Error('8 RESOURCE_EXHAUSTED: namespace rate limit'), {
+          code: 8,
+        }),
+      );
+      const res = await request(server).get(list);
+      expect(res.status).toBe(503);
+      expect(res.body.error.message).toContain(
+        'Temporal is rate limiting the backend',
+      );
+    });
+
+    it('answers 503 when the connection to Temporal cannot be opened', async () => {
+      const { server, workflowService } = await start({
+        connectionError: new Error('Failed to connect before the deadline'),
+      });
+      const res = await request(server).get(detail);
+      expect(res.status).toBe(503);
+      expect(res.body.error.message).toBe(
+        'Temporal is not reachable: Failed to connect before the deadline',
+      );
+      expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    });
+  });
+
   it('lists workflows of an entity with a query from its annotations', async () => {
     const { server, workflowService, permissions } = await start();
     const res = await request(server).get(
@@ -1059,5 +1134,41 @@ describe('temporal backend plugin', () => {
         .get(`/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`)
         .expect(403);
     });
+  });
+
+  it('denies apply-conditions when describing the workflow fails', async () => {
+    const logger = mockServices.logger.mock();
+    logger.child.mockReturnValue(logger);
+    const workflowService = createFakeWorkflowService();
+    const error = new Error('temporal unavailable');
+    error.name = 'ServiceUnavailableError';
+    workflowService.describeWorkflowExecution.mockRejectedValue(error);
+    const { backend } = await start({ workflowService, logger });
+    const resourceRef = stringifyTemporalWorkflowResourceRef({
+      namespace: 'default',
+      workflowId: 'wf-1',
+    });
+    const res = await request(backend)
+      .post('/api/temporal/.well-known/backstage/permissions/apply-conditions')
+      .set('Authorization', mockCredentials.service.header())
+      .send({
+        items: [
+          {
+            id: '1',
+            resourceRef,
+            resourceType: 'temporal-workflow',
+            conditions: {
+              rule: 'HAS_WORKFLOW_TYPE',
+              resourceType: 'temporal-workflow',
+              params: { workflowTypes: ['orderWorkflow'] },
+            },
+          },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([{ id: '1', result: AuthorizeResult.DENY }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Failed to describe permission resource ${resourceRef}: ServiceUnavailableError`,
+    );
   });
 });

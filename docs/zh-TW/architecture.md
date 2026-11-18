@@ -47,14 +47,31 @@
 
 `temporal-backend` 裡的一個請求依序經過四個資料夾（[圖一](how-it-works.md#圖一一個請求經過各層)）。表格和各個類別在 [CONTRIBUTING.md](../../CONTRIBUTING.md#backend-layout) 有說明；簡單說：
 
-| 層              | 職責                                                                                                                                              | 用 clean architecture 的詞 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                 | Controllers                |
-| `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                         | Authorization              |
-| `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
-| `repositories/` | `TemporalReadRepository`（讀取的呼叫）、Temporal 錯誤的轉換、排程 client，以及 External Storage 參照的解析。                                      | Gateways                   |
+| 層              | 職責                                                                                                                                                     | 用 clean architecture 的詞 |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                        | Controllers                |
+| `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                                | Authorization              |
+| `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。        | Use cases                  |
+| `repositories/` | `TemporalReadRepository`（讀取的呼叫）、`callTemporal`（每個呼叫的期限和錯誤轉換）、Temporal 錯誤的轉換、排程 client，以及 External Storage 參照的解析。 | Gateways                   |
 
-Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上。讀取走 `TemporalReadRepository`。`WorkflowCommands`（操作）和 `WorkflowListQueries` 的排程清單自己用共用連線呼叫 Temporal：它們的每個方法本來就是一次呼叫。實驗性的 LLM 紀錄解析放在 `services/llm/`。
+Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上。讀取走 `TemporalReadRepository`。`WorkflowCommands`（操作）和 `WorkflowListQueries` 的排程清單自己用共用連線呼叫 Temporal：它們的每個方法本來就是一次呼叫。這些呼叫都經過 `callTemporal`（見[期限](#期限)）。實驗性的 LLM 紀錄解析放在 `services/llm/`。
+
+### 期限
+
+Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會一直等下去。後端的每個呼叫都有期限，由 `repositories/` 的 `callTemporal` 用 `connection.withDeadline` 設定；它涵蓋呼叫裡發出的每個 gRPC 請求，排程 client 的也算在內。期限是常數，不是設定項：
+
+| 呼叫                                                                                      | 期限       |
+| ----------------------------------------------------------------------------------------- | ---------- |
+| 單筆讀取：流程的 describe、一頁 history、排程的 describe                                  | 10 秒      |
+| 清單和計數（`listWorkflowExecutions`、`countWorkflowExecutions`、排程清單連同它的每一頁） | 15 秒      |
+| 操作：signal、cancel、terminate、start、rerun，排程的 pause、unpause、trigger             | 10 秒      |
+| 使用者發的 query                                                                          | 35 秒      |
+| 讀取流程 metadata 的 query                                                                | 5 秒       |
+| update：送出，以及之後最多五次查詢結果的輪詢                                              | 每次 30 秒 |
+
+沒有 Worker 回應的 query，Temporal 伺服器在 30 秒後結束；update 的送出和每次輪詢，伺服器最多 20 秒就回，還沒完成時回 update 目前的階段。query 和 update 的期限稍長一點，讓伺服器自己的回應先到；慢但在輪詢內完成的 update 會成功。
+
+超過期限的呼叫回 `503`（「Temporal did not answer in time」；query、update 和操作是「No worker answered in time」）。被 Temporal 限流的呼叫（`RESOURCE_EXHAUSTED`：被限流的是後端自己的連線，不是這位使用者）和開不了的連線（「Temporal is not reachable」，和伺服器無法使用時一樣）也回 `503`。期限不跟著 HTTP 請求：瀏覽器放棄的請求，仍會等它的呼叫結束。
 
 授權服務位在 routes 和 services 之間，但它也會用到查詢 service（要讀過流程才能決定誰能看）。在查詢 service 之中，`EntityWorkflowSources` 被另外三個用，`WorkflowQueries` 被 `WorkflowListQueries` 和 `AiWorkflowQueries` 用；沒有任何一個依賴到用到它的類別。
 
@@ -74,12 +91,13 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 | 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                       |
 | 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）                |
 | 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                       |
+| 讓後端認得某個框架的模型呼叫   | `temporalLlmAdapterExtensionPoint.addLlmAdapter()`（實驗性）；轉接器讀得出的步驟會顯示成模型呼叫                                                   | `temporal-backend/alpha`                       |
 | 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                       |
 | 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                           |
 | 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                       |
 | 限制誰能做什麼                 | 用外掛的權限和條件寫 Backstage 權限政策                                                                                                            | [Permissions](../../README.md#permissions)     |
 
-自訂 action 拿到的 Temporal client，用後端的憑證，可以碰到 Namespace 裡的每一個流程，但權限只檢查了這次請求的那個流程。會動到其他流程的 action 必須自己檢查那些流程的權限；見 [Extending](../../README.md#extending)。
+自訂 action 拿到的 Temporal client 帶著後端的連線和憑證：可以碰到 Namespace 裡的每一個流程，以及這些憑證能到的其他 Namespace，但權限只檢查了這次請求的那個流程。會動到其他流程的 action 必須自己檢查那些流程的權限；見 [Extending](../../README.md#extending)。
 
 ## 設計決定
 

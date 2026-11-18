@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createServiceFactory } from '@backstage/backend-plugin-api';
 import { Entity } from '@backstage/catalog-model';
 import { TemporalService, temporalServiceRef } from './node';
@@ -251,23 +252,78 @@ export function createFakeWorkflowService() {
 
 export type FakeWorkflowService = ReturnType<typeof createFakeWorkflowService>;
 
+/**
+ * A fake connection to Temporal over `workflowService`. Like the client's,
+ * `withDeadline` sets the deadline of the calls made inside it (in an async
+ * context, so that it reaches the pages a list reads later); `calls` keeps
+ * each call to the service with its timeout, in milliseconds rounded to the
+ * second (`undefined` for a call without a deadline), and `deadlines` the
+ * timeout of each `withDeadline`. A call that times out is a service method
+ * that rejects with {@link deadlineExceeded}.
+ */
+export function createFakeConnection(workflowService: object) {
+  const deadline = new AsyncLocalStorage<number>();
+  const calls: { method: string; timeoutMs?: number }[] = [];
+  /** The timeout of each `withDeadline`. */
+  const deadlines: number[] = [];
+  const service = new Proxy(workflowService, {
+    get(target, property) {
+      const value = Reflect.get(target, property);
+      if (typeof value !== 'function' || typeof property !== 'string') {
+        return value;
+      }
+      return (...args: unknown[]) => {
+        calls.push({ method: property, timeoutMs: deadline.getStore() });
+        return value.apply(target, args);
+      };
+    },
+  });
+  return {
+    workflowService: service,
+    withDeadline: async <T>(at: number | Date, fn: () => Promise<T>) => {
+      const timeoutMs = Math.round((Number(at) - Date.now()) / 1000) * 1000;
+      deadlines.push(timeoutMs);
+      return await deadline.run(timeoutMs, fn);
+    },
+    calls,
+    deadlines,
+    /** The timeouts of the calls to `method`. */
+    timeoutsOf: (method: string) =>
+      calls.filter(c => c.method === method).map(c => c.timeoutMs),
+  };
+}
+
+export type FakeConnection = ReturnType<typeof createFakeConnection>;
+
+/** The gRPC error of a call whose deadline passed. */
+export function deadlineExceeded() {
+  return Object.assign(new Error('4 DEADLINE_EXCEEDED: Deadline exceeded'), {
+    code: 4,
+  });
+}
+
 /** Service factory replacing the Temporal connection with a fake. */
 export function fakeTemporalServiceFactory(
   workflowService: FakeWorkflowService,
   options?: {
     entityRefAttribute?: string;
     initiatorAttribute?: string;
+    /** The connection; by default, a fake one over `workflowService`. */
+    connection?: FakeConnection;
+    /** An error of opening the connection. */
+    connectionError?: unknown;
   },
 ) {
+  const connection =
+    options?.connection ?? createFakeConnection(workflowService);
   const service: TemporalService = {
     getClient: async () => {
       throw new Error('not used');
     },
-    getConnection: async () =>
-      ({
-        workflowService,
-        withDeadline: (_deadline: number, fn: () => unknown) => fn(),
-      } as any),
+    getConnection: async () => {
+      if (options?.connectionError) throw options.connectionError;
+      return connection as any;
+    },
     getDefaultNamespace: () => 'default',
     getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default',

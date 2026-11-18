@@ -175,12 +175,10 @@ not use it.
 
 ## Backend extension
 
-![Inside temporal-backend a request goes down four layers: routes (router.ts for reads and Query; controlRoutes.ts for the operations, mounted only when temporal.control.enabled is true), access (TemporalAccessService, the ref temporalAccessServiceRef, with the permission framework and the catalog), services (WorkflowQueries and the other query classes, WorkflowCommands) and TemporalService (temporalServiceRef, root scope) to Temporal. On the left, the modules of the plugin: temporalControlExtensionPoint adds actions to the operation routes, temporalWorkflowEnricherExtensionPoint adds enrichers to the queries, your own routes use temporalAccessServiceRef, and the Zigflow module adds a route under /api/temporal and checks the read permission itself. On the right, other backend code: the Scaffolder module calls the HTTP API as the user, your other plugin depends on temporalServiceRef, and your own factories for temporalAccessServiceRef or temporalServiceRef replace the default ones.](images/backend-interfaces.svg)
+![Inside temporal-backend a request goes down four layers: routes (router.ts for reads and Query; controlRoutes.ts for the operations, mounted only when temporal.control.enabled is true), access (TemporalAccessService, the ref temporalAccessServiceRef, with the permission framework and the catalog), services (WorkflowQueries and the other query classes, WorkflowCommands) and TemporalService (temporalServiceRef, root scope) to Temporal. On the left, the modules of the plugin: temporalControlExtensionPoint adds actions to the operation routes, temporalWorkflowEnricherExtensionPoint adds enrichers to the queries, temporalLlmAdapterExtensionPoint adds LLM adapters that read model calls and tool calls of a framework in the queries, your own routes use temporalAccessServiceRef, and the Zigflow module adds a route under /api/temporal and checks the read permission through temporalAccessServiceRef. On the right, other backend code: the Scaffolder module calls the HTTP API as the user, your other plugin depends on temporalServiceRef, and your own factories for temporalAccessServiceRef or temporalServiceRef replace the default ones.](images/backend-interfaces.svg)
 
 Five interfaces, at four layers. The plugin creates the rest of the
-classes itself; they are not exported (see [Not public](#not-public)). The
-diagram does not show the LLM adapters yet; they plug in next to the
-enrichers.
+classes itself; they are not exported (see [Not public](#not-public)).
 
 ### `temporalServiceRef`
 
@@ -238,9 +236,11 @@ served as `POST …/actions/:actionId` ([flow](#one-custom-action-from-the-butto
 
 The extension point is registered even when `temporal.control.enabled` is
 false, so modules still start; their actions are then ignored with a
-warning. The `client` reaches every workflow of the namespace with the
-backend's credentials: an action that touches other workflows must check
-them itself with `temporalAccessServiceRef`.
+warning. An invalid `id` also fails startup, whether operations are
+enabled or not. The `client` carries the backend's connection: it reaches every
+workflow of the namespace, and any other namespace the credentials of that
+connection can reach: an action that touches other workflows must
+check them itself with `temporalAccessServiceRef`.
 
 ### `temporalWorkflowEnricherExtensionPoint`
 
@@ -473,8 +473,9 @@ Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (the workflow
 is not running, the action's filter refused it, or Temporal refused it: a
 workflow ID already in use, a schedule in the wrong state), `503` Temporal
-not reachable, Temporal refusing the backend's own credentials, or no
-worker answering a query or an update in time.
+not reachable, not answering within the deadline of the call, rate limiting
+the backend, refusing the backend's own credentials, or no worker answering
+a query or an update in time.
 Routes the backend does not serve answer `404` **without** a body: the
 operations when `temporal.control.enabled` is false, and the definition route
 without the Zigflow backend module. The two list routes take

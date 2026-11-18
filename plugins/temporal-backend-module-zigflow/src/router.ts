@@ -17,17 +17,16 @@
 import {
   BackstageCredentials,
   HttpAuthService,
-  PermissionsService,
 } from '@backstage/backend-plugin-api';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
-import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import {
   getTemporalWorkflowDefinitionSpec,
   isTemporalWorkflowEntity,
   temporalWorkflowReadPermission,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
+import type { TemporalAccessService } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { DefinitionReader } from './service/definition';
@@ -35,7 +34,7 @@ import { DefinitionReader } from './service/definition';
 /** @internal */
 export interface RouterOptions {
   httpAuth: HttpAuthService;
-  permissions: PermissionsService;
+  access: TemporalAccessService;
   catalog: CatalogService;
   definitions: DefinitionReader;
 }
@@ -61,20 +60,18 @@ function entityRefFromParams(req: Request): string {
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { httpAuth, permissions, catalog, definitions } = options;
+  const { httpAuth, access, catalog, definitions } = options;
   const router = Router();
 
   async function authorize(
     entityRef: string,
     credentials: BackstageCredentials,
   ) {
-    const [decision] = await permissions.authorize(
-      [{ permission: temporalWorkflowReadPermission, resourceRef: entityRef }],
-      { credentials },
+    await access.authorizeOn(
+      temporalWorkflowReadPermission,
+      entityRef,
+      credentials,
     );
-    if (decision.result !== AuthorizeResult.ALLOW) {
-      throw new NotAllowedError();
-    }
   }
 
   // The definition file of a TemporalWorkflow entity. It describes the

@@ -32,6 +32,7 @@ import { toTemporalSchedule } from './schedules';
 import { scheduleClientOf } from '../repositories/scheduleClient';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { isScheduleNotFound, mapTemporalError } from '../repositories/errors';
+import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 import {
   buildEntityWorkflowQuery,
   buildNamespaceWorkflowQuery,
@@ -81,53 +82,62 @@ export class WorkflowListQueries {
     filter?: { sources?: { taskQueue?: string; workflowTypes: string[] }[] },
   ): Promise<TemporalScheduleListResponse> {
     this.sources.checkNamespace(namespace);
-    const client = scheduleClientOf(
-      await this.temporal.getConnection(),
-      namespace,
-    );
     const sources = filter?.sources;
     const items: TemporalSchedule[] = [];
     /** Schedules that match only on a task queue, which the list lacks. */
     const toCheck: TemporalSchedule[] = [];
     let truncated = false;
     let read = 0;
-    try {
-      for await (const summary of client.list({ pageSize: 100 })) {
-        read += 1;
-        if (read > MAX_SCHEDULES) {
-          truncated = true;
-          break;
+    // One deadline for the whole list: its pages are read as it is iterated.
+    await callTemporal(
+      this.temporal,
+      TEMPORAL_DEADLINES.list,
+      mapTemporalError,
+      async connection => {
+        const client = scheduleClientOf(connection, namespace);
+        for await (const summary of client.list({ pageSize: 100 })) {
+          read += 1;
+          if (read > MAX_SCHEDULES) {
+            truncated = true;
+            break;
+          }
+          const schedule = toTemporalSchedule(namespace, summary);
+          if (!sources) {
+            items.push(schedule);
+            continue;
+          }
+          const workflowType = schedule.workflowType ?? '';
+          // The list has no task queue: a source without one decides alone.
+          if (scheduleBelongsToSources({ workflowType }, sources)) {
+            items.push(schedule);
+          } else if (
+            sources.some(s => s.workflowTypes.includes(workflowType))
+          ) {
+            toCheck.push(schedule);
+          }
         }
-        const schedule = toTemporalSchedule(namespace, summary);
-        if (!sources) {
-          items.push(schedule);
-          continue;
-        }
-        const workflowType = schedule.workflowType ?? '';
-        // The list has no task queue: a source without one decides alone.
-        if (scheduleBelongsToSources({ workflowType }, sources)) {
-          items.push(schedule);
-        } else if (sources.some(s => s.workflowTypes.includes(workflowType))) {
-          toCheck.push(schedule);
-        }
-      }
-    } catch (error) {
-      mapTemporalError(error);
-    }
+      },
+    );
     // The list has no task queue: describe those schedules, a few at a time.
     for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
       const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
       const queues = await Promise.all(
         batch.map(schedule =>
-          client
-            .getHandle(schedule.scheduleId)
-            .describe()
-            .then(d => d.action.taskQueue as string | undefined)
-            .catch(error => {
-              // Deleted since the list was read: not shown.
-              if (isScheduleNotFound(error)) return undefined;
-              return mapTemporalError(error);
-            }),
+          callTemporal(
+            this.temporal,
+            TEMPORAL_DEADLINES.read,
+            mapTemporalError,
+            connection =>
+              scheduleClientOf(connection, namespace)
+                .getHandle(schedule.scheduleId)
+                .describe()
+                .then(d => d.action.taskQueue as string | undefined)
+                .catch(error => {
+                  // Deleted since the list was read: not shown.
+                  if (isScheduleNotFound(error)) return undefined;
+                  throw error;
+                }),
+          ),
         ),
       );
       batch.forEach((schedule, j) => {

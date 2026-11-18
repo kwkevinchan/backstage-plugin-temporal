@@ -89,12 +89,12 @@ A request in `temporal-backend` goes down four folders in order
 and the classes are described in
 [CONTRIBUTING.md](../CONTRIBUTING.md#backend-layout); in short:
 
-| Layer           | Responsibility                                                                                                                                                  | In clean-architecture terms |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                  | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                          | Authorization               |
-| `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references.                      | Gateways                    |
+| Layer           | Responsibility                                                                                                                                                                                                | In clean-architecture terms |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                                                                | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                                                                        | Authorization               |
+| `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types.                                               | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (the read calls), `callTemporal` (the deadline and the error mapping of every call), the Temporal error mapping, the schedule client, and the parser of External Storage references. | Gateways                    |
 
 The model (the API types) is in `src/common`, and the shared client in
 `src/node`. The classes are plain; `plugin.ts` creates and wires them, and
@@ -104,8 +104,40 @@ the plugin. The routes that change workflows are their own router
 `temporal.control.enabled` is false. Reads go through
 `TemporalReadRepository`. `WorkflowCommands` (the operations) and the
 schedule list in `WorkflowListQueries` call Temporal on the shared
-connection themselves: each of their methods is already one call. The LLM
+connection themselves: each of their methods is already one call. All of
+them call through `callTemporal` (see [Deadlines](#deadlines)). The LLM
 adapters of the official Temporal AI integrations are in `services/llm/`.
+
+### Deadlines
+
+The Temporal client sets no deadline on a call: a call to a server that does
+not answer would wait for ever. Every call of the backend has one, set by
+`callTemporal` in `repositories/` with `connection.withDeadline`; it covers
+every gRPC request made inside the call, those of a schedule client too.
+The deadlines are constants, not settings:
+
+| Calls                                                                                                         | Deadline  |
+| ------------------------------------------------------------------------------------------------------------- | --------- |
+| One read: a workflow's describe, a page of history, a schedule's describe                                     | 10 s      |
+| A list or a count (`listWorkflowExecutions`, `countWorkflowExecutions`, the schedule list with all its pages) | 15 s      |
+| An operation: signal, cancel, terminate, start, rerun, a schedule's pause, unpause and trigger                | 10 s      |
+| A query of the user                                                                                           | 35 s      |
+| The queries that read a workflow's metadata                                                                   | 5 s       |
+| An update: its send, and each of up to five polls for its outcome                                             | 30 s each |
+
+The Temporal server ends a query that no worker answers after 30 seconds,
+and answers the send or a poll of an update after at most 20 seconds, with
+the update's stage when it is not finished yet. The deadlines of queries and
+updates are a little longer, so that the server's own answer arrives first;
+an update that is slow but finishes within its polls succeeds.
+
+A call that misses its deadline answers `503` ("Temporal did not answer in
+time", or "No worker answered in time" for a query, an update or an
+operation). So do a call that Temporal rate limits (`RESOURCE_EXHAUSTED`:
+the backend's own connection is limited, not the user), and a connection
+that cannot be opened ("Temporal is not reachable", as for an unavailable
+server). The deadline does not follow the HTTP request: a request that the
+browser abandons still waits for its call to end.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query
@@ -133,14 +165,16 @@ You can extend the plugin without changing it. The usage and examples are in
 | Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                       |
 | Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)                 |
 | Add data to workflow summaries                      | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`; it only adds enrichers, custom actions use `temporalControlExtensionPoint`                                    | `temporal-backend/alpha`                       |
+| Teach the backend the model calls of a framework    | `temporalLlmAdapterExtensionPoint.addLlmAdapter()` (experimental); a step the adapter reads is shown as a model call                                                          | `temporal-backend/alpha`                       |
 | Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                       |
 | Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                        |
 | Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                       |
 | Restrict who may do what                            | A Backstage permission policy using the permissions and conditions of the plugin                                                                                              | [Permissions](../README.md#permissions)        |
 
-A custom action receives a Temporal client that can reach every workflow of the
-namespace with the backend's credentials, while the permission was only checked
-for the workflow of the request. An action that touches other workflows must check
+A custom action receives a Temporal client that carries the backend's connection
+and its credentials: it reaches every workflow of the namespace, and any other
+namespace those credentials can reach, while the permission was only checked for
+the workflow of the request. An action that touches other workflows must check
 permissions for those itself; see [Extending](../README.md#extending).
 
 ## Design decisions

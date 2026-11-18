@@ -15,13 +15,23 @@
  */
 
 import { temporalWorkflowReadPermission } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
+import {
+  temporalAccessServiceFactory,
+  temporalAccessServiceRef,
+  type TemporalAccessService,
+} from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
+import { temporalServiceRef } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
 import type { Entity } from '@backstage/catalog-model';
+import { NotAllowedError } from '@backstage/errors';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import type { JsonObject } from '@backstage/types';
 import request from 'supertest';
-import { createBackendPlugin } from '@backstage/backend-plugin-api';
+import {
+  createBackendPlugin,
+  createServiceFactory,
+} from '@backstage/backend-plugin-api';
 import { temporalModuleZigflow } from './module';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
@@ -32,6 +42,30 @@ const temporalPluginStandIn = createBackendPlugin({
   register(env) {
     env.registerInit({ deps: {}, async init() {} });
   },
+});
+
+// The default access factory depends on Temporal, even though authorizeOn
+// itself only uses the permissions service.
+const fakeTemporalService = createServiceFactory({
+  service: temporalServiceRef,
+  deps: {},
+  factory: () =>
+    ({
+      getClient: async () => {
+        throw new Error('not used');
+      },
+      getConnection: async () => {
+        throw new Error('not used');
+      },
+      getDefaultNamespace: () => 'default',
+      getAllowedNamespaces: () => ['default'],
+      isNamespaceAllowed: (ns: string) => ns === 'default',
+      getSearchAttributeNames: () => ({
+        entityRef: 'BackstageEntityRef',
+        initiator: 'BackstageInitiator',
+      }),
+      getWebUiUrl: () => undefined,
+    } as any),
 });
 
 const ordersEntity: Entity = {
@@ -101,6 +135,7 @@ const text =
 async function start(options?: {
   result?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
   config?: JsonObject;
+  accessFactory?: ReturnType<typeof createServiceFactory>;
 }) {
   const readUrl = jest.fn(async () => ({
     buffer: async () => Buffer.from(text),
@@ -115,6 +150,8 @@ async function start(options?: {
   const { server } = await startTestBackend({
     features: [
       temporalPluginStandIn,
+      fakeTemporalService,
+      options?.accessFactory ?? temporalAccessServiceFactory,
       temporalModuleZigflow,
       catalogServiceMock.factory({
         entities: [
@@ -179,6 +216,25 @@ describe('definition route', () => {
     const res = await request(server).get(path('yaml-flow'));
     expect(res.status).toBe(403);
     expect(readUrl).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when a custom access service denies the request', async () => {
+    const accessFactory = createServiceFactory({
+      service: temporalAccessServiceRef,
+      deps: {},
+      factory(): TemporalAccessService {
+        return {
+          authorizeOn: async () => {
+            throw new NotAllowedError();
+          },
+        } as unknown as TemporalAccessService;
+      },
+    });
+    const { server, readUrl, permissions } = await start({ accessFactory });
+    const res = await request(server).get(path('yaml-flow'));
+    expect(res.status).toBe(403);
+    expect(readUrl).not.toHaveBeenCalled();
+    expect(permissions.authorize).not.toHaveBeenCalled();
   });
 
   it('answers 404 for missing entities, code workflows, and other kinds, and 400 for a bad spec', async () => {
