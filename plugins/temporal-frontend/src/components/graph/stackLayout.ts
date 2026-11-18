@@ -101,7 +101,10 @@ export interface StackBlock {
   /** Top left of the frame (0, 0) and of each box and frame in it. */
   positions: Map<string, { x: number; y: number }>;
   sizes: Map<string, NodeSize>;
-  /** The gaps between the rows of the frame and of the stacked ones in it. */
+  /**
+   * The gaps between the rows of the frame and of the stacked ones in it
+   * (and below the last row, see `StepLayout.stackGaps`).
+   */
   stackGaps: Map<string, number[]>;
 }
 
@@ -134,7 +137,9 @@ export type LayOutBlocks = (
  * where the arrow into it turns a lane away from where the arrows out of
  * and into the other boxes above, and out of the parts before it, do. The
  * gap between two rows is a lane taller for each arrow in it past three,
- * counting arrows that leave or enter the frame through it. The side
+ * counting arrows that leave or enter the frame through it. An arrow out of
+ * the frame from the last row, with a box of that row in the way to the
+ * side, leaves through a gap below that row, as from the other rows. The side
  * channel is a lane wider for each arrow past the rows, past three.
  * The rest of the graph is laid out with `layOut`, each stacked frame as
  * one box.
@@ -793,6 +798,7 @@ export function layoutStacked(
     // Arrows that leave this frame, or enter it, through a gap: this is the
     // innermost stacked frame of that end, and a box of the row is in the
     // way out to the side (or in from it). They take a lane in that gap too.
+    // Out of the last row, they take a gap below it, left only for them.
     const innermostStacked = (id: string) => {
       let at = parentOf.get(id);
       for (let depth = 0; at !== undefined && depth <= frames.length; depth++) {
@@ -834,6 +840,7 @@ export function layoutStacked(
       }
       return false;
     };
+    const belowLast = new Set<string>();
     for (const e of edges) {
       const fromHere = innermostStacked(e.source) === frame;
       const toHere = innermostStacked(e.target) === frame;
@@ -841,12 +848,8 @@ export function layoutStacked(
       const key = `${e.source}\u0000${e.target}`;
       if (fromHere) {
         const row = rowOfItem.get(childOf(frame, e.source) ?? '');
-        if (
-          row !== undefined &&
-          row < laid.length - 1 &&
-          wayBlocked(laid[row], e.source, 'right')
-        ) {
-          inGap[row].add(key);
+        if (row !== undefined && wayBlocked(laid[row], e.source, 'right')) {
+          (row < laid.length - 1 ? inGap[row] : belowLast).add(key);
         }
       } else {
         const row = rowOfItem.get(childOf(frame, e.target) ?? '');
@@ -898,6 +901,12 @@ export function layoutStacked(
         gaps.push(FRAME_TOP + y + gapHeight(i) / 2);
         y += gapHeight(i);
       }
+    }
+    if (belowLast.size > 0) {
+      // The gap below the last row ends at the bottom of the frame.
+      const below = STACK_GAP + Math.max(0, belowLast.size - 3) * EDGE_LANE_GAP;
+      gaps.push(FRAME_TOP + y + below / 2);
+      y += below - FRAME_PADDING;
     }
     block.width = sidePad + right + sidePad;
     block.height = FRAME_TOP + y + FRAME_PADDING;

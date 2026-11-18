@@ -1941,6 +1941,39 @@ describe('stackGapOf', () => {
     expect(tooClose(result)).toEqual([]);
   });
 
+  it('leads an arrow out of the last row through a gap below it', () => {
+    // The first step of the last round leads out of the loop, past the
+    // other steps of its round. The loop keeps a gap below that round for
+    // it, so the arrow turns down next to its step instead of running
+    // across the steps after it.
+    const graph = loop(3, { edges: [['r3s1', 'end']] });
+    const result = laidOut(graph, open(1, 2, 3));
+    const frame = rect(result, box('label:loop'));
+    const last = rect(result, box('label:r3'));
+    expect(frame.bottom - last.bottom).toBe(STACK_GAP);
+    expect(throughBoxes(result)).toEqual([]);
+    const leaving = arrows(result).find(a => a.edge.id === 'r3s1->end')!;
+    const next = rect(result, 'r3s2');
+    const across = leaving.points.slice(1).some((q, i) => {
+      const p = leaving.points[i];
+      return (
+        p.y === q.y &&
+        p.y > next.top &&
+        p.y < next.bottom &&
+        Math.min(p.x, q.x) < next.right &&
+        Math.max(p.x, q.x) > next.left
+      );
+    });
+    expect(across).toBe(false);
+  });
+
+  it('keeps no gap below the last row when nothing leaves it past a box', () => {
+    const result = laidOut(loop(3), open(1, 2, 3));
+    const frame = rect(result, box('label:loop'));
+    const last = rect(result, box('label:r3'));
+    expect(frame.bottom - last.bottom).toBeLessThan(STACK_GAP);
+  });
+
   it('turns an arrow down the side when the way into a lower target is blocked', () => {
     // Out of the frame from a, with b in the way to the side. Down next to
     // t would run through the rows below, so the arrow turns in the side

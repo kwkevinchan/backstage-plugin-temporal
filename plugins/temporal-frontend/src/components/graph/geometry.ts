@@ -56,7 +56,8 @@ export interface StepLayout {
   /**
    * In a frame whose boxes are stacked in rows, the y of the middle of the
    * gap below each row but the last, by the ID of the frame: an arrow into
-   * another row of the frame runs across one of them.
+   * another row of the frame runs across one of them. The last row has one
+   * too when an arrow leaves the frame from it through a gap.
    */
   stackGaps?: Map<string, number[]>;
 }
