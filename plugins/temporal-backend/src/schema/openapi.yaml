@@ -25,6 +25,8 @@ tags:
     description: Routes that change workflows; absent when `temporal.control.enabled` is false.
   - name: Experimental
     description: 'Experimental: the shape changes before the first stable release. The model calls and Event Groups do not need a setting.'
+  - name: Specification
+    description: This API description.
   - name: Definitions
     description: Served by `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`.
 security:
@@ -1333,6 +1335,27 @@ components:
           additionalProperties: false
       additionalProperties: false
 paths:
+  /openapi.json:
+    get:
+      operationId: getOpenApiSpec
+      summary: Get this API description
+      description: |-
+        This OpenAPI document as JSON, for the catalog module `@backstage/plugin-catalog-backend-module-backstage-openapi` and other tools. The paths carry the base URL of the plugin (`/api/temporal` in a default backend), so a tool can merge the document with those of other plugins. The operations that change workflows are left out when `temporal.control.enabled` is false. The definition route of the Zigflow backend module stays in the document whether or not the module is installed; without the module it answers 404.
+
+        Needs Backstage credentials, like every route; no permission is checked.
+      tags:
+        - Specification
+      responses:
+        '200':
+          description: The OpenAPI document.
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /workflows:
     get:
       operationId: listWorkflows
