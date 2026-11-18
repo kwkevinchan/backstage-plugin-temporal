@@ -817,7 +817,7 @@ payload would be shown, the plugin shows where it is stored:
   with a copy button, and no content;
 - the History tab and the raw events of a step show the events as JSON; a
   stored payload appears in it as `{ "encoding": …, "external": { store,
-  bucket, key, size, sha256 } }`, not as a card;
+bucket, key, size, sha256 } }`, not as a card;
 - the LLM panel of a model call whose result is stored there says that the
   record is not available and shows where it is. See
   [Model calls and tool calls](#model-calls-and-tool-calls);

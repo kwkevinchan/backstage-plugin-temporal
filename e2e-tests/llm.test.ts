@@ -244,8 +244,12 @@ test('LLM steps: agent graph, LLM panel, tool cards, timeline', async ({
     await expect(page.getByTestId('llm-unavailable')).toContainText(
       'External Storage',
     );
-    const stored = page.getByTestId('llm-panel').getByTestId('external-payload');
-    await expect(stored.getByTestId('external-location')).toContainText('s3://');
+    const stored = page
+      .getByTestId('llm-panel')
+      .getByTestId('external-payload');
+    await expect(stored.getByTestId('external-location')).toContainText(
+      's3://',
+    );
     await expect(
       stored.getByRole('button', { name: 'Copy location' }),
     ).toBeVisible();

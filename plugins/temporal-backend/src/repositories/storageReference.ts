@@ -39,8 +39,7 @@ import type { ExternalPayload } from '../common';
 /** `encoding` metadata of a reference payload. */
 export const REFERENCE_ENCODING = 'json/protobuf';
 /** `messageType` metadata of a reference payload. */
-const REFERENCE_MESSAGE_TYPE =
-  'temporal.api.sdk.v1.ExternalStorageReference';
+const REFERENCE_MESSAGE_TYPE = 'temporal.api.sdk.v1.ExternalStorageReference';
 
 /** Where a payload is stored, read from its reference payload. */
 export interface StorageReference {
