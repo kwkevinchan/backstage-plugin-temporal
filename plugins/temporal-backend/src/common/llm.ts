@@ -71,8 +71,8 @@ export interface WorkflowLlmToolCallRef {
  *
  * - `available`: read from the result;
  * - `pending`: the call has not ended;
- * - `unreadable`: the result is encoded by a codec, or stored in S3 and
- *   larger than the backend reads inline (the full record route reads it);
+ * - `unreadable`: the result is encoded by a codec, or stored in External
+ *   Storage (the backend does not read it);
  * - `missing`: the result has no record.
  *
  * Experimental: the shape changes before the first stable release.
@@ -257,7 +257,7 @@ export interface WorkflowLlmCallResponse {
   raw?: JsonValue;
   /** Why there is no record, in words. */
   unavailable?: string;
-  /** The payload in External Storage the record was read from. */
+  /** The payload in External Storage that holds the record; with `unavailable`. */
   external?: ExternalPayload;
   /** True when the record is of a failed attempt (failure details). */
   fromFailure?: boolean;

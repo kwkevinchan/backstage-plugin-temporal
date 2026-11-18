@@ -26,8 +26,8 @@ import { defineConfig } from '@playwright/test';
  * (`yarn workspace example-worker start`). Screenshots of every step go to
  * SMOKE_SHOT_DIR (default e2e-test-results/<app>). SMOKE_APP_URL and
  * SMOKE_BACKEND_URL point at servers on other ports (start them yourself,
- * with the same ports in the app config). The S3 payload test runs when
- * SMOKE_S3 is set (see e2e-tests/payloads.test.ts).
+ * with the same ports in the app config). The External Storage payload test
+ * runs when SMOKE_S3 is set (see e2e-tests/payloads.test.ts).
  */
 const app = process.env.SMOKE_APP ?? 'app';
 const appUrl = process.env.SMOKE_APP_URL ?? 'http://localhost:3000';

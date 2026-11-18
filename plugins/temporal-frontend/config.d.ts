@@ -58,5 +58,19 @@ export interface Config {
        */
       baseUrl?: string;
     };
+    /**
+     * Temporal External Storage: payloads that workers store outside the
+     * workflow history. The plugin shows where they are stored.
+     */
+    externalStorage?: {
+      /**
+       * Template of a link to a stored payload, for example
+       * `https://console.example.com/s3/{bucket}?prefix={key}`. `{bucket}`
+       * and `{key}` are replaced with the URL-encoded bucket and key. Only
+       * `https:` templates are used. Without it there is no link.
+       * @visibility frontend
+       */
+      objectUrl?: string;
+    };
   };
 }

@@ -71,7 +71,7 @@ The cost:
   `@backstage/no-mixed-plugin-imports` prints a warning for that; it does not
   fail the lint. Those entry points do not load the plugin itself (a test
   checks it), but installing a module brings the whole backend package and
-  its dependencies (the AWS SDK for S3, for example).
+  its dependencies.
 - **The shared definitions exist twice.** A frontend plugin cannot import a
   backend plugin, so `temporal-frontend` carries a copy of the definitions of
   `temporal-backend/src/common`. The copy is generated (`yarn sync:common`)
@@ -94,7 +94,7 @@ and the classes are described in
 | `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                  | Controllers                 |
 | `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                          | Authorization               |
 | `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3).                                                                                              | Gateways                    |
+| `repositories/` | `TemporalReadRepository` (Temporal calls) and the parser of External Storage references.                                                                        | Gateways                    |
 
 The model (the API types) is in `src/common`, and the shared client in
 `src/node`. The classes are plain; `plugin.ts` creates and wires them, and
@@ -161,9 +161,8 @@ false` removes the routes that change workflows (404, not 403) and their
   fixture; `temporal-frontend/src/common` is generated from it and checked in
   CI.
 - **No database in the plugin.** Temporal already is the system of record. The
-  plugin queries it each time and keeps only small in-memory caches (progress of
-  closed runs; 32 MiB of downloaded payloads), so there is nothing to migrate or
-  to keep consistent.
+  plugin queries it each time and keeps only a small in-memory cache (progress of
+  closed runs), so there is nothing to migrate or to keep consistent.
 - **A workflow belongs to an entity by matching, not by registration.** An
   entity's workflows are those with its workflow types on its task queue
   (annotations or `TemporalWorkflow` spec), or with its reference in a search
@@ -177,9 +176,11 @@ false` removes the routes that change workflows (404, not 403) and their
   with rules (workflow type, task queue, namespace, initiator) that the backend
   turns into a Temporal visibility query for lists. Entity permissions stay on
   the catalog entity, so catalog rules (such as `isEntityOwner`) work.
-- **Downloads go through the backend, with no presigned URLs.** A presigned URL
-  works for anyone who has it until it expires, outside Backstage's permission
-  checks. The cost is that data passes through the backend, with a size limit
+- **The plugin does not read payloads in External Storage.** Reading them would
+  need AWS credentials and an SDK in the plugin, and read access to a bucket that
+  holds customer data, for a plugin that only shows workflows. It shows where a
+  payload is stored, with an optional link to your own console, whose permissions
+  decide who can read the object
   ([Large payloads](../README.md#large-payloads-external-storage)).
 - **Plain classes, no abstraction in advance.** No repository interfaces and no
   container: the layers are folders, and `plugin.ts` passes the objects to each

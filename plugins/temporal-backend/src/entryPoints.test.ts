@@ -28,9 +28,6 @@ jest.mock('./routes/router', () => {
 jest.mock('./routes/controlRoutes', () => {
   throw new Error('loaded src/routes/controlRoutes.ts');
 });
-jest.mock('./routes/download', () => {
-  throw new Error('loaded src/routes/download.ts');
-});
 
 describe('entry points for backend modules', () => {
   it('./node loads without the plugin', () => {

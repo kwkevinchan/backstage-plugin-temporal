@@ -15,8 +15,9 @@ that the backend does not serve the Temporal plugin and name that package.
 - Workflow details around a step graph (React Flow with the dagre layout),
   a panel for the selected step, and tabs for the steps, a timeline, the
   events and the details. The graph can go full screen with its step panel.
-  Large payloads stored in S3 show their size, a preview, a download button
-  and a thumbnail of images.
+  Large payloads stored in S3 show where they are (`s3://bucket/key`, the
+  SHA-256 and the size) with copy buttons, and an Open link when
+  `temporal.externalStorage.objectUrl` is set.
 - The operations that change workflows: Signal, Update, Cancel, Terminate
   and Rerun on the details page, Start workflow above the workflow lists,
   Pause or Resume and Run now on schedules, and buttons for custom backend

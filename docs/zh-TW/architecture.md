@@ -39,7 +39,7 @@
 
 代價：
 
-- **模組要匯入後端外掛套件。** 後端模組要匯入 `temporal-backend`：Zigflow 和 Scaffolder 的模組只匯入它的共用定義（`./common`），你自己寫的模組還會匯入 client 服務（`./node`）和擴充點（`./alpha`）。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依（例如 S3 用的 AWS SDK）。
+- **模組要匯入後端外掛套件。** 後端模組要匯入 `temporal-backend`：Zigflow 和 Scaffolder 的模組只匯入它的共用定義（`./common`），你自己寫的模組還會匯入 client 服務（`./node`）和擴充點（`./alpha`）。Backstage 的 lint 規則 `@backstage/no-mixed-plugin-imports` 會為此印出警告，但不會讓 lint 失敗。這些入口不會載入外掛本體（有測試檢查），但裝一個模組就會帶進整個後端套件和它的相依。
 - **共用定義有兩份。** 前端外掛不能匯入後端外掛，所以 `temporal-frontend` 帶著 `temporal-backend/src/common` 的一份副本。副本是產生出來的（`yarn sync:common`），CI 會檢查；兩邊比對權限、服務和擴充點都是靠名稱或 ID，所以物件有兩份不會出問題。
 - **操作預設開著。** 外掛一裝好就能改動流程；誰能做由權限政策決定，或用設定鍵整個關掉（見 [Security](../../README.md#security)）。
 
@@ -52,7 +52,7 @@
 | `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                 | Controllers                |
 | `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                         | Authorization              |
 | `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
-| `repositories/` | `TemporalReadRepository`（呼叫 Temporal）和 `PayloadStore`（S3）。                                                                                | Gateways                   |
+| `repositories/` | `TemporalReadRepository`（呼叫 Temporal）和 External Storage 參照的解析。                                                                         | Gateways                   |
 
 Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上；`WorkflowCommands` 直接呼叫 Temporal。實驗性的 LLM 紀錄解析放在 `services/llm/`。
 
@@ -88,11 +88,11 @@ Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些
 - **操作放在核心裡，由一個設定鍵控制。** `temporal.control.enabled: false` 會拿掉改動流程的路由（回 404，不是 403）和它們的按鈕，所以只想看流程的安裝可以確定後端沒有這種路由。自訂 action 的擴充點仍然註冊，所以加了 action 的模組照樣能啟動。
 - **授權服務只有一份，共用。** 讀取路徑和操作路徑呼叫同一個 `loadWorkflow()`。模組透過 `temporalAccessServiceRef` 重用它，而不是重寫檢查，所以「誰能看這個流程」只有一個定義。這個 interface 是外掛裡唯一刻意設的契約（見 [CONTRIBUTING.md](../../CONTRIBUTING.md#backend-layout)）。
 - **共用定義：後端是正本，前端是副本。** 前端和後端必須對型別、權限名稱和路徑有一致的看法。`temporal-backend/src/common` 是唯一的來源，用一份 fixture 測試；`temporal-frontend/src/common` 由它產生，CI 會檢查兩邊一致。
-- **外掛沒有資料庫。** Temporal 本來就是記錄系統。外掛每次都向它查詢，只保留小的記憶體快取（已結束 Run 的進度；32 MiB 的已下載 Payload），所以沒有需要搬移或維持一致的資料。
+- **外掛沒有資料庫。** Temporal 本來就是記錄系統。外掛每次都向它查詢，只保留小的記憶體快取（已結束 Run 的進度），所以沒有需要搬移或維持一致的資料。
 - **流程屬於哪個實體，靠比對而不是登記。** 實體的流程是：流程類型相同且在它的 Task Queue 上（標註或 `TemporalWorkflow` spec），或在 Search Attribute 裡帶著它的參照。catalog 裡不會為每次執行存任何東西。
 - **一個 `TemporalWorkflow` 實體就是一個 Workflow Type，元件用 `dependsOn` 連過去。** `dependsOn` 的語意正好符合這個關係（「需要它才能運作」），catalog 圖和 about 卡片本來就會顯示它，而且不需要為其他 kind 另外寫 processor（[README](../../README.md#workflow-entities)）。
 - **流程是一種權限資源。** `temporal.workflow.list` 和 `temporal.workflow.history.list` 是 `temporal-workflow` 上的資源權限，規則（流程類型、Task Queue、Namespace、啟動者）由後端轉成清單用的 Temporal visibility 查詢。實體權限則留在 catalog 實體上，所以 catalog 的規則（例如 `isEntityOwner`）可以用。
-- **下載走後端，不發 presigned URL。** presigned URL 在到期前，拿到的人都能用，繞過 Backstage 的權限檢查。代價是資料要經過後端，並有大小上限（[Large payloads](../../README.md#large-payloads-external-storage)）。
+- **外掛不讀 External Storage 裡的 Payload。** 要讀就得在外掛裡放 AWS 憑證和 SDK，還要有一個放著客戶資料的 bucket 的讀取權限，而外掛只是用來看流程的。它只顯示 Payload 存在哪裡，並可選用一個連到你自己主控台的連結，誰能讀物件由那個主控台的權限決定（[Large payloads](../../README.md#large-payloads-external-storage)）。
 - **一般的類別，不事先做抽象。** 沒有 repository interface，也沒有容器：各層就是資料夾，由 `plugin.ts` 把物件互相傳進去。
 - **SDK 的 major 就是外掛的 major。** 後端用 `@temporalio/client` 1.x；它出新的 major，外掛的套件就出新的 major（[Compatibility](../../README.md#compatibility)）。
 - **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器。官方 Temporal AI 整合的 LLM 畫面放在 `components/llm/` 和 `services/llm/`，不需要設定；Event Groups 也是從事件紀錄直接讀。

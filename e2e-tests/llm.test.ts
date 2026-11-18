@@ -21,7 +21,7 @@ import { expect, Locator, Page, test } from '@playwright/test';
 /*
  * LLM steps: the example worker runs agentWorkflow (four rounds of model
  * call and tools; a tool fails once and is retried, the last answer is
- * stored in S3) and mixedAgentWorkflow (ordinary activities, model calls,
+ * stored in S3 when SMOKE_S3 is set) and mixedAgentWorkflow (ordinary activities, model calls,
  * two tools in parallel and a child workflow). No model is called. Model
  * calls use the Vercel AI SDK activity shape. Tools are inferred from the
  * activity name.
@@ -29,6 +29,10 @@ import { expect, Locator, Page, test } from '@playwright/test';
 
 const app = process.env.SMOKE_APP ?? 'app';
 const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
+// With SMOKE_S3 the worker stores the answer of the last round in S3. The
+// backend does not read it: that round shows no model, and its panel says
+// where the record is.
+const withS3 = Boolean(process.env.SMOKE_S3);
 
 function table(page: Page, name: string) {
   return page
@@ -140,8 +144,14 @@ test('LLM steps: agent graph, LLM panel, tool cards, timeline', async ({
   page.on('pageerror', error => errors.push(String(error)));
   await openRun(page, 'agentWorkflow');
 
-  // Four model calls; the second asks for three tools (one retried).
-  await expect(modelCall(page, /^Model call fake-reasoner/)).toHaveCount(4);
+  // Four model calls; the second asks for three tools (one retried). With
+  // S3, the fourth has no model name, since its result is not read.
+  await expect(modelCall(page, /^Model call fake-reasoner/)).toHaveCount(
+    withS3 ? 3 : 4,
+  );
+  if (withS3) {
+    await expect(modelCall(page, /^Model call invokeModel/)).toHaveCount(1);
+  }
   const call = modelCall(page, /^Model call fake-reasoner/).nth(1);
   await expect(call).toBeVisible();
   await expect(call).toContainText('fake-reasoner-1-2026-11');
@@ -227,14 +237,36 @@ test('LLM steps: agent graph, LLM panel, tool cards, timeline', async ({
   await expect(section(page, 'llm-raw')).toContainText('fake-reasoner-1');
   await page.getByText('Raw JSON', { exact: true }).click();
 
-  // The last round: the answer is stored in S3 (when the worker uses it).
-  await modelCall(page, /^Model call fake-reasoner/)
-    .last()
-    .dispatchEvent('click');
-  const output = section(page, 'llm-output');
-  await expect(output).toContainText('# Report: payload storage');
-  await expect(output.getByRole('button', { name: /Show all/ })).toBeVisible();
-  await expect(section(page, 'llm-tools')).toContainText('asked for no tools');
+  // The last round.
+  if (withS3) {
+    // The answer is stored in S3: the panel says where, and shows no record.
+    await modelCall(page, /^Model call invokeModel/).dispatchEvent('click');
+    await expect(page.getByTestId('llm-unavailable')).toContainText(
+      'External Storage',
+    );
+    const stored = page
+      .getByTestId('llm-panel')
+      .getByTestId('external-payload');
+    await expect(stored.getByTestId('external-location')).toContainText(
+      's3://',
+    );
+    await expect(
+      stored.getByRole('button', { name: 'Copy location' }),
+    ).toBeVisible();
+    await expect(page.getByTestId('llm-output')).toHaveCount(0);
+  } else {
+    await modelCall(page, /^Model call fake-reasoner/)
+      .last()
+      .dispatchEvent('click');
+    const output = section(page, 'llm-output');
+    await expect(output).toContainText('# Report: payload storage');
+    await expect(
+      output.getByRole('button', { name: /Show all/ }),
+    ).toBeVisible();
+    await expect(section(page, 'llm-tools')).toContainText(
+      'asked for no tools',
+    );
+  }
 
   // The Timeline: model and tool calls have their own icons and outline.
   await page.getByRole('tab', { name: 'Timeline' }).click();

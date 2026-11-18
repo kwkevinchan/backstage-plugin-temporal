@@ -101,7 +101,7 @@ from some of these histories with the backend's graph builder: run
 `yarn sync:test-graphs` when the shape of the graph changes
 (`plugins/temporal-frontend/src/testGraphs/README.md`).
 Large payloads use Temporal External
-Storage: the backend tests read payloads written by the official S3 driver
+Storage: the backend tests use references written by the official S3 driver
 (`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).
 
 The root `package.json` depends on `protobufjs@^8` only so that one copy of
@@ -119,7 +119,7 @@ order, and three for the other parts of the package:
 | `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates) | Controllers                 |
 | `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups                                                       | Authorization               |
 | `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                             | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and `PayloadStore` (S3)                                                           | Gateways                    |
+| `repositories/` | `TemporalReadRepository` (Temporal calls) and the parser of External Storage references                                     | Gateways                    |
 | `common/`       | The shared definitions (`./common`)                                                                                         | Model                       |
 | `node/`         | `temporalServiceRef`, the extension points and the access service interface (`./node`, `./alpha`)                           | Ports for modules           |
 | `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                         |                             |
@@ -166,8 +166,7 @@ module. Change it together with the routes and the types in `src/common`:
   `src/__testUtils__/openapi.ts`): a parameter, body, status code or
   response field that the spec does not describe fails the test. Requests to
   paths that are not in the spec (other plugins, routes that are switched
-  off) go to the test backend directly. The payload download is not
-  checked: the proxy only reads JSON responses.
+  off) go to the test backend directly.
 
 The routers are plain Express routers; nothing is generated from the spec.
 

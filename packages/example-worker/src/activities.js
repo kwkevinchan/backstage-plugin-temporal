@@ -94,7 +94,7 @@ const pipelineStages = Object.fromEntries(
   ]),
 );
 
-/** About 1 MB of JSON rows: stored in S3, shown as a preview. */
+/** About 1 MB of JSON rows: stored in S3. */
 async function buildReport(request) {
   const rows = [];
   for (let i = 0; i < 12000; i++) {
@@ -108,7 +108,7 @@ async function buildReport(request) {
   return { reportId: request.reportId, generatedRows: rows.length, rows };
 }
 
-/** About 180 KiB of JSON: stored in S3, small enough to show inline. */
+/** About 180 KiB of JSON: stored in S3. */
 async function summarizeReport(report) {
   return {
     reportId: report.reportId,

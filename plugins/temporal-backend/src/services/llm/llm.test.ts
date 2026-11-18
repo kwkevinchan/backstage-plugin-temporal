@@ -70,6 +70,10 @@ function history() {
     });
     return events.length;
   };
+  const inputPayloads = (end: { input?: unknown; rawInput?: unknown }) => {
+    if (end.rawInput !== undefined) return { payloads: [end.rawInput] };
+    return end.input === undefined ? undefined : payloads(end.input);
+  };
   const resultPayloads = (end: { result?: unknown; rawResult?: unknown }) => {
     if (end.rawResult !== undefined) return { payloads: [end.rawResult] };
     return end.result === undefined ? undefined : payloads(end.result);
@@ -79,6 +83,7 @@ function history() {
     activityId: string,
     end: {
       input?: unknown;
+      rawInput?: unknown;
       result?: unknown;
       rawResult?: unknown;
       failure?: unknown;
@@ -88,7 +93,7 @@ function history() {
     const id = add('ActivityTaskScheduled', {
       activityId,
       activityType: { name: type },
-      input: end.input === undefined ? undefined : payloads(end.input),
+      input: inputPayloads(end),
     });
     add('ActivityTaskStarted', { scheduledEventId: String(id), attempt: 1 });
     if (end.open) return id;
@@ -177,6 +182,70 @@ describe('LLM steps in the graph', () => {
     expect(graph.nodes.find(n => n.kind === 'marker')!.name).toBe(
       'Local activity',
     );
+  });
+});
+
+/** The reference payload a worker with External Storage leaves in the history. */
+const storedElsewhere = {
+  metadata: {
+    encoding: b64('json/protobuf'),
+    messageType: b64('temporal.api.sdk.v1.ExternalStorageReference'),
+  },
+  data: b64(
+    JSON.stringify({
+      driverName: 'aws.s3driver',
+      claimData: {
+        bucket: 'payloads',
+        key: 'v0/d/sha256/abc',
+        hash_algorithm: 'sha256',
+        hash_value: 'a'.repeat(64),
+      },
+    }),
+  ),
+  externalPayloads: [{ sizeBytes: '4096' }],
+};
+
+describe('tool calls whose arguments are in External Storage', () => {
+  const run = (second: { input?: unknown; rawInput?: unknown }) => {
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const call = h.activity('invokeModel', 'model-1', {
+      input: vercelInput,
+      result: {
+        ...vercelResult,
+        content: [
+          {
+            type: 'tool-call',
+            toolName: 'search',
+            input: { query: 'second' },
+          },
+        ],
+      },
+    });
+    const first = h.activity('search', 'search-1', {
+      input: { query: 'first' },
+      result: 'a',
+    });
+    const other = h.activity('search', 'search-2', { ...second, result: 'b' });
+    const graph = buildWorkflowGraph(h.events, options);
+    return {
+      call,
+      first,
+      other,
+      tool: graph.nodes.find(n => n.id === `activity-${call}`)!.llm!
+        .toolCalls![0],
+    };
+  };
+
+  it('are matched by name and arguments when they are in the history', () => {
+    const { other, tool } = run({ input: { query: 'second' } });
+    expect(tool.nodeId).toBe(`activity-${other}`);
+  });
+
+  it('are matched by name alone, to the first step of that name, when they are not readable', () => {
+    const { first, tool } = run({ rawInput: storedElsewhere });
+    expect(tool.nodeId).toBe(`activity-${first}`);
+    expect(tool.inferred).toBe(true);
   });
 });
 

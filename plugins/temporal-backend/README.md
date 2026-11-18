@@ -50,15 +50,14 @@ It needs the catalog and the permission framework, and
 `temporal.connection` in the app config. Allow the kind in the catalog
 rules to use `TemporalWorkflow` entities. In a backend without the catalog
 plugin the catalog module is skipped. Payloads that workers store in S3
-with Temporal External Storage are shown when `temporal.externalStorage.s3`
-is configured, with credentials of the plugin's own (an access key, an
-account of `aws.accounts`, or the default AWS credential chain when asked
-for); allow `blob:` in `backend.csp.img-src` for their image thumbnails. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
+with Temporal External Storage are shown by their location (`s3://bucket/key`
+and the SHA-256); the backend never reads the bucket, so it needs no
+credentials for it. See the [repository README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the configuration and the
 permission policy.
 
-The backend reads the External Storage references and the S3 objects behind
-them with its own code and the AWS SDK; it does not depend on the
-experimental driver packages of the Temporal SDK.
+The backend reads the External Storage references in the history with its
+own code; it does not depend on the experimental driver packages of the
+Temporal SDK.
 
 ## Exports
 
@@ -90,7 +89,6 @@ in the repository README for examples.
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/payloads/download?key=`    | `temporal.workflow.history.read`              |
 | GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
 | POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read              |
 
@@ -121,8 +119,7 @@ so a workflow that keeps continuing as new is listed once); `namespace`,
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it
 (404 otherwise). Without it, `temporal.workflow.list` (with
-`temporal.workflow.history.list` for history, steps, model calls and
-downloads) allows the workflows it covers; when it does not, the entity
+`temporal.workflow.history.list` for history, steps and model calls) allows the workflows it covers; when it does not, the entity
 comes from the `searchAttributes.entityRef` search attribute.
 
 The routes that change one workflow (signal, update, cancel, terminate,
@@ -164,8 +161,7 @@ route checks (`x-temporal-permissions`), the routes that
 experimental routes (`x-temporal-experimental`; they and the experimental
 fields change before the first stable release) and the definition route of
 the Zigflow backend module (`x-temporal-module`). The tests of the routes
-check their requests and responses against it (the binary payload download
-excepted).
+check their requests and responses against it.
 
 To show it in the catalog, register an `API` entity that reads the file of
 the version you run. Replace `main` with the commit SHA of that release, not

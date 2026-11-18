@@ -24,8 +24,8 @@ import { temporal } from '@temporalio/proto';
 
 /*
  * Test data of Temporal External Storage, written by the official S3 driver
- * of the TypeScript SDK into an in-memory S3, so the tests read exactly what
- * workers store.
+ * of the TypeScript SDK into an in-memory S3, so the tests use exactly the
+ * references workers store.
  */
 
 /** An in-memory S3: objects by bucket and key. */
@@ -33,7 +33,6 @@ export function memoryS3() {
   const objects = new Map<string, Uint8Array>();
   const id = (bucket: string, key: string) => `${bucket}/${key}`;
   return {
-    objects,
     /** The client the S3 driver writes with. */
     client: {
       async putObject(bucket: string, key: string, data: Uint8Array) {
@@ -48,17 +47,6 @@ export function memoryS3() {
         return data;
       },
     },
-    /** What `PayloadStore` reads with, for one bucket. */
-    store(bucket = 'payloads') {
-      return {
-        bucket,
-        get: jest.fn(async (key: string) => {
-          const data = objects.get(id(bucket, key));
-          if (!data) throw new Error(`NoSuchKey ${key}`);
-          return data;
-        }),
-      };
-    },
   };
 }
 
@@ -71,12 +59,11 @@ type MemoryS3 = ReturnType<typeof memoryS3>;
 export async function storeExternally(
   s3: MemoryS3,
   value: unknown,
-  options: { bucket?: string; driverName?: string; workflowId?: string } = {},
+  options: { bucket?: string; workflowId?: string } = {},
 ) {
   const driver = new S3StorageDriver({
     client: s3.client,
     bucket: options.bucket ?? 'payloads',
-    driverName: options.driverName,
   });
   const stored = defaultPayloadConverter.toPayload(value);
   const [claim] = await driver.store(
@@ -104,7 +91,5 @@ export async function storeExternally(
     sha256: claim.claimData.hash_value,
     /** Size of the stored payload (the object). */
     size,
-    /** Size of the data of the stored payload. */
-    dataSize: stored.data?.length ?? 0,
   };
 }

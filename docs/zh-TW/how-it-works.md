@@ -17,7 +17,7 @@
 1. 頁面用 `TemporalClient` 呼叫後端，Backstage 的 `fetchApi` 會自動帶上使用者的 token。
 2. `routes/router.ts` 認出使用者，從網址取出 Namespace 和 workflow ID。它不做任何判斷，只負責轉交。
 3. `TemporalAccessService.loadWorkflow()` 依序檢查：Namespace 在允許清單裡（否則 `400`）；使用者對這個頁面所屬的實體有 read 權限（否則 `403`）；實體存在於 catalog 而且使用者看得到，流程也屬於這個實體（否則 `404`）。沒有指定實體就打開的流程（從 Workflows 頁進來）改由 list 權限允許；如果不適用，就看流程的 `entityRef` Search Attribute 決定要對哪個實體檢查權限。
-4. `WorkflowQueries` 透過 `TemporalReadRepository` 讀取流程，把 Temporal 的資料轉成外掛自己的 API 型別。Memo 存在 S3 的流程，由 `PayloadStore` 負責取回，並核對 SHA-256。
+4. `WorkflowQueries` 透過 `TemporalReadRepository` 讀取流程，把 Temporal 的資料轉成外掛自己的 API 型別。Worker 存在 S3 的 Payload 不會被讀取：外掛從紀錄裡的參照顯示它存在哪裡。
 5. JSON 回到頁面。Temporal 那邊的錯誤會轉成對應的 HTTP 狀態，例如連不上時回 `503`。
 
 清單走同樣的層，只是入口不同：路由向授權服務要實體的 read 權限（`loadEntity`），再由 `WorkflowListQueries` 組出查詢。Workflows 頁則改問 list 權限，後端把它的條件轉成 visibility 查詢。
