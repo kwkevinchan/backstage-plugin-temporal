@@ -202,6 +202,7 @@ export const temporalPlugin = createBackendPlugin({
             queries,
             lists,
             ai,
+            controlEnabled,
           }),
         );
       },

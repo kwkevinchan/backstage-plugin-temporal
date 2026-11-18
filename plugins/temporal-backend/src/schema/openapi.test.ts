@@ -58,9 +58,11 @@ function operationsOf(include: (operation: any) => boolean): string[] {
 describe('the OpenAPI spec', () => {
   it('describes every read route, and no other', async () => {
     const router = await createRouter({} as any);
+    // `GET /openapi.json` is added to the document when it is served; see
+    // routes/openApiRoutes.ts and openApiRoutes.test.ts.
     expect(
       operationsOf(o => !o['x-temporal-control'] && !o['x-temporal-module']),
-    ).toEqual(routesOf(router));
+    ).toEqual(routesOf(router).filter(r => r !== 'GET /openapi.json'));
   });
 
   it('describes every route of temporal.control as x-temporal-control', () => {

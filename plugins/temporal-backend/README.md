@@ -182,7 +182,19 @@ fields change before the first stable release) and the definition route of
 the Zigflow backend module (`x-temporal-module`). The tests of the routes
 check their requests and responses against it.
 
-To show it in the catalog, register an `API` entity that reads the file of
+The backend serves the same document as JSON at `GET /api/temporal/openapi.json`,
+with the paths under `/api/temporal` (the file in the package has them
+relative and does not list this route), and without the operations that change workflows when
+`temporal.control.enabled` is false. It needs Backstage credentials, like
+every route, and checks no permission. The definition route of the Zigflow
+backend module stays in it whether or not the module is installed.
+
+To show it in the catalog, use the catalog module
+`@backstage/plugin-catalog-backend-module-backstage-openapi`, which reads
+the document of every plugin it is configured for from this route, or read
+`/api/temporal/openapi.json` with another tool.
+
+Alternatively, register an `API` entity that reads the file of
 the version you run. Replace `main` with the commit SHA of that release, not
 its tag: the tags (`@kwkevinchan/backstage-plugin-temporal-backend@<version>`)
 contain slashes, and the GitHub URL reader takes the first segment after
@@ -202,6 +214,5 @@ spec:
     $text: https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/src/schema/openapi.yaml
 ```
 
-The plugin does not serve the spec at `/api/temporal/openapi.json`, so the
-catalog module `@backstage/plugin-catalog-backend-module-backstage-openapi`
-does not find it.
+This shows the file as it is in the package, with relative paths and the
+operations that `temporal.control.enabled: false` removes.
