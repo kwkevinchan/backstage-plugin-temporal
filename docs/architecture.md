@@ -94,16 +94,18 @@ and the classes are described in
 | `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                  | Controllers                 |
 | `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                          | Authorization               |
 | `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types. | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and the parser of External Storage references.                                                                        | Gateways                    |
+| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references.                      | Gateways                    |
 
 The model (the API types) is in `src/common`, and the shared client in
 `src/node`. The classes are plain; `plugin.ts` creates and wires them, and
 there is no repository interface and no dependency-injection container inside
 the plugin. The routes that change workflows are their own router
 (`routes/controlRoutes.ts`), mounted by `plugin.ts` unless
-`temporal.control.enabled` is false; `WorkflowCommands` calls Temporal
-directly. The LLM adapters of the official Temporal AI integrations are in
-`services/llm/`.
+`temporal.control.enabled` is false. Reads go through
+`TemporalReadRepository`. `WorkflowCommands` (the operations) and the
+schedule list in `WorkflowListQueries` call Temporal on the shared
+connection themselves: each of their methods is already one call. The LLM
+adapters of the official Temporal AI integrations are in `services/llm/`.
 
 The access service sits between routes and services but also uses the query
 services (it has to read a workflow to decide who may see it). Among the query

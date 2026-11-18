@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1560" width="1280" height="1560" role="img" aria-label="看和做兩種請求由上往下經過同樣的層：瀏覽器、Routes、Access 授權、Services、Repositories、共用連線，最後到 Temporal。兩者共用同一個授權檢查；操作多一道操作權限和稽核紀錄。"><style>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1560" width="1280" height="1560" role="img" aria-label="看和做兩種請求由上往下經過瀏覽器、Routes、Access 授權和 Services，到共用連線和 Temporal。讀取經過 TemporalReadRepository，操作不經過。兩者共用同一個授權檢查；操作多一道操作權限和稽核紀錄。"><style>
 :root{--bg:#f6f8fa;--surface:#ffffff;--band:#e9edf1;--ink:#1f2933;--muted:#52606d;--line:#9aa5b1;--read:#0b6e7f;--read-soft:#dcf1f4;--act:#b0440d;--act-soft:#fbe9dd;--own:#6a3fb8;--own-soft:#ece6f9}
 @media (prefers-color-scheme:dark){:root{--bg:#10151a;--surface:#1d2630;--band:#18202a;--ink:#e6ecf1;--muted:#a3b0bd;--line:#566574;--read:#5cc6d4;--read-soft:#12343b;--act:#f2965d;--act-soft:#3f2616;--own:#b9a0f6;--own-soft:#2b2146}}
 text{font-family:system-ui,-apple-system,"Segoe UI",Helvetica,Arial,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}

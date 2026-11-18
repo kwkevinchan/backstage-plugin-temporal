@@ -20,7 +20,7 @@ import {
   Payload,
   ScheduleClient,
 } from '@temporalio/client';
-import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
+import { decodeJsonPayloads, encodeJsonPayloads } from '../services/payloads';
 
 /**
  * A schedule client of a namespace that reads the schedules with payloads
