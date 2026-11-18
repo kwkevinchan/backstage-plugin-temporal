@@ -114,15 +114,15 @@ want protobufjs 7).
 `plugins/temporal-backend/src` has four folders a request goes down in
 order, and three for the other parts of the package:
 
-| Folder          | Holds                                                                                                                       | In clean-architecture terms |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates) | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups                                                       | Authorization               |
-| `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                             | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (Temporal calls) and the parser of External Storage references                                     | Gateways                    |
-| `common/`       | The shared definitions (`./common`)                                                                                         | Model                       |
-| `node/`         | `temporalServiceRef`, the extension points and the access service interface (`./node`, `./alpha`)                           | Ports for modules           |
-| `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                         |                             |
+| Folder          | Holds                                                                                                                                     | In clean-architecture terms |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates)               | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups                                                                     | Authorization               |
+| `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                                           | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references | Gateways                    |
+| `common/`       | The shared definitions (`./common`)                                                                                                       | Model                       |
+| `node/`         | `temporalServiceRef`, the extension points and the access service interface (`./node`, `./alpha`)                                         | Ports for modules           |
+| `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                                       |                             |
 
 The query classes in `services/` each cover one kind of read:
 
@@ -142,8 +142,10 @@ class that uses it. The access service uses `EntityWorkflowSources` and
 The classes are plain; there are no repository interfaces or DI container
 inside the plugin. `plugin.ts` creates them and wires them together, and
 mounts the routes that change workflows (`createControlRouter`) unless
-`temporal.control.enabled` is false. `WorkflowCommands` calls Temporal
-directly until a separate write connection needs a gateway of its own.
+`temporal.control.enabled` is false. Reads go through
+`TemporalReadRepository`. `WorkflowCommands` (the operations) and the
+schedule list in `WorkflowListQueries` call Temporal on the shared
+connection themselves: each of their methods is already one call.
 
 The one interface is `TemporalAccessService` in `src/node/alpha.ts`: the
 contract between the plugin and its modules (`temporalAccessServiceRef`).

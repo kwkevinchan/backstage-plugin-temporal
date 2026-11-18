@@ -30,16 +30,13 @@ import type {
   WorkflowStartResponse,
 } from '../common';
 import { TemporalService } from '../node';
-import { scheduleClientOf } from './scheduleClient';
+import { scheduleClientOf } from '../repositories/scheduleClient';
 import {
   decodeJsonPayloads,
   encodeJsonPayloads,
   TemporalJsonPayload,
 } from './payloads';
-import {
-  isScheduleNotFound,
-  mapCommandError,
-} from '../repositories/TemporalReadRepository';
+import { isScheduleNotFound, mapCommandError } from '../repositories/errors';
 
 /** `temporal.control` settings. */
 export interface ControlOptions {

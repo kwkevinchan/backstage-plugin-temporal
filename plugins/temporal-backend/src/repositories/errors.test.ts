@@ -19,7 +19,7 @@ import {
   ScheduleNotFoundError,
   ServiceError,
 } from '@temporalio/client';
-import { mapCommandError, mapTemporalError } from './TemporalReadRepository';
+import { mapCommandError, mapTemporalError } from './errors';
 
 const grpc = (code: number) =>
   Object.assign(new Error(`code ${code}`), { code });

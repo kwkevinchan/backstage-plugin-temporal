@@ -17,13 +17,14 @@ permission framework decides what the user may see.
 
 ## Figure 1: one request through the layers
 
-![Two requests, a read and an operation, go down the same layers: browser, routes, access checks, services, repositories, the shared connection and Temporal. Both pass the same access check; the operation also passes an operation permission and is audited.](images/request-path.svg)
+![Two requests, a read and an operation, go down from the browser through routes, access checks and services to the shared connection and Temporal. The read goes through TemporalReadRepository; the operation does not. Both pass the same access check; the operation also passes an operation permission and is audited.](images/request-path.svg)
 
 Teal is the read path. Orange is the operation path (the routes that change
-workflows, unless `temporal.control.enabled` is false). Both go down the same layers and through the same access check. After
-that, a read goes to a query service; an operation passes a second, operation
-permission and runs inside an audit record. Both reach Temporal through the same
-connection. The layers are described in
+workflows, unless `temporal.control.enabled` is false). Both go through the
+same access check. After that, a read goes to a query service and
+`TemporalReadRepository`; an operation passes a second, operation permission,
+runs inside an audit record, and `WorkflowCommands` calls Temporal on the
+shared connection. Both use the same connection. The layers are described in
 [Architecture](architecture.md#the-layers).
 
 ### Read: open the details page
