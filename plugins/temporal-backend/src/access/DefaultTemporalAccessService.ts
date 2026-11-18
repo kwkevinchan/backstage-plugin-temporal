@@ -422,7 +422,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     const queried = refs.length;
     const relatedWorkflows = total > 0 ? { total, queried } : undefined;
     if (total > queried) {
-      this.logger.info(
+      this.logger.debug(
         `${stringifyEntityRef(
           entity,
         )} depends on ${total} TemporalWorkflow entities; querying the first ${queried}`,

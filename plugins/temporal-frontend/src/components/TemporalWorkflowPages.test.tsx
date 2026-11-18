@@ -32,7 +32,6 @@ import {
   checkoutEntity,
   listResponse,
   mockTemporalApi,
-  statsResponse,
   workflowEntity,
 } from '../testData';
 
@@ -124,20 +123,6 @@ describe('TemporalWorkflow entity tab', () => {
     expect(
       screen.queryByTestId('related-workflows-truncated'),
     ).not.toBeInTheDocument();
-  });
-
-  it('shows a notice on recent runs when related types are truncated', async () => {
-    const api = mockTemporalApi();
-    api.getEntityWorkflowStats.mockResolvedValue({
-      ...statsResponse,
-      relatedWorkflows: { total: 21, queried: 20 },
-    });
-    await render(workflowEntity, api);
-    expect(
-      await screen.findByTestId('related-workflows-truncated'),
-    ).toHaveTextContent(
-      'Showing executions of the first 20 of 21 workflow types. Open a workflow type above to see its executions.',
-    );
   });
 });
 

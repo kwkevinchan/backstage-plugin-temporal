@@ -761,7 +761,7 @@ describe('temporal backend plugin', () => {
         ),
       }),
     );
-    expect(logger.info).toHaveBeenCalledWith(
+    expect(logger.debug).toHaveBeenCalledWith(
       `component:default/many-workflows depends on ${total} TemporalWorkflow entities; querying the first ${MAX_RELATED_WORKFLOW_ENTITIES}`,
     );
     const stats = await request(server).get(
@@ -798,7 +798,9 @@ describe('temporal backend plugin', () => {
         ),
       }),
     );
-    expect(logger.info).not.toHaveBeenCalled();
+    expect(logger.debug).not.toHaveBeenCalledWith(
+      expect.stringContaining('TemporalWorkflow entities'),
+    );
     const stats = await request(server).get(
       '/api/temporal/entities/component/default/many-workflows/workflow-stats',
     );

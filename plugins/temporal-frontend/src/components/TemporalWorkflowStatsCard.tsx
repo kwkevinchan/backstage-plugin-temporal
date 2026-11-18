@@ -24,7 +24,6 @@ import { ErrorAlert, Loading } from './feedback';
 import { formatMilliseconds } from './format';
 import { PanelCard } from './PanelCard';
 import { useRefreshLock } from './useRefreshLock';
-import { RelatedWorkflowsTruncationNotice } from './WorkflowList';
 
 /** Props of the recent runs card. */
 export interface TemporalWorkflowStatsCardProps {
@@ -103,9 +102,6 @@ export function TemporalWorkflowStatsCard(
         </Button>
       }
     >
-      <RelatedWorkflowsTruncationNotice
-        relatedWorkflows={value?.relatedWorkflows}
-      />
       {body}
     </PanelCard>
   );

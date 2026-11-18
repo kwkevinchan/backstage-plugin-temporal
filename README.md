@@ -904,7 +904,7 @@ then lists the workflow types it depends on (**Workflow types**), and its
 workflow executions are its own (from the annotations, if any) together with
 those of each workflow type entity; executions of a workflow type entity
 link to it. The merged execution list and the recent-run statistics include
-at most 20 of those workflow types (the first 20 in `spec.dependsOn`). When
+at most 20 of those workflow types (in the order of their entity references). When
 there are more, the tab says it is showing executions of the first 20 of N
 types; open a type in **Workflow types** above to see its executions. Only
 one level of `dependsOn` is followed: `dependsOn` of a `TemporalWorkflow`
