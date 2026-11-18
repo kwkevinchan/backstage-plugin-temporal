@@ -178,6 +178,8 @@ export const temporalPlugin = createBackendPlugin({
                 if (!ref) return undefined;
                 return queries.describe(ref).catch(error => {
                   const name = error instanceof Error ? error.name : 'Error';
+                  // A workflow that does not exist is an ordinary answer.
+                  if (name === 'NotFoundError') return undefined;
                   logger.warn(
                     `Failed to describe permission resource ${resourceRef}: ${name}`,
                   );
