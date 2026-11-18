@@ -189,7 +189,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `filter?`    | `(workflow: WorkflowDetail) => boolean`；false 時回 `409`                                                           |
 | `handle`     | `(ref, body, { entity?, workflow, credentials, client }) => Promise<JsonValue \| void>`；回傳值以 `{ result }` 送回 |
 
-即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`client` 用後端的憑證，可以碰到 namespace 裡的每個流程：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
+即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 用後端的憑證，可以碰到 namespace 裡的每個流程：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
 
 ### `temporalWorkflowEnricherExtensionPoint`
 

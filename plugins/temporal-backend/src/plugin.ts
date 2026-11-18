@@ -74,6 +74,9 @@ export const temporalPlugin = createBackendPlugin({
     const actions: TemporalControlAction[] = [];
     env.registerExtensionPoint(temporalControlExtensionPoint, {
       addControlAction(action) {
+        if (!isValidControlActionId(action.id)) {
+          throw new Error(`Invalid control action id: ${action.id}`);
+        }
         if (actions.some(a => a.id === action.id)) {
           throw new Error(`Duplicate control action id: ${action.id}`);
         }
@@ -117,11 +120,6 @@ export const temporalPlugin = createBackendPlugin({
         const controlEnabled =
           config.getOptionalBoolean('temporal.control.enabled') ?? true;
         if (controlEnabled) {
-          for (const action of actions) {
-            if (!isValidControlActionId(action.id)) {
-              throw new Error(`Invalid control action id: ${action.id}`);
-            }
-          }
           const commands = new WorkflowCommands(
             temporal,
             readControlOptions(config),
@@ -178,7 +176,13 @@ export const temporalPlugin = createBackendPlugin({
               resourceRefs.map(async resourceRef => {
                 const ref = parseTemporalWorkflowResourceRef(resourceRef);
                 if (!ref) return undefined;
-                return queries.describe(ref).catch(() => undefined);
+                return queries.describe(ref).catch(error => {
+                  const name = error instanceof Error ? error.name : 'Error';
+                  logger.warn(
+                    `Failed to describe permission resource ${resourceRef}: ${name}`,
+                  );
+                  return undefined;
+                });
               }),
             );
           },
