@@ -165,6 +165,8 @@ export class WorkflowListQueries {
       allRuns?: boolean;
       /** A Bool search attribute that must be true. */
       searchAttribute?: string;
+      /** Only the runs of this workflow ID. */
+      workflowId?: string;
       pageSize: number;
       pageToken?: string;
       credentials: BackstageCredentials;
@@ -174,6 +176,7 @@ export class WorkflowListQueries {
       status: options.status,
       allRuns: options.allRuns,
       searchAttribute: options.searchAttribute,
+      workflowId: options.workflowId,
     });
     let nextPageToken: Uint8Array | undefined;
     try {

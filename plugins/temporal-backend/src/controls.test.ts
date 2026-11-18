@@ -257,7 +257,7 @@ async function start(options?: {
   };
 }
 
-const wf = '/api/temporal/namespaces/default/workflows/wf-1';
+const wf = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 const withEntity = '?entityRef=component:default/orders';
 
 /** Every control route with a valid body, for the shared checks. */
@@ -438,7 +438,7 @@ describe('workflow controls', () => {
     const { server, workflowService } = await start({ status: 'FAILED' });
     const res = await request(server)
       .post(
-        '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/rerun?entityRef=component:default/orders',
+        '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/runs/wf-1-rerun-abc-run/rerun?entityRef=component:default/orders',
       )
       .send({});
     expect(res.status).toBe(201);
@@ -511,7 +511,8 @@ describe('workflow controls', () => {
 
   it('refuses namespaces that are not in temporal.connection.namespaces', async () => {
     const { server, workflowService } = await start();
-    const other = '/api/temporal/namespaces/secret/workflows/wf-1';
+    const other =
+      '/api/temporal/namespaces/secret/workflows/wf-1/runs/wf-1-run';
     for (const op of ['signal', 'update', 'cancel', 'terminate', 'rerun']) {
       const res = await request(server)
         .post(`${other}/${op}${withEntity}`)
@@ -1226,7 +1227,9 @@ describe('input length limits', () => {
       })
       .expect(400);
     await request(backend)
-      .post(`/api/temporal/namespaces/default/workflows/${tooLong}/cancel`)
+      .post(
+        `/api/temporal/namespaces/default/workflows/${tooLong}/runs/r1/cancel`,
+      )
       .send({})
       .expect(400);
     await request(backend)

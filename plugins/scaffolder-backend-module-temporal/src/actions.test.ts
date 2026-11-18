@@ -16,7 +16,7 @@
 
 import { mockCredentials } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
-import { InputError } from '@backstage/errors';
+import { InputError, ResponseError } from '@backstage/errors';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import {
   createTemporalWorkflowSignalAction,
@@ -71,6 +71,7 @@ function setup(defaultNamespace = 'default') {
       runId: 'run-1',
     }),
     describe: jest.fn(),
+    latestRunId: jest.fn().mockResolvedValue('run-1'),
     steps: jest.fn(),
     send: jest.fn().mockResolvedValue({ result: { approved: true } }),
   };
@@ -230,7 +231,7 @@ describe('temporal:workflow:wait', () => {
     await createTemporalWorkflowWaitAction(options).handler(ctx);
     expect(client.describe).toHaveBeenCalledTimes(2);
     expect(client.describe).toHaveBeenCalledWith(
-      { namespace: 'default', workflowId: 'release-1' },
+      { namespace: 'default', workflowId: 'release-1', runId: 'run-1' },
       undefined,
       user,
     );
@@ -279,18 +280,65 @@ describe('temporal:workflow:wait', () => {
 });
 
 describe('temporal:workflow:wait across runs', () => {
-  it('follows the latest run when the given run continued as new', async () => {
+  it('follows the run that the given run continued as', async () => {
     const { client, options } = setup();
     client.describe
-      .mockResolvedValueOnce({ status: 'ContinuedAsNew', runId: 'run-1' })
+      .mockResolvedValueOnce({
+        status: 'ContinuedAsNew',
+        runId: 'run-1',
+        continuedAsNewRunId: 'run-2',
+      })
       .mockResolvedValueOnce({ status: 'Completed', runId: 'run-2' });
     const ctx = context({ workflowId: 'long-1', runId: 'run-1' });
     await createTemporalWorkflowWaitAction(options).handler(ctx);
     expect(client.describe.mock.calls[1][0]).toEqual({
       namespace: 'default',
       workflowId: 'long-1',
+      runId: 'run-2',
     });
+    expect(client.latestRunId).not.toHaveBeenCalled();
     expect(ctx.output).toHaveBeenCalledWith('runId', 'run-2');
+  });
+
+  it('looks up the latest run when the run that continued as new does not name the next one', async () => {
+    const { client, options } = setup();
+    client.latestRunId.mockResolvedValue('run-3');
+    client.describe
+      .mockResolvedValueOnce({ status: 'ContinuedAsNew', runId: 'run-1' })
+      .mockResolvedValueOnce({ status: 'Completed', runId: 'run-3' });
+    const ctx = context({ workflowId: 'long-1', runId: 'run-1' });
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(client.latestRunId).toHaveBeenCalledWith(
+      { namespace: 'default', workflowId: 'long-1' },
+      undefined,
+      user,
+    );
+    expect(client.describe.mock.calls[1][0].runId).toBe('run-3');
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-3');
+  });
+
+  it('waits for the run list without a run ID until the workflow is listed', async () => {
+    const { client, options } = setup();
+    client.latestRunId
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('run-1');
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    const ctx = context({ workflowId: 'w', intervalSeconds: 1 });
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(client.latestRunId).toHaveBeenCalledTimes(2);
+    expect(client.describe).toHaveBeenCalledTimes(1);
+    expect(ctx.output).toHaveBeenCalledWith('status', 'Completed');
+  });
+
+  it('says when no run is listed before the timeout', async () => {
+    const { client, options } = setup();
+    client.latestRunId.mockResolvedValue(undefined);
+    await expect(
+      createTemporalWorkflowWaitAction(options).handler(
+        context({ workflowId: 'w', timeoutSeconds: 1, intervalSeconds: 1 }),
+      ),
+    ).rejects.toThrow('No run of workflow w was found in 1 seconds');
+    expect(client.describe).not.toHaveBeenCalled();
   });
 
   it('looks a last time at the deadline', async () => {
@@ -532,7 +580,7 @@ describe('temporal:workflow:signal', () => {
     await createTemporalWorkflowSignalAction(options).handler(ctx);
     expect(client.send).toHaveBeenCalledWith(
       'update',
-      { namespace: 'billing', workflowId: 'release-1' },
+      { namespace: 'billing', workflowId: 'release-1', runId: 'run-1' },
       { name: 'approve', args: [{ approved: true }] },
       'component:default/orders',
       user,
@@ -547,12 +595,87 @@ describe('temporal:workflow:signal', () => {
     await createTemporalWorkflowSignalAction(options).handler(ctx);
     expect(client.send).toHaveBeenCalledWith(
       'signal',
-      { namespace: 'default', workflowId: 'ticket-1' },
+      { namespace: 'default', workflowId: 'ticket-1', runId: 'run-1' },
       { name: 'close', args: [] },
       undefined,
       user,
     );
-    expect(ctx.output).not.toHaveBeenCalled();
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-1');
+    expect(ctx.output).not.toHaveBeenCalledWith('result', expect.anything());
+  });
+});
+
+describe('the run of signal', () => {
+  const conflict = (continuedAsNewRunId?: string) =>
+    ResponseError.fromResponse(
+      new Response(
+        JSON.stringify({
+          error: {
+            name: 'ConflictError',
+            message: 'Workflow long-1 is not running (ContinuedAsNew)',
+            ...(continuedAsNewRunId ? { continuedAsNewRunId } : {}),
+          },
+          request: { method: 'POST', url: '/' },
+          response: { statusCode: 409 },
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+  it('sends to the given run without looking it up, and outputs it', async () => {
+    const { client, options } = setup();
+    const ctx = context({ workflowId: 'w', runId: 'run-9', name: 'close' });
+    await createTemporalWorkflowSignalAction(options).handler(ctx);
+    expect(client.latestRunId).not.toHaveBeenCalled();
+    expect(client.send.mock.calls[0][1]).toEqual({
+      namespace: 'default',
+      workflowId: 'w',
+      runId: 'run-9',
+    });
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-9');
+  });
+
+  it('sends once more to the run it continued as when the run it looked up continued as new', async () => {
+    const { client, options } = setup();
+    client.send
+      .mockRejectedValueOnce(await conflict('run-2'))
+      .mockResolvedValueOnce(undefined);
+    const ctx = context({ workflowId: 'long-1', name: 'close' });
+    await createTemporalWorkflowSignalAction(options).handler(ctx);
+    expect(client.send.mock.calls.map(c => c[1].runId)).toEqual([
+      'run-1',
+      'run-2',
+    ]);
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-2');
+  });
+
+  it('does not retry a given run, nor a conflict without a run to follow', async () => {
+    const { client, options } = setup();
+    client.send.mockRejectedValue(await conflict('run-2'));
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context({ workflowId: 'long-1', runId: 'run-1', name: 'close' }),
+      ),
+    ).rejects.toThrow(/409/);
+    expect(client.send).toHaveBeenCalledTimes(1);
+    client.send.mockReset().mockRejectedValue(await conflict());
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context({ workflowId: 'long-1', name: 'close' }),
+      ),
+    ).rejects.toThrow(/409/);
+    expect(client.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails when the workflow ID has no run', async () => {
+    const { client, options } = setup();
+    client.latestRunId.mockResolvedValue(undefined);
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context({ workflowId: 'gone', name: 'close' }),
+      ),
+    ).rejects.toThrow('No run of workflow gone was found');
+    expect(client.send).not.toHaveBeenCalled();
   });
 });
 
@@ -566,7 +689,7 @@ describe('the namespace of wait and signal', () => {
       context({ workflowId: 'release-1' }),
     );
     expect(client.describe).toHaveBeenCalledWith(
-      { namespace: 'team-a', workflowId: 'release-1' },
+      { namespace: 'team-a', workflowId: 'release-1', runId: 'run-1' },
       undefined,
       user,
     );
@@ -575,7 +698,7 @@ describe('the namespace of wait and signal', () => {
     );
     expect(client.send).toHaveBeenCalledWith(
       'signal',
-      { namespace: 'team-a', workflowId: 'release-1' },
+      { namespace: 'team-a', workflowId: 'release-1', runId: 'run-1' },
       { name: 'approve', args: [] },
       undefined,
       user,
@@ -589,7 +712,7 @@ describe('the namespace of wait and signal', () => {
       context({ workflowId: 'release-1', namespace: 'billing' }),
     );
     expect(client.describe).toHaveBeenCalledWith(
-      { namespace: 'billing', workflowId: 'release-1' },
+      { namespace: 'billing', workflowId: 'release-1', runId: 'run-1' },
       undefined,
       user,
     );
@@ -733,7 +856,12 @@ describe('the namespace of wait and signal for an entity', () => {
           kind: 'update',
           entityRef: 'component:default/billing',
         },
-        { checkpoint: async () => ({ approved: true }) },
+        {
+          checkpoint: async () => ({
+            result: { approved: true },
+            runId: 'run-1',
+          }),
+        },
       ),
     );
     expect(getEntityByRef).not.toHaveBeenCalled();

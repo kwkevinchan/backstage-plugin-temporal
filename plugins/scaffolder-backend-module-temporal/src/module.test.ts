@@ -68,7 +68,7 @@ describe('scaffolderTemporalModule', () => {
       .mockResolvedValue(new Response('{}', { status: 202 }));
     try {
       const ctx = createMockActionContext({
-        input: { workflowId: 'release-1', name: 'approve' },
+        input: { workflowId: 'release-1', runId: 'run-1', name: 'approve' },
       });
       Object.assign(ctx, {
         getInitiatorCredentials: async () =>
@@ -77,7 +77,7 @@ describe('scaffolderTemporalModule', () => {
       });
       await signal.handler(ctx);
       expect(String(fetchMock.mock.calls[0][0])).toMatch(
-        /\/api\/temporal\/namespaces\/team-a\/workflows\/release-1\/signal$/,
+        /\/api\/temporal\/namespaces\/team-a\/workflows\/release-1\/runs\/run-1\/signal$/,
       );
     } finally {
       fetchMock.mockRestore();

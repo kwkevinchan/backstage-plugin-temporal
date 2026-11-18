@@ -76,38 +76,52 @@ in the repository README for examples.
 
 ## API
 
-| Method | Path                                                                                   | Permission                                    |
-| ------ | -------------------------------------------------------------------------------------- | --------------------------------------------- |
-| GET    | `/workflows`                                                                           | `temporal.workflow.list`                      |
-| GET    | `/entities/:kind/:namespace/:name/workflows`                                           | `temporal.workflow.read`                      |
-| GET    | `/schedules`                                                                           | `temporal.workflow.list` (without conditions) |
-| GET    | `/entities/:kind/:namespace/:name/schedules`                                           | `temporal.workflow.read`                      |
-| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                      | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`                           | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/history`                   | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/steps`                     | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/graph`                     | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/progress`                  | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
-| GET    | `.../workflows/:workflowId[/runs/:runId]/handlers`                                     | `temporal.workflow.read`                      |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/query`                                        | `temporal.workflow.query` + read              |
+| Method | Path                                                                                 | Permission                                    |
+| ------ | ------------------------------------------------------------------------------------ | --------------------------------------------- |
+| GET    | `/workflows`                                                                         | `temporal.workflow.list`                      |
+| GET    | `/entities/:kind/:namespace/:name/workflows`                                         | `temporal.workflow.read`                      |
+| GET    | `/schedules`                                                                         | `temporal.workflow.list` (without conditions) |
+| GET    | `/entities/:kind/:namespace/:name/schedules`                                         | `temporal.workflow.read`                      |
+| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                    | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId`                                       | `temporal.workflow.read` or list              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId`                           | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/steps`                     | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/graph`                     | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/progress`                  | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
+| GET    | `.../workflows/:workflowId/runs/:runId/handlers`                                     | `temporal.workflow.read`                      |
+| POST   | `.../workflows/:workflowId/runs/:runId/query`                                        | `temporal.workflow.query` + read              |
 
 The routes that change workflows, unless `temporal.control.enabled` is
 false:
 
-| Method | Path                                                        | Permission                       |
-| ------ | ----------------------------------------------------------- | -------------------------------- |
-| POST   | `/entities/:kind/:namespace/:name/workflows`                | `temporal.workflow.start`        |
-| POST   | `/workflows`                                                | `temporal.workflow.start` + list |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/signal`            | `temporal.workflow.signal`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/update`            | `temporal.workflow.update`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/cancel`            | `temporal.workflow.cancel`       |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/terminate`         | `temporal.workflow.terminate`    |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/rerun`             | `temporal.workflow.rerun`        |
-| POST   | `.../workflows/:workflowId[/runs/:runId]/actions/:actionId` | the action's permission          |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/pause`        | `temporal.workflow.start`        |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/unpause`      | `temporal.workflow.start`        |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/trigger`      | `temporal.workflow.start`        |
+| Method | Path                                                      | Permission                       |
+| ------ | --------------------------------------------------------- | -------------------------------- |
+| POST   | `/entities/:kind/:namespace/:name/workflows`              | `temporal.workflow.start`        |
+| POST   | `/workflows`                                              | `temporal.workflow.start` + list |
+| POST   | `.../workflows/:workflowId/runs/:runId/signal`            | `temporal.workflow.signal`       |
+| POST   | `.../workflows/:workflowId/runs/:runId/update`            | `temporal.workflow.update`       |
+| POST   | `.../workflows/:workflowId/runs/:runId/cancel`            | `temporal.workflow.cancel`       |
+| POST   | `.../workflows/:workflowId/runs/:runId/terminate`         | `temporal.workflow.terminate`    |
+| POST   | `.../workflows/:workflowId/runs/:runId/rerun`             | `temporal.workflow.rerun`        |
+| POST   | `.../workflows/:workflowId/runs/:runId/actions/:actionId` | the action's permission          |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/pause`      | `temporal.workflow.start`        |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/unpause`    | `temporal.workflow.start`        |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/trigger`    | `temporal.workflow.start`        |
+
+`GET /namespaces/:namespace/workflows/:workflowId` lists the runs of one
+workflow ID (a `WorkflowListResponse`, with `pageSize` and `pageToken`); every
+other route of one workflow names its run. With `entityRef`, the list needs
+`temporal.workflow.read` on the entity and has only the runs that are the
+entity's workflows; the entity must be in the namespace of the path (404
+otherwise). Child workflows of the entity's workflows are not listed. Without
+`entityRef`, it needs `temporal.workflow.list`, whose conditions apply to every
+run. Runs that continued as new are listed; the order is the one Temporal's
+visibility store returns (with SQL visibility, the running run first, then the
+last closed), and runs past the retention period of the namespace are not
+listed. A workflow ID with a quote, a backslash or a control character cannot
+be listed (400): open its run by run ID.
 
 Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
@@ -115,7 +129,7 @@ so a workflow that keeps continuing as new is listed once); `namespace`,
 `workflowType`, `workflowId` (start of the workflow ID) on `/workflows`;
 `searchAttribute` (both lists: a Bool search attribute that must be true);
 `limit` (stats, default 50, at most 100); `pageSize`, `pageToken` (history);
-`entityRef` on every route under `.../workflows/:workflowId[/runs/:runId]`
+`entityRef` on every route under `.../workflows/:workflowId/runs/:runId`
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it
 (404 otherwise). Without it, `temporal.workflow.list` (with

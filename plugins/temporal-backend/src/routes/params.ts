@@ -20,7 +20,11 @@ import {
 } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import type { WorkflowMessageRequest, WorkflowRef } from '../common';
+import type {
+  WorkflowMessageRequest,
+  WorkflowRef,
+  WorkflowRunRef,
+} from '../common';
 import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { Request } from 'express';
 
@@ -85,12 +89,27 @@ export function entityRefFromParams(req: Request): string {
   }
 }
 
-export function workflowRefFromParams(req: Request): WorkflowRef {
-  const { namespace, workflowId, runId } = req.params;
-  if (!workflowId || workflowId.length > 1000) {
+/** Longest workflow ID and run ID of a path. */
+const MAX_PATH_ID_LENGTH = 1000;
+
+/** The workflow ID of the path, without a run. */
+export function workflowIdFromParams(
+  req: Request,
+): Pick<WorkflowRef, 'namespace' | 'workflowId'> {
+  const { namespace, workflowId } = req.params;
+  if (!workflowId || workflowId.length > MAX_PATH_ID_LENGTH) {
     throw new InputError('Invalid workflowId');
   }
-  return { namespace, workflowId, runId: runId || undefined };
+  return { namespace, workflowId };
+}
+
+/** The run of the path: its workflow ID and run ID. */
+export function workflowRunRefFromParams(req: Request): WorkflowRunRef {
+  const runId = req.params.runId;
+  if (!runId || runId.length > MAX_PATH_ID_LENGTH) {
+    throw new InputError('Invalid runId');
+  }
+  return { ...workflowIdFromParams(req), runId };
 }
 
 /** The JSON object of a request body; no body is an empty object. */

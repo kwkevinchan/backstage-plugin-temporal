@@ -163,6 +163,8 @@ export function buildEntityWorkflowQuery(
     allRuns?: boolean;
     /** A Bool search attribute that must be true. */
     searchAttribute?: string;
+    /** Only the runs of this workflow ID. */
+    workflowId?: string;
   },
 ): string {
   const { annotations, entityRef, entityRefAttribute } = filter;
@@ -207,6 +209,9 @@ export function buildEntityWorkflowQuery(
   }
   if (options?.searchAttribute) {
     query = `(${query}) AND ${trueAttributeCondition(options.searchAttribute)}`;
+  }
+  if (options?.workflowId) {
+    query = `(${query}) AND ${workflowIdCondition(options.workflowId)}`;
   }
   return query;
 }
@@ -273,6 +278,8 @@ export interface NamespaceWorkflowFilter {
   workflowType?: string;
   /** Start of the workflow ID. */
   workflowIdPrefix?: string;
+  /** Only the runs of this workflow ID. */
+  workflowId?: string;
   /** A Bool search attribute that must be true. */
   searchAttribute?: string;
   /** False leaves out runs that continued as new. */
@@ -304,6 +311,7 @@ export function buildNamespaceWorkflowQuery(
     }
     parts.push(`WorkflowId STARTS_WITH ${quote(filter.workflowIdPrefix)}`);
   }
+  if (filter.workflowId) parts.push(workflowIdCondition(filter.workflowId));
   if (filter.searchAttribute) {
     parts.push(trueAttributeCondition(filter.searchAttribute));
   }

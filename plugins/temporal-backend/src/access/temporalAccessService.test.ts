@@ -58,6 +58,7 @@ function accessModule(seen: TemporalAccessService[]) {
               {
                 namespace: 'default',
                 workflowId: req.params.workflowId,
+                runId: 'r1',
               },
               {
                 entityRef: 'component:default/orders',

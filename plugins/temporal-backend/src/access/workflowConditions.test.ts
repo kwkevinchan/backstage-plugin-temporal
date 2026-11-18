@@ -127,7 +127,7 @@ describe('conditional temporal-workflow decisions', () => {
   it('applies the conditions to a workflow opened without an entity', async () => {
     const { server } = await start(condition('IS_ORDER_WORKFLOW'));
     const res = await request(server).get(
-      '/api/temporal/namespaces/default/workflows/wf-1',
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
     );
     expect(res.status).toBe(200);
     expect(res.body.workflowType).toBe('orderWorkflow');
@@ -196,7 +196,7 @@ describe('the rules of the plugin', () => {
       condition('IN_NAMESPACE', { namespaces: ['other'] }),
     );
     const res = await request(server).get(
-      '/api/temporal/namespaces/default/workflows/wf-1',
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
     );
     // As for a workflow that does not exist.
     expect(res.status).toBe(404);
@@ -233,7 +233,7 @@ describe('the rules of the plugin', () => {
       started('user:default/alice'),
     );
     const mine = await request(server).get(
-      '/api/temporal/namespaces/default/workflows/wf-1',
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
     );
     expect(mine.status).toBe(200);
     expect(mine.body.initiator).toBe('user:default/alice');
@@ -241,7 +241,7 @@ describe('the rules of the plugin', () => {
       started('user:default/bob'),
     );
     const theirs = await request(server).get(
-      '/api/temporal/namespaces/default/workflows/wf-1',
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
     );
     expect(theirs.status).toBe(404);
   });

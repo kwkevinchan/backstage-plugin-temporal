@@ -21,7 +21,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject } from '@backstage/types';
-import { WorkflowDetail, WorkflowRef } from '../common';
+import { WorkflowDetail, WorkflowRunRef } from '../common';
 import {
   TemporalAccessService,
   TemporalEntityContext,
@@ -29,27 +29,27 @@ import {
 } from '../node/alpha';
 import { Request } from 'express';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
-import { parseEntityRefParam, workflowRefFromParams } from './params';
+import { parseEntityRefParam, workflowRunRefFromParams } from './params';
 
 // What the read routes and the routes that change workflows share: the
-// paths of one workflow, loading it with the access checks, the permission
+// paths of one run, loading it with the access checks, the permission
 // check on its entity and the audit record of an operation.
 
-/** The paths of one workflow, with or without its run. */
-export const workflowPaths = [
-  '/namespaces/:namespace/workflows/:workflowId',
-  '/namespaces/:namespace/workflows/:workflowId/runs/:runId',
-];
+/** The path of the run list of one workflow ID. */
+export const workflowPath = '/namespaces/:namespace/workflows/:workflowId';
 
-/** The paths of `suffix` under one workflow, with or without its run. */
-export function workflowSubpaths(suffix: string): string[] {
-  return workflowPaths.map(p => `${p}/${suffix}`);
+/** The path of one run. */
+export const workflowRunPath = `${workflowPath}/runs/:runId`;
+
+/** The path of `suffix` under one run. */
+export function workflowRunSubpath(suffix: string): string {
+  return `${workflowRunPath}/${suffix}`;
 }
 
 /** A workflow loaded with the read checks of the access service. */
 export interface LoadedWorkflow {
   credentials: BackstageCredentials;
-  ref: WorkflowRef;
+  ref: WorkflowRunRef;
   context?: TemporalEntityContext;
   workflow: WorkflowDetail;
 }
@@ -61,7 +61,7 @@ export async function loadRequestWorkflow(
   level: TemporalWorkflowAccessLevel,
 ): Promise<LoadedWorkflow> {
   const credentials = await deps.httpAuth.credentials(req);
-  const ref = workflowRefFromParams(req);
+  const ref = workflowRunRefFromParams(req);
   const loaded = await deps.access.loadWorkflow(ref, {
     entityRef: parseEntityRefParam(req.query.entityRef),
     level,

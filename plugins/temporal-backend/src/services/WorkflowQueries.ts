@@ -25,6 +25,7 @@ import {
   WorkflowRunChain,
   WorkflowHistoryResponse,
   WorkflowRef,
+  WorkflowRunRef,
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
@@ -141,7 +142,10 @@ export class WorkflowQueries {
     return current;
   }
 
-  /** Describes a run without any entity check. */
+  /**
+   * Describes a run without any entity check. Without `runId`, the latest
+   * run (for the resources of the permission framework).
+   */
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.sources.checkNamespace(ref.namespace);
     const json = await this.temporalReads.describeExecution(ref);
@@ -219,7 +223,7 @@ export class WorkflowQueries {
   }
 
   async history(
-    ref: WorkflowRef & { runId: string },
+    ref: WorkflowRunRef,
     options: { pageSize: number; pageToken?: string },
   ): Promise<WorkflowHistoryResponse> {
     this.sources.checkNamespace(ref.namespace);
@@ -243,7 +247,7 @@ export class WorkflowQueries {
    * Reads the history of one run, oldest first, up to `max` events.
    */
   async readEvents(
-    ref: WorkflowRef & { runId: string },
+    ref: WorkflowRunRef,
     max: number,
   ): Promise<{ events: unknown[]; truncated: boolean }> {
     this.sources.checkNamespace(ref.namespace);
@@ -261,9 +265,7 @@ export class WorkflowQueries {
   }
 
   /** Workflow input/result and activity inputs/results of one run. */
-  async steps(
-    ref: WorkflowRef & { runId: string },
-  ): Promise<WorkflowStepsResponse> {
+  async steps(ref: WorkflowRunRef): Promise<WorkflowStepsResponse> {
     const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS);
     return toWorkflowSteps(events, truncated, this.llmAdapters);
   }

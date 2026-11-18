@@ -177,7 +177,7 @@ async function start(options?: {
   };
 }
 
-const wf = '/api/temporal/namespaces/default/workflows/wf-1';
+const wf = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 const withEntity = '?entityRef=component:default/orders';
 
 describe('query routes of the core plugin', () => {

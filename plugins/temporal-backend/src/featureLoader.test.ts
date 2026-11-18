@@ -136,7 +136,8 @@ async function waitForWorkflowEntity(
 
 // The fake workflow service describes a failed workflow: a route that
 // changes workflows answers 409 (not running) when it exists, 404 when not.
-const cancel = '/api/temporal/namespaces/default/workflows/wf-1/cancel';
+const cancel =
+  '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/cancel';
 
 describe('the default export of the package', () => {
   it('installs the read routes, the control routes and the TemporalWorkflow kind', async () => {

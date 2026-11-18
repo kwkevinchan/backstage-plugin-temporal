@@ -131,7 +131,7 @@ function externalMemo() {
 }
 
 describe('opening one workflow', () => {
-  const path = '/api/temporal/namespaces/default/workflows/wf-1';
+  const path = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 
   it('describes it once for an entity, with the memo and the enrichers', async () => {
     const { server, workflowService } = await start();
@@ -148,7 +148,7 @@ describe('opening one workflow', () => {
 
   it('describes it once from its search attribute, without entityRef', async () => {
     const { server, workflowService } = await start();
-    const res = await request(server).get(`${path}/runs/wf-1-run`);
+    const res = await request(server).get(path);
     // The fake workflow has no entity reference attribute: the Workflows
     // page permissions decide, and the enrichers need an entity.
     expect(res.status).toBe(200);

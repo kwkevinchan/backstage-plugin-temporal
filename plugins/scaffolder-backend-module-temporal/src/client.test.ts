@@ -68,14 +68,14 @@ describe('TemporalPluginClient', () => {
     const { c } = client();
     const result = await c.send(
       'update',
-      { namespace: 'default', workflowId: 'w 1' },
+      { namespace: 'default', workflowId: 'w 1', runId: 'r 1' },
       { name: 'approve', args: [] },
       'component:default/orders',
       mockCredentials.user(),
     );
     expect(result).toEqual({ result: 1 });
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'http://backend/api/temporal/namespaces/default/workflows/w%201/update?entityRef=component%3Adefault%2Forders',
+      'http://backend/api/temporal/namespaces/default/workflows/w%201/runs/r%201/update?entityRef=component%3Adefault%2Forders',
     );
   });
 
@@ -116,12 +116,47 @@ describe('TemporalPluginClient', () => {
     expect(fetchMock.mock.calls[0][1].method).toBe('GET');
   });
 
+  it('reads the latest run from the run list of the workflow ID', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          namespace: 'default',
+          items: [{ workflowId: 'w 1', runId: 'r2' }],
+        }),
+      ),
+    );
+    const { c } = client();
+    await expect(
+      c.latestRunId(
+        { namespace: 'default', workflowId: 'w 1' },
+        'component:default/orders',
+        mockCredentials.user(),
+      ),
+    ).resolves.toBe('r2');
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://backend/api/temporal/namespaces/default/workflows/w%201?pageSize=1&entityRef=component%3Adefault%2Forders',
+    );
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ namespace: 'default', items: [] })),
+    );
+    await expect(
+      c.latestRunId(
+        { namespace: 'default', workflowId: 'w' },
+        undefined,
+        mockCredentials.user(),
+      ),
+    ).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'http://backend/api/temporal/namespaces/default/workflows/w?pageSize=1',
+    );
+  });
+
   it('says when the token of the user has expired', async () => {
     fetchMock.mockResolvedValue(new Response('', { status: 401 }));
     const { c } = client();
     await expect(
       c.describe(
-        { namespace: 'default', workflowId: 'w' },
+        { namespace: 'default', workflowId: 'w', runId: 'r' },
         undefined,
         mockCredentials.user(),
       ),
@@ -138,7 +173,7 @@ describe('TemporalPluginClient', () => {
     const { c } = client();
     await expect(
       c.describe(
-        { namespace: 'default', workflowId: 'w' },
+        { namespace: 'default', workflowId: 'w', runId: 'r' },
         undefined,
         mockCredentials.user(),
       ),
@@ -175,7 +210,7 @@ describe('TemporalPluginClient', () => {
         await expect(
           c.send(
             kind,
-            { namespace: 'default', workflowId: 'w' },
+            { namespace: 'default', workflowId: 'w', runId: 'r' },
             { name: 'approve', args: [] },
             undefined,
             mockCredentials.user(),
@@ -209,7 +244,7 @@ describe('TemporalPluginClient', () => {
       const { c } = client();
       const error = await c
         .describe(
-          { namespace: 'default', workflowId: 'w' },
+          { namespace: 'default', workflowId: 'w', runId: 'r' },
           undefined,
           mockCredentials.user(),
         )

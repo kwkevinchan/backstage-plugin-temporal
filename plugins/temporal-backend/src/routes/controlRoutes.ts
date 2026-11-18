@@ -39,7 +39,7 @@ import {
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../common';
 import { TemporalService } from '../node';
 import {
@@ -69,7 +69,7 @@ import {
   LoadedWorkflow,
   loadRequestWorkflow,
   workflowMeta,
-  workflowSubpaths,
+  workflowRunSubpath,
 } from './shared';
 
 export interface ControlRouterOptions {
@@ -129,7 +129,7 @@ function identityOf(credentials: BackstageCredentials): string {
   return ref ? `backstage:${ref}` : 'backstage';
 }
 
-function runRef(workflow: WorkflowDetail): Required<WorkflowRef> {
+function runRef(workflow: WorkflowDetail): WorkflowRunRef {
   return {
     namespace: workflow.namespace,
     workflowId: workflow.workflowId,
@@ -216,7 +216,7 @@ export function createControlRouter(
     return values;
   }
 
-  router.post(workflowSubpaths('signal'), async (req, res) => {
+  router.post(workflowRunSubpath('signal'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowSignalPermission,
@@ -242,7 +242,7 @@ export function createControlRouter(
     res.status(202).json({});
   });
 
-  router.post(workflowSubpaths('update'), async (req, res) => {
+  router.post(workflowRunSubpath('update'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowUpdatePermission,
@@ -268,7 +268,7 @@ export function createControlRouter(
     res.json({ result });
   });
 
-  router.post(workflowSubpaths('cancel'), async (req, res) => {
+  router.post(workflowRunSubpath('cancel'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowCancelPermission,
@@ -290,7 +290,7 @@ export function createControlRouter(
     res.status(202).json({});
   });
 
-  router.post(workflowSubpaths('terminate'), async (req, res) => {
+  router.post(workflowRunSubpath('terminate'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowTerminatePermission,
@@ -316,7 +316,7 @@ export function createControlRouter(
     res.json({});
   });
 
-  router.post(workflowSubpaths('rerun'), async (req, res) => {
+  router.post(workflowRunSubpath('rerun'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const entityRef = await authorizeControl(
       temporalWorkflowRerunPermission,
@@ -341,7 +341,7 @@ export function createControlRouter(
     res.status(201).json(started);
   });
 
-  router.post(workflowSubpaths('actions/:actionId'), async (req, res) => {
+  router.post(workflowRunSubpath('actions/:actionId'), async (req, res) => {
     const actionId = req.params.actionId;
     const action = isValidControlActionId(actionId)
       ? options.actions.find(a => a.id === actionId)

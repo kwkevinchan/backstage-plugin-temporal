@@ -50,7 +50,7 @@ import {
   temporalWorkflowListPermission,
   temporalWorkflowReadPermission,
   TEMPORAL_WORKFLOW_KIND,
-  WorkflowRef,
+  WorkflowRunRef,
   WorkflowSummary,
 } from '../common';
 import {
@@ -319,7 +319,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
    * `entityRef` is the entity the caller opened the workflow from, if any.
    */
   async loadWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options: {
       entityRef?: string;
       level: TemporalWorkflowAccessLevel;
@@ -355,7 +355,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
    * as a workflow that does not exist.
    */
   private async loadWorkflowWithoutEntity(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
   ): Promise<TemporalAccessibleWorkflow> {

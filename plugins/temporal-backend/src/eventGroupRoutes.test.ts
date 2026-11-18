@@ -30,7 +30,7 @@ import { readHistoryFixture } from './__testUtils__/fixtures';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 
 const ref = 'component:default/orders';
-const graphPath = `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`;
+const graphPath = `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`;
 
 /** The events of a history of `test-fixtures/<dir>`. */
 function fixture(name: string, dir = 'event-groups'): any[] {
