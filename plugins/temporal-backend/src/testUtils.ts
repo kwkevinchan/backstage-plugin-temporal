@@ -120,6 +120,47 @@ export const checkoutEntity: Entity = {
   ],
 };
 
+/**
+ * A component that depends on `count` TemporalWorkflow entities, plus those
+ * entities. Used to test the related-workflow cap.
+ */
+export function entityWithRelatedWorkflows(count: number): {
+  entity: Entity;
+  workflows: Entity[];
+} {
+  const workflows = Array.from({ length: count }, (_, i) => {
+    const name = `related-workflow-${i}`;
+    return {
+      apiVersion: 'temporal.io/v1alpha1',
+      kind: 'TemporalWorkflow',
+      metadata: { name, namespace: 'default' },
+      spec: {
+        owner: 'group:default/team-a',
+        workflowType: `relatedType${i}`,
+      },
+    } satisfies Entity;
+  });
+  const refs = workflows.map(
+    workflow => `temporalworkflow:default/${workflow.metadata.name}`,
+  );
+  const entity: Entity = {
+    apiVersion: 'backstage.io/v1alpha1',
+    kind: 'Component',
+    metadata: {
+      name: 'many-workflows',
+      namespace: 'default',
+      annotations: { 'temporal.io/workflow-type': 'ownWorkflow' },
+    },
+    spec: {
+      type: 'service',
+      owner: 'group:default/team-a',
+      dependsOn: refs,
+    },
+    relations: refs.map(targetRef => ({ type: 'dependsOn', targetRef })),
+  };
+  return { entity, workflows };
+}
+
 export const badEntity: Entity = {
   apiVersion: 'backstage.io/v1alpha1',
   kind: 'Component',

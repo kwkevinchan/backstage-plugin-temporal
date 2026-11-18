@@ -16,6 +16,7 @@
 
 import {
   BackstageCredentials,
+  LoggerService,
   PermissionsService,
 } from '@backstage/backend-plugin-api';
 import {
@@ -43,6 +44,7 @@ import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
   parseTemporalWorkflowSpec,
+  RelatedWorkflows,
   temporalWorkflowHistoryListPermission,
   temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
@@ -135,6 +137,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     private readonly queries: WorkflowQueries,
     /** The rules of `temporal-workflow`, read when a decision needs them. */
     private readonly workflowRules: () => TemporalWorkflowRuleset,
+    private readonly logger: LoggerService,
     private readonly options: { initiatorAttribute?: string } = {},
   ) {}
 
@@ -295,7 +298,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       permission,
       credentials,
     );
-    return this.sources.entityContext(entity, related);
+    return this.sources.entityContext(
+      entity,
+      related.entities,
+      related.relatedWorkflows,
+    );
   }
 
   /**
@@ -397,19 +404,31 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
 
   /**
    * The `TemporalWorkflow` entities that an entity depends on and that the
-   * caller has the same permission on. The others are left out.
+   * caller has the same permission on. The others are left out. At most
+   * {@link MAX_RELATED_WORKFLOW_ENTITIES} are queried.
    */
   private async loadRelatedWorkflowEntities(
     entity: Entity,
     permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
-  ): Promise<Entity[]> {
-    if (isTemporalWorkflowEntity(entity)) return [];
-    const refs = getDependsOnTemporalWorkflowRefs(entity).slice(
-      0,
-      MAX_RELATED_WORKFLOW_ENTITIES,
-    );
-    if (refs.length === 0) return [];
+  ): Promise<{
+    entities: Entity[];
+    relatedWorkflows?: RelatedWorkflows;
+  }> {
+    if (isTemporalWorkflowEntity(entity)) return { entities: [] };
+    const allRefs = getDependsOnTemporalWorkflowRefs(entity);
+    const total = allRefs.length;
+    const refs = allRefs.slice(0, MAX_RELATED_WORKFLOW_ENTITIES);
+    const queried = refs.length;
+    const relatedWorkflows = total > 0 ? { total, queried } : undefined;
+    if (total > queried) {
+      this.logger.debug(
+        `${stringifyEntityRef(
+          entity,
+        )} depends on ${total} TemporalWorkflow entities; querying the first ${queried}`,
+      );
+    }
+    if (refs.length === 0) return { entities: [], relatedWorkflows };
     const decisions = await this.permissions.authorize(
       refs.map(resourceRef => ({ permission, resourceRef })),
       { credentials },
@@ -417,12 +436,15 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     const allowed = refs.filter(
       (_, i) => decisions[i]?.result === AuthorizeResult.ALLOW,
     );
-    if (allowed.length === 0) return [];
+    if (allowed.length === 0) return { entities: [], relatedWorkflows };
     const { items } = await this.catalog.getEntitiesByRefs(
       { entityRefs: allowed },
       { credentials },
     );
-    return items.filter((e): e is Entity => Boolean(e));
+    return {
+      entities: items.filter((e): e is Entity => Boolean(e)),
+      relatedWorkflows,
+    };
   }
 }
 

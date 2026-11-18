@@ -145,6 +145,24 @@ export interface WorkflowDetail extends WorkflowSummary {
 }
 
 /**
+ * How many TemporalWorkflow entities an entity depends on, and how many of
+ * them were queried for the merged list and statistics. At most 20 are
+ * queried. Present on entity lists and statistics when the entity depends
+ * on at least one; absent on namespace lists.
+ *
+ * @public
+ */
+export interface RelatedWorkflows {
+  /** Number of TemporalWorkflow entities the entity depends on. */
+  total: number;
+  /**
+   * Number of those entities included in the query, at most 20. When
+   * `total` is greater, the rest are left out.
+   */
+  queried: number;
+}
+
+/**
  * Response of the entity workflow list.
  *
  * @public
@@ -154,6 +172,11 @@ export interface WorkflowListResponse {
   /** Opaque token for the next page, absent on the last page. */
   nextPageToken?: string;
   namespace: string;
+  /**
+   * Present on entity lists when the entity depends on TemporalWorkflow
+   * entities. Absent on namespace lists.
+   */
+  relatedWorkflows?: RelatedWorkflows;
 }
 
 /**
@@ -177,6 +200,11 @@ export interface WorkflowStatsResponse {
   running: number;
   /** Mean duration of the closed runs in the sample, in milliseconds. */
   averageDurationMs?: number;
+  /**
+   * Present when the entity depends on TemporalWorkflow entities. Absent
+   * when it depends on none, or is itself a TemporalWorkflow entity.
+   */
+  relatedWorkflows?: RelatedWorkflows;
 }
 
 /**

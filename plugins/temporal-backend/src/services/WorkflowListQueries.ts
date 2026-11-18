@@ -192,6 +192,7 @@ export class WorkflowListQueries {
       items: await this.queries.enrich(items, context, options.credentials),
       nextPageToken: encodePageToken(response.nextPageToken),
       namespace: context.namespace,
+      relatedWorkflows: context.relatedWorkflows,
     };
   }
 
@@ -264,6 +265,7 @@ export class WorkflowListQueries {
       running: count('Running'),
       averageDurationMs:
         durationCount > 0 ? Math.round(durationSum / durationCount) : undefined,
+      relatedWorkflows: context.relatedWorkflows,
     };
   }
 

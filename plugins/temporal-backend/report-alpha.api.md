@@ -126,6 +126,10 @@ export interface TemporalEntityContext {
   entityRef: string;
   namespace: string;
   relatedWorkflowEntities: Entity[];
+  relatedWorkflows?: {
+    total: number;
+    queried: number;
+  };
 }
 
 // @alpha

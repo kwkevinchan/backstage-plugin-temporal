@@ -23,6 +23,7 @@ import {
   isTemporalWorkflowEntity,
   getTemporalWorkflowSource,
   parseTemporalWorkflowSpec,
+  RelatedWorkflows,
   TemporalAnnotations,
 } from '../common';
 import { TemporalService } from '../node';
@@ -66,6 +67,7 @@ export class EntityWorkflowSources {
   entityContext(
     entity: Entity,
     relatedEntities: Entity[] = [],
+    relatedWorkflows?: RelatedWorkflows,
   ): TemporalEntityContext {
     const annotations = readEntityWorkflowFilter(entity);
     const namespace =
@@ -78,6 +80,7 @@ export class EntityWorkflowSources {
       entityRef: stringifyEntityRef(entity),
       namespace,
       relatedWorkflowEntities: relatedEntities,
+      relatedWorkflows,
     };
   }
 

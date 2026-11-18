@@ -94,6 +94,12 @@ export interface TemporalEntityContext {
    * has the same permission on. Their workflows count as the entity's.
    */
   relatedWorkflowEntities: Entity[];
+  /**
+   * How many TemporalWorkflow entities the entity depends on, and how many
+   * of them were queried. Absent when it depends on none, or is itself a
+   * TemporalWorkflow entity (those are not followed).
+   */
+  relatedWorkflows?: { total: number; queried: number };
 }
 
 /**

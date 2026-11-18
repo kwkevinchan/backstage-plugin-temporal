@@ -120,6 +120,9 @@ describe('TemporalWorkflow entity tab', () => {
       'temporalworkflow:default/order-workflow',
       expect.anything(),
     );
+    expect(
+      screen.queryByTestId('related-workflows-truncated'),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -176,5 +179,35 @@ describe('Temporal tab of a component that depends on workflows', () => {
       expect.anything(),
     );
     expect(api.getEntityWorkflowStats).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId('related-workflows-truncated'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a notice when the merged list covers only the first related types', async () => {
+    const api = mockTemporalApi();
+    api.listEntityWorkflows.mockResolvedValue({
+      ...listResponse,
+      relatedWorkflows: { total: 21, queried: 20 },
+    });
+    await render(checkoutEntity, api);
+    expect(
+      await screen.findByTestId('related-workflows-truncated'),
+    ).toHaveTextContent(
+      'Showing executions of the first 20 of 21 workflow types. Open a workflow type above to see its executions.',
+    );
+  });
+
+  it('does not show a notice when every related type is queried', async () => {
+    const api = mockTemporalApi();
+    api.listEntityWorkflows.mockResolvedValue({
+      ...listResponse,
+      relatedWorkflows: { total: 20, queried: 20 },
+    });
+    await render(checkoutEntity, api);
+    expect(await screen.findByText('order-1')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('related-workflows-truncated'),
+    ).not.toBeInTheDocument();
   });
 });
