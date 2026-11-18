@@ -18,6 +18,8 @@ import type { WorkflowGraphNode } from '../../common';
 import { graphResponse } from '../../testData';
 import { routeRowGaps } from './frameEdge';
 import {
+  clearArrowsThrough,
+  FramedGraph,
   graphHeight,
   initialViewport,
   keepInGraph,
@@ -359,5 +361,54 @@ describe('visibleSteps', () => {
     const nodes = [node('a'), marker('m', 'SideEffect'), node('b'), node('c')];
     const edges = edgesOf(['a', 'm'], ['a', 'b'], ['m', 'c'], ['b', 'c']);
     expect(pairs(visibleSteps(nodes, edges).edges)).toEqual(['a>b', 'b>c']);
+  });
+});
+
+describe('clearArrowsThrough', () => {
+  /** Boxes at `at` (top left), of the default size; an arrow `a` to `c`. */
+  function row(at: Record<string, { x: number; y: number }>): FramedGraph {
+    const nodes = Object.keys(at).map(id => ({ id }));
+    return {
+      layout: {
+        positions: new Map(Object.entries(at)),
+        width: 1000,
+        height: 400,
+        wrapped: false,
+      },
+      nodes,
+      edges: [{ source: 'a', target: 'c' }],
+      frames: [],
+      sizes: new Map(),
+      sizeOf: () => ({ width: NODE_WIDTH, height: NODE_HEIGHT }),
+      blocks: new Map(),
+      outerBlocks: [],
+    };
+  }
+
+  it('moves a box off the part of a turning arrow into its target', () => {
+    // The arrow turns halfway, at 560, and runs on at the middle of c
+    // (y 132) across b.
+    const graph = row({
+      a: { x: 0, y: 0 },
+      b: { x: 600, y: 110 },
+      c: { x: 900, y: 100 },
+    });
+    clearArrowsThrough(graph);
+    const b = graph.layout.positions.get('b')!;
+    expect(b.y >= 132 || b.y + NODE_HEIGHT <= 132).toBe(true);
+  });
+
+  it('leaves a box that the arrow only touches by a pixel or less', () => {
+    // The arrow runs on at y 132; b reaches half a pixel below it.
+    const graph = row({
+      a: { x: 0, y: 132 - NODE_HEIGHT / 2 },
+      b: { x: 300, y: 132.5 - NODE_HEIGHT },
+      c: { x: 600, y: 132 - NODE_HEIGHT / 2 },
+    });
+    clearArrowsThrough(graph);
+    expect(graph.layout.positions.get('b')).toEqual({
+      x: 300,
+      y: 132.5 - NODE_HEIGHT,
+    });
   });
 });

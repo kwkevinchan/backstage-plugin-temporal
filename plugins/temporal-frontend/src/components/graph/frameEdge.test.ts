@@ -1018,7 +1018,12 @@ function randomGraph(seed: number) {
  * are open, at least one round: the frames of the loop and of those rounds
  * stack their groups.
  */
-function randomLoop(seed: number) {
+/**
+ * A random run with a loop. With `more`, a round can receive one to three
+ * signals, from any of its steps but the last, and some of them lead
+ * nowhere after their steps.
+ */
+function randomLoop(seed: number, more = false) {
   const random = randomFrom(seed);
   const pick = (n: number) => Math.floor(random() * n);
   const ids: string[] = [];
@@ -1086,8 +1091,12 @@ function randomLoop(seed: number) {
       // step of the round but the last.
       const back = last;
       const anchors = [first];
-      if (random() < 0.4) {
-        const others = round.nodeIds.filter(id => id !== back);
+      const others = round.nodeIds.filter(id => id !== back);
+      if (more) {
+        for (let k = pick(3); k > 0; k--) {
+          anchors.push(others[pick(others.length)]);
+        }
+      } else if (random() < 0.4) {
         anchors.push(others[pick(others.length)]);
       }
       anchors.forEach((anchor, k) => {
@@ -1100,7 +1109,8 @@ function randomLoop(seed: number) {
           sourceNodeId: signal,
         };
         groups[groups.length - 1] = hint;
-        link(run(signal, 1 + pick(2), [hint]), back);
+        const end = run(signal, 1 + pick(2), [hint]);
+        if (!more || random() < 0.7) link(end, back);
       });
     }
   }
@@ -1269,48 +1279,55 @@ describe('random runs', () => {
 });
 
 describe('random loops with their child groups stacked', () => {
-  it('keep the boxes apart and the arrows clear of boxes and frames', () => {
-    const found: string[] = [];
-    let stacked = 0;
-    for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
-      const run = randomLoop(seed);
-      for (const width of [undefined, 1000]) {
-        const result = layoutGroupedSteps(
-          run.nodes,
-          run.edges,
-          run.groups,
-          run.views,
-          width,
-        );
-        const at = `${seed} at ${width}`;
-        if (result.graph.frames.some(f => f.stacked)) stacked++;
-        const boxes = result.graph.nodes.map(n => rectOf(result, n.id));
-        boxes.forEach((a, i) => {
-          for (const b of boxes.slice(i + 1)) {
-            if (
-              a.left < b.right &&
-              b.left < a.right &&
-              a.top < b.bottom &&
-              b.top < a.bottom
-            ) {
-              found.push(`${at}: boxes overlap`);
+  it.each([
+    ['one or two signals', false],
+    ['one to three signals, some leading nowhere', true],
+  ])(
+    'keep the boxes apart and the arrows clear of boxes and frames, with %s',
+    (_, more) => {
+      const found: string[] = [];
+      let stacked = 0;
+      for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
+        const run = randomLoop(seed, more);
+        for (const width of [undefined, 1000]) {
+          const result = layoutGroupedSteps(
+            run.nodes,
+            run.edges,
+            run.groups,
+            run.views,
+            width,
+          );
+          const at = `${seed} at ${width}`;
+          if (result.graph.frames.some(f => f.stacked)) stacked++;
+          const boxes = result.graph.nodes.map(n => rectOf(result, n.id));
+          boxes.forEach((a, i) => {
+            for (const b of boxes.slice(i + 1)) {
+              if (
+                a.left < b.right &&
+                b.left < a.right &&
+                a.top < b.bottom &&
+                b.top < a.bottom
+              ) {
+                found.push(`${at}: boxes overlap`);
+              }
             }
+          });
+          if (result.notice) found.push(`${at}: ${result.notice}`);
+          const list = arrows(result);
+          for (const hit of throughBoxes(result)) found.push(`${at}: ${hit}`);
+          for (const hit of problems(result)) found.push(`${at}: ${hit}`);
+          for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
+          for (const hit of outside(list, result.layout.width)) {
+            found.push(`${at}: ${hit}`);
           }
-        });
-        if (result.notice) found.push(`${at}: ${result.notice}`);
-        const list = arrows(result);
-        for (const hit of throughBoxes(result)) found.push(`${at}: ${hit}`);
-        for (const hit of problems(result)) found.push(`${at}: ${hit}`);
-        for (const hit of spreadTooClose(result)) found.push(`${at}: ${hit}`);
-        for (const hit of outside(list, result.layout.width)) {
-          found.push(`${at}: ${hit}`);
+          for (const hit of runningOn(list)) found.push(`${at}: ${hit}`);
         }
-        for (const hit of runningOn(list)) found.push(`${at}: ${hit}`);
       }
-    }
-    expect(found).toEqual([]);
-    expect(stacked).toBe(2 * SEEDS);
-  }, 120_000);
+      expect(found).toEqual([]);
+      expect(stacked).toBe(2 * SEEDS);
+    },
+    120_000,
+  );
 });
 
 describe('rows of frames lined up', () => {
@@ -1421,8 +1438,8 @@ describe('rows of frames lined up in recorded runs', () => {
 });
 
 describe('straight arrows and side lanes in stacked loops', () => {
-  function lay(seed: number, width?: number) {
-    const run = randomLoop(seed);
+  function lay(seed: number, width?: number, more = false) {
+    const run = randomLoop(seed, more);
     return layoutGroupedSteps(
       run.nodes,
       run.edges,
@@ -1508,6 +1525,59 @@ describe('straight arrows and side lanes in stacked loops', () => {
           if (x2 <= box.left || x1 >= box.right) continue;
           expect(p.y < box.top - 1 || p.y > box.bottom + 1).toBe(true);
         }
+      }
+    },
+  );
+
+  it('takes the side lane only for groups side by side, not for a frame in another (seed 2064)', () => {
+    // Round 2 holds groups in groups: the frame of a group and the one in
+    // it are not side by side, and the arrow past them goes down next to
+    // its target, crossing no other arrow.
+    for (const width of [undefined, 900, 1400]) {
+      const list = arrows(lay(2064, width, true));
+      const crossing: string[] = [];
+      list.forEach((a, i) => {
+        for (const b of list.slice(i + 1)) {
+          for (const [p, q] of segments(a.drawn)) {
+            for (const [u, v] of segments(b.drawn)) {
+              let [h, d]: Point[][] = [];
+              if (p.y === q.y && u.x === v.x) {
+                [h, d] = [
+                  [p, q],
+                  [u, v],
+                ];
+              } else if (p.x === q.x && u.y === v.y) {
+                [h, d] = [
+                  [u, v],
+                  [p, q],
+                ];
+              }
+              if (!h || !d) continue;
+              const [x1, x2] = span(h[0].x, h[1].x);
+              const [y1, y2] = span(d[0].y, d[1].y);
+              if (
+                d[0].x > x1 + 0.5 &&
+                d[0].x < x2 - 0.5 &&
+                h[0].y > y1 + 0.5 &&
+                h[0].y < y2 - 0.5
+              ) {
+                crossing.push(`${a.edge.id} ${b.edge.id}`);
+              }
+            }
+          }
+        }
+      });
+      expect(crossing).toEqual([]);
+    }
+  });
+
+  it.each([2231, 2277])(
+    'turns an arrow placed after the others a full lane from them (seed %i)',
+    seed => {
+      // An arrow out of a tool group turns down next to an arrow that turned
+      // there first; one pixel apart is not enough.
+      for (const width of [undefined, 900, 1400]) {
+        expect(closePairs(lay(seed, width))).toEqual([]);
       }
     },
   );
