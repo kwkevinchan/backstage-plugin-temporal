@@ -292,7 +292,7 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 所有路由都在後端外掛的 base URL `/api/temporal` 底下，需要 Backstage 的憑證：使用者 token，或其他後端外掛代表某個使用者取得的 token。
 
-HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema/openapi.yaml`](../../plugins/temporal-backend/src/schema/openapi.yaml)，隨後端套件一起發佈：每個參數、請求內容、回應，以及每條路由檢查的權限。路由的測試會拿請求和回應對照它，CI 也會驗證它（`yarn lint:openapi`）；見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)（英文）。下面的表格是總覽。
+HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema/openapi.yaml`](../../plugins/temporal-backend/src/schema/openapi.yaml)，隨後端套件一起發佈：每個參數、請求內容、回應，以及每條路由檢查的權限。路由的測試會對照回應（以及不是 400 的請求）；另有對帳測試兩邊對照規格和程式。CI 會驗證規格（`yarn lint:openapi`）；見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)（英文）。下面的表格是總覽。
 
 > **服務身分不經過權限政策。** 用後端外掛自己的身分（`auth.getOwnServiceCredentials()`）呼叫時是 service principal，Backstage 對 service principal 的每個權限都直接允許，不會問權限政策（除非 token 帶有 `accessRestrictions`）。這樣的呼叫端可以讀取和操作允許的 namespace 裡的每個流程。只在「可以做外掛能做的所有事」的程式裡用它；要照使用者的權限，請用 `auth.getPluginRequestToken({ onBehalfOf: <使用者的憑證> })`（[範例](#從其他後端呼叫-http-api)）。
 
@@ -864,7 +864,7 @@ export async function listRunningWorkflows(
 yarn build:api-reports   # 型別檢查，再寫出 report
 ```
 
-把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。HTTP API 另有自己的合約：[OpenAPI 規格](../../plugins/temporal-backend/src/schema/openapi.yaml)，改路由時一起改它；路由的測試和 `yarn lint:openapi` 會檢查它。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
+把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。HTTP API 另有自己的合約：[OpenAPI 規格](../../plugins/temporal-backend/src/schema/openapi.yaml)，改路由時一起改它；路由的測試、對帳測試和 `yarn lint:openapi` 會檢查它。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
 
 有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal-frontend` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。大部分是預期的：一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。其餘是步驟圖型別上的實驗性欄位（`@public` 型別引用 `@alpha` 型別），會跟實驗性畫面一起改。
 

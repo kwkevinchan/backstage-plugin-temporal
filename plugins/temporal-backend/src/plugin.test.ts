@@ -543,6 +543,19 @@ describe('temporal backend plugin', () => {
     );
   });
 
+  it('rejects a bad history pageSize and pageToken before loading the workflow', async () => {
+    const { server, workflowService } = await start();
+    const pageSize = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}&pageSize=501`,
+    );
+    expect(pageSize.status).toBe(400);
+    const pageToken = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}&pageToken=not-a-token!`,
+    );
+    expect(pageToken.status).toBe(400);
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+  });
+
   it('returns inputs and outputs with the history permission', async () => {
     const { server, permissions } = await start();
     const res = await request(server).get(

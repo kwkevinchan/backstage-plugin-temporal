@@ -48,6 +48,7 @@ import {
   HISTORY_PAGE_SIZE,
   WorkflowQueries,
 } from '../services/WorkflowQueries';
+import { decodePageToken } from '../services/convert';
 import { parseStatus } from '../services/query';
 import {
   entityRefFromParams,
@@ -206,14 +207,18 @@ export async function createRouter(
   });
 
   router.get(workflowSubpaths('history'), async (req, res) => {
+    const pageSize = parsePageSize(req.query.pageSize, HISTORY_PAGE_SIZE);
+    const pageToken = optionalString(req.query.pageToken, 'pageToken');
+    try {
+      decodePageToken(pageToken);
+    } catch {
+      throw new InputError('Invalid page token');
+    }
     const { ref, workflow } = await loadWorkflow(req, 'history');
     res.json(
       await queries.history(
         { ...ref, runId: workflow.runId },
-        {
-          pageSize: parsePageSize(req.query.pageSize, HISTORY_PAGE_SIZE),
-          pageToken: optionalString(req.query.pageToken, 'pageToken'),
-        },
+        { pageSize, pageToken },
       ),
     );
   });

@@ -9,7 +9,7 @@ info:
 
     The routes that change workflows (tag `Operations`, `x-temporal-control: true`) exist unless `temporal.control.enabled` is false. Routes and fields marked experimental (`x-temporal-experimental: true`, tag `Experimental`) change before the first stable release. `x-temporal-permissions` lists the permissions a route checks; the description says on what, and the permission policy decides.
 
-    Paths take the entity kind, namespace and name in lowercase. Errors have the body of the Backstage backend (`Error`). A route that is not served (the operations with `temporal.control.enabled: false`, the definition route without its module) answers 404 without a body.
+    Paths take the entity kind, namespace and name in lowercase. Errors have the body of the Backstage backend (`Error`). A route that is not served (the operations with `temporal.control.enabled: false`, the definition route without its module) answers 404 without a body. Query parameters that are not listed are ignored, so a newer frontend can send them without breaking older backends.
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -40,9 +40,11 @@ components:
       name: namespace
       in: path
       required: true
-      description: Temporal namespace.
+      description: Temporal namespace. Must match `^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$` and be listed in `temporal.connection.namespaces`.
       schema:
         type: string
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
+        maxLength: 255
     workflowId:
       name: workflowId
       in: path
@@ -50,6 +52,8 @@ components:
       description: Workflow ID, at most 1000 characters.
       schema:
         type: string
+        minLength: 1
+        maxLength: 1000
     runId:
       name: runId
       in: path
@@ -99,7 +103,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: Only runs with this status.
+      description: Only runs with this status. An empty value is ignored, as if the parameter was omitted.
       schema:
         type: string
         enum:
@@ -115,7 +119,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: Without `true` (or a `status`), runs that continued as new are left out, so a workflow that keeps continuing as new is listed once.
+      description: Without `true` (or a `status`), runs that continued as new are left out, so a workflow that keeps continuing as new is listed once. An empty value is treated as false.
       schema:
         type: boolean
     searchAttribute:
@@ -123,9 +127,11 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: A Bool search attribute that must be true, for example `ApprovalPending`.
+      description: A Bool search attribute that must be true, for example `ApprovalPending`. Letters, digits and `_`, at most 64 characters, starting with a letter or `_`. An empty value is ignored.
       schema:
         type: string
+        pattern: '^$|^[A-Za-z_][A-Za-z0-9_]{0,63}$'
+        maxLength: 64
     listPageSize:
       name: pageSize
       in: query
@@ -142,33 +148,41 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: '`nextPageToken` of the previous page.'
+      description: '`nextPageToken` of the previous page. A base64-url string of at most 4096 characters; an empty value is ignored.'
       schema:
         type: string
+        pattern: '^[A-Za-z0-9+/=_-]{0,4096}$'
+        maxLength: 4096
     listNamespace:
       name: namespace
       in: query
       required: false
       allowReserved: true
-      description: Temporal namespace; defaults to `temporal.connection.defaultNamespace`.
+      description: Temporal namespace; defaults to `temporal.connection.defaultNamespace`. When set, must match `^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$` and be listed in `temporal.connection.namespaces`. An empty value uses the default.
       schema:
         type: string
+        pattern: '^$|^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
+        maxLength: 255
     workflowType:
       name: workflowType
       in: query
       required: false
       allowReserved: true
-      description: Only this workflow type.
+      description: Only this workflow type. An empty value is ignored.
       schema:
         type: string
+        pattern: '^$|^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$'
+        maxLength: 255
     workflowIdPrefix:
       name: workflowId
       in: query
       required: false
       allowReserved: true
-      description: Start of the workflow ID.
+      description: 'Start of the workflow ID. The plugin trims the value first; after that it must be 1 to 255 letters, digits or `_ . : / -`. An empty value is ignored.'
       schema:
         type: string
+        pattern: '^$|^[A-Za-z0-9_.:/-]{1,255}$'
+        maxLength: 255
     statsLimit:
       name: limit
       in: query
@@ -198,11 +212,13 @@ components:
       description: Schedule ID, at most 1000 characters.
       schema:
         type: string
+        minLength: 1
+        maxLength: 1000
     scheduleOperation:
       name: operation
       in: path
       required: true
-      description: The operation.
+      description: The operation. A value that is not `pause`, `unpause` or `trigger` does not match this route and answers 404 without a body.
       schema:
         type: string
         enum:
@@ -213,7 +229,7 @@ components:
       name: actionId
       in: path
       required: true
-      description: ID of a custom action registered by a backend module.
+      description: ID of a custom action registered by a backend module. An ID that does not match the pattern, or is not registered, answers 404.
       schema:
         type: string
         pattern: ^[A-Za-z][A-Za-z0-9._-]{0,99}$
@@ -1027,9 +1043,13 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+          pattern: '^.*\S.*$'
+          description: The handler name; it is trimmed, and cannot be blank.
         args:
-          type: array
-          description: The handler arguments, sent as JSON payloads.
+          type:
+            - array
+            - 'null'
+          description: The handler arguments, sent as JSON payloads. `null` is treated as if `args` was omitted.
           items: {}
     WorkflowMessageResponse:
       type: object
@@ -1041,22 +1061,38 @@ components:
       type: object
       properties:
         workflowType:
-          type: string
-          maxLength: 1000
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+          pattern: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$'
+          description: '`null` is treated as if the field was omitted.'
         taskQueue:
-          type: string
-          maxLength: 1000
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$'
+          description: '`null` is treated as if the field was omitted.'
         namespace:
-          type: string
-          maxLength: 1000
-          description: Only read by `POST /workflows`.
+          type:
+            - string
+            - 'null'
+          maxLength: 255
+          pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
+          description: Only read by `POST /workflows`. `null` is treated as if the field was omitted.
         args:
-          type: array
+          type:
+            - array
+            - 'null'
           items: {}
+          description: '`null` is treated as if `args` was omitted.'
         workflowId:
-          type: string
+          type:
+            - string
+            - 'null'
           maxLength: 1000
-          description: Without it, one is made from the workflow type.
+          description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
     WorkflowStartResponse:
       type: object
       required:
@@ -1953,7 +1989,7 @@ paths:
       operationId: cancelWorkflow
       summary: Request cancellation of a running workflow
       description: |-
-        409 when the workflow is not running. The body is not read.
+        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -1971,10 +2007,10 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       requestBody:
         required: false
+        description: The body is not read and is ignored.
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/Empty'
+            schema: {}
       responses:
         '202':
           description: Requested
@@ -2025,8 +2061,11 @@ paths:
               type: object
               properties:
                 reason:
-                  type: string
+                  type:
+                    - string
+                    - 'null'
                   maxLength: 1000
+                  description: '`null` is treated as if the field was omitted; the default reason is then used.'
       responses:
         '200':
           description: Terminated
@@ -2077,9 +2116,11 @@ paths:
               type: object
               properties:
                 workflowId:
-                  type: string
+                  type:
+                    - string
+                    - 'null'
                   maxLength: 1000
-                  description: Without it, one is made from the workflow type.
+                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
       responses:
         '201':
           description: Started
@@ -2106,7 +2147,7 @@ paths:
       operationId: runWorkflowAction
       summary: Run a custom action on a workflow
       description: |-
-        Actions are registered by backend modules (`temporalControlExtensionPoint`). The body is passed to the action as it is. 404 for an unknown action; 409 when the action does not apply to the workflow.
+        Actions are registered by backend modules (`temporalControlExtensionPoint`). The body is passed to the action as it is, and must be a JSON object or array. 404 for an unknown action, or for an action ID that does not match the pattern; 409 when the action does not apply to the workflow.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then the action's permission on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2124,10 +2165,14 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       requestBody:
         required: false
-        description: Any JSON value; the action defines it.
+        description: A JSON object or array; the action defines the contents. A string, number, or `null` is rejected.
         content:
           application/json:
-            schema: {}
+            schema:
+              oneOf:
+                - type: object
+                - type: array
+                  items: {}
       responses:
         '200':
           description: OK
@@ -2555,7 +2600,7 @@ paths:
       operationId: cancelWorkflowRun
       summary: Request cancellation of a running workflow (one run)
       description: |-
-        409 when the workflow is not running. The body is not read.
+        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2574,10 +2619,10 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       requestBody:
         required: false
+        description: The body is not read and is ignored.
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/Empty'
+            schema: {}
       responses:
         '202':
           description: Requested
@@ -2629,8 +2674,11 @@ paths:
               type: object
               properties:
                 reason:
-                  type: string
+                  type:
+                    - string
+                    - 'null'
                   maxLength: 1000
+                  description: '`null` is treated as if the field was omitted; the default reason is then used.'
       responses:
         '200':
           description: Terminated
@@ -2682,9 +2730,11 @@ paths:
               type: object
               properties:
                 workflowId:
-                  type: string
+                  type:
+                    - string
+                    - 'null'
                   maxLength: 1000
-                  description: Without it, one is made from the workflow type.
+                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
       responses:
         '201':
           description: Started
@@ -2711,7 +2761,7 @@ paths:
       operationId: runWorkflowRunAction
       summary: Run a custom action on a workflow (one run)
       description: |-
-        Actions are registered by backend modules (`temporalControlExtensionPoint`). The body is passed to the action as it is. 404 for an unknown action; 409 when the action does not apply to the workflow.
+        Actions are registered by backend modules (`temporalControlExtensionPoint`). The body is passed to the action as it is, and must be a JSON object or array. 404 for an unknown action, or for an action ID that does not match the pattern; 409 when the action does not apply to the workflow.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then the action's permission on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2730,10 +2780,14 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       requestBody:
         required: false
-        description: Any JSON value; the action defines it.
+        description: A JSON object or array; the action defines the contents. A string, number, or `null` is rejected.
         content:
           application/json:
-            schema: {}
+            schema:
+              oneOf:
+                - type: object
+                - type: array
+                  items: {}
       responses:
         '200':
           description: OK
@@ -2760,7 +2814,7 @@ paths:
       operationId: operateSchedule
       summary: Pause, unpause or trigger a schedule
       description: |-
-        With `entityRef`, the schedule must start one of the workflow types of the entity or the `TemporalWorkflow` entities it depends on (404 otherwise). `pause` and `unpause` keep an optional note; `trigger` takes none (400). 409 when Temporal refuses the operation in the state of the schedule.
+        With `entityRef`, the schedule must start one of the workflow types of the entity or the `TemporalWorkflow` entities it depends on (404 otherwise). `pause` and `unpause` keep an optional note; `trigger` takes none (400). An `operation` that is not `pause`, `unpause` or `trigger` does not match this route and answers 404 without a body. 409 when Temporal refuses the operation in the state of the schedule.
 
         Permission: `temporal.workflow.start` on the entity of `entityRef`, or without conditions without it.
 
@@ -2784,8 +2838,11 @@ paths:
               type: object
               properties:
                 note:
-                  type: string
+                  type:
+                    - string
+                    - 'null'
                   maxLength: 1000
+                  description: Kept by `pause` and `unpause`. `null` is treated as if the field was omitted.
       responses:
         '202':
           description: Done
