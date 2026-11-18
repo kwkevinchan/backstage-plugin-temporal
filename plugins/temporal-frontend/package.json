@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-frontend",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Unofficial Backstage frontend plugin for Temporal workflows: entity tab, Workflows page, workflow details and the operations that change workflows, with the extension points and blueprints for workflow actions, list actions and sections",
   "license": "Apache-2.0",
   "keywords": [
