@@ -133,14 +133,16 @@ You can extend the plugin without changing it. The usage and examples are in
 | Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                       |
 | Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)                 |
 | Add data to workflow summaries                      | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`; it only adds enrichers, custom actions use `temporalControlExtensionPoint`                                    | `temporal-backend/alpha`                       |
+| Teach the backend the model calls of a framework    | `temporalLlmAdapterExtensionPoint.addLlmAdapter()` (experimental); a step the adapter reads is shown as a model call                                                          | `temporal-backend/alpha`                       |
 | Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                       |
 | Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                        |
 | Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                       |
 | Restrict who may do what                            | A Backstage permission policy using the permissions and conditions of the plugin                                                                                              | [Permissions](../README.md#permissions)        |
 
-A custom action receives a Temporal client that can reach every workflow of the
-namespace with the backend's credentials, while the permission was only checked
-for the workflow of the request. An action that touches other workflows must check
+A custom action receives a Temporal client that carries the backend's connection
+and its credentials: it reaches every workflow of the namespace, and any other
+namespace those credentials can reach, while the permission was only checked for
+the workflow of the request. An action that touches other workflows must check
 permissions for those itself; see [Extending](../README.md#extending).
 
 ## Design decisions

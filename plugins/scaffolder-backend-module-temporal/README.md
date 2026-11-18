@@ -52,6 +52,13 @@ Temporal backend plugin, `temporal.connection.defaultNamespace` (`default`
 when it is not set), read from the app-config of the backend that runs the
 Scaffolder, so it must be the same there when the Temporal plugin runs in
 another backend.
+When the two differ, the default of the Scaffolder backend is sent to the
+Temporal backend, which answers according to its own settings: `400` when that
+namespace is not in `temporal.connection.namespaces` there, `404` when an
+`entityRef` is given and the workflow is not found in that namespace, and, when
+both namespaces are allowed and no `entityRef` is given, and a workflow with the
+same ID exists in the other namespace, `wait` and `signal` reach that one
+instead.
 
 `wait` and `signal` read the entity from the catalog as the user who runs the
 template; an entity that cannot be read is an error, not the default

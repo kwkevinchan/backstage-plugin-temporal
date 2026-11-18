@@ -146,9 +146,9 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## 後端擴充
 
-![temporal-backend 內部，請求往下經過四層：routes（router.ts 是讀取和 Query；controlRoutes.ts 是操作，只在 temporal.control.enabled 為 true 時掛上）、access（TemporalAccessService，ref 是 temporalAccessServiceRef，搭配權限框架和 catalog）、services（WorkflowQueries 等查詢類別、WorkflowCommands），再經 TemporalService（temporalServiceRef，root scope）到 Temporal。左邊是外掛的模組：temporalControlExtensionPoint 把自訂操作接到操作路由，temporalWorkflowEnricherExtensionPoint 把 enricher 接到查詢，你自己的路由使用 temporalAccessServiceRef，Zigflow 模組在 /api/temporal 下加一條路由並自己檢查讀取權限。右邊是其他後端程式：Scaffolder 模組以使用者身分呼叫 HTTP API，你的其他外掛依賴 temporalServiceRef，你為 temporalAccessServiceRef 或 temporalServiceRef 提供的 factory 會取代預設的。](images/backend-interfaces.svg)
+![temporal-backend 內部，請求往下經過四層：routes（router.ts 是讀取和 Query；controlRoutes.ts 是操作，只在 temporal.control.enabled 為 true 時掛上）、access（TemporalAccessService，ref 是 temporalAccessServiceRef，搭配權限框架和 catalog）、services（WorkflowQueries 等查詢類別、WorkflowCommands），再經 TemporalService（temporalServiceRef，root scope）到 Temporal。左邊是外掛的模組：temporalControlExtensionPoint 把自訂操作接到操作路由，temporalWorkflowEnricherExtensionPoint 把 enricher 接到查詢，temporalLlmAdapterExtensionPoint 把 LLM 轉接器接到查詢，讓外掛讀出某個框架的模型呼叫和 tool call，你自己的路由使用 temporalAccessServiceRef，Zigflow 模組在 /api/temporal 下加一條路由，並經由 temporalAccessServiceRef 檢查讀取權限。右邊是其他後端程式：Scaffolder 模組以使用者身分呼叫 HTTP API，你的其他外掛依賴 temporalServiceRef，你為 temporalAccessServiceRef 或 temporalServiceRef 提供的 factory 會取代預設的。](images/backend-interfaces.svg)
 
-五個接口，分在四層。其餘的類別由外掛自己建立，不匯出（見[不公開的部分](#不公開的部分)）。圖上還沒有 LLM 轉接器；它和 enricher 接在同一層。
+五個接口，分在四層。其餘的類別由外掛自己建立，不匯出（見[不公開的部分](#不公開的部分)）。
 
 ### `temporalServiceRef`
 
@@ -189,7 +189,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `filter?`    | `(workflow: WorkflowDetail) => boolean`；false 時回 `409`                                                           |
 | `handle`     | `(ref, body, { entity?, workflow, credentials, client }) => Promise<JsonValue \| void>`；回傳值以 `{ result }` 送回 |
 
-即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 用後端的憑證，可以碰到 namespace 裡的每個流程：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
+即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 帶著後端的連線：可以碰到 namespace 裡的每個流程，以及該連線的憑證能到的其他 namespace：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
 
 ### `temporalWorkflowEnricherExtensionPoint`
 
