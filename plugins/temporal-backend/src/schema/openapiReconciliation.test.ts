@@ -27,6 +27,7 @@ import { temporalAccessServiceFactory } from '../access/temporalAccessServiceFac
 import { TemporalService, temporalServiceRef } from '../node';
 import { temporalPlugin } from '../plugin';
 import {
+  createFakeConnection,
   createFakeWorkflowService,
   executionInfo,
   orderWorkflowEntity,
@@ -122,7 +123,7 @@ async function startPlugin(): Promise<{ backend: Server }> {
   });
   const service: TemporalService = {
     getClient: async () => ({ workflow: { getHandle: jest.fn() } } as any),
-    getConnection: async () => ({ workflowService } as any),
+    getConnection: async () => createFakeConnection(workflowService) as any,
     getDefaultNamespace: () => 'default',
     getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
