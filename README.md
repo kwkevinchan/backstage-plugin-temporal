@@ -82,11 +82,15 @@ workflow definition.
   added with a backend module (see
   [Model calls and tool calls](#model-calls-and-tool-calls)).
 
-| Workflows of an entity                                    | Step graph and step panel                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------------- |
-| ![Workflow list of an entity](docs/images/entity-tab.png) | ![Step graph with the step panel](docs/images/details-graph.png) |
-| **Workflow controls**                                     | **Workflow definition (Zigflow)**                                |
-| ![Terminate dialog](docs/images/controls.png)             | ![YAML next to its graph](docs/images/definition.png)            |
+| Workflows of an entity                                                                                                                                                                                          | Step graph and step panel                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| ![The Temporal tab of an entity: a table of workflow executions with status, progress, start time and duration.](docs/images/entity-tab.png)                                                                    | ![The details page of a failed payment run: header, step graph and the chargeCard error in the step panel.](docs/images/details-graph.png) |
+| **Event Groups**                                                                                                                                                                                                | **Timeline**                                                                                                                               |
+| ![A step graph with a loop of three stacked child groups; in round 2 a hint signal group with notify sits inside the round frame, under the main steps.](docs/images/event-groups.png)                          | ![The Timeline tab with group rows and the Expand groups and Collapse groups buttons.](docs/images/timeline.png)                           |
+| **Model calls**                                                                                                                                                                                                 | **LLM panel**                                                                                                                              |
+| ![A step graph of a Vercel AI SDK model-call run: fake-reasoner boxes with token counts, and tool calls (search, glossary, read_file) linked beside them.](docs/images/llm-graph.png)                           | ![The LLM panel of a model call: input, expanded thinking, output, tool calls and token usage.](docs/images/llm-panel.png)                 |
+| **Large payloads (External Storage)**                                                                                                                                                                           | **Workflow controls**                                                                                                                      |
+| ![The step panel for buildReport: output stored in External Storage, with size, s3:// location, SHA-256, copy buttons and an Open link. The graph of the run is on the left.](docs/images/external-storage.png) | ![The Terminate dialog on a running deployment workflow.](docs/images/controls.png)                                                        |
 
 ## Packages
 
@@ -835,6 +839,8 @@ bucket, key, size, sha256 } }`, not as a card;
 To get from the reference to the object, set a link template. `{bucket}` and
 `{key}` are replaced with the URL-encoded bucket and key of the reference,
 and the **Open** link appears next to the location:
+
+![The step panel showing an External Storage reference: Stored in External Storage, 1 MB, an s3://temporal-payloads/… location, a SHA-256, copy buttons and an Open link. The plugin does not show the stored content.](docs/images/external-storage.png)
 
 ```yaml
 temporal:
