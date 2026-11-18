@@ -26,6 +26,7 @@ import {
   parseStatus,
   scheduleBelongsToSources,
   workflowBelongsToEntity,
+  workflowIdCondition,
 } from './query';
 
 function entity(annotations: Record<string, string>): Entity {
@@ -385,5 +386,27 @@ describe('scheduleBelongsToSources', () => {
         { workflowTypes: ['orderWorkflow'] },
       ]),
     ).toBe(true);
+  });
+});
+
+describe('workflowIdCondition', () => {
+  it('matches IDs with spaces, brackets and other free text', () => {
+    expect(workflowIdCondition('order-1')).toBe("WorkflowId = 'order-1'");
+    expect(workflowIdCondition('nightly (eu) 2026/11')).toBe(
+      "WorkflowId = 'nightly (eu) 2026/11'",
+    );
+    expect(workflowIdCondition('注文-1 %_')).toBe("WorkflowId = '注文-1 %_'");
+  });
+
+  it.each([
+    ['a single quote', "a' OR WorkflowId != 'b"],
+    ['a double quote', 'a"b'],
+    ['a backslash', 'a\\b'],
+    ['a newline', 'a\nb'],
+    ['a NUL', 'a\u0000b'],
+    ['DEL', 'a\u007fb'],
+    ['nothing', ''],
+  ])('refuses an ID with %s, asking for the run ID', (_name, id) => {
+    expect(() => workflowIdCondition(id)).toThrow(/open the run by its run ID/);
   });
 });

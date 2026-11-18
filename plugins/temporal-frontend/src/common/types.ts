@@ -144,6 +144,8 @@ export interface WorkflowDetail extends WorkflowSummary {
   memo?: JsonObject;
   /** Failure of a closed execution (failed, timed out, terminated). */
   failure?: WorkflowFailure;
+  /** The run this one continued as, for a run that continued as new. */
+  continuedAsNewRunId?: string;
   pendingActivities: PendingActivity[];
 }
 

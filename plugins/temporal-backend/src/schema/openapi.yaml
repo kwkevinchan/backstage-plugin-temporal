@@ -318,6 +318,9 @@ components:
               description: Only when the backend is configured to show stack traces.
             code:
               type: string
+            continuedAsNewRunId:
+              type: string
+              description: On a 409 of an operation on a run that continued as new, the run it continued as.
           additionalProperties: {}
         request:
           type: object
@@ -523,6 +526,9 @@ components:
           additionalProperties: {}
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
+        continuedAsNewRunId:
+          type: string
+          description: The run this one continued as, for a run that continued as new.
         pendingActivities:
           type: array
           items:
@@ -1893,7 +1899,7 @@ paths:
       operationId: signalWorkflow
       summary: Send a signal to a running workflow
       description: |-
-        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running.
+        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.signal` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -1941,7 +1947,7 @@ paths:
       operationId: updateWorkflow
       summary: Send an update to a running workflow and wait for its result
       description: |-
-        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running; 503 when the update does not finish in time.
+        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new; 503 when the update does not finish in time.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -1989,7 +1995,7 @@ paths:
       operationId: cancelWorkflow
       summary: Request cancellation of a running workflow
       description: |-
-        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2037,7 +2043,7 @@ paths:
       operationId: terminateWorkflow
       summary: Terminate a running workflow
       description: |-
-        409 when the workflow is not running. The reason defaults to `Terminated from Backstage`.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The reason defaults to `Terminated from Backstage`.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.terminate` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2092,7 +2098,7 @@ paths:
       operationId: rerunWorkflow
       summary: Start a new workflow with the type, task queue and input of a run
       description: |-
-        Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
+        Only a closed run can be rerun: 409 while it is running. Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.rerun` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2120,7 +2126,7 @@ paths:
                     - string
                     - 'null'
                   maxLength: 1000
-                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
+                  description: Without it, one is made from the run's workflow ID, `-rerun-` and a random suffix (a rerun of a rerun replaces the suffix). `null` is treated as if the field was omitted.
       responses:
         '201':
           description: Started
@@ -2502,7 +2508,7 @@ paths:
       operationId: signalWorkflowRun
       summary: Send a signal to a running workflow (one run)
       description: |-
-        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running.
+        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.signal` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2551,7 +2557,7 @@ paths:
       operationId: updateWorkflowRun
       summary: Send an update to a running workflow and wait for its result (one run)
       description: |-
-        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running; 503 when the update does not finish in time.
+        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new; 503 when the update does not finish in time.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2600,7 +2606,7 @@ paths:
       operationId: cancelWorkflowRun
       summary: Request cancellation of a running workflow (one run)
       description: |-
-        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2649,7 +2655,7 @@ paths:
       operationId: terminateWorkflowRun
       summary: Terminate a running workflow (one run)
       description: |-
-        409 when the workflow is not running. The reason defaults to `Terminated from Backstage`.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The reason defaults to `Terminated from Backstage`.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.terminate` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2705,7 +2711,7 @@ paths:
       operationId: rerunWorkflowRun
       summary: Start a new workflow with the type, task queue and input of a run (one run)
       description: |-
-        Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
+        Only a closed run can be rerun: 409 while it is running. Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.rerun` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2734,7 +2740,7 @@ paths:
                     - string
                     - 'null'
                   maxLength: 1000
-                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
+                  description: Without it, one is made from the run's workflow ID, `-rerun-` and a random suffix (a rerun of a rerun replaces the suffix). `null` is treated as if the field was omitted.
       responses:
         '201':
           description: Started

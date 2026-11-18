@@ -22,7 +22,11 @@ import {
   ServiceUnavailableError,
 } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import type { Connection, ScheduleOverlapPolicy } from '@temporalio/client';
+import type {
+  Client,
+  Connection,
+  ScheduleOverlapPolicy,
+} from '@temporalio/client';
 import type {
   TemporalScheduleOperation,
   WorkflowDetail,
@@ -36,7 +40,12 @@ import {
   encodeJsonPayloads,
   TemporalJsonPayload,
 } from './payloads';
-import { isScheduleNotFound, mapCommandError } from '../repositories/errors';
+import {
+  isScheduleNotFound,
+  mapActionError,
+  mapCommandError,
+  mapConnectionError,
+} from '../repositories/errors';
 import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 
 /** `temporal.control` settings. */
@@ -129,6 +138,25 @@ export class WorkflowCommands {
     fn: (connection: Connection) => Promise<T>,
   ): Promise<T> {
     return callTemporal(this.temporal, timeoutMs, mapCommandError, fn);
+  }
+
+  /**
+   * Runs a custom action with the client of `namespace`, under the deadline
+   * of an action (`TEMPORAL_DEADLINES.action`) for every call it makes, and
+   * rethrows its errors with `mapActionError`.
+   */
+  runAction<T>(namespace: string, run: (client: Client) => Promise<T>) {
+    return callTemporal(
+      this.temporal,
+      TEMPORAL_DEADLINES.action,
+      mapActionError,
+      async () =>
+        run(
+          await this.temporal
+            .getClient({ namespace })
+            .catch(mapConnectionError),
+        ),
+    );
   }
 
   checkSignal(name: string) {

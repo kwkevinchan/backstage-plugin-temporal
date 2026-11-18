@@ -1,0 +1,9 @@
+---
+'@kwkevinchan/backstage-plugin-temporal-backend': patch
+---
+
+The operations answer more precisely:
+
+- The details of a run that continued as new have `continuedAsNewRunId`, the run it continued as. Signal, update, cancel and terminate of such a run answer 409 with the same field in the error body.
+- Rerun only takes a closed run: it answers 409 while the run is running.
+- The errors a custom action throws get the status of what they mean: Backstage errors keep theirs, a workflow the Temporal client does not find is 404, an update that fails is 400, an update that does not finish in time is 503, gRPC errors are mapped like those of the built-in operations, anything else stays 500. A client that cannot connect is 503. Every call of the action's client shares a deadline of 60 seconds; an action extends it for its own calls with `client.connection.withDeadline`.

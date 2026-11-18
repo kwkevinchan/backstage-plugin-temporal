@@ -42,6 +42,12 @@ export const TEMPORAL_DEADLINES = {
    * update's stage when it is not finished yet.
    */
   update: 30_000,
+  /**
+   * A custom action, with every call its client makes. An action extends
+   * it for its own calls with `connection.withDeadline`, which replaces the
+   * deadline for the calls made inside it.
+   */
+  action: 60_000,
 } as const;
 
 /**

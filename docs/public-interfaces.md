@@ -242,6 +242,19 @@ workflow of the namespace, and any other namespace the credentials of that
 connection can reach: an action that touches other workflows must
 check them itself with `temporalAccessServiceRef`.
 
+Errors that `handle` throws are answered like those of the built-in
+operations: an error of `@backstage/errors` with its own status;
+`WorkflowNotFoundError` of the Temporal client as `404`,
+`WorkflowUpdateFailedError` as `400`,
+`WorkflowUpdateRPCTimeoutOrCancelledError` as `503`; a gRPC error by its
+code (`NOT_FOUND` `404`, `INVALID_ARGUMENT` `400`, `ALREADY_EXISTS` and
+`FAILED_PRECONDITION` `409`, `UNAVAILABLE` and `DEADLINE_EXCEEDED` `503`);
+anything else `500`. A client that cannot connect answers `503`. Every call
+of `client` shares one deadline of 60 seconds for the whole action. An
+action that needs longer wraps its calls in
+`client.connection.withDeadline(deadline, fn)`: the deadline given there
+replaces the 60 seconds for the calls made inside `fn`.
+
 ### `temporalWorkflowEnricherExtensionPoint`
 
 `./alpha`, `@alpha`. `addWorkflowEnricher({ id, enrich })` adds data to

@@ -191,6 +191,8 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 帶著後端的連線：可以碰到 namespace 裡的每個流程，以及該連線的憑證能到的其他 namespace：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
 
+`handle` 丟出的錯誤照內建操作的方式回應：`@backstage/errors` 的錯誤用它自己的狀態碼；Temporal client 的 `WorkflowNotFoundError` 回 `404`、`WorkflowUpdateFailedError` 回 `400`、`WorkflowUpdateRPCTimeoutOrCancelledError` 回 `503`；gRPC 錯誤看它的 code（`NOT_FOUND` `404`、`INVALID_ARGUMENT` `400`、`ALREADY_EXISTS` 和 `FAILED_PRECONDITION` `409`、`UNAVAILABLE` 和 `DEADLINE_EXCEEDED` `503`）；其他的回 `500`。`client` 連不上時回 `503`。整個操作裡 `client` 的每次呼叫共用一個 60 秒的期限。需要更久的操作，把呼叫包在 `client.connection.withDeadline(deadline, fn)` 裡：那裡給的期限會取代 `fn` 裡面那些呼叫的 60 秒。
+
 ### `temporalWorkflowEnricherExtensionPoint`
 
 `./alpha`，`@alpha`。`addWorkflowEnricher({ id, enrich })` 在流程摘要上加資料：`enrich(items, { entity?, namespace, credentials })` 依加入順序，在透過實體讀取流程的地方執行：實體的流程列表，以及透過實體讀取的詳細資料（以 `entityRef` 傳入，或 list 權限不允許時改用的 search attribute 實體）。Workflows 頁的列表、以 list 權限開啟的詳細資料不會執行。把你的資料放在每筆摘要的 `extensions[id]`（`WorkflowSummary.extensions`）；回傳的欄位會合併進摘要。前端不會自己顯示它，要搭配一個讀它的[分頁或按鈕](#blueprint-和-props)。丟出錯誤的 enricher 會被略過並記一筆警告；id 重複會讓外掛啟動失敗。不要假設 `entity` 一定有值：之後跨實體的列表可能在沒有實體時也執行 enricher。

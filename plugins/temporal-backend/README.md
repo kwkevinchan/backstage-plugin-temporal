@@ -134,7 +134,9 @@ the list of arguments), `{ reason }` for terminate, `{ workflowId? }` for
 rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 `namespace` on `/workflows`). Update, query and actions answer `{ result }`;
 start and rerun answer the new `{ namespace, workflowId, runId }`. Signal,
-update, cancel and terminate answer 409 when the workflow is not running;
+update, cancel and terminate answer 409 when the workflow is not running
+(for a run that continued as new, the error body has the run it continued
+as in `error.continuedAsNewRunId`); rerun when the run is still running;
 start and rerun when the workflow ID is taken; the schedule operations when
 Temporal refuses the operation in the state of the schedule; custom actions
 when the action does not apply to the workflow. The routes that change

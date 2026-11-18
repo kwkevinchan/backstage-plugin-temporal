@@ -137,10 +137,29 @@ function runRef(workflow: WorkflowDetail): Required<WorkflowRef> {
   };
 }
 
+/**
+ * Throws a ConflictError for a run that is not running. For a run that
+ * continued as new, the error has the run it continued as in
+ * `continuedAsNewRunId` (sent in the error body).
+ */
 function assertRunning(workflow: WorkflowDetail) {
   if (workflow.status !== 'Running') {
-    throw new ConflictError(
+    const error = new ConflictError(
       `Workflow ${workflow.workflowId} is not running (${workflow.status})`,
+    );
+    throw workflow.continuedAsNewRunId
+      ? Object.assign(error, {
+          continuedAsNewRunId: workflow.continuedAsNewRunId,
+        })
+      : error;
+  }
+}
+
+/** Throws a ConflictError for a run that is still running. */
+function assertClosed(workflow: WorkflowDetail) {
+  if (workflow.status === 'Running') {
+    throw new ConflictError(
+      `Workflow ${workflow.workflowId} is still running; only a closed run can be rerun`,
     );
   }
 }
@@ -168,8 +187,7 @@ export function createControlRouter(
   /**
    * Checks a control permission on the workflow's entity. A bad entity
    * reference in the workflow's search attribute counts as no entity: the
-   * permission must then be allowed for every entity. (The query route
-   * answers 400 for it instead.)
+   * permission must then be allowed for every entity.
    */
   const authorizeControl = (
     permission: ResourcePermission<'catalog-entity'>,
@@ -305,6 +323,7 @@ export function createControlRouter(
       loaded,
     );
     const workflowId = parseWorkflowId(requestBody(req).workflowId);
+    assertClosed(loaded.workflow);
     const started = await audited(
       auditor,
       req,
@@ -337,9 +356,6 @@ export function createControlRouter(
         `Action ${actionId} does not apply to workflow ${loaded.workflow.workflowId}`,
       );
     }
-    const client = await options.temporal.getClient({
-      namespace: loaded.workflow.namespace,
-    });
     const entity =
       loaded.context?.entity ??
       (entityRef
@@ -361,12 +377,14 @@ export function createControlRouter(
       workflowMeta(loaded.workflow, entityRef, { actionId }),
       'medium',
       () =>
-        action.handle(runRef(loaded.workflow), req.body as JsonValue, {
-          entity,
-          workflow: loaded.workflow,
-          credentials: loaded.credentials,
-          client,
-        }),
+        commands.runAction(loaded.workflow.namespace, client =>
+          action.handle(runRef(loaded.workflow), req.body as JsonValue, {
+            entity,
+            workflow: loaded.workflow,
+            credentials: loaded.credentials,
+            client,
+          }),
+        ),
     );
     res.json(result === undefined ? {} : { result });
   });

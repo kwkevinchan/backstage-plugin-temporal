@@ -325,6 +325,48 @@ describe('temporal backend plugin', () => {
     });
   });
 
+  it('describes a run that continued as new with the run it continued as', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-1',
+        status: 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW',
+      }),
+      pendingActivities: [],
+    });
+    workflowService.getWorkflowExecutionHistoryReverse.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '9',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW',
+            workflowExecutionContinuedAsNewEventAttributes: {
+              newExecutionRunId: 'wf-1-run-2',
+            },
+          },
+        ],
+      },
+    } as any);
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'ContinuedAsNew',
+      continuedAsNewRunId: 'wf-1-run-2',
+    });
+    expect(res.body.failure).toBeUndefined();
+    expect(
+      workflowService.getWorkflowExecutionHistoryReverse,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+        maximumPageSize: 1,
+      }),
+    );
+  });
+
   it('hides workflows that do not belong to the entity', async () => {
     const workflowService = createFakeWorkflowService();
     workflowService.describeWorkflowExecution.mockResolvedValue({
@@ -674,6 +716,48 @@ describe('temporal backend plugin', () => {
       `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
     );
     expect(failed.body.runChain).toEqual({ previousRunId: 'run-before' });
+  });
+
+  it('counts the runs of workflow IDs with spaces, not of IDs with quotes', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.getWorkflowExecutionHistory.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '1',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+            workflowExecutionStartedEventAttributes: {
+              continuedExecutionRunId: 'run-before',
+            },
+          },
+        ],
+      },
+      nextPageToken: new Uint8Array(),
+    } as any);
+    workflowService.countWorkflowExecutions.mockResolvedValue({ count: 2 });
+    const { server } = await start({ workflowService });
+    const spaced = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/${encodeURIComponent(
+        'nightly (eu)',
+      )}/runs/r1/graph?entityRef=${ref}`,
+    );
+    expect(spaced.body.runChain).toEqual({
+      previousRunId: 'run-before',
+      index: 2,
+      total: 2,
+    });
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledWith({
+      namespace: 'default',
+      query: "WorkflowId = 'nightly (eu)'",
+    });
+    workflowService.countWorkflowExecutions.mockClear();
+    const quoted = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/${encodeURIComponent(
+        "it's",
+      )}/runs/r1/graph?entityRef=${ref}`,
+    );
+    expect(quoted.body.runChain).toEqual({ previousRunId: 'run-before' });
+    expect(workflowService.countWorkflowExecutions).not.toHaveBeenCalled();
   });
 
   it('returns the progress of a run and caches closed runs', async () => {

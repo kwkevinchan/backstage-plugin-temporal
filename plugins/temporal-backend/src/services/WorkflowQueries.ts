@@ -49,7 +49,7 @@ import {
 import { buildWorkflowGraph } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
-import { workflowBelongsToEntity } from './query';
+import { workflowBelongsToEntity, workflowIdCondition } from './query';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
@@ -146,7 +146,11 @@ export class WorkflowQueries {
     this.sources.checkNamespace(ref.namespace);
     const json = await this.temporalReads.describeExecution(ref);
     const detail = toWorkflowDetail(json, this.convertOptions(ref.namespace));
-    if (CLOSED_WITH_FAILURE.includes(detail.status)) {
+    // The close event tells the failure, or the run this one continued as.
+    if (
+      CLOSED_WITH_FAILURE.includes(detail.status) ||
+      detail.status === 'ContinuedAsNew'
+    ) {
       const closeEvent = await this.temporalReads.lastEvent({
         ...ref,
         runId: detail.runId,
@@ -309,11 +313,14 @@ export class WorkflowQueries {
     chain: WorkflowRunChain,
   ): Promise<WorkflowRunChain> {
     const start = workflow.startTime ? Date.parse(workflow.startTime) : NaN;
-    // Workflow IDs are free text; IDs that need escaping are not counted.
-    if (Number.isNaN(start) || /['"\\]/.test(workflow.workflowId)) {
+    if (Number.isNaN(start)) return chain;
+    let byId: string;
+    try {
+      byId = workflowIdCondition(workflow.workflowId);
+    } catch {
+      // A workflow ID that a visibility query cannot match is not counted.
       return chain;
     }
-    const byId = `WorkflowId = '${workflow.workflowId}'`;
     // The start time of describe is cut to milliseconds.
     const until = new Date(start + 1).toISOString();
     try {
