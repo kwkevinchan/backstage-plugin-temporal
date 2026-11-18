@@ -19,6 +19,7 @@ import type {
   WorkflowGraphEdge,
   WorkflowGraphNode,
 } from '../../common';
+import { unplacedBeside } from './stackLayout';
 import {
   boxSize,
   hideSteps,
@@ -530,6 +531,8 @@ export function stackGroups(
   graph: GroupedGraph,
   plan: GroupPlan,
   stepIds: string[],
+  /** Boxes and frames that stay in a row below their round. */
+  below: ReadonlySet<string> = new Set(),
 ): GroupedGraph {
   const laidOut = new Set(graph.frames.map(f => f.id));
   const stacked = new Set(
@@ -573,7 +576,15 @@ export function stackGroups(
         : undefined;
     for (const unit of [withSource, [id]]) {
       if (!unit) continue;
-      const found = detour(unit, graph, chainOf, stacked, laidOut, orderOf);
+      const found = detour(
+        unit,
+        graph,
+        chainOf,
+        stacked,
+        laidOut,
+        orderOf,
+        below,
+      );
       if (!found) continue;
       for (const item of unit) placed.set(item, found);
       break;
@@ -640,6 +651,7 @@ function detour(
   stacked: Set<string>,
   frames: Set<string>,
   orderOf: (id: string) => number,
+  below: ReadonlySet<string>,
 ): { stack: string; after: string } | undefined {
   const inUnit = (id: string) =>
     unit.includes(id) || chainOf(id).some(f => unit.includes(f));
@@ -670,8 +682,7 @@ function detour(
   // stacked itself (a round of a loop): the unit goes in that frame, beside
   // its boxes. Unless it leads back to more than one box, or to a box that
   // the source of the first arrow into it does not lead to in that frame,
-  // or into the box or frame of the frame that source is in, or the source
-  // is not the last box of the frames around it in that frame, or the
+  // or the source is not the last box of the frames around it in that frame, or the
   // target not the first one: an arrow would have to pass other boxes of
   // the frame on its way out or in.
   const rows = new Set(ends.map(end => childIn(stack, end, chainOf)));
@@ -679,10 +690,10 @@ function detour(
   if (
     rows.size === 1 &&
     row !== undefined &&
+    !unit.some(id => below.has(id)) &&
     frames.has(row) &&
     !stacked.has(row)
   ) {
-    const from = childIn(row, first.source, chainOf);
     const targets = [
       ...new Set(
         graph.edges
@@ -720,7 +731,6 @@ function detour(
     if (
       targets.length <= 1 &&
       targets.every(t => reached.has(t)) &&
-      targets.every(t => childIn(row, t, chainOf) !== from) &&
       outermost(first.source, true) &&
       targets.every(t => outermost(t, false))
     ) {
@@ -890,18 +900,28 @@ export function layoutGroupedSteps(
       .map(k => byKey.get(k))
       .filter((g): g is WorkflowEventGroup => Boolean(g));
   const layOut = (p: GroupPlan, notice?: GroupNotice): GroupedLayout => {
-    const graph = stackGroups(groupGraph(nodes, edges, p), p, ids);
-    const layout = lay(
-      graph.nodes.map(n => {
-        const size = p.boxes.has(n.id)
-          ? { width: GROUP_NODE_WIDTH, height: GROUP_NODE_HEIGHT }
-          : sizes.get(n.id);
-        return { ...n, ...(size ? { size } : {}) };
-      }),
-      graph.edges,
-      width,
-      { frames: graph.frames },
-    );
+    // Groups that find no lane beside the steps of their round go in a
+    // row below it, and the graph is laid out again.
+    const below = new Set<string>();
+    let graph: GroupedGraph;
+    let layout: StepLayout;
+    for (;;) {
+      graph = stackGroups(groupGraph(nodes, edges, p), p, ids, below);
+      layout = lay(
+        graph.nodes.map(n => {
+          const size = p.boxes.has(n.id)
+            ? { width: GROUP_NODE_WIDTH, height: GROUP_NODE_HEIGHT }
+            : sizes.get(n.id);
+          return { ...n, ...(size ? { size } : {}) };
+        }),
+        graph.edges,
+        width,
+        { frames: graph.frames },
+      );
+      const unplaced = unplacedBeside(layout).filter(id => !below.has(id));
+      if (unplaced.length === 0) break;
+      for (const id of unplaced) below.add(id);
+    }
     const result: GroupedLayout = {
       layout,
       plan: p,

@@ -31,6 +31,18 @@ import {
   StepLayout,
 } from './geometry';
 
+const unplacedOf = new WeakMap<StepLayout, string[]>();
+
+/**
+ * The boxes and frames placed beside the boxes of a frame (`after`, in a
+ * frame that is not stacked) where one part found no lane below them that
+ * keeps its arrows clear of the other parts, in a layout of
+ * `layoutStacked`. They go in a row below that frame instead.
+ */
+export function unplacedBeside(layout: StepLayout): string[] {
+  return unplacedOf.get(layout) ?? [];
+}
+
 /** Room between a column and a part placed beside the boxes of a frame. */
 const BESIDE_GAP = 2 * (FRAME_GAP + EDGE_LANE_GAP);
 /** Room between the boxes of a frame and the lanes beside them. */
@@ -161,6 +173,8 @@ export function layoutStacked(
   const afterOf = (id: string) =>
     (frameById.get(id) ?? nodeById.get(id))?.after;
   const blocks = new Map<string, StackBlock>();
+  /** Boxes and frames placed beside the boxes of a frame, without a lane. */
+  const unplaced: string[] = [];
   /** Side channels wider than `STACK_SIDE`, by the block they belong to. */
   const padsOfBlock = new WeakMap<StackBlock, Map<string, number>>();
   const rememberPad = (block: StackBlock, frame: string, pad: number) => {
@@ -315,13 +329,14 @@ export function layoutStacked(
    * Puts the boxes and frames placed beside the boxes of `frame` (`after`,
    * in a frame that is not stacked) into its laid out frame: the boxes of
    * the frame stay as they are, on their line; each part of the boxes
-   * beside them goes in a lane above or below them, starting a column after
+   * beside them goes in a lane below them, starting a column after
    * the box an arrow into it comes from (`after`) and, when it leads back
    * to a box of the frame, reaching to a column before that box (a frame
    * is drawn that wide; the boxes from that one on move right when the
    * part needs more room). Parts that run side by side go in lanes of
-   * their own, below first, then above, and a part goes in a lane farther
-   * out only around the parts in the lanes between it and the boxes.
+   * their own, one below the other, the shorter ones nearer the boxes, and
+   * a part goes in a lane farther down only around the parts in the lanes
+   * between it and the boxes.
    */
   function placeBeside(
     layout: StepLayout,
@@ -428,19 +443,18 @@ export function layoutStacked(
         ? column(target).left - gapIn.get(target)!
         : part.x + part.laid.width;
     }
-    // Lanes: the turns down out of the source and up into the target.
+    // Lanes: the turns down out of the source and up into the target, or
+    // the right side of a part that leads nowhere (`ends`).
     const span = (part: (typeof parts)[number]) => {
       const target = targetOf(part);
       return {
         from: (column(part.source).right + part.x) / 2,
         to: target ? (part.right + column(target).left) / 2 : part.right,
+        ends: !target,
       };
     };
-    const lanes: {
-      part: (typeof parts)[number];
-      side: 1 | -1;
-      lane: number;
-    }[] = [];
+    const lanes: { part: (typeof parts)[number]; lane: number }[] = [];
+    // The shorter parts first, nearer the boxes.
     const order = [...parts].sort((a, b) => {
       const [p, q] = [span(a), span(b)];
       return p.to - p.from - (q.to - q.from) || p.from - q.from;
@@ -449,66 +463,52 @@ export function layoutStacked(
       const own = span(part);
       const apart = (o: { from: number; to: number }) =>
         o.to + FRAME_GAP <= own.from || own.to + FRAME_GAP <= o.from;
+      // An arrow up past the right side of a part a frame gap from it.
       const within = (
-        inner: { from: number; to: number },
+        inner: { from: number; to: number; ends: boolean },
         outer: { from: number; to: number },
-      ) => inner.from >= outer.from && inner.to <= outer.to;
-      const fits = (side: 1 | -1, lane: number) =>
+      ) =>
+        inner.from >= outer.from &&
+        inner.to + (inner.ends ? FRAME_GAP : 0) <= outer.to;
+      const fits = (lane: number) =>
         lanes.every(other => {
-          if (other.side !== side) return true;
           const o = span(other.part);
+          // Arrows down from two boxes would turn at one place.
+          if (
+            other.part.source !== part.source &&
+            Math.abs(o.from - own.from) < EDGE_LANE_GAP
+          ) {
+            return false;
+          }
           if (other.lane === lane) return apart(o);
           if (other.lane < lane) return apart(o) || within(o, own);
           return apart(o) || within(own, o);
         });
-      // Below, or above when fewer boxes of the columns of its ends are
-      // between them and the lane: the arrows down to it pass those.
-      const passed = (side: 1 | -1) =>
-        [part.source, targetOf(part)].reduce((count, end) => {
-          if (end === undefined) return count;
-          const r = rect(end);
-          return (
-            count +
-            main.filter(id => {
-              const o = rect(id);
-              const across = o.left < r.right && r.left < o.right;
-              return (
-                across && (side === 1 ? o.top >= r.bottom : o.bottom <= r.top)
-              );
-            }).length
-          );
-        }, 0);
-      const sides: (1 | -1)[] = passed(-1) < passed(1) ? [-1, 1] : [1, -1];
-      let chosen: { side: 1 | -1; lane: number } | undefined;
-      for (let lane = 0; !chosen && lane < parts.length; lane++) {
-        for (const side of sides) {
-          if (!chosen && fits(side, lane)) chosen = { side, lane };
-        }
+      let lane = 0;
+      while (lane < parts.length && !fits(lane)) lane++;
+      if (lane < parts.length) {
+        lanes.push({ part, lane });
+      } else {
+        // No lane where its arrows pass clear of the others: none of the
+        // parts goes beside the boxes.
+        unplaced.push(...items);
+        lanes.push({
+          part,
+          lane: Math.max(0, ...lanes.map(l => l.lane + 1)),
+        });
       }
-      chosen ??= {
-        side: 1,
-        lane: Math.max(0, ...lanes.map(l => l.lane + 1)),
-      };
-      lanes.push({ part, ...chosen });
     }
-    const boxes = main.map(rect);
-    let below = Math.max(...boxes.map(r => r.bottom));
-    let above = Math.min(...boxes.map(r => r.top));
+    // The lanes one below the other, below the boxes.
+    let below = Math.max(...main.map(rect).map(r => r.bottom));
     for (let lane = 0; lane < parts.length; lane++) {
-      for (const side of [1, -1] as const) {
-        const inLane = lanes.filter(l => l.side === side && l.lane === lane);
-        if (inLane.length === 0) continue;
-        const height = Math.max(...inLane.map(l => l.part.laid.height));
-        const top =
-          side === 1
-            ? below + BESIDE_LANE_GAP
-            : above - BESIDE_LANE_GAP - height;
-        for (const { part } of inLane) {
-          part.y = top + (height - part.laid.height) / 2;
-        }
-        if (side === 1) below = top + height;
-        else above = top;
+      const inLane = lanes.filter(l => l.lane === lane);
+      if (inLane.length === 0) continue;
+      const height = Math.max(...inLane.map(l => l.part.laid.height));
+      const top = below + BESIDE_LANE_GAP;
+      for (const { part } of inLane) {
+        part.y = top + (height - part.laid.height) / 2;
       }
+      below = top + height;
     }
     // The parts where they go; a frame that the arrow back out of the part
     // leaves reaches to the column before the target.
@@ -888,7 +888,9 @@ export function layoutStacked(
     return block;
   }
 
-  return region(children(undefined), width);
+  const layout = region(children(undefined), width);
+  if (unplaced.length > 0) unplacedOf.set(layout, unplaced);
+  return layout;
 }
 
 /**
