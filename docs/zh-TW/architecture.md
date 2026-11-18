@@ -52,9 +52,9 @@
 | `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                 | Controllers                |
 | `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                         | Authorization              |
 | `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
-| `repositories/` | `TemporalReadRepository`（呼叫 Temporal）和 External Storage 參照的解析。                                                                         | Gateways                   |
+| `repositories/` | `TemporalReadRepository`（讀取的呼叫）、Temporal 錯誤的轉換、排程 client，以及 External Storage 參照的解析。                                      | Gateways                   |
 
-Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上；`WorkflowCommands` 直接呼叫 Temporal。實驗性的 LLM 紀錄解析放在 `services/llm/`。
+Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上。讀取走 `TemporalReadRepository`。`WorkflowCommands`（操作）和 `WorkflowListQueries` 的排程清單自己用共用連線呼叫 Temporal：它們的每個方法本來就是一次呼叫。實驗性的 LLM 紀錄解析放在 `services/llm/`。
 
 授權服務位在 routes 和 services 之間，但它也會用到查詢 service（要讀過流程才能決定誰能看）。在查詢 service 之中，`EntityWorkflowSources` 被另外三個用，`WorkflowQueries` 被 `WorkflowListQueries` 和 `AiWorkflowQueries` 用；沒有任何一個依賴到用到它的類別。
 

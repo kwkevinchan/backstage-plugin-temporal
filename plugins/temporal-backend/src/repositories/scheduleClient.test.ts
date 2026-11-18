@@ -15,7 +15,7 @@
  */
 
 import { fakeScheduleService } from '../__testUtils__/schedules';
-import { scheduleClientOf } from '../repositories/scheduleClient';
+import { scheduleClientOf } from './scheduleClient';
 
 describe('scheduleClientOf', () => {
   const setup = () => {
