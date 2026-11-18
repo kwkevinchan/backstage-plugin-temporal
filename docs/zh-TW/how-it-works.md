@@ -45,7 +45,7 @@
 橘色箭頭是操作（改動流程的路由），青綠色是讀取，紫色是你自己的程式（Worker 和它送出的東西），黑色是 Backstage 和 Temporal 自己的動作，虛線是回應。時間由上往下。
 
 1. **啟動。** 使用者送出範本。範本的 `temporal:workflow:start` 步驟**以該使用者的身分**呼叫外掛後端。外掛檢查實體的 start 權限，確認流程類型和 Task Queue 是這個實體自己的，開一筆稽核事件，設定 `entityRef` 和 `initiator` Search Attribute，然後啟動流程，回 `201` 和 workflow ID。Temporal 把工作放進 Task Queue，由 Worker 執行流程。
-2. **等待。** `temporal:workflow:wait` 步驟輪詢 `GET …/workflows/:workflowId`（第一次立刻查，之後先隔 `intervalSeconds` 秒、預設 5 秒，間隔逐次加倍，最多 `maxIntervalSeconds` 秒、預設 30 秒），直到 `untilSearchAttribute` 指定的 Bool Search Attribute 變成 true。流程走到需要決定的地方就會設定它，這時範本就能結束，並附上流程的連結。
+2. **等待。** `temporal:workflow:wait` 步驟輪詢 `GET …/workflows/:workflowId`（第一次立刻查，之後先隔 `intervalSeconds` 秒、預設 5 秒，間隔逐次加倍，最多 `maxIntervalSeconds` 秒、預設 30 秒），直到 `untilSearchAttribute` 指定的 Bool Search Attribute 變成 true。流程走到需要決定的地方就會設定它，這時範本可以繼續，並附上流程的連結。
 3. **決定。** 有人送出 Update：從詳細頁的 **Update…** 對話框，或用另一個範本，其 `temporal:workflow:signal` 步驟設 `kind: update`。外掛通過授權檢查，檢查 update 權限，核對名稱是否在 `temporal.control.allowedUpdates` 內，開稽核事件，再帶著使用者的身分送出 Update。流程的 validator 檢查它，handler 記下決定，結果（或 validator 的錯誤）回到使用者。
 4. **收尾。** 流程繼續執行、清掉屬性並結束。頁面再用圖一的路徑讀取它。
 
@@ -53,6 +53,8 @@
 
 - **外掛出現三次：** 啟動流程、讓範本輪詢流程狀態、把 Update 送進流程。每一次都先檢查權限。流程本身在你的 Worker 裡執行；等待決定的時候它只是停著，狀態由 Temporal 保存。
 - **範本步驟以執行範本的使用者的身分執行**，不是 Scaffolder 自己的身分，所以權限和稽核紀錄都算在那個使用者身上。那個使用者的 token 從建立任務起大約一小時到期，所以 `wait` 最長 3600 秒；用服務憑證啟動的任務則以那個服務的身分執行。見 [Scaffolder 模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
+
+- **`wait` 之後的通知。** `untilSearchAttribute` 變成 true 之後，下一個步驟可以用官方的 `notification:send`（來自 `@backstage/plugin-scaffolder-backend-module-notifications`）送出 Backstage 通知，把 `link` 設成 `steps.start.output.workflowUrl`。這只涵蓋第一個需要決定的點，而且只在 `wait` 於 3600 秒上限內結束時才會送到。更長的簽核、或之後的決定點，應該由流程自己在走到那一點時，用 activity 呼叫 Backstage 的通知 HTTP API；此外掛不會在背景輪詢 Temporal 來發通知。完整步驟、三項限制，以及官方 API 路徑和驗證方式，見 [Notify when a decision is needed](../../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)（英文）。
 - **決定可以走不同的路，檢查也不同。** 走外掛的 update 端點（對話框和範本步驟都是），檢查的是 update 權限和 `allowedUpdates`；使用者有沒有資格做這個決定，則由你流程裡的 update handler 判斷，請在那裡檢查（實體的 `spec.messages` 可以用 `userField` 把登入的使用者預填進參數，但請求也可以不透過表單送出）。如果需要在外掛這一層多加規則，可以註冊自己的 control action，它走同樣的兩道權限檢查和稽核，並且可以加上自己的規則；見[擴充點](architecture.md#擴充點)。
 
 ## 選用模組接在哪裡

@@ -449,6 +449,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 | `temporal:workflow:signal` | `workflowId`、`runId`、`namespace`、`entityRef`；`kind`（`signal` 或 `update`）、`name`、`args`                                                                           | `result`（update 的結果）                         |
 
 `start` 和 `signal` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/steps`）。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
+`temporal:workflow:wait` 結束後，下一個步驟可以用官方的 `notification:send` 通知相關的人，並把 `link` 設成 `steps.start.output.workflowUrl`。這個做法的限制、較長簽核的替代作法，以及完整範本，見 [Notify when a decision is needed](../../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)（英文）和 [`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml)。
 
 ## Zigflow
 

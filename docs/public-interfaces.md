@@ -690,6 +690,13 @@ field `TemporalWorkflowPicker`, whose value is a workflow ID; its
 `workflowType`, `namespace`, `status`, `searchAttribute`). The action
 schemas are shown on the Scaffolder's actions page; see the
 [module README](../plugins/scaffolder-backend-module-temporal/README.md).
+After `temporal:workflow:wait` returns, a later official `notification:send`
+step can notify someone and set `link` to `steps.start.output.workflowUrl`.
+The limits of that pattern, a long-approval alternative, and a complete
+template are in
+[Notify when a decision is needed](../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)
+and
+[`examples/templates/release-with-notification.yaml`](../examples/templates/release-with-notification.yaml).
 
 ## Zigflow
 
