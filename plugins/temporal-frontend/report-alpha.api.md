@@ -213,8 +213,8 @@ const _default: OverridableFrontendPlugin<
         icon?: string | undefined;
       };
       output:
-        | ExtensionDataRef<string, 'core.routing.path', {}>
         | ExtensionDataRef<JSX_2.Element, 'core.reactElement', {}>
+        | ExtensionDataRef<string, 'core.routing.path', {}>
         | ExtensionDataRef<
             RouteRef<AnyRouteRefParams>,
             'core.routing.ref',
@@ -260,10 +260,10 @@ const _default: OverridableFrontendPlugin<
         defaultGroup?: [Error: `Use the 'group' param instead`];
         group?:
           | (
-              | 'overview'
-              | 'documentation'
               | 'development'
               | 'deployment'
+              | 'overview'
+              | 'documentation'
               | 'operation'
               | 'observability'
             )
@@ -286,8 +286,8 @@ const _default: OverridableFrontendPlugin<
         title?: string | undefined;
       };
       output:
-        | ExtensionDataRef<string, 'core.routing.path', {}>
         | ExtensionDataRef<JSX_2.Element, 'core.reactElement', {}>
+        | ExtensionDataRef<string, 'core.routing.path', {}>
         | ExtensionDataRef<
             RouteRef<AnyRouteRefParams>,
             'core.routing.ref',

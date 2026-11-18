@@ -37,8 +37,8 @@ export const temporalDefinitionContent: OverridableExtensionDefinition<{
     icon?: string | undefined;
   };
   output:
-    | ExtensionDataRef<string, 'core.routing.path', {}>
     | ExtensionDataRef<JSX_2.Element, 'core.reactElement', {}>
+    | ExtensionDataRef<string, 'core.routing.path', {}>
     | ExtensionDataRef<
         RouteRef<AnyRouteRefParams>,
         'core.routing.ref',
@@ -84,10 +84,10 @@ export const temporalDefinitionContent: OverridableExtensionDefinition<{
     defaultGroup?: [Error: `Use the 'group' param instead`];
     group?:
       | (
-          | 'overview'
-          | 'documentation'
           | 'development'
           | 'deployment'
+          | 'overview'
+          | 'documentation'
           | 'operation'
           | 'observability'
         )
