@@ -72,7 +72,6 @@ describe('the OpenAPI spec', () => {
 
   it('marks the experimental routes', () => {
     expect(operationsOf(o => o['x-temporal-experimental'] === true)).toEqual([
-      'GET /namespaces/{namespace}/workflows/{workflowId}/llm-calls/{eventId}',
       'GET /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/llm-calls/{eventId}',
     ]);
   });

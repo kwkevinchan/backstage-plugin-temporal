@@ -261,7 +261,7 @@ async function start(options: {
 }
 
 const path = (rest: string) =>
-  `/api/temporal/namespaces/default/workflows/wf-1${rest}?entityRef=${ref}`;
+  `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run${rest}?entityRef=${ref}`;
 
 /** The events of a history of `test-fixtures/llm-integrations`. */
 function integrationEvents(name: string): any[] {

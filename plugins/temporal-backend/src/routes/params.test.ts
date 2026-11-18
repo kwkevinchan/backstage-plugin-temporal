@@ -23,7 +23,8 @@ import {
   parseMessageBody,
   parsePageSize,
   requestBody,
-  workflowRefFromParams,
+  workflowIdFromParams,
+  workflowRunRefFromParams,
 } from './params';
 
 function reqWith(parts: Partial<Pick<Request, 'body' | 'params'>>): Request {
@@ -68,36 +69,44 @@ describe('route parameter parsers', () => {
     );
   });
 
-  it('validates workflowRefFromParams length and optional runId', () => {
+  it('validates the workflow ID and the run ID of the path', () => {
     expect(
-      workflowRefFromParams(
+      workflowRunRefFromParams(
         reqWith({
           params: {
             namespace: 'default',
             workflowId: 'w'.repeat(1000),
-            runId: '',
+            runId: 'r'.repeat(1000),
           },
         }),
       ),
     ).toEqual({
       namespace: 'default',
       workflowId: 'w'.repeat(1000),
-      runId: undefined,
+      runId: 'r'.repeat(1000),
     });
-
-    expect(() =>
-      workflowRefFromParams(
-        reqWith({ params: { namespace: 'default', workflowId: '' } }),
+    expect(
+      workflowIdFromParams(
+        reqWith({ params: { namespace: 'default', workflowId: 'w' } }),
       ),
-    ).toThrow(new InputError('Invalid workflowId'));
+    ).toEqual({ namespace: 'default', workflowId: 'w' });
 
-    expect(() =>
-      workflowRefFromParams(
-        reqWith({
-          params: { namespace: 'default', workflowId: 'w'.repeat(1001) },
-        }),
-      ),
-    ).toThrow(new InputError('Invalid workflowId'));
+    for (const runId of ['', 'r'.repeat(1001), undefined]) {
+      expect(() =>
+        workflowRunRefFromParams(
+          reqWith({
+            params: { namespace: 'default', workflowId: 'w', runId } as any,
+          }),
+        ),
+      ).toThrow(new InputError('Invalid runId'));
+    }
+    for (const workflowId of ['', 'w'.repeat(1001)]) {
+      expect(() =>
+        workflowIdFromParams(
+          reqWith({ params: { namespace: 'default', workflowId } }),
+        ),
+      ).toThrow(new InputError('Invalid workflowId'));
+    }
   });
 
   it('normalizes entityRefFromParams and rejects missing route segments', () => {

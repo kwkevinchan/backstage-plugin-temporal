@@ -71,21 +71,26 @@ export function buildScheduleOperationPath(
 
 // @public
 export function buildWorkflowActionPath(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   actionId: string,
 ): string;
 
 // @public
-export function buildWorkflowHandlersPath(ref: WorkflowRef): string;
+export function buildWorkflowHandlersPath(ref: WorkflowRunRef): string;
 
 // @public
 export function buildWorkflowOperationPath(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   operation: WorkflowControlOperation,
 ): string;
 
 // @public
-export function buildWorkflowPath(ref: WorkflowRef): string;
+export function buildWorkflowPath(
+  ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+): string;
+
+// @public
+export function buildWorkflowRunPath(ref: WorkflowRunRef): string;
 
 // @public
 export type DecodedPayload =
@@ -669,6 +674,7 @@ export interface WorkflowDeadline {
 
 // @public
 export interface WorkflowDetail extends WorkflowSummary {
+  continuedAsNewRunId?: string;
   // (undocumented)
   executionTime?: string;
   failure?: WorkflowFailure;
@@ -1082,6 +1088,9 @@ export interface WorkflowRunChain {
 }
 
 // @public
+export type WorkflowRunRef = Required<WorkflowRef>;
+
+// @public
 export const WORKFLOWS_PATH = '/workflows';
 
 // @public
@@ -1099,7 +1108,7 @@ export interface WorkflowStartRequest {
 }
 
 // @public
-export type WorkflowStartResponse = Required<WorkflowRef>;
+export type WorkflowStartResponse = WorkflowRunRef;
 
 // @public
 export interface WorkflowStatsResponse {

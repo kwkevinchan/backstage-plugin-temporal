@@ -251,7 +251,7 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
 
     // The same holds for the history permission on a single workflow.
     const history =
-      '/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=component:default/orders';
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=component:default/orders';
     await request(api)
       .get(history)
       .set('Authorization', mockCredentials.user.header('user:default/alice'))

@@ -25,7 +25,7 @@ import type {
   WorkflowLlmRecord,
   WorkflowLlmToolCallRef,
   WorkflowNodeStatus,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import { Button, Flex, Switch, Text } from '@backstage/ui';
@@ -464,7 +464,7 @@ function UsageTiles(props: {
 
 /** Loads the full record of a model call. */
 function useLlmCall(
-  ref: WorkflowRef | undefined,
+  ref: WorkflowRunRef | undefined,
   step: WorkflowGraphNode,
   entityRef: string | undefined,
   enabled: boolean,
@@ -508,7 +508,7 @@ export function LlmPanel(props: {
   step: WorkflowGraphNode;
   nodes: WorkflowGraphNode[];
   payloadsHidden: boolean;
-  workflowRef?: WorkflowRef;
+  workflowRef?: WorkflowRunRef;
   entityRef?: string;
   onSelectStep?(id: string): void;
 }) {

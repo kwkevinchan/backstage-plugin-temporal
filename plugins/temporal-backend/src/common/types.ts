@@ -50,7 +50,9 @@ export const WORKFLOW_STATUSES: readonly Exclude<WorkflowStatus, 'Unknown'>[] =
   ];
 
 /**
- * Identifies one workflow execution. Without `runId` it means the latest run.
+ * Identifies a workflow ID, or one run of it with `runId`. Lists and links
+ * may name a workflow without a run; the routes that read or change a run
+ * take a {@link WorkflowRunRef}.
  *
  * @public
  */
@@ -59,6 +61,13 @@ export interface WorkflowRef {
   workflowId: string;
   runId?: string;
 }
+
+/**
+ * Identifies one run (workflow execution).
+ *
+ * @public
+ */
+export type WorkflowRunRef = Required<WorkflowRef>;
 
 /**
  * One row of a workflow list.
@@ -141,6 +150,8 @@ export interface WorkflowDetail extends WorkflowSummary {
   memo?: JsonObject;
   /** Failure of a closed execution (failed, timed out, terminated). */
   failure?: WorkflowFailure;
+  /** The run this one continued as, for a run that continued as new. */
+  continuedAsNewRunId?: string;
   pendingActivities: PendingActivity[];
 }
 

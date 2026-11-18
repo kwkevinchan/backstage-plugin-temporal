@@ -58,9 +58,11 @@ components:
       name: runId
       in: path
       required: true
-      description: Run ID. Without it, the latest run.
+      description: Run ID, at most 1000 characters.
       schema:
         type: string
+        minLength: 1
+        maxLength: 1000
     entityKind:
       name: kind
       in: path
@@ -318,6 +320,9 @@ components:
               description: Only when the backend is configured to show stack traces.
             code:
               type: string
+            continuedAsNewRunId:
+              type: string
+              description: On a 409 of an operation on a run that continued as new, the run it continued as.
           additionalProperties: {}
         request:
           type: object
@@ -523,6 +528,9 @@ components:
           additionalProperties: {}
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
+        continuedAsNewRunId:
+          type: string
+          description: The run this one continued as, for a run that continued as new.
         pendingActivities:
           type: array
           items:
@@ -1595,9 +1603,12 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
   /namespaces/{namespace}/workflows/{workflowId}:
     get:
-      operationId: getWorkflow
-      summary: Get the details of a workflow
-      description: "Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given."
+      operationId: listWorkflowRuns
+      summary: List the runs of a workflow ID
+      description: |-
+        The runs of one workflow ID, runs that continued as new included, in the order Temporal's visibility store returns them: the plugin asks for no order (an `ORDER BY` is refused by SQL visibility, which lists the running run first, then the closed runs, the last closed first). Runs past the retention period of the namespace are not listed. A workflow ID with a quote, a backslash or a control character cannot be listed: 400 (open its run by run ID instead).
+
+        Permission: with `entityRef`, `temporal.workflow.read` on that entity, and only the runs that are the entity's workflows are listed (the entity must be in the namespace of the path, else 404; child workflows of the entity's workflows are not listed). Without it, `temporal.workflow.list`, with its conditions applied to every run, like `GET /workflows`.
       tags:
         - Workflows
       x-temporal-permissions:
@@ -1607,49 +1618,15 @@ paths:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
         - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowDetail'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/history:
-    get:
-      operationId: getWorkflowHistory
-      summary: Get one page of the history of a workflow
-      description: "Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given."
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.history.read
-        - temporal.workflow.list
-        - temporal.workflow.history.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/historyPageSize'
+        - $ref: '#/components/parameters/listPageSize'
         - $ref: '#/components/parameters/pageToken'
-        - $ref: '#/components/parameters/entityRef'
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowHistoryResponse'
+                $ref: '#/components/schemas/WorkflowListResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1658,538 +1635,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/steps:
-    get:
-      operationId: getWorkflowSteps
-      summary: Get the inputs and outputs of a workflow run
-      description: "Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given."
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.history.read
-        - temporal.workflow.list
-        - temporal.workflow.history.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStepsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/graph:
-    get:
-      operationId: getWorkflowGraph
-      summary: Get the steps and arrows of a workflow run
-      description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.history.read
-        - temporal.workflow.history.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowGraphResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/progress:
-    get:
-      operationId: getWorkflowProgress
-      summary: Get the progress of a workflow run
-      description: "Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given."
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowProgressResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/llm-calls/{eventId}:
-    get:
-      operationId: getWorkflowLlmCall
-      summary: Get the full record of one model call
-      description: |-
-        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
-
-        Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
-      tags:
-        - Experimental
-      x-temporal-permissions:
-        - temporal.workflow.history.read
-        - temporal.workflow.list
-        - temporal.workflow.history.list
-      x-temporal-experimental: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/eventId'
-        - $ref: '#/components/parameters/llmCallIndex'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowLlmCallResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/handlers:
-    get:
-      operationId: getWorkflowHandlers
-      summary: List the signals, updates and queries of a workflow
-      description: |-
-        From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out. The descriptions of a `TemporalWorkflow` entity other than the one the workflow is opened from are used only when the caller has `temporal.workflow.read` on it; otherwise they are left out, without a 403.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowHandlersResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/query:
-    post:
-      operationId: queryWorkflow
-      summary: Run a query on a workflow
-      description: |-
-        Queries only read the workflow, but run the worker's code, so they are recorded with the auditor. Always served, also when `temporal.control.enabled` is false.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.query` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.query
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowMessageRequest'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowMessageResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/signal:
-    post:
-      operationId: signalWorkflow
-      summary: Send a signal to a running workflow
-      description: |-
-        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.signal` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.signal
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowMessageRequest'
-      responses:
-        '202':
-          description: Sent
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Empty'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/update:
-    post:
-      operationId: updateWorkflow
-      summary: Send an update to a running workflow and wait for its result
-      description: |-
-        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running; 503 when the update does not finish in time.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.update
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowMessageRequest'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowMessageResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/cancel:
-    post:
-      operationId: cancelWorkflow
-      summary: Request cancellation of a running workflow
-      description: |-
-        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.cancel
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: false
-        description: The body is not read and is ignored.
-        content:
-          application/json:
-            schema: {}
-      responses:
-        '202':
-          description: Requested
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Empty'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/terminate:
-    post:
-      operationId: terminateWorkflow
-      summary: Terminate a running workflow
-      description: |-
-        409 when the workflow is not running. The reason defaults to `Terminated from Backstage`.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.terminate` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.terminate
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type:
-                    - string
-                    - 'null'
-                  maxLength: 1000
-                  description: '`null` is treated as if the field was omitted; the default reason is then used.'
-      responses:
-        '200':
-          description: Terminated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Empty'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/rerun:
-    post:
-      operationId: rerunWorkflow
-      summary: Start a new workflow with the type, task queue and input of a run
-      description: |-
-        Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.rerun` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-        - temporal.workflow.rerun
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                workflowId:
-                  type:
-                    - string
-                    - 'null'
-                  maxLength: 1000
-                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
-      responses:
-        '201':
-          description: Started
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStartResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/actions/{actionId}:
-    post:
-      operationId: runWorkflowAction
-      summary: Run a custom action on a workflow
-      description: |-
-        Actions are registered by backend modules (`temporalControlExtensionPoint`). The body is passed to the action as it is, and must be a JSON object or array. 404 for an unknown action, or for an action ID that does not match the pattern; 409 when the action does not apply to the workflow.
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then the action's permission on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
-
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
-      tags:
-        - Operations
-      x-temporal-permissions:
-        - temporal.workflow.read
-        - temporal.workflow.list
-      x-temporal-control: true
-      parameters:
-        - $ref: '#/components/parameters/namespace'
-        - $ref: '#/components/parameters/workflowId'
-        - $ref: '#/components/parameters/actionId'
-        - $ref: '#/components/parameters/entityRef'
-      requestBody:
-        required: false
-        description: A JSON object or array; the action defines the contents. A string, number, or `null` is rejected.
-        content:
-          application/json:
-            schema:
-              oneOf:
-                - type: object
-                - type: array
-                  items: {}
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowMessageResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalServerError'
         '503':
@@ -2502,7 +1947,7 @@ paths:
       operationId: signalWorkflowRun
       summary: Send a signal to a running workflow (one run)
       description: |-
-        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running.
+        The name must be allowed by `temporal.control.allowedSignals` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.signal` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2551,7 +1996,7 @@ paths:
       operationId: updateWorkflowRun
       summary: Send an update to a running workflow and wait for its result (one run)
       description: |-
-        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running; 503 when the update does not finish in time.
+        The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new; 503 when the update does not finish in time.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2600,7 +2045,7 @@ paths:
       operationId: cancelWorkflowRun
       summary: Request cancellation of a running workflow (one run)
       description: |-
-        409 when the workflow is not running. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2649,7 +2094,7 @@ paths:
       operationId: terminateWorkflowRun
       summary: Terminate a running workflow (one run)
       description: |-
-        409 when the workflow is not running. The reason defaults to `Terminated from Backstage`.
+        409 when the workflow is not running, with `continuedAsNewRunId` for a run that continued as new. The reason defaults to `Terminated from Backstage`.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.terminate` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2705,7 +2150,7 @@ paths:
       operationId: rerunWorkflowRun
       summary: Start a new workflow with the type, task queue and input of a run (one run)
       description: |-
-        Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
+        Only a closed run can be rerun: 409 while it is running. Keeps the entity of the run; the initiator is the caller. 409 when the workflow ID is taken.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.rerun` on the workflow's entity (for a workflow without one, the permission must be allowed without conditions).
 
@@ -2734,7 +2179,7 @@ paths:
                     - string
                     - 'null'
                   maxLength: 1000
-                  description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
+                  description: Without it, one is made from the run's workflow ID, `-rerun-` and a random suffix (a rerun of a rerun replaces the suffix). `null` is treated as if the field was omitted.
       responses:
         '201':
           description: Started

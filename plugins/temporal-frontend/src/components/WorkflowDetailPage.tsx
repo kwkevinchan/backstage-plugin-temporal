@@ -17,14 +17,18 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
+import { useApi } from '@backstage/core-plugin-api';
 import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
+import useAsync from 'react-use/esm/useAsync';
 import type {
   WorkflowDetail,
   WorkflowGraphResponse,
   WorkflowRef,
+  WorkflowRunRef,
   WorkflowRunChain,
 } from '../common';
 import {
+  temporalApiRef,
   TemporalWorkflowActionDef,
   TemporalWorkflowProvider,
   TemporalWorkflowSectionDef,
@@ -232,6 +236,76 @@ function RunChainLinks(props: {
   );
 }
 
+/**
+ * Notices on a run that is not the one to look at: a run that continued as
+ * new, with a link to the run it continued as; a closed run that is not the
+ * latest of its workflow ID, with a link to the runs of the ID. Whether it
+ * is the latest is read from the run list, which has only the runs the user
+ * may see, and only for a closed run.
+ */
+function RunNotices(props: {
+  workflow: WorkflowDetail;
+  /** The run this one continued as, from the details or the graph. */
+  nextRunId?: string;
+  entityRef?: string;
+  workflowHref(ref: WorkflowRef): string;
+}) {
+  const { workflow, nextRunId, entityRef, workflowHref } = props;
+  const api = useApi(temporalApiRef);
+  const { namespace, workflowId, runId } = workflow;
+  const closed = workflow.status !== 'Running';
+  const { value: latestRunId } = useAsync(async () => {
+    if (!closed || nextRunId) return undefined;
+    try {
+      const list = await api.listWorkflowRuns(
+        { namespace, workflowId },
+        { entityRef, pageSize: 1 },
+      );
+      return list.items[0]?.runId;
+    } catch {
+      // Without the run list (no list permission), no notice.
+      return undefined;
+    }
+  }, [api, namespace, workflowId, runId, closed, nextRunId, entityRef]);
+  if (nextRunId) {
+    return (
+      <Alert
+        status="info"
+        icon
+        title="This run continued as new."
+        data-testid="run-continued-as-new"
+        description={
+          <Link
+            href={workflowHref({ namespace, workflowId, runId: nextRunId })}
+            variant="body-medium"
+          >
+            Open the run it continued as
+          </Link>
+        }
+      />
+    );
+  }
+  if (latestRunId && latestRunId !== runId) {
+    return (
+      <Alert
+        status="info"
+        icon
+        title="This is not the latest run of this workflow ID."
+        data-testid="run-not-latest"
+        description={
+          <Link
+            href={workflowHref({ namespace, workflowId })}
+            variant="body-medium"
+          >
+            See the runs of this workflow ID
+          </Link>
+        }
+      />
+    );
+  }
+  return null;
+}
+
 /** Label of the run chain field: which run of the chain this is. */
 function runChainLabel(chain: WorkflowRunChain): string {
   return chain.index && chain.total
@@ -254,7 +328,7 @@ function GraphCard(props: {
   onSelect(id: string | undefined): void;
   /** Selects a step from the step panel (a tool call of a model call). */
   onSelectStep(id: string): void;
-  workflowRef: WorkflowRef;
+  workflowRef: WorkflowRunRef;
   entityRef?: string;
   workflowHref(ref: WorkflowRef): string;
   showMarkers: boolean;
@@ -412,7 +486,7 @@ export function WorkflowDetailPage(
     () => ({
       namespace: params.namespace ?? '',
       workflowId: params.workflowId ?? '',
-      runId: params.runId,
+      runId: params.runId ?? '',
     }),
     [params.namespace, params.workflowId, params.runId],
   );
@@ -456,10 +530,9 @@ export function WorkflowDetailPage(
   const refresh = useRefreshLock(reloadAll, data.refreshing);
 
   // The list this page was opened from, and links to other runs next to it.
-  const rootPath = useResolvedPath(
-    params.runId ? '../../../../../..' : '../../../..',
-    { relative: 'path' },
-  ).pathname.replace(/\/+$/, '');
+  const rootPath = useResolvedPath('../../../../../..', {
+    relative: 'path',
+  }).pathname.replace(/\/+$/, '');
   const workflowHref = useCallback(
     (ref: WorkflowRef) => `${rootPath}/${workflowLink(ref)}`,
     [rootPath],
@@ -694,6 +767,16 @@ export function WorkflowDetailPage(
                 {formatTime(workflow.startTime) || '—'}
               </SummaryItem>
             </div>
+            <RunNotices
+              workflow={workflow}
+              nextRunId={
+                workflow.status === 'ContinuedAsNew'
+                  ? workflow.continuedAsNewRunId ?? graph?.runChain?.nextRunId
+                  : undefined
+              }
+              entityRef={entityRef}
+              workflowHref={workflowHref}
+            />
             {data.error && (
               <ErrorAlert title="Could not refresh" error={data.error} />
             )}

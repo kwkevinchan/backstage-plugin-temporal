@@ -53,6 +53,9 @@ export function mockTemporalApi() {
     .mockRejectedValue(new Error('No definition'));
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
+    listWorkflowRuns: jest
+      .fn()
+      .mockResolvedValue({ namespace: 'default', items: [] }),
     getWorkflowGraph: jest.fn(),
     /** Stands for the definition route; see the jest.mock of ./api. */
     getEntityDefinition: mockGetEntityDefinition,

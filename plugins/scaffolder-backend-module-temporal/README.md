@@ -40,7 +40,7 @@ lasts about an hour from when the task is created, so `wait` is limited to
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
 | `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue` (and `namespace`); `workflowId`, `args`                                                                                                                                                                                                                                                                                                                                                                       | `namespace`, `workflowId`, `runId`, `workflowUrl` |
 | `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute` (a Bool search attribute that ends the wait when true), `timeoutSeconds` (600), `intervalSeconds` (5; the pause before the second look, doubled after each look), `maxIntervalSeconds` (30; the longest pause, equal to `intervalSeconds` for a fixed interval; a larger `intervalSeconds` wins), `failIfNotCompleted` (true), `includeResult` (false; needs the history permission) | `status`, `runId`, `searchAttributes`, `result`   |
-| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                                                                                                                                                                                                                                                                                                               | `result` (of an update)                           |
+| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                                                                                                                                                                                                                                                                                                               | `result` (of an update), `runId`                  |
 
 `args` is an array of arguments, or one value for one argument. `start` with
 an `entityRef` uses the namespace of the entity (the `temporal.io/namespace`
@@ -59,6 +59,21 @@ namespace is not in `temporal.connection.namespaces` there, `404` when an
 both namespaces are allowed and no `entityRef` is given, and a workflow with the
 same ID exists in the other namespace, `wait` and `signal` reach that one
 instead.
+
+The routes of the Temporal plugin that read or change a workflow name its
+run. Without `runId`, `wait` and `signal` look up the latest run in the run
+list of the workflow ID (the running run, else the one that closed last, as
+the user who runs the template). A workflow that has just started can take a
+moment to be listed: `wait` looks again until its timeout, `signal` fails. After
+a `start`, pass its `runId` output: when the workflow ID was used before, the
+list can still show the earlier run first, and `wait` would report that run.
+The run list needs `temporal.workflow.list` (with conditions that cover the
+run) when no `entityRef` is given, and with `entityRef` it does not include
+child workflows: pass `runId` in both cases. `wait` follows a run that continued as new
+to the run it continued as and outputs the run it ended on. `signal` outputs
+the run it sent to; when the run it looked up continued as new before the
+signal arrived (a 409 that names the run it continued as), it sends once more
+to that run. A given `runId` is never replaced.
 
 `wait` and `signal` read the entity from the catalog as the user who runs the
 template; an entity that cannot be read is an error, not the default
@@ -86,6 +101,7 @@ steps:
     action: temporal:workflow:wait
     input:
       workflowId: ${{ steps.start.output.workflowId }}
+      runId: ${{ steps.start.output.runId }}
       namespace: ${{ steps.start.output.namespace }}
       untilSearchAttribute: ApprovalPending
 output:
@@ -145,6 +161,7 @@ steps:
     action: temporal:workflow:wait
     input:
       workflowId: ${{ steps.start.output.workflowId }}
+      runId: ${{ steps.start.output.runId }}
       namespace: ${{ steps.start.output.namespace }}
       untilSearchAttribute: ApprovalPending
   - id: notify

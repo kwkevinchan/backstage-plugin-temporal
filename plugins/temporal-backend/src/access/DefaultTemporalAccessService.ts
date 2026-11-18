@@ -50,8 +50,7 @@ import {
   temporalWorkflowListPermission,
   temporalWorkflowReadPermission,
   TEMPORAL_WORKFLOW_KIND,
-  WorkflowDetail,
-  WorkflowRef,
+  WorkflowRunRef,
   WorkflowSummary,
 } from '../common';
 import {
@@ -162,7 +161,17 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     workflow: WorkflowSummary,
     credentials: BackstageCredentials,
   ): Promise<boolean> {
-    const decision = await this.listDecision(permission, credentials);
+    return this.decisionAllows(
+      await this.listDecision(permission, credentials),
+      workflow,
+    );
+  }
+
+  /** True when a decision of a `temporal-workflow` permission allows it. */
+  private decisionAllows(
+    decision: PolicyDecision,
+    workflow: WorkflowSummary,
+  ): boolean {
     if (decision.result !== AuthorizeResult.CONDITIONAL) {
       return decision.result === AuthorizeResult.ALLOW;
     }
@@ -310,7 +319,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
    * `entityRef` is the entity the caller opened the workflow from, if any.
    */
   async loadWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options: {
       entityRef?: string;
       level: TemporalWorkflowAccessLevel;
@@ -323,44 +332,94 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       level === 'history'
         ? temporalWorkflowHistoryReadPermission
         : temporalWorkflowReadPermission;
-    let entityRef = options.entityRef;
-    let workflow: WorkflowDetail | undefined;
-    if (!entityRef) {
-      workflow = await this.queries.describe(ref);
-      if (
-        (await this.allowsWorkflow(
-          temporalWorkflowListPermission,
-          workflow,
-          credentials,
-        )) &&
-        (level === 'read' ||
-          (await this.allowsWorkflow(
+    if (!options.entityRef) {
+      return this.loadWorkflowWithoutEntity(ref, permission, credentials);
+    }
+    const context = await this.loadEntity(
+      options.entityRef,
+      permission,
+      credentials,
+    );
+    try {
+      const workflow = await this.queries.describe(ref);
+      await this.queries.assertBelongs(workflow, context);
+      return { context, workflow };
+    } catch (error) {
+      // A workflow of another entity gets the answer of one that does not
+      // exist.
+      if (error instanceof NotFoundError) {
+        throw new NotFoundError(`Workflow ${ref.workflowId} was not found`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * A workflow opened without an entity: the list permission covers the
+   * workflows it allows (with the history list permission for their
+   * history), else the entity of its entity reference search attribute
+   * decides. A caller that neither permission can allow gets a 403 before
+   * the workflow is read. For the others, unless the list permission
+   * allows every workflow, a workflow they may not open gets the same 404
+   * as a workflow that does not exist.
+   */
+  private async loadWorkflowWithoutEntity(
+    ref: WorkflowRunRef,
+    permission: ResourcePermission<'catalog-entity'>,
+    credentials: BackstageCredentials,
+  ): Promise<TemporalAccessibleWorkflow> {
+    const listPermissions =
+      permission === temporalWorkflowHistoryReadPermission
+        ? [
+            temporalWorkflowListPermission,
             temporalWorkflowHistoryListPermission,
-            workflow,
-            credentials,
-          )))
+          ]
+        : [temporalWorkflowListPermission];
+    const decisions = await this.permissions.authorizeConditional(
+      [...listPermissions.map(p => ({ permission: p })), { permission }],
+      { credentials },
+    );
+    const listDecisions = decisions.slice(0, listPermissions.length);
+    const entityDecision = decisions[listPermissions.length];
+    const listMayAllow = listDecisions.every(
+      d => d.result !== AuthorizeResult.DENY,
+    );
+    const entityMayAllow = entityDecision?.result !== AuthorizeResult.DENY;
+    if (!listMayAllow && !entityMayAllow) throw new NotAllowedError();
+    if (listDecisions.every(d => d.result === AuthorizeResult.ALLOW)) {
+      return { workflow: await this.queries.describe(ref) };
+    }
+    const notFound = () =>
+      new NotFoundError(`Workflow ${ref.workflowId} was not found`);
+    try {
+      const workflow = await this.queries.describe(ref);
+      if (
+        listMayAllow &&
+        listDecisions.every(d => this.decisionAllows(d, workflow))
       ) {
-        // Opened from the Workflows page: the list permission covers the
-        // workflows it allows, the history list permission their history.
         return { workflow };
       }
-      // Otherwise the workflow's entity reference search attribute decides
-      // which entity the permission is checked on.
       // A search attribute that is not an entity reference counts as none.
       const linked = workflow.entityRef
         ? canonicalEntityRef(workflow.entityRef)
         : undefined;
-      if (!linked) {
-        throw new NotAllowedError(
-          'The workflow is not linked to a catalog entity; pass entityRef',
-        );
+      if (!entityMayAllow || !linked) throw notFound();
+      let context: TemporalEntityContext;
+      try {
+        context = await this.loadEntity(linked, permission, credentials);
+      } catch (error) {
+        // A linked entity that cannot be used counts as none.
+        if (error instanceof InputError) throw notFound();
+        throw error;
       }
-      entityRef = linked;
+      await this.queries.assertBelongs(workflow, context);
+      return { context, workflow };
+    } catch (error) {
+      if (error instanceof NotFoundError || error instanceof NotAllowedError) {
+        throw notFound();
+      }
+      throw error;
     }
-    const context = await this.loadEntity(entityRef, permission, credentials);
-    workflow ??= await this.queries.describe(ref);
-    await this.queries.assertBelongs(workflow, context);
-    return { context, workflow };
   }
 
   /**

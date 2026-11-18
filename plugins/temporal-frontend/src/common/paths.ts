@@ -18,20 +18,33 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { CompoundEntityRef } from '@backstage/catalog-model';
-import type { WorkflowRef } from './types';
+import type { WorkflowRef, WorkflowRunRef } from './types';
 
 /**
- * Builds the path of one workflow execution, relative to the backend plugin
- * root: `/namespaces/:namespace/workflows/:workflowId[/runs/:runId]`. Every
+ * Builds the path of the run list of one workflow ID, relative to the
+ * backend plugin root: `/namespaces/:namespace/workflows/:workflowId`. A
+ * `runId` of the reference is ignored. Every segment is URI encoded.
+ *
+ * @public
+ */
+export function buildWorkflowPath(
+  ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+): string {
+  return `/namespaces/${encodeURIComponent(
+    ref.namespace,
+  )}/workflows/${encodeURIComponent(ref.workflowId)}`;
+}
+
+/**
+ * Builds the path of one run, relative to the backend plugin root:
+ * `/namespaces/:namespace/workflows/:workflowId/runs/:runId`. The paths of
+ * the run's history, graph, operations and the others are under it. Every
  * segment is URI encoded.
  *
  * @public
  */
-export function buildWorkflowPath(ref: WorkflowRef): string {
-  const base = `/namespaces/${encodeURIComponent(
-    ref.namespace,
-  )}/workflows/${encodeURIComponent(ref.workflowId)}`;
-  return ref.runId ? `${base}/runs/${encodeURIComponent(ref.runId)}` : base;
+export function buildWorkflowRunPath(ref: WorkflowRunRef): string {
+  return `${buildWorkflowPath(ref)}/runs/${encodeURIComponent(ref.runId)}`;
 }
 
 /**

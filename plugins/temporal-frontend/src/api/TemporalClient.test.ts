@@ -97,14 +97,14 @@ describe('TemporalClient requests and responses', () => {
     const base = await discoveryApi.getBaseUrl('temporal');
 
     const res = await client.runWorkflowAction(
-      { namespace: 'default', workflowId: 'wf/1' },
+      { namespace: 'default', workflowId: 'wf/1', runId: 'r/1' },
       'retry.now',
       { force: true },
       { entityRef: 'component:default/orders' },
     );
     expect(res).toEqual({ result: 'queued' });
     expect(fetch).toHaveBeenLastCalledWith(
-      `${base}/namespaces/default/workflows/wf%2F1/actions/retry.now?entityRef=component%3Adefault%2Forders`,
+      `${base}/namespaces/default/workflows/wf%2F1/runs/r%2F1/actions/retry.now?entityRef=component%3Adefault%2Forders`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -193,6 +193,18 @@ describe('TemporalClient requests and responses', () => {
   it('serializes workflow read, history, graph, llm-call, progress, and handlers requests', async () => {
     const { client, discoveryApi, fetch } = createClientHarness();
     const base = await discoveryApi.getBaseUrl('temporal');
+
+    await client.listWorkflowRuns(
+      { namespace: 'ns/1', workflowId: 'wf 1' },
+      { entityRef: 'component:default/orders', pageSize: 1, pageToken: 't' },
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      `${base}/namespaces/ns%2F1/workflows/wf%201?entityRef=component%3Adefault%2Forders&pageSize=1&pageToken=t`,
+    );
+    await client.listWorkflowRuns({ namespace: 'default', workflowId: 'wf-1' });
+    expect(fetch).toHaveBeenLastCalledWith(
+      `${base}/namespaces/default/workflows/wf-1`,
+    );
 
     await client.getWorkflow(
       { namespace: 'ns/1', workflowId: 'wf 1', runId: 'run/1' },

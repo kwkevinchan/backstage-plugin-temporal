@@ -39,6 +39,7 @@ spec:
       action: temporal:workflow:wait
       input:
         workflowId: ${{ steps.start.output.workflowId }}
+        runId: ${{ steps.start.output.runId }}
         namespace: ${{ steps.start.output.namespace }}
         untilSearchAttribute: ApprovalPending
     - id: notify

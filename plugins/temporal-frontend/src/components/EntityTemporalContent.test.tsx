@@ -343,7 +343,7 @@ describe('EntityTemporalContent', () => {
       const { workflow } = useTemporalWorkflow();
       return <button type="button">Approve {workflow.workflowId}</button>;
     };
-    await render(api, '/namespaces/default/workflows/payment-1', [
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2', [
       { id: 'approve', component: ContextAction },
       {
         id: 'hidden',

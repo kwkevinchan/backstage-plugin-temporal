@@ -97,7 +97,7 @@ describe('TemporalPluginClient against the Temporal backend plugin', () => {
       await expect(
         c.send(
           kind,
-          { namespace: 'default', workflowId: 'w' },
+          { namespace: 'default', workflowId: 'w', runId: 'r' },
           { name: 'approve', args: [] },
           undefined,
           user,

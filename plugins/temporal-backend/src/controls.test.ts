@@ -45,6 +45,14 @@ import {
   grpcError,
 } from './__testUtils__/schedules';
 import { temporalPlugin } from './plugin';
+import { ConflictError as BackstageConflictError } from '@backstage/errors';
+import {
+  ServiceError,
+  WorkflowNotFoundError,
+  WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+} from '@temporalio/client';
+import { ApplicationFailure } from '@temporalio/common';
 
 const json = (value: unknown) => ({
   metadata: { encoding: Buffer.from('json/plain') },
@@ -136,6 +144,8 @@ async function start(options?: {
   logger?: ReturnType<typeof mockServices.logger.mock>;
   /** An error of opening the connection to Temporal. */
   connectionError?: unknown;
+  /** An error of getting the client of a namespace. */
+  clientError?: unknown;
 }) {
   const workflowService = {
     ...createControlWorkflowService(options?.status, options?.entityAttribute),
@@ -181,7 +191,10 @@ async function start(options?: {
       .filter(req => req.scheduleId === scheduleId)
       .map(req => req.patch);
   const service: TemporalService = {
-    getClient: async () => client as any,
+    getClient: async () => {
+      if (options?.clientError) throw options.clientError;
+      return client as any;
+    },
     getConnection: async () => {
       if (options?.connectionError) throw options.connectionError;
       return connection as any;
@@ -244,7 +257,7 @@ async function start(options?: {
   };
 }
 
-const wf = '/api/temporal/namespaces/default/workflows/wf-1';
+const wf = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 const withEntity = '?entityRef=component:default/orders';
 
 /** Every control route with a valid body, for the shared checks. */
@@ -368,11 +381,64 @@ describe('workflow controls', () => {
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 
+  it('answers 409 with the run it continued as when a run that continued as new is operated', async () => {
+    const { server, workflowService } = await start({
+      status: 'CONTINUED_AS_NEW',
+    });
+    workflowService.getWorkflowExecutionHistoryReverse.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '9',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW',
+            workflowExecutionContinuedAsNewEventAttributes: {
+              newExecutionRunId: 'wf-1-run-2',
+            },
+          },
+        ],
+      },
+    } as any);
+    for (const [route, body] of [
+      ['signal', { name: 'addNote' }],
+      ['update', { name: 'setPriority' }],
+      ['cancel', {}],
+      ['terminate', {}],
+    ] as const) {
+      const res = await request(server)
+        .post(`${wf}/${route}${withEntity}`)
+        .send(body);
+      expect([route, res.status]).toEqual([route, 409]);
+      expect(res.body.error).toMatchObject({
+        name: 'ConflictError',
+        continuedAsNewRunId: 'wf-1-run-2',
+      });
+    }
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 without a run to follow when a completed run is operated', async () => {
+    const { server } = await start({ status: 'COMPLETED' });
+    const res = await request(server)
+      .post(`${wf}/cancel${withEntity}`)
+      .send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error.continuedAsNewRunId).toBeUndefined();
+  });
+
+  it('answers 409 for a rerun of a run that is still running', async () => {
+    const { server, workflowService, auditor } = await start();
+    const res = await request(server).post(`${wf}/rerun${withEntity}`).send({});
+    expect(res.status).toBe(409);
+    expect(res.body.error.message).toContain('still running');
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).not.toHaveBeenCalled();
+  });
+
   it('reruns a closed run with its input and search attributes under a new ID', async () => {
     const { server, workflowService } = await start({ status: 'FAILED' });
     const res = await request(server)
       .post(
-        '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/rerun?entityRef=component:default/orders',
+        '/api/temporal/namespaces/default/workflows/wf-1-rerun-abc/runs/wf-1-rerun-abc-run/rerun?entityRef=component:default/orders',
       )
       .send({});
     expect(res.status).toBe(201);
@@ -445,7 +511,8 @@ describe('workflow controls', () => {
 
   it('refuses namespaces that are not in temporal.connection.namespaces', async () => {
     const { server, workflowService } = await start();
-    const other = '/api/temporal/namespaces/secret/workflows/wf-1';
+    const other =
+      '/api/temporal/namespaces/secret/workflows/wf-1/runs/wf-1-run';
     for (const op of ['signal', 'update', 'cancel', 'terminate', 'rerun']) {
       const res = await request(server)
         .post(`${other}/${op}${withEntity}`)
@@ -665,6 +732,81 @@ describe('workflow controls', () => {
         .post(`${wf}/actions/escalate${withEntity}`)
         .send({});
       expect(res.status).toBe(403);
+      expect(handle).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a Backstage error', () => new BackstageConflictError('busy'), 409],
+      [
+        'WorkflowNotFoundError',
+        () => new WorkflowNotFoundError('workflow not found', 'wf-1', 'r'),
+        404,
+      ],
+      [
+        'WorkflowUpdateFailedError',
+        () =>
+          new WorkflowUpdateFailedError(
+            'Workflow Update failed',
+            ApplicationFailure.create({ message: 'rejected by validator' }),
+          ),
+        400,
+      ],
+      [
+        'WorkflowUpdateRPCTimeoutOrCancelledError',
+        () =>
+          new WorkflowUpdateRPCTimeoutOrCancelledError('timed out', {
+            cause: deadlineExceeded(),
+          }),
+        503,
+      ],
+      ['a gRPC NOT_FOUND', () => grpcError(5, 'not found'), 404],
+      [
+        'a gRPC FAILED_PRECONDITION in a ServiceError',
+        () =>
+          new ServiceError('Workflow Update failed', {
+            cause: grpcError(9, 'workflow execution already completed'),
+          }),
+        409,
+      ],
+      ['a gRPC UNAVAILABLE', () => grpcError(14, 'unavailable'), 503],
+      ['any other error', () => new Error('boom'), 500],
+    ])('maps %s of the action', async (_name, make, status) => {
+      const { server, auditEvent } = await start({
+        action: {
+          ...action,
+          handle: async () => {
+            throw make();
+          },
+        },
+      });
+      const res = await request(server)
+        .post(`${wf}/actions/escalate${withEntity}`)
+        .send({});
+      expect(res.status).toBe(status);
+      expect(auditEvent.fail).toHaveBeenCalled();
+    });
+
+    it('runs the action under one deadline of 60 seconds', async () => {
+      const { server, connection } = await start({ action });
+      await request(server)
+        .post(`${wf}/actions/escalate${withEntity}`)
+        .send({})
+        .expect(200);
+      expect(connection.deadlines).toContain(60_000);
+    });
+
+    it('answers 503 when the client of the action cannot connect', async () => {
+      const { server } = await start({
+        action,
+        clientError: new Error('Failed to connect before the deadline'),
+      });
+      const res = await request(server)
+        .post(`${wf}/actions/escalate${withEntity}`)
+        .send({});
+      expect(res.status).toBe(503);
+      expect(res.body.error.message).toBe(
+        'Temporal is not reachable: Failed to connect before the deadline',
+      );
       expect(handle).not.toHaveBeenCalled();
     });
 
@@ -918,6 +1060,7 @@ describe('operations without a request body', () => {
     {
       route: 'rerun',
       path: `${wf}/rerun${withEntity}`,
+      workflowStatus: 'COMPLETED',
       status: 201,
       check: ({ workflowService }: Awaited<ReturnType<typeof start>>) =>
         expect(
@@ -933,8 +1076,11 @@ describe('operations without a request body', () => {
           { pause: 'Paused from Backstage by user:default/mock' },
         ]),
     },
-  ])('$route uses its defaults', async ({ path, status, check }) => {
-    const started = await start({ schedules });
+  ])('$route uses its defaults', async ({ path, status, check, ...rest }) => {
+    const started = await start({
+      schedules,
+      status: 'workflowStatus' in rest ? rest.workflowStatus : undefined,
+    });
     const res = await request(started.backend).post(path);
     expect(res.status).toBe(status);
     check(started);
@@ -1081,7 +1227,9 @@ describe('input length limits', () => {
       })
       .expect(400);
     await request(backend)
-      .post(`/api/temporal/namespaces/default/workflows/${tooLong}/cancel`)
+      .post(
+        `/api/temporal/namespaces/default/workflows/${tooLong}/runs/r1/cancel`,
+      )
       .send({})
       .expect(400);
     await request(backend)

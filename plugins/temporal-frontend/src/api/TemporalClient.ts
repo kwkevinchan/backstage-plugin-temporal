@@ -27,6 +27,7 @@ import {
   buildEntityWorkflowsPath,
   buildLlmCallPath,
   buildWorkflowPath,
+  buildWorkflowRunPath,
   WORKFLOWS_PATH,
   SCHEDULES_PATH,
   buildEntitySchedulesPath,
@@ -38,6 +39,7 @@ import {
   WorkflowProgressResponse,
   WorkflowListResponse,
   WorkflowRef,
+  WorkflowRunRef,
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStartRequest,
@@ -217,21 +219,36 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
+  listWorkflowRuns(
+    ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+    options?: { entityRef?: string; pageSize?: number; pageToken?: string },
+  ): Promise<WorkflowListResponse> {
+    return this.get(
+      buildWorkflowPath(ref) +
+        queryString({
+          entityRef: options?.entityRef,
+          pageSize: options?.pageSize,
+          pageToken: options?.pageToken,
+        }),
+    );
+  }
+
   getWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowDetail> {
     return this.get(
-      buildWorkflowPath(ref) + queryString({ entityRef: options?.entityRef }),
+      buildWorkflowRunPath(ref) +
+        queryString({ entityRef: options?.entityRef }),
     );
   }
 
   getWorkflowHistory(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string; pageSize?: number; pageToken?: string },
   ): Promise<WorkflowHistoryResponse> {
     return this.get(
-      `${buildWorkflowPath(ref)}/history${queryString({
+      `${buildWorkflowRunPath(ref)}/history${queryString({
         entityRef: options?.entityRef,
         pageSize: options?.pageSize,
         pageToken: options?.pageToken,
@@ -240,41 +257,41 @@ export class TemporalClient implements TemporalApi {
   }
 
   getWorkflowGraph(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowGraphResponse> {
     return this.get(
-      `${buildWorkflowPath(ref)}/graph${queryString({
+      `${buildWorkflowRunPath(ref)}/graph${queryString({
         entityRef: options?.entityRef,
       })}`,
     );
   }
 
   getLlmCall(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     nodeId: string,
     options?: { entityRef?: string },
   ): Promise<WorkflowLlmCallResponse> {
     return this.get(
-      `${buildWorkflowPath(ref)}${buildLlmCallPath(nodeId)}${queryString({
+      `${buildWorkflowRunPath(ref)}${buildLlmCallPath(nodeId)}${queryString({
         entityRef: options?.entityRef,
       })}`,
     );
   }
 
   getWorkflowProgress(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowProgressResponse> {
     return this.get(
-      `${buildWorkflowPath(ref)}/progress${queryString({
+      `${buildWorkflowRunPath(ref)}/progress${queryString({
         entityRef: options?.entityRef,
       })}`,
     );
   }
 
   queryWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
@@ -286,7 +303,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   getWorkflowHandlers(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowHandlersResponse> {
     return this.get(
@@ -308,7 +325,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   async signalWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<void> {
@@ -320,7 +337,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   updateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
@@ -332,7 +349,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   async cancelWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<void> {
     await this.operate(
@@ -342,7 +359,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   async terminateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { reason?: string },
     options?: { entityRef?: string },
   ): Promise<void> {
@@ -354,7 +371,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   rerunWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request?: { workflowId?: string },
     options?: { entityRef?: string },
   ): Promise<WorkflowStartResponse> {
@@ -366,7 +383,7 @@ export class TemporalClient implements TemporalApi {
   }
 
   runWorkflowAction(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     actionId: string,
     body?: JsonValue,
     options?: { entityRef?: string },

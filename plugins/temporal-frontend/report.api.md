@@ -59,7 +59,7 @@ export function isTemporalWorkflowEntity(
 // @public
 export interface TemporalApi {
   cancelWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
@@ -75,36 +75,36 @@ export interface TemporalApi {
   //
   // @alpha
   getLlmCall(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     nodeId: string,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowLlmCallResponse>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point index.d.ts
+  // Warning: (ae-forgotten-export) The symbol "WorkflowRunRef" needs to be exported by the entry point index.d.ts
   getWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowDetail>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowGraphResponse" needs to be exported by the entry point index.d.ts
   getWorkflowGraph(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowGraphResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowHandlersResponse" needs to be exported by the entry point index.d.ts
   getWorkflowHandlers(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowHandlersResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowHistoryResponse" needs to be exported by the entry point index.d.ts
   getWorkflowHistory(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
       pageSize?: number;
@@ -113,7 +113,7 @@ export interface TemporalApi {
   ): Promise<WorkflowHistoryResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowProgressResponse" needs to be exported by the entry point index.d.ts
   getWorkflowProgress(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
@@ -134,6 +134,15 @@ export interface TemporalApi {
   listSchedules(options?: {
     namespace?: string;
   }): Promise<TemporalScheduleListResponse>;
+  // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point index.d.ts
+  listWorkflowRuns(
+    ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+    options?: {
+      entityRef?: string;
+      pageSize?: number;
+      pageToken?: string;
+    },
+  ): Promise<WorkflowListResponse>;
   listWorkflows(options?: {
     namespace?: string;
     status?: WorkflowStatus;
@@ -146,7 +155,7 @@ export interface TemporalApi {
   }): Promise<WorkflowListResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowMessageResponse" needs to be exported by the entry point index.d.ts
   queryWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];
@@ -156,7 +165,7 @@ export interface TemporalApi {
     },
   ): Promise<WorkflowMessageResponse>;
   rerunWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request?: {
       workflowId?: string;
     },
@@ -178,7 +187,7 @@ export interface TemporalApi {
     },
   ): Promise<void>;
   runWorkflowAction(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     actionId: string,
     body?: JsonValue,
     options?: {
@@ -186,7 +195,7 @@ export interface TemporalApi {
     },
   ): Promise<WorkflowMessageResponse>;
   signalWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];
@@ -204,7 +213,7 @@ export interface TemporalApi {
     },
   ): Promise<WorkflowStartResponse>;
   terminateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       reason?: string;
     },
@@ -213,7 +222,7 @@ export interface TemporalApi {
     },
   ): Promise<void>;
   updateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];
@@ -232,7 +241,7 @@ export class TemporalClient implements TemporalApi {
   constructor(options: { discoveryApi: DiscoveryApi; fetchApi: FetchApi });
   // (undocumented)
   cancelWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
@@ -246,7 +255,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowStatsResponse>;
   // (undocumented)
   getLlmCall(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     nodeId: string,
     options?: {
       entityRef?: string;
@@ -254,28 +263,28 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowLlmCallResponse>;
   // (undocumented)
   getWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowDetail>;
   // (undocumented)
   getWorkflowGraph(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowGraphResponse>;
   // (undocumented)
   getWorkflowHandlers(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
   ): Promise<WorkflowHandlersResponse>;
   // (undocumented)
   getWorkflowHistory(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
       pageSize?: number;
@@ -284,7 +293,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowHistoryResponse>;
   // (undocumented)
   getWorkflowProgress(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: {
       entityRef?: string;
     },
@@ -307,6 +316,15 @@ export class TemporalClient implements TemporalApi {
     namespace?: string;
   }): Promise<TemporalScheduleListResponse>;
   // (undocumented)
+  listWorkflowRuns(
+    ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+    options?: {
+      entityRef?: string;
+      pageSize?: number;
+      pageToken?: string;
+    },
+  ): Promise<WorkflowListResponse>;
+  // (undocumented)
   listWorkflows(options?: {
     namespace?: string;
     status?: WorkflowStatus;
@@ -319,7 +337,7 @@ export class TemporalClient implements TemporalApi {
   }): Promise<WorkflowListResponse>;
   // (undocumented)
   queryWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];
@@ -330,7 +348,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowMessageResponse>;
   // (undocumented)
   rerunWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request?: {
       workflowId?: string;
     },
@@ -352,7 +370,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<void>;
   // (undocumented)
   runWorkflowAction(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     actionId: string,
     body?: JsonValue,
     options?: {
@@ -361,7 +379,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowMessageResponse>;
   // (undocumented)
   signalWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];
@@ -379,7 +397,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<WorkflowStartResponse>;
   // (undocumented)
   terminateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       reason?: string;
     },
@@ -389,7 +407,7 @@ export class TemporalClient implements TemporalApi {
   ): Promise<void>;
   // (undocumented)
   updateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: {
       name: string;
       args?: JsonValue[];

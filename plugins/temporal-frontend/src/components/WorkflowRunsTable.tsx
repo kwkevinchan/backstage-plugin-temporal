@@ -18,6 +18,7 @@ import type { ReactNode } from 'react';
 import { EntityRefLink } from '@backstage/plugin-catalog-react';
 import {
   buildWorkflowPath,
+  buildWorkflowRunPath,
   WORKFLOW_STATUSES,
   WorkflowStatus,
   WorkflowSummary,
@@ -41,7 +42,8 @@ import { WorkflowProgress } from './WorkflowProgress';
 import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /**
- * Relative link from a workflow list to a workflow's details.
+ * Relative link from a workflow list to the details of a run, or, without
+ * `runId`, to the list of the runs of the workflow ID.
  *
  * @alpha
  */
@@ -51,7 +53,10 @@ export function workflowLink(ref: {
   runId?: string;
 }): string {
   // Same shape as the backend path, without the leading slash.
-  return buildWorkflowPath(ref).slice(1);
+  const path = ref.runId
+    ? buildWorkflowRunPath({ ...ref, runId: ref.runId })
+    : buildWorkflowPath(ref);
+  return path.slice(1);
 }
 
 const ALL = 'all';
@@ -170,22 +175,52 @@ export function WorkflowRunsTable(props: {
   showEntity?: boolean;
   emptyText: string;
   pending?: boolean;
+  /** The link of a run; by default {@link workflowLink}, relative to the list. */
+  workflowHref?(item: WorkflowSummary): string;
+  /**
+   * The runs of one workflow ID: the link column shows the run ID, and the
+   * run `latestRunId` is marked as the latest.
+   */
+  byRun?: boolean;
+  latestRunId?: string;
 }) {
+  const href = props.workflowHref ?? workflowLink;
   const columns: ColumnDef[] = [
     {
       id: 'status',
       title: 'Status',
       cell: item => <WorkflowStatusLabel status={item.status} />,
     },
-    {
-      id: 'workflowId',
-      title: 'Workflow ID',
-      cell: item => (
-        <Link href={workflowLink(item)} variant="body-small" color="info">
-          {item.workflowId}
-        </Link>
-      ),
-    },
+    props.byRun
+      ? {
+          id: 'workflowId',
+          title: 'Run ID',
+          cell: item => (
+            <Flex align="center" gap="2">
+              <Link href={href(item)} variant="body-small" color="info">
+                {item.runId}
+              </Link>
+              {item.runId === props.latestRunId && (
+                <Text
+                  variant="body-x-small"
+                  color="secondary"
+                  data-testid="latest-run"
+                >
+                  Latest
+                </Text>
+              )}
+            </Flex>
+          ),
+        }
+      : {
+          id: 'workflowId',
+          title: 'Workflow ID',
+          cell: item => (
+            <Link href={href(item)} variant="body-small" color="info">
+              {item.workflowId}
+            </Link>
+          ),
+        },
   ];
   if (!props.hideType) {
     columns.push({

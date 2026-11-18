@@ -26,7 +26,7 @@ import {
 } from '@backstage/test-utils';
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
-import { mockTemporalApi } from '../../testData';
+import { listResponse, mockTemporalApi } from '../../testData';
 
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
@@ -331,6 +331,42 @@ describe('Definition tab', () => {
       'href',
       '/temporal/namespaces/default/workflows/order-1/runs/run-1',
     );
+  });
+
+  it('shows the latest run for a link with only a workflow ID', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    // Not among the runs of the entity's list: read from the run list.
+    api.listWorkflowRuns.mockResolvedValue({
+      namespace: 'default',
+      items: [{ ...listResponse.items[0], workflowId: 'order-9', runId: 'r9' }],
+    });
+    await render(yamlEntity, api, '/?workflowId=order-9');
+    await waitFor(() =>
+      expect(api.getWorkflowGraph).toHaveBeenCalledWith(
+        { namespace: 'default', workflowId: 'order-9', runId: 'r9' },
+        { entityRef: 'temporalworkflow:default/order-flow' },
+      ),
+    );
+    expect(api.listWorkflowRuns).toHaveBeenCalledWith(
+      { namespace: 'default', workflowId: 'order-9' },
+      { entityRef: 'temporalworkflow:default/order-flow', pageSize: 1 },
+    );
+  });
+
+  it('takes the run of a workflow ID in the list of the entity without reading the run list', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    await render(yamlEntity, api, '/?workflowId=order-1');
+    await waitFor(() =>
+      expect(api.getWorkflowGraph).toHaveBeenCalledWith(
+        { namespace: 'default', workflowId: 'order-1', runId: 'run-1' },
+        { entityRef: 'temporalworkflow:default/order-flow' },
+      ),
+    );
+    expect(api.listWorkflowRuns).not.toHaveBeenCalled();
   });
 
   it('shows the file and the error of a definition that cannot be parsed', async () => {

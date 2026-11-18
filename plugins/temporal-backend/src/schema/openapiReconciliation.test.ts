@@ -41,7 +41,7 @@ const json = (value: unknown) => ({
   data: Buffer.from(JSON.stringify(value)),
 });
 
-const wf = '/api/temporal/namespaces/default/workflows/wf-1';
+const wf = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 const withEntity = '?entityRef=component:default/orders';
 
 function createWorkflowService() {
@@ -232,6 +232,13 @@ const invalid: Probe[] = [
     name: 'workflowId longer than 1000',
     method: 'get',
     path: `/api/temporal/namespaces/default/workflows/${'w'.repeat(1001)}`,
+  },
+  {
+    name: 'runId longer than 1000',
+    method: 'get',
+    path: `/api/temporal/namespaces/default/workflows/wf-1/runs/${'r'.repeat(
+      1001,
+    )}`,
   },
 ];
 

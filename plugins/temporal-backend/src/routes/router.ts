@@ -49,13 +49,15 @@ import {
   WorkflowQueries,
 } from '../services/WorkflowQueries';
 import { decodePageToken } from '../services/convert';
-import { parseStatus } from '../services/query';
+import { parseStatus, workflowIdCondition } from '../services/query';
 import {
   entityRefFromParams,
   optionalString,
+  parseEntityRefParam,
   parseFlag,
   parseMessageBody,
   parsePageSize,
+  workflowIdFromParams,
 } from './params';
 import {
   audited,
@@ -63,8 +65,9 @@ import {
   LoadedWorkflow,
   loadRequestWorkflow,
   workflowMeta,
-  workflowPaths,
-  workflowSubpaths,
+  workflowPath,
+  workflowRunPath,
+  workflowRunSubpath,
 } from './shared';
 
 export interface RouterOptions {
@@ -197,7 +200,61 @@ export async function createRouter(
     },
   );
 
-  router.get(workflowPaths, async (req, res) => {
+  // The runs of one workflow ID, in the order of Temporal's visibility
+  // store. Every run is listed with the full permission check of the list
+  // it comes from: the entity's list with `entityRef`, else the namespace
+  // list with the list permission and its conditions.
+  router.get(workflowPath, async (req, res) => {
+    const credentials = await httpAuth.credentials(req);
+    const { namespace, workflowId } = workflowIdFromParams(req);
+    // Refuses IDs that a visibility query cannot match.
+    workflowIdCondition(workflowId);
+    const page = {
+      pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
+      pageToken: optionalString(req.query.pageToken, 'pageToken'),
+    };
+    const entityRef = parseEntityRefParam(req.query.entityRef);
+    if (entityRef) {
+      const context = await access.loadEntity(
+        entityRef,
+        temporalWorkflowReadPermission,
+        credentials,
+      );
+      if (context.namespace !== namespace) {
+        throw new NotFoundError(
+          `Workflow ${workflowId} was not found for ${entityRef}`,
+        );
+      }
+      res.json(
+        await lists.listEntityWorkflows(context, {
+          workflowId,
+          ...page,
+          credentials,
+        }),
+      );
+      return;
+    }
+    // Undefined, or the visibility query of a conditional decision.
+    const permissionQuery = await access.authorizeWorkflowList(
+      namespace,
+      credentials,
+    );
+    const result = await lists.listNamespaceWorkflows(
+      namespace,
+      { workflowId, permissionQuery },
+      page,
+    );
+    res.json({
+      ...result,
+      items: await access.linkWorkflowEntities(
+        result.items,
+        namespace,
+        credentials,
+      ),
+    });
+  });
+
+  router.get(workflowRunPath, async (req, res) => {
     const { credentials, context, workflow } = await loadWorkflow(req, 'read');
     res.json(
       context
@@ -206,7 +263,7 @@ export async function createRouter(
     );
   });
 
-  router.get(workflowSubpaths('history'), async (req, res) => {
+  router.get(workflowRunSubpath('history'), async (req, res) => {
     const pageSize = parsePageSize(req.query.pageSize, HISTORY_PAGE_SIZE);
     const pageToken = optionalString(req.query.pageToken, 'pageToken');
     try {
@@ -223,12 +280,12 @@ export async function createRouter(
     );
   });
 
-  router.get(workflowSubpaths('steps'), async (req, res) => {
+  router.get(workflowRunSubpath('steps'), async (req, res) => {
     const { ref, workflow } = await loadWorkflow(req, 'history');
     res.json(await queries.steps({ ...ref, runId: workflow.runId }));
   });
 
-  router.get(workflowSubpaths('graph'), async (req, res) => {
+  router.get(workflowRunSubpath('graph'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const { workflow } = loaded;
     // Inputs and results need the history permission; without it the
@@ -247,7 +304,7 @@ export async function createRouter(
   // The full record of one model call: messages, reasoning, tool calls.
   // Like inputs and results, it needs the history permission. `index`
   // picks a later call of a step that made several.
-  router.get(workflowSubpaths('llm-calls/:eventId'), async (req, res) => {
+  router.get(workflowRunSubpath('llm-calls/:eventId'), async (req, res) => {
     const eventId = req.params.eventId;
     if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
     const index = optionalString(req.query.index, 'index') ?? '0';
@@ -256,7 +313,7 @@ export async function createRouter(
     res.json(await ai.llmCall(workflow, eventId, Number(index)));
   });
 
-  router.get(workflowSubpaths('progress'), async (req, res) => {
+  router.get(workflowRunSubpath('progress'), async (req, res) => {
     const { workflow } = await loadWorkflow(req, 'read');
     res.json(await lists.progress(workflow));
   });
@@ -265,7 +322,7 @@ export async function createRouter(
   // dialogs), with what its TemporalWorkflow entity describes in
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
-  router.get(workflowSubpaths('handlers'), async (req, res) => {
+  router.get(workflowRunSubpath('handlers'), async (req, res) => {
     const { workflow, context, credentials } = await loadWorkflow(req, 'read');
     const [reported, entity] = await Promise.all([
       queries.handlers(workflow),
@@ -318,7 +375,7 @@ export async function createRouter(
   // A query chosen by the user. Queries only read the workflow, but run
   // the worker's code: they need temporal.workflow.query on the entity, and
   // are recorded with the auditor.
-  router.post(workflowSubpaths('query'), async (req, res) => {
+  router.post(workflowRunSubpath('query'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const { name, args } = parseMessageBody(req);
     const entityRef = await authorizeOnWorkflow(

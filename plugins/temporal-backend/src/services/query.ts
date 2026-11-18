@@ -67,6 +67,22 @@ export function quote(value: string): string {
   return `'${value}'`;
 }
 
+/**
+ * `WorkflowId = '<id>'`, the condition of the runs of one workflow ID.
+ * Workflow IDs are free text: spaces and brackets are matched inside the
+ * quotes, but an ID with a quote, a backslash or a control character cannot
+ * be matched by a visibility query and is refused with an InputError.
+ */
+export function workflowIdCondition(workflowId: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (!workflowId || /['"\\\u0000-\u001f\u007f]/.test(workflowId)) {
+    throw new InputError(
+      'This workflow ID contains a quote, a backslash or a control character, so its runs cannot be listed; open the run by its run ID',
+    );
+  }
+  return `WorkflowId = '${workflowId}'`;
+}
+
 /** `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. */
 export function inQuery(
   field: string,
@@ -147,6 +163,8 @@ export function buildEntityWorkflowQuery(
     allRuns?: boolean;
     /** A Bool search attribute that must be true. */
     searchAttribute?: string;
+    /** Only the runs of this workflow ID. */
+    workflowId?: string;
   },
 ): string {
   const { annotations, entityRef, entityRefAttribute } = filter;
@@ -191,6 +209,9 @@ export function buildEntityWorkflowQuery(
   }
   if (options?.searchAttribute) {
     query = `(${query}) AND ${trueAttributeCondition(options.searchAttribute)}`;
+  }
+  if (options?.workflowId) {
+    query = `(${query}) AND ${workflowIdCondition(options.workflowId)}`;
   }
   return query;
 }
@@ -257,6 +278,8 @@ export interface NamespaceWorkflowFilter {
   workflowType?: string;
   /** Start of the workflow ID. */
   workflowIdPrefix?: string;
+  /** Only the runs of this workflow ID. */
+  workflowId?: string;
   /** A Bool search attribute that must be true. */
   searchAttribute?: string;
   /** False leaves out runs that continued as new. */
@@ -288,6 +311,7 @@ export function buildNamespaceWorkflowQuery(
     }
     parts.push(`WorkflowId STARTS_WITH ${quote(filter.workflowIdPrefix)}`);
   }
+  if (filter.workflowId) parts.push(workflowIdCondition(filter.workflowId));
   if (filter.searchAttribute) {
     parts.push(trueAttributeCondition(filter.searchAttribute));
   }

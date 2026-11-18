@@ -20,6 +20,11 @@ import {
   NotFoundError,
   ServiceUnavailableError,
 } from '@backstage/errors';
+import {
+  WorkflowNotFoundError,
+  WorkflowUpdateFailedError,
+  WorkflowUpdateRPCTimeoutOrCancelledError,
+} from '@temporalio/client';
 
 /** gRPC status codes used to map Temporal errors to HTTP errors. */
 const GRPC_INVALID_ARGUMENT = 3;
@@ -129,4 +134,40 @@ export function mapCommandError(error: unknown): never {
   if (code === GRPC_ALREADY_EXISTS) throw new ConflictError(message);
   if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
   return mapTemporalError(error);
+}
+
+/** Names of the errors of `@backstage/errors` that have an HTTP status. */
+const BACKSTAGE_ERRORS = new Set([
+  'InputError',
+  'AuthenticationError',
+  'NotAllowedError',
+  'NotFoundError',
+  'ConflictError',
+  'NotModifiedError',
+  'NotImplementedError',
+  'ServiceUnavailableError',
+]);
+
+/**
+ * For custom actions: Backstage errors are kept, the errors of the Temporal
+ * client become the error of what they mean (a workflow that is not found,
+ * an update that failed or did not finish in time), and gRPC errors are
+ * mapped like those of the built-in operations. Anything else stays a 500.
+ */
+export function mapActionError(error: unknown): never {
+  if (error instanceof Error && BACKSTAGE_ERRORS.has(error.name)) throw error;
+  if (error instanceof WorkflowNotFoundError) {
+    throw new NotFoundError(error.message);
+  }
+  if (error instanceof WorkflowUpdateFailedError) {
+    const cause = (error.cause as Error | undefined)?.message;
+    throw new InputError(cause ? `${error.message}: ${cause}` : error.message);
+  }
+  if (error instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
+    throw new ServiceUnavailableError(
+      `The update did not finish in time: ${error.message}`,
+    );
+  }
+  if (grpcErrorOf(error).code !== undefined) return mapCommandError(error);
+  throw error;
 }

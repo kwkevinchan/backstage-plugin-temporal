@@ -19,6 +19,7 @@ import { Content, Header, Page } from '@backstage/core-components';
 import { Container, Flex } from '@backstage/ui';
 import { AllWorkflowsList } from './AllWorkflowsList';
 import { WorkflowDetailPage } from './WorkflowDetailPage';
+import { WorkflowRunsPage } from './WorkflowRunsPage';
 import type {
   TemporalScheduleActionDef,
   TemporalWorkflowActionDef,
@@ -45,7 +46,10 @@ export interface TemporalPageProps {
   scheduleActions?: TemporalScheduleActionDef[];
 }
 
-/** Workflows page content: the list, and details on a nested route. */
+/**
+ * Workflows page content: the list, and on nested routes the runs of a
+ * workflow ID and the details of a run.
+ */
 export function TemporalPageContent(props: TemporalPageProps) {
   const detail = (
     <WorkflowDetailPage
@@ -66,7 +70,7 @@ export function TemporalPageContent(props: TemporalPageProps) {
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
-        element={detail}
+        element={<WorkflowRunsPage />}
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId/runs/:runId"

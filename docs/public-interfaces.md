@@ -127,11 +127,11 @@ The 111 names in groups. Every name is in the
 
 | Group (source file)                               | Names                                                                                                                                                                                                                                                                                                                                                                                | Used by                                                                                               |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Workflows (`types.ts`, 16)                        | `WorkflowRef`, `WorkflowSummary`, `WorkflowDetail`, `WorkflowStatus`, `WORKFLOW_STATUSES`, `WorkflowFailure`, `PendingActivity`, `RelatedWorkflows`, `WorkflowListResponse`, `WorkflowStatsResponse`, `WorkflowHistoryEvent`, `WorkflowHistoryResponse`, `WorkflowStepsResponse`, `ActivityStep`, `DecodedPayload`, `ExternalPayload`                                                | Clients of the HTTP API, enrichers, actions                                                           |
+| Workflows (`types.ts`, 17)                        | `WorkflowRef`, `WorkflowRunRef`, `WorkflowSummary`, `WorkflowDetail`, `WorkflowStatus`, `WORKFLOW_STATUSES`, `WorkflowFailure`, `PendingActivity`, `RelatedWorkflows`, `WorkflowListResponse`, `WorkflowStatsResponse`, `WorkflowHistoryEvent`, `WorkflowHistoryResponse`, `WorkflowStepsResponse`, `ActivityStep`, `DecodedPayload`, `ExternalPayload`                              | Clients of the HTTP API, enrichers, actions                                                           |
 | Graph and progress (`graph.ts`, 10)               | `WorkflowGraphResponse`, `WorkflowGraphNode`, `WorkflowGraphEdge`, `WorkflowNodeKind`, `WorkflowNodeStatus`, `WorkflowNodeAttempt`, `WorkflowNodeEvent`, `WorkflowDeadline`, `WorkflowRunChain`, `WorkflowProgressResponse`                                                                                                                                                          | Clients of `…/graph` and `…/progress`                                                                 |
 | Operations (`controls.ts`, 10)                    | `WorkflowControlOperation`, `WorkflowMessageRequest`, `WorkflowMessageResponse`, `WorkflowStartRequest`, `WorkflowStartResponse`, `WorkflowHandler`, `WorkflowHandlersResponse`, `buildWorkflowOperationPath`, `buildWorkflowActionPath`, `buildWorkflowHandlersPath`                                                                                                                | Clients that operate workflows                                                                        |
 | Schedules (`schedules.ts`, 8)                     | `TemporalSchedule`, `TemporalScheduleAction`, `TemporalScheduleListResponse`, `TemporalScheduleNoteRequest`, `TemporalScheduleOperation`, `SCHEDULES_PATH`, `buildEntitySchedulesPath`, `buildScheduleOperationPath`                                                                                                                                                                 | Clients of the schedule routes                                                                        |
-| Paths (`paths.ts`, 4)                             | `buildWorkflowPath`, `buildEntityWorkflowsPath`, `buildEntityWorkflowStatsPath`, `WORKFLOWS_PATH`                                                                                                                                                                                                                                                                                    | Building HTTP API paths                                                                               |
+| Paths (`paths.ts`, 5)                             | `buildWorkflowPath`, `buildWorkflowRunPath`, `buildEntityWorkflowsPath`, `buildEntityWorkflowStatsPath`, `WORKFLOWS_PATH`                                                                                                                                                                                                                                                            | Building HTTP API paths                                                                               |
 | Permissions (`permissions.ts`, 16)                | The 11 permissions (`temporalWorkflowReadPermission` … `temporalWorkflowRerunPermission`, see [Permissions](#permissions)), `temporalPermissions`, `temporalControlPermissions`, `RESOURCE_TYPE_TEMPORAL_WORKFLOW`, `parseTemporalWorkflowResourceRef`, `stringifyTemporalWorkflowResourceRef`                                                                                       | Permission policies, actions, buttons                                                                 |
 | Annotations (`annotations.ts`, 13)                | `TEMPORAL_NAMESPACE_ANNOTATION`, `TEMPORAL_TASK_QUEUE_ANNOTATION`, `TEMPORAL_WORKFLOW_TYPE_ANNOTATION`, `TemporalAnnotations`, `parseTemporalAnnotations`, `InvalidTemporalAnnotationError`, `isTemporalAvailable`, `getDependsOnTemporalWorkflowRefs`, `isValidNamespaceName`, `isValidTaskQueueName`, `isValidWorkflowTypeName`, `isValidWorkflowIdPrefix`, `NAME_PATTERN_SOURCES` | Entity pages, catalog processors, validation                                                          |
 | `TemporalWorkflow` kind (`workflowEntity.ts`, 10) | `TEMPORAL_WORKFLOW_API_VERSION`, `TEMPORAL_WORKFLOW_KIND`, `TemporalWorkflowEntityV1alpha1`, `temporalWorkflowEntityV1alpha1Schema`, `isTemporalWorkflowEntity`, `isTemporalWorkflowEntityRef`, `parseTemporalWorkflowSpec`, `InvalidTemporalWorkflowSpecError`, `getTemporalWorkflowSource`, `getTemporalWorkflowExampleArgs`                                                       | Code that reads workflow entities                                                                     |
@@ -241,6 +241,19 @@ enabled or not. The `client` carries the backend's connection: it reaches every
 workflow of the namespace, and any other namespace the credentials of that
 connection can reach: an action that touches other workflows must
 check them itself with `temporalAccessServiceRef`.
+
+Errors that `handle` throws are answered like those of the built-in
+operations: an error of `@backstage/errors` with its own status;
+`WorkflowNotFoundError` of the Temporal client as `404`,
+`WorkflowUpdateFailedError` as `400`,
+`WorkflowUpdateRPCTimeoutOrCancelledError` as `503`; a gRPC error by its
+code (`NOT_FOUND` `404`, `INVALID_ARGUMENT` `400`, `ALREADY_EXISTS` and
+`FAILED_PRECONDITION` `409`, `UNAVAILABLE` and `DEADLINE_EXCEEDED` `503`);
+anything else `500`. A client that cannot connect answers `503`. Every call
+of `client` shares one deadline of 60 seconds for the whole action. An
+action that needs longer wraps its calls in
+`client.connection.withDeadline(deadline, fn)`: the deadline given there
+replaces the 60 seconds for the calls made inside `fn`.
 
 ### `temporalWorkflowEnricherExtensionPoint`
 
@@ -369,10 +382,11 @@ List actions get `{ entity?, workflowHref(ref) }`; schedule actions get
 
 `temporalApiRef` (`plugin.temporal.api`) and its interface `TemporalApi` are
 the client of the [HTTP API](#http-api): reads (`listEntityWorkflows`,
-`listWorkflows`, `getWorkflow`, `getWorkflowGraph`, …) and operations
-(`startWorkflow`, `signalWorkflow`, `runWorkflowAction`, …). The methods on
-one workflow take the `entityRef` the workflow is shown for, on which the
-backend checks the permission. Your extensions and other plugins call it with `useApi`;
+`listWorkflows`, `listWorkflowRuns`, `getWorkflow`, `getWorkflowGraph`, …)
+and operations (`startWorkflow`, `signalWorkflow`, `runWorkflowAction`, …).
+The methods on one run take a `WorkflowRunRef` (with its run ID) and the
+`entityRef` the workflow is shown for, on which the backend checks the
+permission; `listWorkflowRuns` lists the runs of a workflow ID. Your extensions and other plugins call it with `useApi`;
 the plugin provides `TemporalClient` as the default (extension
 `api:temporal` in the new system, `temporalPlugin` in the legacy one).
 
@@ -418,11 +432,13 @@ system the default export of `./alpha` has the same `routes`. Another plugin
 links to the Workflows page with `useRouteRef(temporalPlugin.routes.root)`.
 
 Below either page, the details of a run are at
-`namespaces/:namespace/workflows/:workflowId[/runs/:runId]`: for the
+`namespaces/:namespace/workflows/:workflowId/runs/:runId`: for the
 Workflows page on `/temporal` that is
 `/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId`, which
-`buildWorkflowPath` of `./common` builds after the page path. The
-`workflowUrl` output of the Scaffolder module uses this shape.
+`buildWorkflowRunPath` of `./common` builds after the page path. The
+`workflowUrl` output of the Scaffolder module uses this shape. Without the
+run, `namespaces/:namespace/workflows/:workflowId` (`buildWorkflowPath`)
+lists the runs of the workflow ID; with only one run, it opens that run.
 
 ## HTTP API
 
@@ -450,10 +466,10 @@ tables below are the overview.
 > `auth.getPluginRequestToken({ onBehalfOf: <the user's credentials> })`
 > ([example](#call-the-http-api-from-another-backend)).
 
-`:wf` stands for `namespaces/:namespace/workflows/:workflowId`, optionally
-followed by `/runs/:runId` (without a run ID the latest run). Every route
-under `:wf` and the schedule operations take `?entityRef=`, the entity the
-workflow is shown for.
+`:wf` stands for `namespaces/:namespace/workflows/:workflowId/runs/:runId`,
+one run. Every route under `:wf`, the run list of a workflow ID and the
+schedule operations take `?entityRef=`, the entity the workflow is shown
+for.
 
 #### Which entity a workflow is checked on
 
@@ -464,14 +480,20 @@ workflow is shown for.
   (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
   history level), with their conditions. If they do not allow it, the
   entity in the workflow's `searchAttributes.entityRef` attribute is checked
-  as above; a workflow without that attribute is refused (`403`).
+  as above. A caller whom neither the list permissions nor the read
+  permission on entities can allow gets `403` before the workflow is read.
+  For the others, unless the list permissions allow every workflow, a
+  workflow they may not open (without that attribute, or through an entity
+  they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
   through, else on the entity of its search attribute; a workflow with
   neither needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (the workflow
-is not running, the action's filter refused it, or Temporal refused it: a
+is not running, with `continuedAsNewRunId` in the error for a run that
+continued as new; a rerun of a run that is still running; the action's
+filter refused it, or Temporal refused it: a
 workflow ID already in use, a schedule in the wrong state), `503` Temporal
 not reachable, not answering within the deadline of the call, rate limiting
 the backend, refusing the backend's own credentials, or no worker answering
@@ -483,24 +505,34 @@ without the Zigflow backend module. The two list routes take
 
 Reads are always served:
 
-| Method and path                                       | Permission                                                                                              | Request                                                                                                             | Response                       |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| `GET /entities/:kind/:namespace/:name/workflows`      | `temporal.workflow.read` (entity)                                                                       | `status`, `allRuns`, `searchAttribute`, `pageSize`, `pageToken`                                                     | `WorkflowListResponse`         |
-| `GET /entities/:kind/:namespace/:name/workflow-stats` | `temporal.workflow.read` (entity)                                                                       | `limit`                                                                                                             | `WorkflowStatsResponse`        |
-| `GET /entities/:kind/:namespace/:name/schedules`      | `temporal.workflow.read` (entity)                                                                       |                                                                                                                     | `TemporalScheduleListResponse` |
-| `GET /workflows`                                      | `temporal.workflow.list` (conditions become a query)                                                    | `namespace`, `status`, `allRuns`, `workflowType`, `workflowId` (prefix), `searchAttribute`, `pageSize`, `pageToken` | `WorkflowListResponse`         |
-| `GET /schedules`                                      | `temporal.workflow.list`, unconditional                                                                 | `namespace`                                                                                                         | `TemporalScheduleListResponse` |
-| `GET /:wf`                                            | read level                                                                                              | `entityRef`                                                                                                         | `WorkflowDetail`               |
-| `GET /:wf/graph`                                      | read level (step summaries and event group labels included); inputs and results only with history level | `entityRef`                                                                                                         | `WorkflowGraphResponse`        |
-| `GET /:wf/progress`                                   | read level                                                                                              | `entityRef`                                                                                                         | `WorkflowProgressResponse`     |
-| `GET /:wf/handlers`                                   | read level                                                                                              | `entityRef`                                                                                                         | `WorkflowHandlersResponse`     |
-| `GET /:wf/history`                                    | history level                                                                                           | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowHistoryResponse`      |
-| `GET /:wf/steps`                                      | history level                                                                                           | `entityRef`                                                                                                         | `WorkflowStepsResponse`        |
-| `POST /:wf/query`                                     | read level and `temporal.workflow.query`; audited                                                       | `WorkflowMessageRequest`                                                                                            | `WorkflowMessageResponse`      |
-| `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                                                                         | `entityRef`, `index`                                                                                                | `WorkflowLlmCallResponse`      |
+| Method and path                                       | Permission                                                                                                                                                                    | Request                                                                                                             | Response                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `GET /entities/:kind/:namespace/:name/workflows`      | `temporal.workflow.read` (entity)                                                                                                                                             | `status`, `allRuns`, `searchAttribute`, `pageSize`, `pageToken`                                                     | `WorkflowListResponse`         |
+| `GET /entities/:kind/:namespace/:name/workflow-stats` | `temporal.workflow.read` (entity)                                                                                                                                             | `limit`                                                                                                             | `WorkflowStatsResponse`        |
+| `GET /entities/:kind/:namespace/:name/schedules`      | `temporal.workflow.read` (entity)                                                                                                                                             |                                                                                                                     | `TemporalScheduleListResponse` |
+| `GET /workflows`                                      | `temporal.workflow.list` (conditions become a query)                                                                                                                          | `namespace`, `status`, `allRuns`, `workflowType`, `workflowId` (prefix), `searchAttribute`, `pageSize`, `pageToken` | `WorkflowListResponse`         |
+| `GET /schedules`                                      | `temporal.workflow.list`, unconditional                                                                                                                                       | `namespace`                                                                                                         | `TemporalScheduleListResponse` |
+| `GET /namespaces/:namespace/workflows/:workflowId`    | with `entityRef`, `temporal.workflow.read` on it (only its runs; the entity must be in the namespace of the path); else `temporal.workflow.list`, its conditions on every run | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowListResponse`         |
+| `GET /:wf`                                            | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowDetail`               |
+| `GET /:wf/graph`                                      | read level (step summaries and event group labels included); inputs and results only with history level                                                                       | `entityRef`                                                                                                         | `WorkflowGraphResponse`        |
+| `GET /:wf/progress`                                   | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowProgressResponse`     |
+| `GET /:wf/handlers`                                   | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowHandlersResponse`     |
+| `GET /:wf/history`                                    | history level                                                                                                                                                                 | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowHistoryResponse`      |
+| `GET /:wf/steps`                                      | history level                                                                                                                                                                 | `entityRef`                                                                                                         | `WorkflowStepsResponse`        |
+| `POST /:wf/query`                                     | read level and `temporal.workflow.query`; audited                                                                                                                             | `WorkflowMessageRequest`                                                                                            | `WorkflowMessageResponse`      |
+| `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                                                                                                                                               | `entityRef`, `index`                                                                                                | `WorkflowLlmCallResponse`      |
 
 The read and history levels are decided as in
 [Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
+
+The run list of a workflow ID has the runs that continued as new. Its order
+is the one of Temporal's visibility store: the plugin asks for none (SQL
+visibility refuses `ORDER BY`; it lists the running run first, then the
+closed runs, the last closed first). Runs past the retention period of the
+namespace are not listed. With `entityRef`, child workflows of the entity's
+workflows are not listed, though their runs open with that entity. A
+workflow ID with a quote, a backslash or a control character cannot be
+listed (`400`): open its run by its run ID.
 
 Operations are served unless `temporal.control.enabled` is false; then the
 routes do not exist and answer `404` without an error body. Each one is
@@ -514,21 +546,21 @@ recorded with the auditor ([event IDs](#what-the-plugin-writes)):
 | `POST /:wf/update`                                                            | read level and `temporal.workflow.update`; running only                                                                     | `WorkflowMessageRequest`                          | `WorkflowMessageResponse`                        |
 | `POST /:wf/cancel`                                                            | read level and `temporal.workflow.cancel`; running only                                                                     |                                                   | `202` `{}`                                       |
 | `POST /:wf/terminate`                                                         | read level and `temporal.workflow.terminate`; running only                                                                  | `{ reason? }`                                     | `{}`                                             |
-| `POST /:wf/rerun`                                                             | read level and `temporal.workflow.rerun`                                                                                    | `{ workflowId? }`                                 | `201` `WorkflowStartResponse`                    |
+| `POST /:wf/rerun`                                                             | read level and `temporal.workflow.rerun`; closed runs only                                                                  | `{ workflowId? }`                                 | `201` `WorkflowStartResponse`                    |
 | `POST /:wf/actions/:actionId`                                                 | read level, then the action's `permission`, then its `filter`; an unknown `actionId` answers `404`                          | any JSON                                          | `WorkflowMessageResponse` (`{ result }` or `{}`) |
 | `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `temporal.workflow.start` on `?entityRef=` (the schedule must start its workflows), else without conditions (no read level) | `TemporalScheduleNoteRequest` (not for `trigger`) | `202` `{}`                                       |
 
 The Zigflow backend module adds
 `GET /entities/:kind/:namespace/:name/definition` (`temporal.workflow.read`
-on a `TemporalWorkflow` entity with `spec.definition`). These 25 routes
-(15 reads, 9 operations, 1 of the Zigflow module) are the plugin's own.
+on a `TemporalWorkflow` entity with `spec.definition`). These 24 routes
+(14 reads, 9 operations, 1 of the Zigflow module) are the plugin's own.
 Because the plugin uses the permissions registry (its permissions and the
 `temporal-workflow` resource type), the backend also mounts the permission
 framework's `GET /.well-known/backstage/permissions/metadata` and
 `POST /.well-known/backstage/permissions/apply-conditions` under
 `/api/temporal`; the permission backend calls them, not your code.
 
-The path helpers of `./common` (`buildWorkflowPath`,
+The path helpers of `./common` (`buildWorkflowPath`, `buildWorkflowRunPath`,
 `buildEntityWorkflowsPath`, `buildWorkflowOperationPath`,
 `buildWorkflowActionPath`, …) build these paths; prefer them to writing
 paths by hand. From the browser, use `temporalApiRef` instead.
@@ -700,10 +732,15 @@ runs the template (they may run in another backend than the plugin):
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue`; `namespace`, `workflowId`, `args`                                                                                         | `namespace`, `workflowId`, `runId`, `workflowUrl` |
 | `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute`, `timeoutSeconds`, `intervalSeconds`, `maxIntervalSeconds`, `failIfNotCompleted`, `includeResult` | `status`, `runId`, `result`, `searchAttributes`   |
-| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                            | `result` (of an update)                           |
+| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                            | `result` (of an update), `runId`                  |
 
 `start` and `signal` need the operations; `wait` only reads (the workflow,
-and `/steps` for its result).
+and `/steps` for its result). Without `runId`, `wait` and `signal` look up
+the latest run in the run list of the workflow ID (which can lag behind a
+start; pass `runId: ${{ steps.start.output.runId }}` after a start). `wait`
+follows a run that continued as new to the run it continued as; `signal`
+outputs the run it sent to, and sends once more to the run it continued as
+when the run it looked up continued as new in the meantime.
 `@kwkevinchan/backstage-plugin-scaffolder-module-temporal` adds the form
 field `TemporalWorkflowPicker`, whose value is a workflow ID; its
 `ui:options` are `TemporalWorkflowPickerUiOptions` (`entityRef`,

@@ -131,7 +131,7 @@ function externalMemo() {
 }
 
 describe('opening one workflow', () => {
-  const path = '/api/temporal/namespaces/default/workflows/wf-1';
+  const path = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 
   it('describes it once for an entity, with the memo and the enrichers', async () => {
     const { server, workflowService } = await start();
@@ -148,7 +148,7 @@ describe('opening one workflow', () => {
 
   it('describes it once from its search attribute, without entityRef', async () => {
     const { server, workflowService } = await start();
-    const res = await request(server).get(`${path}/runs/wf-1-run`);
+    const res = await request(server).get(path);
     // The fake workflow has no entity reference attribute: the Workflows
     // page permissions decide, and the enrichers need an entity.
     expect(res.status).toBe(200);
@@ -172,12 +172,12 @@ describe('opening one workflow', () => {
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
   });
 
-  it('answers 403 when the list permission is denied and no entity is linked', async () => {
+  it('answers 403 without describing when every permission that could allow it is denied', async () => {
     const { server, workflowService } = await start({
       permission: AuthorizeResult.DENY,
     });
     await request(server).get(path).expect(403);
-    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
   });
 
   it('answers with the workflow of another access service as it is', async () => {

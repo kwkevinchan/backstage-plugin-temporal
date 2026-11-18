@@ -393,6 +393,20 @@ Updates rejected by a validator are not written to the history. The backend
 reads at most 5000 events per run; the graph of a longer history shows its
 start and says so.
 
+The details page always shows one run: its address has the run ID
+(`…/namespaces/:namespace/workflows/:workflowId/runs/:runId`) and it stays on
+that run. A run that continued as new says so, with a link to the run it
+continued as. A closed run that is not the latest of its workflow ID says
+so, with a link to the runs of the ID (read with your permissions, so only
+runs you may see count). An operation refused because the run continued as
+new links to the run it continued as; an operation that finds no run reloads
+the page. An address with only the workflow ID
+(`…/namespaces/:namespace/workflows/:workflowId`, for example a link to a
+child workflow that has not started yet) opens the run list of the ID: with
+one run, that run opens in its place; with several, they are listed, the
+latest first. In the entity tab, the list has only the runs that are the
+entity's workflows (not their child workflows).
+
 Workflow lists keep their filters, page and page size in the URL
 (`?status=Running&page=2&pageSize=50`), so the browser's back button and the
 **← Workflow executions** link of the details page return to the same page, at the

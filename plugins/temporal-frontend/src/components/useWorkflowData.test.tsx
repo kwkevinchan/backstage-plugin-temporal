@@ -21,7 +21,7 @@ import type {
   PendingActivity,
   WorkflowDetail,
   WorkflowGraphResponse,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../common';
 import { temporalApiRef } from '../extensions';
 import { failedWorkflow, graphResponse, mockTemporalApi } from '../testData';
@@ -320,7 +320,7 @@ describe('useWorkflowData', () => {
 
   describe('when the page moves to another workflow while a load runs', () => {
     type Call<T> = {
-      ref: WorkflowRef;
+      ref: WorkflowRunRef;
       answered: boolean;
       resolve(value: T): void;
       reject(error: Error): void;
@@ -336,7 +336,7 @@ describe('useWorkflowData', () => {
       const graphCalls: Call<WorkflowGraphResponse>[] = [];
       const track = <T,>(
         calls: Call<T>[],
-        r: WorkflowRef,
+        r: WorkflowRunRef,
         resolve: (value: T) => void,
         reject: (error: Error) => void,
       ) => {
@@ -387,10 +387,10 @@ describe('useWorkflowData', () => {
 
     function render(
       api: ReturnType<typeof mockTemporalApi>,
-      first: WorkflowRef,
+      first: WorkflowRunRef,
     ) {
       return renderHook(
-        (props: { r: WorkflowRef }) =>
+        (props: { r: WorkflowRunRef }) =>
           useWorkflowData(props.r, undefined, true),
         {
           initialProps: { r: first },
@@ -410,7 +410,7 @@ describe('useWorkflowData', () => {
       await settle();
     }
 
-    const detail = (r: WorkflowRef, extra: Partial<WorkflowDetail> = {}) =>
+    const detail = (r: WorkflowRunRef, extra: Partial<WorkflowDetail> = {}) =>
       ({
         ...running,
         workflowId: r.workflowId,
@@ -422,7 +422,7 @@ describe('useWorkflowData', () => {
 
     // A run of another workflow, and the next run of the same workflow
     // (Continue-As-New): both count as another page.
-    const targets: [string, WorkflowRef][] = [
+    const targets: [string, WorkflowRunRef][] = [
       ['another run of the same workflow', { ...ref, runId: 'run-3' }],
       ['another workflow', { ...ref, workflowId: 'order-9', runId: 'run-9' }],
     ];

@@ -18,6 +18,7 @@ import { Entity } from '@backstage/catalog-model';
 import {
   buildEntityWorkflowsPath,
   buildWorkflowPath,
+  buildWorkflowRunPath,
   isTemporalAvailable,
   parseTemporalAnnotations,
   parseTemporalWorkflowResourceRef,
@@ -52,13 +53,16 @@ describe('temporal common', () => {
   });
 
   it('builds encoded paths', () => {
+    expect(buildWorkflowPath({ namespace: 'default', workflowId: 'a/b' })).toBe(
+      '/namespaces/default/workflows/a%2Fb',
+    );
     expect(
-      buildWorkflowPath({
+      buildWorkflowRunPath({
         namespace: 'default',
         workflowId: 'a/b',
-        runId: 'r',
+        runId: 'r/1',
       }),
-    ).toBe('/namespaces/default/workflows/a%2Fb/runs/r');
+    ).toBe('/namespaces/default/workflows/a%2Fb/runs/r%2F1');
     expect(
       buildEntityWorkflowsPath({
         kind: 'Component',

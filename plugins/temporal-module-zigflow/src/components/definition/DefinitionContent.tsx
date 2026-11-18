@@ -319,13 +319,31 @@ function DefinitionView(props: {
     runs.value?.find(r => r.workflowId === workflowId)?.namespace ??
     runs.value?.[0]?.namespace ??
     'default';
+  // Without a run ID, the latest run: from the list of the entity's runs,
+  // else from the run list of the workflow ID.
+  const listedRunId = runId
+    ? undefined
+    : runs.value?.find(r => r.workflowId === workflowId)?.runId;
+  const runsLoading = runs.loading;
   const run = useAsyncRetry(async () => {
     if (!workflowId) return undefined;
+    // Without a run ID, after the entity's runs, which may have it.
+    if (!runId && runsLoading) return undefined;
+    const shown =
+      runId ??
+      listedRunId ??
+      (
+        await api.listWorkflowRuns(
+          { namespace, workflowId },
+          { entityRef, pageSize: 1 },
+        )
+      ).items[0]?.runId;
+    if (!shown) throw new Error(`No run of workflow ${workflowId} was found`);
     return api.getWorkflowGraph(
-      { namespace, workflowId, runId },
+      { namespace, workflowId, runId: shown },
       { entityRef },
     );
-  }, [api, entityRef, namespace, workflowId, runId]);
+  }, [api, entityRef, namespace, workflowId, runId, listedRunId, runsLoading]);
   const running = run.value?.status === 'Running';
   const { retry } = run;
   useEffect(() => {

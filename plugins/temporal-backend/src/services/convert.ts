@@ -405,6 +405,9 @@ export function toWorkflowDetail(
     ),
     memo: Object.keys(memo).length > 0 ? memo : undefined,
     failure: failureFromCloseEvent(options.closeEvent),
+    continuedAsNewRunId:
+      (options.closeEvent?.workflowExecutionContinuedAsNewEventAttributes
+        ?.newExecutionRunId as string) || undefined,
     pendingActivities: (describe.pendingActivities ?? []).map(
       toPendingActivity,
     ),

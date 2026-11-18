@@ -32,7 +32,7 @@ import {
   RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   WorkflowDetail,
   WorkflowLlmRecord,
-  WorkflowRef,
+  WorkflowRunRef,
   WorkflowSummary,
 } from '../common';
 
@@ -180,7 +180,7 @@ export interface TemporalAccessService {
    * permissions when opened without an entity.
    */
   loadWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options: {
       entityRef?: string;
       level: TemporalWorkflowAccessLevel;
@@ -253,7 +253,7 @@ export interface TemporalControlAction {
   /** Only allow the action when this returns true, for example on running workflows. */
   filter?: (workflow: WorkflowDetail) => boolean;
   handle(
-    ref: Required<WorkflowRef>,
+    ref: WorkflowRunRef,
     body: JsonValue | undefined,
     context: TemporalControlActionContext,
   ): Promise<JsonValue | void>;

@@ -26,9 +26,12 @@ import {
   buildEntityWorkflowsPath,
   buildWorkflowOperationPath,
   buildWorkflowPath,
+  buildWorkflowRunPath,
   WorkflowDetail,
+  WorkflowListResponse,
   WorkflowMessageResponse,
   WorkflowRef,
+  WorkflowRunRef,
   WorkflowStartRequest,
   WorkflowStartResponse,
   WorkflowStepsResponse,
@@ -121,26 +124,47 @@ export class TemporalPluginClient {
   }
 
   describe(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     entityRef: string | undefined,
     credentials: BackstageCredentials,
   ): Promise<WorkflowDetail> {
     return this.call(
       'GET',
-      buildWorkflowPath(ref) + query(entityRef),
+      buildWorkflowRunPath(ref) + query(entityRef),
       credentials,
     );
   }
 
+  /**
+   * The run ID of the first run in the run list of a workflow ID (the one
+   * running, else the one that closed last), or undefined when the list has
+   * none yet: a workflow that has just started can take a moment to be
+   * listed.
+   */
+  async latestRunId(
+    ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+    entityRef: string | undefined,
+    credentials: BackstageCredentials,
+  ): Promise<string | undefined> {
+    const params = new URLSearchParams({ pageSize: '1' });
+    if (entityRef) params.set('entityRef', entityRef);
+    const list = await this.call<WorkflowListResponse>(
+      'GET',
+      `${buildWorkflowPath(ref)}?${params}`,
+      credentials,
+    );
+    return list.items[0]?.runId;
+  }
+
   /** The workflow's input and result; needs the history permission. */
   steps(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     entityRef: string | undefined,
     credentials: BackstageCredentials,
   ): Promise<WorkflowStepsResponse> {
     return this.call(
       'GET',
-      `${buildWorkflowPath(ref)}/steps${query(entityRef)}`,
+      `${buildWorkflowRunPath(ref)}/steps${query(entityRef)}`,
       credentials,
     );
   }
@@ -148,7 +172,7 @@ export class TemporalPluginClient {
   /** Sends a signal (no result) or an update (its result). */
   send(
     kind: 'signal' | 'update',
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     message: { name: string; args: JsonValue[] },
     entityRef: string | undefined,
     credentials: BackstageCredentials,

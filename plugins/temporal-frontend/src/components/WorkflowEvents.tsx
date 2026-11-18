@@ -15,7 +15,7 @@
  */
 
 import { useState } from 'react';
-import type { WorkflowGraphNode, WorkflowRef } from '../common';
+import type { WorkflowGraphNode, WorkflowRunRef } from '../common';
 import {
   Button,
   Flex,
@@ -94,7 +94,7 @@ export function GroupedEvents(props: {
  */
 export function WorkflowEvents(props: {
   steps: WorkflowGraphNode[];
-  workflowRef: WorkflowRef;
+  workflowRef: WorkflowRunRef;
   entityRef?: string;
   /** Changing it loads the raw events again, from the first page. */
   reloadKey?: number;

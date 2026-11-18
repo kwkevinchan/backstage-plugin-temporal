@@ -185,7 +185,9 @@ describe('temporal (new frontend system)', () => {
             [temporalWorkflowExtensionsApiRef, extensions],
             [permissionApiRef, mockApis.permission()],
           ],
-          initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
+          initialRouteEntries: [
+            '/namespaces/default/workflows/payment-1/runs/run-2',
+          ],
         },
       );
       // The page loads its parts lazily; slow under a full parallel run.

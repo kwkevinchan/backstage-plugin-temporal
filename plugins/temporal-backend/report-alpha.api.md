@@ -61,9 +61,9 @@ export interface TemporalAccessService {
     permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
   ): Promise<TemporalEntityContext>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point alpha.d.ts
+  // Warning: (ae-forgotten-export) The symbol "WorkflowRunRef" needs to be exported by the entry point alpha.d.ts
   loadWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options: {
       entityRef?: string;
       level: TemporalWorkflowAccessLevel;
@@ -91,7 +91,7 @@ export interface TemporalControlAction {
   filter?: (workflow: WorkflowDetail) => boolean;
   // (undocumented)
   handle(
-    ref: Required<WorkflowRef>,
+    ref: WorkflowRunRef,
     body: JsonValue | undefined,
     context: TemporalControlActionContext,
   ): Promise<JsonValue | void>;

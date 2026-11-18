@@ -27,6 +27,7 @@ import type {
   WorkflowListResponse,
   TemporalScheduleListResponse,
   WorkflowRef,
+  WorkflowRunRef,
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowStartRequest,
@@ -101,18 +102,27 @@ export interface TemporalApi {
   ): Promise<WorkflowStatsResponse>;
 
   /**
-   * Gets one workflow execution. `entityRef` is the entity it is shown for;
-   * without it the backend uses the workflow's entity reference search
-   * attribute.
+   * The runs of one workflow ID, in the order of Temporal's visibility
+   * store (the running run first). With `entityRef`, only the runs that are
+   * the entity's workflows; without it, the runs the list permission allows.
+   */
+  listWorkflowRuns(
+    ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
+    options?: { entityRef?: string; pageSize?: number; pageToken?: string },
+  ): Promise<WorkflowListResponse>;
+
+  /**
+   * Gets one run. `entityRef` is the entity it is shown for; without it the
+   * backend uses the workflow's entity reference search attribute.
    */
   getWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowDetail>;
 
   /** Gets one page of the event history, oldest first. */
   getWorkflowHistory(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string; pageSize?: number; pageToken?: string },
   ): Promise<WorkflowHistoryResponse>;
 
@@ -122,7 +132,7 @@ export interface TemporalApi {
    * read the history (`payloadsHidden`).
    */
   getWorkflowGraph(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowGraphResponse>;
 
@@ -136,14 +146,14 @@ export interface TemporalApi {
    * @alpha
    */
   getLlmCall(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     nodeId: string,
     options?: { entityRef?: string },
   ): Promise<WorkflowLlmCallResponse>;
 
   /** Gets the completed steps and the current step of a run, for lists. */
   getWorkflowProgress(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowProgressResponse>;
 
@@ -153,7 +163,7 @@ export interface TemporalApi {
    * the workflow.
    */
   queryWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse>;
@@ -164,7 +174,7 @@ export interface TemporalApi {
    * worker of their task queue runs; empty when no worker answers.
    */
   getWorkflowHandlers(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<WorkflowHandlersResponse>;
 
@@ -183,7 +193,7 @@ export interface TemporalApi {
    * Sends a signal to a running workflow. Needs `temporal.workflow.signal`.
    */
   signalWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<void>;
@@ -194,14 +204,14 @@ export interface TemporalApi {
    * workflow's message.
    */
   updateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { name: string; args?: JsonValue[] },
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse>;
 
   /** Asks a running workflow to cancel. Needs `temporal.workflow.cancel`. */
   cancelWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     options?: { entityRef?: string },
   ): Promise<void>;
 
@@ -210,7 +220,7 @@ export interface TemporalApi {
    * `temporal.workflow.terminate`.
    */
   terminateWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request: { reason?: string },
     options?: { entityRef?: string },
   ): Promise<void>;
@@ -220,7 +230,7 @@ export interface TemporalApi {
    * `temporal.workflow.rerun`.
    */
   rerunWorkflow(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     request?: { workflowId?: string },
     options?: { entityRef?: string },
   ): Promise<WorkflowStartResponse>;
@@ -230,7 +240,7 @@ export interface TemporalApi {
    * `temporalControlExtensionPoint.addControlAction()`.
    */
   runWorkflowAction(
-    ref: WorkflowRef,
+    ref: WorkflowRunRef,
     actionId: string,
     body?: JsonValue,
     options?: { entityRef?: string },

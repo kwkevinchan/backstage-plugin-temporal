@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
-import type { WorkflowHistoryEvent, WorkflowRef } from '../common';
+import type { WorkflowHistoryEvent, WorkflowRunRef } from '../common';
 import { temporalApiRef } from '../extensions';
 import {
   Button,
@@ -56,7 +56,7 @@ function emptyState(key: string): HistoryState {
  * current workflow and the current load is dropped.
  */
 export function WorkflowHistory(props: {
-  workflowRef: WorkflowRef;
+  workflowRef: WorkflowRunRef;
   entityRef?: string;
 }) {
   const { namespace, workflowId, runId } = props.workflowRef;

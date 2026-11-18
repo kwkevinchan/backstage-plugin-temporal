@@ -16,17 +16,18 @@
 
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import { parseEntityRef } from '@backstage/catalog-model';
-import { InputError, NotFoundError } from '@backstage/errors';
+import { InputError, NotFoundError, ResponseError } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import type { JsonValue } from '@backstage/types';
 import {
-  buildWorkflowPath,
+  buildWorkflowRunPath,
   exampleArgs,
   getTemporalWorkflowSource,
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
-  WorkflowRef,
+  WorkflowMessageResponse,
+  WorkflowRunRef,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import { TemporalPluginClient } from './client';
 
@@ -46,9 +47,24 @@ export interface TemporalActionsOptions {
   defaultNamespace: string;
 }
 
-/** Link to the workflow on the Workflows page of the frontend plugin. */
-function workflowUrl(appBaseUrl: string, ref: WorkflowRef): string {
-  return `${appBaseUrl.replace(/\/$/, '')}/temporal${buildWorkflowPath(ref)}`;
+/** Link to the run on the Workflows page of the frontend plugin. */
+function workflowUrl(appBaseUrl: string, ref: WorkflowRunRef): string {
+  return `${appBaseUrl.replace(/\/$/, '')}/temporal${buildWorkflowRunPath(
+    ref,
+  )}`;
+}
+
+/**
+ * The run an operation was refused on because it continued as new (a 409
+ * with `continuedAsNewRunId`), else undefined.
+ */
+function continuedAsNewRunIdOf(error: unknown): string | undefined {
+  if (!(error instanceof ResponseError) || error.response.status !== 409) {
+    return undefined;
+  }
+  const runId = (error.body.error as { continuedAsNewRunId?: unknown })
+    .continuedAsNewRunId;
+  return typeof runId === 'string' && runId ? runId : undefined;
 }
 
 /**
@@ -114,7 +130,12 @@ const workflowInput = {
         'Workflow ID, for example the output of temporal:workflow:start',
       ),
   runId: (z: any) =>
-    z.string().optional().describe('Run ID; the latest run when left out'),
+    z
+      .string()
+      .optional()
+      .describe(
+        'Run ID; when left out, the action looks up the latest run in the run list of the workflow ID',
+      ),
   namespace: (z: any) =>
     z
       .string()
@@ -346,11 +367,12 @@ export function createTemporalWorkflowWaitAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      let ref: WorkflowRef = {
+      const base = {
         namespace: await resolveNamespace(options, input, credentials),
         workflowId: input.workflowId,
-        ...(input.runId ? { runId: input.runId } : {}),
       };
+      let runId: string | undefined = input.runId;
+      let found = Boolean(runId);
       const timeoutMs = (input.timeoutSeconds ?? 600) * 1000;
       // Whole milliseconds: the pause doubles up to the cap. An
       // intervalSeconds above the cap is a fixed interval.
@@ -374,57 +396,83 @@ export function createTemporalWorkflowWaitAction(
       }
       const deadline = Date.now() + timeoutMs;
       for (;;) {
-        const workflow = await options.client.describe(
-          ref,
+        // Without a run ID, the latest run of the run list; a workflow that
+        // has just started may not be listed yet.
+        runId ??= await options.client.latestRunId(
+          base,
           input.entityRef,
           credentials,
         );
-        const attribute = input.untilSearchAttribute
-          ? workflow.searchAttributes?.[input.untilSearchAttribute]
-          : undefined;
-        if (workflow.status === 'ContinuedAsNew' && ref.runId) {
-          // The run continued as new: follow the latest run.
-          ref = { namespace: ref.namespace, workflowId: ref.workflowId };
-          continue;
-        }
-        const closed = workflow.status !== 'Running';
-        if (attribute === true || closed) {
-          ctx.output('status', workflow.status);
-          ctx.output('runId', workflow.runId);
-          if (workflow.searchAttributes) {
-            ctx.output('searchAttributes', workflow.searchAttributes);
-          }
-          if (attribute === true) {
-            ctx.logger.info(
-              `${input.workflowId}: ${input.untilSearchAttribute} is true`,
-            );
+        if (runId) {
+          found = true;
+          const ref = { ...base, runId };
+          const workflow = await options.client.describe(
+            ref,
+            input.entityRef,
+            credentials,
+          );
+          const attribute = input.untilSearchAttribute
+            ? workflow.searchAttributes?.[input.untilSearchAttribute]
+            : undefined;
+          if (workflow.status === 'ContinuedAsNew') {
+            // Follow the run it continued as; else the latest run.
+            const next =
+              workflow.continuedAsNewRunId ??
+              (await options.client.latestRunId(
+                base,
+                input.entityRef,
+                credentials,
+              ));
+            if (next && next !== runId) {
+              runId = next;
+              continue;
+            }
+            // The list does not show the new run yet: look again later.
+            runId = undefined;
+          } else if (attribute === true || workflow.status !== 'Running') {
+            ctx.output('status', workflow.status);
+            ctx.output('runId', workflow.runId);
+            if (workflow.searchAttributes) {
+              ctx.output('searchAttributes', workflow.searchAttributes);
+            }
+            if (attribute === true) {
+              ctx.logger.info(
+                `${input.workflowId}: ${input.untilSearchAttribute} is true`,
+              );
+              return;
+            }
+            if (
+              input.failIfNotCompleted !== false &&
+              workflow.status !== 'Completed'
+            ) {
+              throw new Error(
+                `Workflow ${input.workflowId} closed as ${workflow.status}`,
+              );
+            }
+            if (input.includeResult) {
+              const steps = await options.client.steps(
+                { ...base, runId: workflow.runId },
+                input.entityRef,
+                credentials,
+              );
+              if (steps.result !== undefined) {
+                ctx.output('result', steps.result);
+              }
+            }
+            ctx.logger.info(`${input.workflowId} closed as ${workflow.status}`);
             return;
           }
-          if (
-            input.failIfNotCompleted !== false &&
-            workflow.status !== 'Completed'
-          ) {
-            throw new Error(
-              `Workflow ${input.workflowId} closed as ${workflow.status}`,
-            );
-          }
-          if (input.includeResult) {
-            const steps = await options.client.steps(
-              { ...ref, runId: workflow.runId },
-              input.entityRef,
-              credentials,
-            );
-            if (steps.result !== undefined) ctx.output('result', steps.result);
-          }
-          ctx.logger.info(`${input.workflowId} closed as ${workflow.status}`);
-          return;
         }
         const left = deadline - Date.now();
         if (left <= 0) {
           throw new Error(
-            `Workflow ${input.workflowId} is still running after ${
-              timeoutMs / 1000
-            } seconds`,
+            found
+              ? `Workflow ${input.workflowId} is still running after ${
+                  timeoutMs / 1000
+                } seconds`
+              : `No run of workflow ${input.workflowId} was found in ${
+                  timeoutMs / 1000
+                } seconds`,
           );
         }
         // The last look is at the deadline.
@@ -465,6 +513,8 @@ export function createTemporalWorkflowSignalAction(
       },
       output: {
         result: z => z.any().optional().describe('The result of an update'),
+        runId: z =>
+          z.string().describe('The run the signal or update was sent to'),
       },
     },
     async handler(ctx) {
@@ -473,31 +523,61 @@ export function createTemporalWorkflowSignalAction(
       const args = exampleArgs(input.args as JsonValue | undefined);
       if (ctx.isDryRun) {
         ctx.logger.info(`Dry run: would send the ${kind} ${input.name}`);
+        ctx.output('runId', input.runId ?? 'dry-run');
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      // A retried task does not send it again, nor read the entity again;
-      // the result is kept.
-      const result = await ctx.checkpoint<JsonValue>({
+      // A retried task does not send it again, nor read the entity or the
+      // run again; the result is kept.
+      const sent = await ctx.checkpoint<{ result: JsonValue; runId: string }>({
         key: `temporal.${kind}.${ctx.step?.id ?? input.name}`,
         fn: async () => {
-          const ref: WorkflowRef = {
+          const base = {
             namespace: await resolveNamespace(options, input, credentials),
             workflowId: input.workflowId,
-            ...(input.runId ? { runId: input.runId } : {}),
           };
-          const response = await options.client.send(
-            kind,
-            ref,
-            { name: input.name, args },
-            input.entityRef,
-            credentials,
-          );
-          return response?.result ?? null;
+          const runId =
+            input.runId ??
+            (await options.client.latestRunId(
+              base,
+              input.entityRef,
+              credentials,
+            ));
+          if (!runId) {
+            throw new NotFoundError(
+              `No run of workflow ${input.workflowId} was found; give runId, for example the output of temporal:workflow:start`,
+            );
+          }
+          const send = (id: string) =>
+            options.client.send(
+              kind,
+              { ...base, runId: id },
+              { name: input.name, args },
+              input.entityRef,
+              credentials,
+            );
+          let response: WorkflowMessageResponse | undefined;
+          let usedRunId = runId;
+          try {
+            response = await send(runId);
+          } catch (error) {
+            // The run the action looked up continued as new since: send to
+            // the run it continued as, once. A given run ID is kept.
+            const next = input.runId ? undefined : continuedAsNewRunIdOf(error);
+            if (!next) throw error;
+            usedRunId = next;
+            response = await send(next);
+          }
+          return { result: response?.result ?? null, runId: usedRunId };
         },
       });
-      ctx.logger.info(`Sent the ${kind} ${input.name} to ${input.workflowId}`);
-      if (kind === 'update' && result !== null) ctx.output('result', result);
+      ctx.logger.info(
+        `Sent the ${kind} ${input.name} to ${input.workflowId} (run ${sent.runId})`,
+      );
+      ctx.output('runId', sent.runId);
+      if (kind === 'update' && sent.result !== null) {
+        ctx.output('result', sent.result);
+      }
     },
   });
 }

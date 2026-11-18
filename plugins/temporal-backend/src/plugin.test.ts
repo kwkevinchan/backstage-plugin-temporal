@@ -132,7 +132,7 @@ async function start(options?: {
 
 describe('temporal backend plugin', () => {
   describe('deadlines of the reads', () => {
-    const detail = `/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`;
+    const detail = `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`;
     const list = '/api/temporal/entities/component/default/orders/workflows';
 
     it('reads under a deadline: 15 seconds for lists, 10 for one read', async () => {
@@ -276,7 +276,9 @@ describe('temporal backend plugin', () => {
       .get('/api/temporal/entities/component/default/missing/workflows')
       .expect(404);
     await request(server)
-      .get(`/api/temporal/namespaces/secret/workflows/wf-1?entityRef=${ref}`)
+      .get(
+        `/api/temporal/namespaces/secret/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
+      )
       .expect(400);
   });
 
@@ -288,11 +290,13 @@ describe('temporal backend plugin', () => {
       .get('/api/temporal/entities/component/default/orders/workflows')
       .expect(403);
     await request(server)
-      .get(`/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
+      )
       .expect(403);
     await request(server)
       .get(
-        `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}`,
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}`,
       )
       .expect(403);
     expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
@@ -325,6 +329,48 @@ describe('temporal backend plugin', () => {
     });
   });
 
+  it('describes a run that continued as new with the run it continued as', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-1',
+        status: 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW',
+      }),
+      pendingActivities: [],
+    });
+    workflowService.getWorkflowExecutionHistoryReverse.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '9',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_CONTINUED_AS_NEW',
+            workflowExecutionContinuedAsNewEventAttributes: {
+              newExecutionRunId: 'wf-1-run-2',
+            },
+          },
+        ],
+      },
+    } as any);
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'ContinuedAsNew',
+      continuedAsNewRunId: 'wf-1-run-2',
+    });
+    expect(res.body.failure).toBeUndefined();
+    expect(
+      workflowService.getWorkflowExecutionHistoryReverse,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        execution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+        maximumPageSize: 1,
+      }),
+    );
+  });
+
   it('hides workflows that do not belong to the entity', async () => {
     const workflowService = createFakeWorkflowService();
     workflowService.describeWorkflowExecution.mockResolvedValue({
@@ -336,7 +382,9 @@ describe('temporal backend plugin', () => {
     });
     const { server } = await start({ workflowService });
     await request(server)
-      .get(`/api/temporal/namespaces/default/workflows/wf-x?entityRef=${ref}`)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-x/runs/wf-x-run?entityRef=${ref}`,
+      )
       .expect(404);
   });
 
@@ -376,7 +424,7 @@ describe('temporal backend plugin', () => {
     const open = async (workflowService: any) => {
       const { server } = await start({ workflowService });
       return request(server).get(
-        `/api/temporal/namespaces/default/workflows/c0?entityRef=${ref}`,
+        `/api/temporal/namespaces/default/workflows/c0/runs/c0-run?entityRef=${ref}`,
       );
     };
 
@@ -446,7 +494,7 @@ describe('temporal backend plugin', () => {
       deny: ['temporal.workflow.list'],
     });
     const res = await request(server).get(
-      '/api/temporal/namespaces/default/workflows/wf-sa',
+      '/api/temporal/namespaces/default/workflows/wf-sa/runs/wf-sa-run',
     );
     expect(res.status).toBe(200);
     expect(res.body.entityRef).toBe(ref);
@@ -459,12 +507,13 @@ describe('temporal backend plugin', () => {
       workflowService,
       deny: ['temporal.workflow.list'],
     });
+    // As for a workflow that does not exist.
     await request(server2)
-      .get('/api/temporal/namespaces/default/workflows/wf-sa')
-      .expect(403);
+      .get('/api/temporal/namespaces/default/workflows/wf-sa/runs/wf-sa-run')
+      .expect(404);
   });
 
-  it('answers 403, as for a workflow without the attribute, when the entity reference search attribute is not a reference', async () => {
+  it('answers 404, as for a workflow without the attribute, when the entity reference search attribute is not a reference', async () => {
     const b64 = (s: string) => Buffer.from(s).toString('base64');
     const describeWith = (attribute?: unknown) => {
       const workflowService = createFakeWorkflowService();
@@ -499,18 +548,18 @@ describe('temporal backend plugin', () => {
       });
       return (
         await request(server).get(
-          '/api/temporal/namespaces/default/workflows/wf-sa',
+          '/api/temporal/namespaces/default/workflows/wf-sa/runs/wf-sa-run',
         )
       ).status;
     };
-    expect(await statusOf()).toBe(403);
-    expect(await statusOf('not a ref')).toBe(403);
+    expect(await statusOf()).toBe(404);
+    expect(await statusOf('not a ref')).toBe(404);
   });
 
   it('pages through history with the history permission', async () => {
     const { server, workflowService, permissions } = await start();
     const res = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}&pageSize=10`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}&pageSize=10`,
     );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -546,11 +595,11 @@ describe('temporal backend plugin', () => {
   it('rejects a bad history pageSize and pageToken before loading the workflow', async () => {
     const { server, workflowService } = await start();
     const pageSize = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}&pageSize=501`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}&pageSize=501`,
     );
     expect(pageSize.status).toBe(400);
     const pageToken = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/history?entityRef=${ref}&pageToken=not-a-token!`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}&pageToken=not-a-token!`,
     );
     expect(pageToken.status).toBe(400);
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
@@ -559,7 +608,7 @@ describe('temporal backend plugin', () => {
   it('returns inputs and outputs with the history permission', async () => {
     const { server, permissions } = await start();
     const res = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/steps?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps?entityRef=${ref}`,
     );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -580,7 +629,7 @@ describe('temporal backend plugin', () => {
     const denied = await start({ permission: AuthorizeResult.DENY });
     await request(denied.server)
       .get(
-        `/api/temporal/namespaces/default/workflows/wf-1/steps?entityRef=${ref}`,
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps?entityRef=${ref}`,
       )
       .expect(403);
   });
@@ -588,7 +637,7 @@ describe('temporal backend plugin', () => {
   it('returns the step graph, with payloads when the history may be read', async () => {
     const { server, permissions } = await start();
     const res = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
     );
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -618,7 +667,7 @@ describe('temporal backend plugin', () => {
 
     const noHistory = await start({ deny: ['temporal.workflow.history.read'] });
     const hidden = await request(noHistory.server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
     );
     expect(hidden.status).toBe(200);
     expect(hidden.body.payloadsHidden).toBe(true);
@@ -627,7 +676,7 @@ describe('temporal backend plugin', () => {
     const denied = await start({ deny: ['temporal.workflow.read'] });
     await request(denied.server)
       .get(
-        `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
       )
       .expect(403);
   });
@@ -653,7 +702,7 @@ describe('temporal backend plugin', () => {
     );
     const { server } = await start({ workflowService });
     const res = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
     );
     expect(res.status).toBe(200);
     expect(res.body.runChain).toEqual({
@@ -671,14 +720,56 @@ describe('temporal backend plugin', () => {
       new Error('not supported'),
     );
     const failed = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/graph?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
     );
     expect(failed.body.runChain).toEqual({ previousRunId: 'run-before' });
   });
 
+  it('counts the runs of workflow IDs with spaces, not of IDs with quotes', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.getWorkflowExecutionHistory.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '1',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+            workflowExecutionStartedEventAttributes: {
+              continuedExecutionRunId: 'run-before',
+            },
+          },
+        ],
+      },
+      nextPageToken: new Uint8Array(),
+    } as any);
+    workflowService.countWorkflowExecutions.mockResolvedValue({ count: 2 });
+    const { server } = await start({ workflowService });
+    const spaced = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/${encodeURIComponent(
+        'nightly (eu)',
+      )}/runs/r1/graph?entityRef=${ref}`,
+    );
+    expect(spaced.body.runChain).toEqual({
+      previousRunId: 'run-before',
+      index: 2,
+      total: 2,
+    });
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledWith({
+      namespace: 'default',
+      query: "WorkflowId = 'nightly (eu)'",
+    });
+    workflowService.countWorkflowExecutions.mockClear();
+    const quoted = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/${encodeURIComponent(
+        "it's",
+      )}/runs/r1/graph?entityRef=${ref}`,
+    );
+    expect(quoted.body.runChain).toEqual({ previousRunId: 'run-before' });
+    expect(workflowService.countWorkflowExecutions).not.toHaveBeenCalled();
+  });
+
   it('returns the progress of a run and caches closed runs', async () => {
     const { server, workflowService } = await start();
-    const path = `/api/temporal/namespaces/default/workflows/wf-1/progress?entityRef=${ref}`;
+    const path = `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`;
     const res = await request(server).get(path);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
@@ -731,7 +822,7 @@ describe('temporal backend plugin', () => {
     );
     expect(list.body.items[0].extensions).toEqual({ test: { seen: true } });
     const detail = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`,
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
     );
     expect(detail.body.extensions).toEqual({ test: { seen: true } });
     expect(enrich).toHaveBeenCalledTimes(2);
@@ -929,11 +1020,13 @@ describe('temporal backend plugin', () => {
     const { server } = await start({ workflowService });
     await request(server)
       .get(
-        '/api/temporal/namespaces/default/workflows/wf-pay?entityRef=component:default/checkout',
+        '/api/temporal/namespaces/default/workflows/wf-pay/runs/wf-pay-run?entityRef=component:default/checkout',
       )
       .expect(200);
     await request(server)
-      .get(`/api/temporal/namespaces/default/workflows/wf-pay?entityRef=${ref}`)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-pay/runs/wf-pay-run?entityRef=${ref}`,
+      )
       .expect(404);
   });
 
@@ -1082,15 +1175,19 @@ describe('temporal backend plugin', () => {
     it('opens any workflow without an entity with the list permission', async () => {
       const { server, permissions } = await start();
       const detail = await request(server).get(
-        '/api/temporal/namespaces/default/workflows/wf-1',
+        '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run',
       );
       expect(detail.status).toBe(200);
       expect(detail.body.workflowId).toBe('wf-1');
       await request(server)
-        .get('/api/temporal/namespaces/default/workflows/wf-1/history')
+        .get(
+          '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history',
+        )
         .expect(200);
       await request(server)
-        .get('/api/temporal/namespaces/default/workflows/wf-1/steps')
+        .get(
+          '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps',
+        )
         .expect(200);
       // Only basic permissions were checked, no entity.
       for (const [requests] of permissions.authorize.mock.calls as any[]) {
@@ -1111,17 +1208,20 @@ describe('temporal backend plugin', () => {
         deny: ['temporal.workflow.history.list'],
       });
       await request(server)
-        .get('/api/temporal/namespaces/default/workflows/wf-1')
+        .get('/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run')
         .expect(200);
-      // The workflow has no entity reference attribute to fall back to.
+      // The workflow has no entity reference attribute to fall back to:
+      // the same answer as for a workflow that does not exist.
       for (const path of ['history', 'steps']) {
         await request(server)
-          .get(`/api/temporal/namespaces/default/workflows/wf-1/${path}`)
-          .expect(403);
+          .get(
+            `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/${path}`,
+          )
+          .expect(404);
       }
       // The graph is shown without inputs and results.
       const graph = await request(server).get(
-        '/api/temporal/namespaces/default/workflows/wf-1/graph',
+        '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph',
       );
       expect(graph.status).toBe(200);
       expect(graph.body.payloadsHidden).toBe(true);
@@ -1131,7 +1231,9 @@ describe('temporal backend plugin', () => {
     it('still checks the entity when entityRef is given', async () => {
       const { server } = await start({ deny: [ref] });
       await request(server)
-        .get(`/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`)
+        .get(
+          `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
+        )
         .expect(403);
     });
   });
