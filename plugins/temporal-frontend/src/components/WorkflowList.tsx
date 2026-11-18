@@ -17,7 +17,7 @@
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
-import { isTemporalWorkflowEntityRef } from '../common';
+import { isTemporalWorkflowEntityRef, type RelatedWorkflows } from '../common';
 import { TemporalWorkflowListActionDef, temporalApiRef } from '../extensions';
 import { Alert, Button, Switch } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
@@ -61,6 +61,23 @@ export function LostPageNotice(props: { page?: number }) {
       title={`Page ${props.page} could not be opened again, so the first page is shown.`}
       style={{ marginBottom: 12 }}
       data-testid="list-lost-page"
+    />
+  );
+}
+
+/** Notice when the merged list covers only the first related workflow types. */
+export function RelatedWorkflowsTruncationNotice(props: {
+  relatedWorkflows?: RelatedWorkflows;
+}) {
+  const related = props.relatedWorkflows;
+  if (!related || related.total <= related.queried) return null;
+  return (
+    <Alert
+      status="info"
+      icon
+      title={`Showing executions of the first ${related.queried} of ${related.total} workflow types. Open a workflow type above to see its executions.`}
+      style={{ marginBottom: 12 }}
+      data-testid="related-workflows-truncated"
     />
   );
 }
@@ -130,6 +147,9 @@ export function WorkflowList(props: {
         }
       >
         <LostPageNotice page={list.lostPage} />
+        <RelatedWorkflowsTruncationNotice
+          relatedWorkflows={value?.relatedWorkflows}
+        />
         {error ? (
           <ErrorAlert error={error} />
         ) : (

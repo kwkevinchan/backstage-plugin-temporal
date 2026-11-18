@@ -1013,7 +1013,13 @@ The catalog adds `dependsOn` / `dependencyOf`. The component's Temporal tab
 then lists the workflow types it depends on (**Workflow types**), and its
 workflow executions are its own (from the annotations, if any) together with
 those of each workflow type entity; executions of a workflow type entity
-link to it. Workflow entities in another Temporal
+link to it. The merged execution list and the recent-run statistics include
+at most 20 of those workflow types (the first 20 in `spec.dependsOn`). When
+there are more, the tab says it is showing executions of the first 20 of N
+types; open a type in **Workflow types** above to see its executions. Only
+one level of `dependsOn` is followed: `dependsOn` of a `TemporalWorkflow`
+entity is not followed, and a TemporalWorkflow entity's own tab lists only
+that type. Workflow entities in another Temporal
 namespace than the component's, or that the user may not read
 (`temporal.workflow.read`), are left out. `dependsOn` is used rather than a
 new relation type because it means what the link means ("needs this to

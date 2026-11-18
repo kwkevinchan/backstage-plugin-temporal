@@ -63,6 +63,7 @@ export const temporalAccessServiceFactory = createServiceFactory({
         permissionsRegistry.getPermissionRuleset(
           temporalWorkflowPermissionResourceRef,
         ),
+      logger,
       { initiatorAttribute: temporal.getSearchAttributeNames().initiator },
     );
   },

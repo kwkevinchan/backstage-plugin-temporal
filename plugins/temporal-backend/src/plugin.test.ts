@@ -22,11 +22,13 @@ import {
 import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
+import type { Entity } from '@backstage/catalog-model';
 import {
   temporalWorkflowEnricherExtensionPoint,
   TemporalWorkflowEnricher,
 } from './node/alpha';
 import request from 'supertest';
+import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
@@ -37,6 +39,7 @@ import {
   FakeWorkflowService,
   checkoutEntity,
   customKindEntity,
+  entityWithRelatedWorkflows,
   orderWorkflowEntity,
   ordersEntity,
   otherEntity,
@@ -64,6 +67,8 @@ async function start(options?: {
   enricher?: TemporalWorkflowEnricher;
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
+  entities?: Entity[];
+  logger?: ReturnType<typeof mockServices.logger.mock>;
 }) {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
@@ -83,12 +88,13 @@ async function start(options?: {
   const features: any[] = [
     temporalPlugin,
     temporalAccessServiceFactory,
-    catalogServiceMock.factory({ entities }),
+    catalogServiceMock.factory({ entities: options?.entities ?? entities }),
     fakeTemporalServiceFactory(workflowService, {
       entityRefAttribute: options?.entityRefAttribute,
     }),
     permissions.factory,
   ];
+  if (options?.logger) features.push(options.logger.factory);
   if (options?.enricher) {
     const enricher = options.enricher;
     features.push(
@@ -718,6 +724,88 @@ describe('temporal backend plugin', () => {
       ['wf-pay', 'temporalworkflow:default/payment-workflow'],
       ['wf-deploy', undefined],
     ]);
+    expect(res.body.relatedWorkflows).toEqual({ total: 4, queried: 4 });
+  });
+
+  it('queries the first 20 related TemporalWorkflow entities and marks the rest', async () => {
+    const total = MAX_RELATED_WORKFLOW_ENTITIES + 1;
+    const { entity, workflows } = entityWithRelatedWorkflows(total);
+    const logger = mockServices.logger.mock();
+    const { server, workflowService } = await start({
+      entities: [entity, ...workflows],
+      logger,
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/many-workflows/workflows',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.relatedWorkflows).toEqual({
+      total,
+      queried: MAX_RELATED_WORKFLOW_ENTITIES,
+    });
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringMatching(
+          new RegExp(
+            `WorkflowType = 'relatedType0'.*WorkflowType = 'relatedType${
+              MAX_RELATED_WORKFLOW_ENTITIES - 1
+            }'`,
+          ),
+        ),
+      }),
+    );
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.not.stringContaining(
+          `WorkflowType = 'relatedType${MAX_RELATED_WORKFLOW_ENTITIES}'`,
+        ),
+      }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      `component:default/many-workflows depends on ${total} TemporalWorkflow entities; querying the first ${MAX_RELATED_WORKFLOW_ENTITIES}`,
+    );
+    const stats = await request(server).get(
+      '/api/temporal/entities/component/default/many-workflows/workflow-stats',
+    );
+    expect(stats.status).toBe(200);
+    expect(stats.body.relatedWorkflows).toEqual({
+      total,
+      queried: MAX_RELATED_WORKFLOW_ENTITIES,
+    });
+  });
+
+  it('does not mark related TemporalWorkflow entities when there are 20 or fewer', async () => {
+    const { entity, workflows } = entityWithRelatedWorkflows(
+      MAX_RELATED_WORKFLOW_ENTITIES,
+    );
+    const logger = mockServices.logger.mock();
+    const { server, workflowService } = await start({
+      entities: [entity, ...workflows],
+      logger,
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/many-workflows/workflows',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.relatedWorkflows).toEqual({
+      total: MAX_RELATED_WORKFLOW_ENTITIES,
+      queried: MAX_RELATED_WORKFLOW_ENTITIES,
+    });
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining(
+          `WorkflowType = 'relatedType${MAX_RELATED_WORKFLOW_ENTITIES - 1}'`,
+        ),
+      }),
+    );
+    expect(logger.info).not.toHaveBeenCalled();
+    const stats = await request(server).get(
+      '/api/temporal/entities/component/default/many-workflows/workflow-stats',
+    );
+    expect(stats.body.relatedWorkflows).toEqual({
+      total: MAX_RELATED_WORKFLOW_ENTITIES,
+      queried: MAX_RELATED_WORKFLOW_ENTITIES,
+    });
   });
 
   it('leaves out TemporalWorkflow entities the user may not read', async () => {

@@ -103,7 +103,7 @@
 
 ### `TemporalWorkflow` 實體
 
-catalog 裡的一個 kind，**一個實體代表一個 Workflow Type** 和它的定義。有了它，流程類型就有 owner、所屬系統、相依關係，也出現在 catalog 關係圖裡。`temporal.io/v1alpha1` 這個 API 版本是這個外掛自己訂的，不是 Temporal 定義的。使用某個流程的元件，用標準的 `spec.dependsOn` 列出它，元件的 Temporal 分頁就會列出它相依的流程類型和它們的執行。為什麼用 `dependsOn`，見 [README](../../README.md#workflow-entities)。後端外掛的預設匯出就帶這個 kind（`catalogModuleTemporalWorkflowKind`）。
+catalog 裡的一個 kind，**一個實體代表一個 Workflow Type** 和它的定義。有了它，流程類型就有 owner、所屬系統、相依關係，也出現在 catalog 關係圖裡。`temporal.io/v1alpha1` 這個 API 版本是這個外掛自己訂的，不是 Temporal 定義的。使用某個流程的元件，用標準的 `spec.dependsOn` 列出它，元件的 Temporal 分頁就會列出它相依的流程類型和它們的執行。合併清單和統計最多包含 20 個流程類型（`spec.dependsOn` 的前 20 個）；超過時畫面上會提示，其餘從上方的 **Workflow types** 點進去看。只看一層：不追 `dependsOn` 的 `dependsOn`，頁面本身是 `TemporalWorkflow` 時也不追。為什麼用 `dependsOn`，見 [README](../../README.md#workflow-entities)。後端外掛的預設匯出就帶這個 kind（`catalogModuleTemporalWorkflowKind`）。
 
 ### 標註（annotations）
 

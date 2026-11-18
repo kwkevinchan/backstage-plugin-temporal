@@ -239,6 +239,12 @@ export interface PendingActivity {
 }
 
 // @public
+export interface RelatedWorkflows {
+  queried: number;
+  total: number;
+}
+
+// @public
 export const RESOURCE_TYPE_TEMPORAL_WORKFLOW = 'temporal-workflow';
 
 // @public
@@ -845,6 +851,7 @@ export interface WorkflowListResponse {
   // (undocumented)
   namespace: string;
   nextPageToken?: string;
+  relatedWorkflows?: RelatedWorkflows;
 }
 
 // @alpha
@@ -1113,6 +1120,7 @@ export interface WorkflowStatsResponse {
   limit: number;
   // (undocumented)
   namespace: string;
+  relatedWorkflows?: RelatedWorkflows;
   running: number;
   sampleSize: number;
   succeeded: number;

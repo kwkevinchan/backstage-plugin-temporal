@@ -74,7 +74,7 @@
 
 1. 在 Backstage 打開 **Catalog**。清單一開始篩選的 kind 是 **Component**，顯示的是實體的標題：**Example checkout service**、**Example orders service**（實體 `example-orders`），以及沒有標題的 `example-website`。把 kind 篩選改成 **TemporalWorkflow**，會看到五個流程實體，例如 **Example order workflow** 和 **Example ticket workflow**。一個實體就是一個 Workflow Type。（**Example order jobs** 是 `Resource`，要在那個 kind 底下才看得到。）
 2. 打開 **Example order workflow**。**Overview** 有一張 **Workflow type** 卡片，寫著流程類型、Task Queue 和 Namespace，並有 **Open in Temporal UI** 連結。分頁有 **Overview**、**Temporal**、**Definition**。
-3. 打開 **Example checkout service** 的 **Temporal** 分頁。這個實體在 `spec.dependsOn` 列了 `example-order-workflow` 和 `example-payment-workflow`，所以分頁有一張 **Workflow types** 卡片列出這兩者，也列出這兩者的執行，以及它自己的標註對到的執行。
+3. 打開 **Example checkout service** 的 **Temporal** 分頁。這個實體在 `spec.dependsOn` 列了 `example-order-workflow` 和 `example-payment-workflow`，所以分頁有一張 **Workflow types** 卡片列出這兩者，也列出這兩者的執行，以及它自己的標註對到的執行。合併清單最多包含 20 個流程類型；超過時會出現英文提示，其餘從 **Workflow types** 點進去看。只看一層，不追 `dependsOn` 的 `dependsOn`。
 4. 對照 `example-website`：它沒有 Temporal 標註，也沒有相依，所以只有 **Overview** 分頁。**Example order jobs** 是 `Resource` 而不是元件，卻仍然有 **Temporal** 分頁，只列出訂單流程：外掛不依賴實體的 kind。
 
 **為什麼：** 外掛靠 `TemporalWorkflow` 實體或 `temporal.io/*` 標註，知道「這個實體的流程」是哪些。把 `examples/entities.yaml` 開在旁邊，就能看到每一個背後的 YAML。見[概念對照](concepts-to-plugin.md#外掛自己加的東西)。

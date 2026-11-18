@@ -522,6 +522,21 @@ components:
           items:
             $ref: '#/components/schemas/PendingActivity'
       additionalProperties: false
+    RelatedWorkflows:
+      type: object
+      description: |-
+        How many TemporalWorkflow entities an entity depends on, and how many of them were queried for the merged list and statistics. At most 20 are queried. Present on entity lists and statistics when the entity depends on at least one; absent on namespace lists.
+      required:
+        - total
+        - queried
+      properties:
+        total:
+          type: integer
+          description: Number of TemporalWorkflow entities the entity depends on.
+        queried:
+          type: integer
+          description: Number of those entities included in the query, at most 20. When total is greater, the rest are left out.
+      additionalProperties: false
     WorkflowListResponse:
       type: object
       required:
@@ -537,6 +552,8 @@ components:
           description: Opaque token for the next page, absent on the last page.
         namespace:
           type: string
+        relatedWorkflows:
+          $ref: '#/components/schemas/RelatedWorkflows'
       additionalProperties: false
     WorkflowStatsResponse:
       type: object
@@ -591,6 +608,8 @@ components:
         averageDurationMs:
           type: number
           description: Mean duration of the closed runs in the sample, in milliseconds.
+        relatedWorkflows:
+          $ref: '#/components/schemas/RelatedWorkflows'
       additionalProperties: false
     WorkflowHistoryEvent:
       type: object
