@@ -664,9 +664,26 @@ Other systems can read these, so they are interfaces too:
   `workflow-signal`, `workflow-update`, `workflow-query`, `workflow-cancel`,
   `workflow-terminate`, `workflow-rerun`, `workflow-action`,
   `schedule-pause`, `schedule-unpause`, `schedule-trigger`, with the
-  namespace, workflow and entity in the metadata. Their severity is `low`
-  for `workflow-query`, `high` for `workflow-terminate` and `medium` for the
-  others.
+  namespace, workflow and entity in the metadata. Their severity is
+  `medium`, except `workflow-terminate`, which is `high` because a
+  terminate cannot be undone.
+
+  Backstage's default mapping sends `low` to `debug`, and `medium`, `high`
+  and `critical` to `info`. The backend logs `info` and above by default, so
+  a `low` event does not appear. To show `low` events, either set
+  `backend.auditor.severityLogLevelMappings.low` to `info` (this is global:
+  it also turns on the catalog's read events) or raise only this plugin's
+  audit events with a logger override:
+
+  ```yaml
+  backend:
+    logger:
+      overrides:
+        - matchers:
+            plugin: temporal
+            isAuditEvent: true
+          level: debug
+  ```
 
 The plugin shows a workflow's memo on the details page. It also reads the
 references of Temporal External Storage, written by the SDK's S3 driver in

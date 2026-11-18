@@ -434,7 +434,19 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
   外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。在 Backstage 以外啟動流程的程式設了這兩個屬性，效果相同，所以只設成流程真正所屬的實體和使用者。
 
 - **Identity。** 操作以 `backstage:<使用者實體 reference>`（或 `backstage:<服務 subject>`）作為 Temporal identity，會顯示在歷史裡。
-- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體。severity：`workflow-query` 是 `low`，`workflow-terminate` 是 `high`，其餘是 `medium`。
+- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。
+
+  Backstage 預設的對應是 `low` 送到 `debug`，`medium`、`high`、`critical` 送到 `info`。後端預設只輸出 `info` 以上，所以 `low` 的事件不會出現在 log 裡。若要看到 `low` 的事件，可以把 `backend.auditor.severityLogLevelMappings.low` 設成 `info`（這是全域設定，會連 catalog 的讀取事件一起打開），或只用 logger override 提高這個外掛的稽核事件：
+
+  ```yaml
+  backend:
+    logger:
+      overrides:
+        - matchers:
+            plugin: temporal
+            isAuditEvent: true
+          level: debug
+  ```
 
 外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。
 

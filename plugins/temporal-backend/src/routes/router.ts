@@ -331,7 +331,7 @@ export async function createRouter(
       req,
       'workflow-query',
       workflowMeta(loaded.workflow, entityRef, { name }),
-      'low',
+      'medium',
       () => queries.query(loaded.workflow, name, args),
     );
     res.json({ result });
