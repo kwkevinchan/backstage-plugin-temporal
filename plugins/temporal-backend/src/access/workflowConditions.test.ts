@@ -198,7 +198,8 @@ describe('the rules of the plugin', () => {
     const res = await request(server).get(
       '/api/temporal/namespaces/default/workflows/wf-1',
     );
-    expect(res.status).toBe(403);
+    // As for a workflow that does not exist.
+    expect(res.status).toBe(404);
   });
 
   it('IS_INITIATOR uses the initiator search attribute', async () => {
@@ -242,7 +243,7 @@ describe('the rules of the plugin', () => {
     const theirs = await request(server).get(
       '/api/temporal/namespaces/default/workflows/wf-1',
     );
-    expect(theirs.status).toBe(403);
+    expect(theirs.status).toBe(404);
   });
 
   it('IS_INITIATOR allows nothing without the search attribute', async () => {

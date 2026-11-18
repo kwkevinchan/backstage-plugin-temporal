@@ -127,7 +127,10 @@ rerun, custom actions) and query first load the workflow with the read
 checks above (`temporal.workflow.read` on the entity, or
 `temporal.workflow.list` without `entityRef`), then check their own
 permission on the workflow's entity: a caller with `temporal.workflow.signal`
-but without read access gets 403.
+but without read access is refused. Without `entityRef`, a workflow the
+caller may not open gets the same 404 as a workflow that does not exist,
+unless the list permission allows every workflow; a caller that no
+permission could allow gets 403.
 
 Bodies are JSON: `{ name, args }` for signal, update and query (`args` is
 the list of arguments), `{ reason }` for terminate, `{ workflowId? }` for

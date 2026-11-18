@@ -172,12 +172,12 @@ describe('opening one workflow', () => {
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
   });
 
-  it('answers 403 when the list permission is denied and no entity is linked', async () => {
+  it('answers 403 without describing when every permission that could allow it is denied', async () => {
     const { server, workflowService } = await start({
       permission: AuthorizeResult.DENY,
     });
     await request(server).get(path).expect(403);
-    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
   });
 
   it('answers with the workflow of another access service as it is', async () => {

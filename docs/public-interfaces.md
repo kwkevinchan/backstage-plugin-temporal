@@ -477,7 +477,11 @@ workflow is shown for.
   (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
   history level), with their conditions. If they do not allow it, the
   entity in the workflow's `searchAttributes.entityRef` attribute is checked
-  as above; a workflow without that attribute is refused (`403`).
+  as above. A caller whom neither the list permissions nor the read
+  permission on entities can allow gets `403` before the workflow is read.
+  For the others, unless the list permissions allow every workflow, a
+  workflow they may not open (without that attribute, or through an entity
+  they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
   through, else on the entity of its search attribute; a workflow with
   neither needs the permission allowed without conditions.

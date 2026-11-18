@@ -501,12 +501,13 @@ describe('temporal backend plugin', () => {
       workflowService,
       deny: ['temporal.workflow.list'],
     });
+    // As for a workflow that does not exist.
     await request(server2)
       .get('/api/temporal/namespaces/default/workflows/wf-sa')
-      .expect(403);
+      .expect(404);
   });
 
-  it('answers 403, as for a workflow without the attribute, when the entity reference search attribute is not a reference', async () => {
+  it('answers 404, as for a workflow without the attribute, when the entity reference search attribute is not a reference', async () => {
     const b64 = (s: string) => Buffer.from(s).toString('base64');
     const describeWith = (attribute?: unknown) => {
       const workflowService = createFakeWorkflowService();
@@ -545,8 +546,8 @@ describe('temporal backend plugin', () => {
         )
       ).status;
     };
-    expect(await statusOf()).toBe(403);
-    expect(await statusOf('not a ref')).toBe(403);
+    expect(await statusOf()).toBe(404);
+    expect(await statusOf('not a ref')).toBe(404);
   });
 
   it('pages through history with the history permission', async () => {
@@ -1197,11 +1198,12 @@ describe('temporal backend plugin', () => {
       await request(server)
         .get('/api/temporal/namespaces/default/workflows/wf-1')
         .expect(200);
-      // The workflow has no entity reference attribute to fall back to.
+      // The workflow has no entity reference attribute to fall back to:
+      // the same answer as for a workflow that does not exist.
       for (const path of ['history', 'steps']) {
         await request(server)
           .get(`/api/temporal/namespaces/default/workflows/wf-1/${path}`)
-          .expect(403);
+          .expect(404);
       }
       // The graph is shown without inputs and results.
       const graph = await request(server).get(
