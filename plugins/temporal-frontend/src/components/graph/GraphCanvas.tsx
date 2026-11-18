@@ -47,6 +47,7 @@ import {
   StepLayout,
 } from './layout';
 import { FrameEdgeData, frameEdgePath, routeRowGaps } from './frameEdge';
+import { tp } from '../styles';
 
 /*
  * The canvas shared by the step graph of a run and the graph of a workflow
@@ -82,6 +83,45 @@ function FrameEdge(props: EdgeProps<Edge<FrameEdgeData>>) {
       markerEnd={props.markerEnd}
       style={props.style}
     />
+  );
+}
+
+/** Id of the arrowhead the edges of a step graph end in (`markerEnd`). */
+export const EDGE_ARROW_ID = 'tp-edge-arrow';
+
+/** Length of the arrowhead along the edge, in graph units. */
+const ARROW_LENGTH = 7;
+
+/**
+ * The arrowhead of the edges: a small filled triangle whose tip is the end
+ * of the edge, so it touches the border of the box the edge enters. It is
+ * filled with the stroke of its edge (`context-stroke`), so it has the color
+ * of the edge, whatever the class or style that colors it.
+ */
+function EdgeArrowDefs() {
+  return (
+    <svg
+      aria-hidden
+      focusable="false"
+      width={0}
+      height={0}
+      style={{ position: 'absolute' }}
+    >
+      <defs>
+        <marker
+          id={EDGE_ARROW_ID}
+          viewBox="0 0 10 8"
+          refX={10}
+          refY={4}
+          markerWidth={ARROW_LENGTH}
+          markerHeight={(ARROW_LENGTH * 8) / 10}
+          markerUnits="userSpaceOnUse"
+          orient="auto"
+        >
+          <path className={tp('tp-edge-arrow')} d="M0 0L10 4L0 8Z" />
+        </marker>
+      </defs>
+    </svg>
   );
 }
 
@@ -261,6 +301,7 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
       onPaneClick={() => onSelect(undefined)}
       proOptions={{ hideAttribution: true }}
     >
+      <EdgeArrowDefs />
       <Background gap={20} size={1} />
       <Controls
         showInteractive={false}

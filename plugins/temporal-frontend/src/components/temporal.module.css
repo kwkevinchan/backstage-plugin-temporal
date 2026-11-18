@@ -115,6 +115,12 @@
 .tp-graph :global(.react-flow__edge).tp-edge-active path {
   stroke: var(--bui-fg-info);
 }
+/* The arrowhead takes the stroke of its edge; a browser without context-stroke
+   keeps the edge color of the graph. */
+.tp-edge-arrow {
+  fill: var(--xy-edge-stroke);
+  fill: context-stroke;
+}
 .tp-node {
   box-sizing: border-box;
   width: 100%;
@@ -191,9 +197,16 @@
   font-weight: var(--bui-font-weight-bold, 600);
   line-height: 18px;
 }
-.tp-handle {
+.tp-graph :global(.react-flow__handle).tp-handle {
   opacity: 0;
   pointer-events: none;
+  /* No size, so an edge ends on the border of its box and an arrowhead
+     touches it. */
+  width: 0;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
 }
 
 /* Step panel next to the graph. */
