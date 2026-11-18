@@ -59,6 +59,7 @@ import {
 } from './GroupNode';
 import {
   flowNodeBase,
+  EDGE_ARROW_ID,
   GraphCanvas,
   RELAYOUT_DELAY_MS,
   useSettledWidth,
@@ -357,6 +358,7 @@ function StepCanvas(
       source: e.source,
       target: e.target,
       type: 'smoothstep',
+      markerEnd: EDGE_ARROW_ID,
       // Arrows into open steps move, like the step itself.
       animated: open.has(e.target),
       className:
