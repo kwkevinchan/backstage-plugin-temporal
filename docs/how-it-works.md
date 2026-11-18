@@ -99,7 +99,7 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
    (at once, then after `intervalSeconds`, default 5 seconds, with each pause
    doubling up to `maxIntervalSeconds`, default 30) until the Bool search attribute named in
    `untilSearchAttribute` is true. The workflow set it when it reached the point
-   where it needs a decision, so the template finishes with a link to the workflow.
+   where it needs a decision, so the template can continue, and include a link to the workflow.
 3. **Decision.** Someone sends an update: from the **Update…** dialog on the details
    page, or with another template whose `temporal:workflow:signal` step has
    `kind: update`. The plugin passes the access check, checks the update
@@ -122,6 +122,16 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
   limited to 3600 seconds, and a task that started with service credentials runs as
   that service. See the
   [Scaffolder module README](../plugins/scaffolder-backend-module-temporal/README.md).
+
+- **A notification after `wait`.** After `untilSearchAttribute` is true, a later
+  step can send a Backstage notification with `notification:send` (from
+  `@backstage/plugin-scaffolder-backend-module-notifications`) and set `link` to
+  `steps.start.output.workflowUrl`. This only covers the first decision point, and
+  only if `wait` finishes before its 3600-second limit. For a longer approval, or
+  later decision points, the workflow itself can call the notifications HTTP API
+  from an activity. The details, the limits, and the official API and auth links
+  are in
+  [Notify when a decision is needed](../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed).
 - **A decision can arrive by different routes with different checks.** Through the
   plugin's update endpoint, which is what the dialog and the template step use, the
   checks are the update permission and `allowedUpdates`; whether the user is

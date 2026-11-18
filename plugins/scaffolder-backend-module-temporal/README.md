@@ -115,3 +115,88 @@ steps:
 
 `workflowUrl` links to the Workflows page of the frontend plugin
 (`/temporal/...` under `app.baseUrl`).
+
+## Notify when a decision is needed
+
+After `wait` returns because `untilSearchAttribute` is true, a later step can
+send a Backstage notification with a link to the run. The
+`notification:send` action is from the official package
+[`@backstage/plugin-scaffolder-backend-module-notifications`](https://github.com/backstage/backstage/tree/master/plugins/scaffolder-backend-module-notifications)
+(install that module and `@backstage/plugin-notifications-backend`, and the
+notifications frontend page). A complete template is in
+[`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml).
+
+```yaml
+steps:
+  - id: start
+    action: temporal:workflow:start
+    input:
+      entityRef: temporalworkflow:default/release
+      args:
+        service: ${{ parameters.service }}
+  - id: pending
+    action: temporal:workflow:wait
+    input:
+      workflowId: ${{ steps.start.output.workflowId }}
+      namespace: ${{ steps.start.output.namespace }}
+      untilSearchAttribute: ApprovalPending
+  - id: notify
+    action: notification:send
+    input:
+      recipients: entity
+      entityRefs:
+        - ${{ parameters.notifyEntityRef }}
+      title: A release is waiting for approval
+      info: Open the workflow to approve or reject it.
+      link: ${{ steps.start.output.workflowUrl }}
+      severity: high
+```
+
+This only works while the template is still running:
+
+- `wait` can run for at most 3600 seconds (the user's token expires). If it
+  times out, the notification step does not run.
+- Only the first decision point is covered. Later approvals happen after the
+  template has finished, so this step cannot notify for them.
+- The recipients are whatever the template writes: a fixed entity, or a
+  parameter such as `notifyEntityRef` above.
+
+For a long approval, or for later decision points, do not keep the template
+waiting. Have the workflow itself send the notification when it reaches that
+point, from an activity that calls the Backstage notifications API. That is
+your workflow code, not this plugin. The plugin does not watch Temporal in
+the background to send notifications.
+
+The official usage guide shows an external caller creating a notification
+with `POST /api/notifications` and a bearer token
+([Notifications usage](https://backstage.io/docs/notifications/usage)).
+Configure a static token under `backend.auth.externalAccess` and send it in
+the `Authorization` header
+([Service-to-service auth: Static Tokens](https://backstage.io/docs/auth/service-to-service-auth#static-tokens)).
+In `@backstage/plugin-notifications-backend@0.6.10` (Backstage 1.56),
+`POST /api/notifications` is a deprecated alias of
+`POST /api/notifications/notifications`; both work in that version, and the
+latter is the current path. A minimal activity:
+
+```ts
+await fetch(`${backstageBaseUrl}/api/notifications/notifications`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${process.env.BACKSTAGE_NOTIFICATIONS_TOKEN}`,
+  },
+  body: JSON.stringify({
+    recipients: { type: 'entity', entityRef: 'group:default/team' },
+    payload: {
+      title: 'A release is waiting for approval',
+      description: 'Open the workflow to approve or reject it.',
+      link: workflowUrl,
+      severity: 'high',
+    },
+  }),
+});
+```
+
+The token is a Backstage service credential (a static token, or another
+service-to-service method from that same auth document). It is not the token
+of the user who started the workflow.

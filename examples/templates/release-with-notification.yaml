@@ -1,0 +1,58 @@
+# Example: start a Temporal workflow, wait until it needs a decision, then
+# send a Backstage notification that links to the run.
+# Needs these official packages (and this plugin's Scaffolder module):
+#   @backstage/plugin-notifications-backend
+#   @backstage/plugin-scaffolder-backend-module-notifications
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: release-with-notification
+  title: Start a release and notify when it needs approval
+  description: Starts a release workflow, waits until it is pending approval, then sends a Backstage notification with a link to the run.
+spec:
+  type: service
+  owner: group:default/team
+  parameters:
+    - title: Release
+      required:
+        - service
+        - notifyEntityRef
+      properties:
+        service:
+          title: Service
+          type: string
+        notifyEntityRef:
+          title: Notify
+          description: Catalog entity that should receive the notification (User or Group).
+          type: string
+          default: group:default/team
+  steps:
+    - id: start
+      name: Start the release workflow
+      action: temporal:workflow:start
+      input:
+        entityRef: temporalworkflow:default/release
+        args:
+          service: ${{ parameters.service }}
+    - id: pending
+      name: Wait until approval is needed
+      action: temporal:workflow:wait
+      input:
+        workflowId: ${{ steps.start.output.workflowId }}
+        namespace: ${{ steps.start.output.namespace }}
+        untilSearchAttribute: ApprovalPending
+    - id: notify
+      name: Notify that approval is needed
+      action: notification:send
+      input:
+        recipients: entity
+        entityRefs:
+          - ${{ parameters.notifyEntityRef }}
+        title: A release is waiting for approval
+        info: Open the workflow to approve or reject it.
+        link: ${{ steps.start.output.workflowUrl }}
+        severity: high
+  output:
+    links:
+      - title: Release workflow
+        url: ${{ steps.start.output.workflowUrl }}
