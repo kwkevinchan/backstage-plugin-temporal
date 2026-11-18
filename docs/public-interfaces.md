@@ -382,10 +382,11 @@ List actions get `{ entity?, workflowHref(ref) }`; schedule actions get
 
 `temporalApiRef` (`plugin.temporal.api`) and its interface `TemporalApi` are
 the client of the [HTTP API](#http-api): reads (`listEntityWorkflows`,
-`listWorkflows`, `getWorkflow`, `getWorkflowGraph`, …) and operations
-(`startWorkflow`, `signalWorkflow`, `runWorkflowAction`, …). The methods on
-one workflow take the `entityRef` the workflow is shown for, on which the
-backend checks the permission. Your extensions and other plugins call it with `useApi`;
+`listWorkflows`, `listWorkflowRuns`, `getWorkflow`, `getWorkflowGraph`, …)
+and operations (`startWorkflow`, `signalWorkflow`, `runWorkflowAction`, …).
+The methods on one run take a `WorkflowRunRef` (with its run ID) and the
+`entityRef` the workflow is shown for, on which the backend checks the
+permission; `listWorkflowRuns` lists the runs of a workflow ID. Your extensions and other plugins call it with `useApi`;
 the plugin provides `TemporalClient` as the default (extension
 `api:temporal` in the new system, `temporalPlugin` in the legacy one).
 

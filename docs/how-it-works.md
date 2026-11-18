@@ -96,7 +96,7 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
    entity's own, opens an audit event, sets the `entityRef` and `initiator` search
    attributes, and starts the workflow. It answers `201` with the workflow ID.
    Temporal puts a task on the task queue and a Worker runs the workflow.
-2. **Wait.** The `temporal:workflow:wait` step polls `GET …/workflows/:workflowId`
+2. **Wait.** The `temporal:workflow:wait` step polls `GET …/workflows/:workflowId/runs/:runId`
    (at once, then after `intervalSeconds`, default 5 seconds, with each pause
    doubling up to `maxIntervalSeconds`, default 30) until the Bool search attribute named in
    `untilSearchAttribute` is true. The workflow set it when it reached the point

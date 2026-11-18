@@ -127,12 +127,9 @@ export function controlError(error: unknown): ControlError {
     }
   )?.body?.error;
   const message = body?.message;
-  const result: ControlError =
-    typeof message === 'string' && message
-      ? new Error(message)
-      : error instanceof Error
-      ? error
-      : new Error(String(error));
+  let result: ControlError;
+  if (typeof message === 'string' && message) result = new Error(message);
+  else result = error instanceof Error ? error : new Error(String(error));
   const statusCode = (error as { statusCode?: unknown })?.statusCode;
   if (typeof statusCode === 'number') result.statusCode = statusCode;
   if (

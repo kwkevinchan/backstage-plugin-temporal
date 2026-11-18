@@ -262,7 +262,7 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 ### `temporalApiRef`
 
-`temporalApiRef`（`plugin.temporal.api`）和它的 interface `TemporalApi` 是 [HTTP API](#http-api) 的 client：讀取（`listEntityWorkflows`、`listWorkflows`、`getWorkflow`、`getWorkflowGraph`…）和操作（`startWorkflow`、`signalWorkflow`、`runWorkflowAction`…）。針對單一流程的方法都收流程所屬的 `entityRef`，後端在它上面檢查權限。你的擴充和其他外掛用 `useApi` 呼叫它；外掛提供 `TemporalClient` 作為預設（新系統是擴充 `api:temporal`，舊系統是 `temporalPlugin`）。
+`temporalApiRef`（`plugin.temporal.api`）和它的 interface `TemporalApi` 是 [HTTP API](#http-api) 的 client：讀取（`listEntityWorkflows`、`listWorkflows`、`listWorkflowRuns`、`getWorkflow`、`getWorkflowGraph`…）和操作（`startWorkflow`、`signalWorkflow`、`runWorkflowAction`…）。針對一次執行的方法都收 `WorkflowRunRef`（帶 run ID）和流程所屬的 `entityRef`，後端在它上面檢查權限；`listWorkflowRuns` 列出一個 workflow ID 的所有 run。你的擴充和其他外掛用 `useApi` 呼叫它；外掛提供 `TemporalClient` 作為預設（新系統是擴充 `api:temporal`，舊系統是 `temporalPlugin`）。
 
 它和擴充的收集是兩回事：`api:temporal/workflow-extensions` 只替頁面收集 blueprint 的輸出，而且不匯出。換掉 `api:temporal` 會改變每個頁面和擴充跟後端溝通的方式（[範例](#覆寫一個擴充)）。
 
