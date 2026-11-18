@@ -153,7 +153,9 @@ describe('the operations on the pages (new frontend system)', () => {
             [permissionApiRef, mockApis.permission()],
           ],
           config: { temporal: { control } },
-          initialRouteEntries: ['/namespaces/default/workflows/payment-1'],
+          initialRouteEntries: [
+            '/namespaces/default/workflows/payment-1/runs/run-2',
+          ],
         },
       );
       expect(

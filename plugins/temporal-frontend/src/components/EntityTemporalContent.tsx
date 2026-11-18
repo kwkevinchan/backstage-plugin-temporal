@@ -36,6 +36,7 @@ import { TemporalRelatedWorkflowsCard } from './TemporalRelatedWorkflowsCard';
 import { TemporalWorkflowStatsCard } from './TemporalWorkflowStatsCard';
 import { TemporalWorkflowSummaryCard } from './TemporalWorkflowSummaryCard';
 import { EntityWorkflowDetailPage } from './WorkflowDetailPage';
+import { EntityWorkflowRunsPage } from './WorkflowRunsPage';
 import { WorkflowList } from './WorkflowList';
 import { withControls } from '../control';
 
@@ -137,7 +138,7 @@ export function EntityTemporalContentPage(props: EntityTemporalContentProps) {
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
-        element={detail}
+        element={<EntityWorkflowRunsPage />}
       />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId/runs/:runId"

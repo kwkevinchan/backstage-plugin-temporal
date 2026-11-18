@@ -30,8 +30,11 @@ import {
 } from '@backstage/ui';
 import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
-import { controlError } from '../components/messages/shared';
-import { ErrorAlert } from '../components/feedback';
+import {
+  ControlError,
+  controlError,
+  ControlErrorAlert,
+} from '../components/messages/shared';
 import {
   MessageDialog,
   type MessageDialogText,
@@ -83,10 +86,12 @@ export function ConfirmDialog(props: {
   reason?: boolean;
   onConfirm(reason: string): Promise<void>;
   onClose(): void;
+  /** The details page of the run, for the links of its errors. */
+  context?: TemporalWorkflowExtensionProps;
 }) {
   const [reason, setReason] = useState('');
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<Error>();
+  const [error, setError] = useState<ControlError>();
   const confirm = async () => {
     setPending(true);
     setError(undefined);
@@ -112,7 +117,7 @@ export function ConfirmDialog(props: {
               isRequired
             />
           )}
-          {error && <ErrorAlert error={error} />}
+          {error && <ControlErrorAlert error={error} context={props.context} />}
         </Flex>
       </DialogBody>
       <DialogFooter>
@@ -224,6 +229,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           allowsCustomValue={messageOptions(open)[1]}
           argsField={SchemaArgsField}
           showResult={open === 'update'}
+          context={props}
           send={async request => {
             let result = {};
             if (open === 'signal') {
@@ -243,6 +249,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           description="The workflow is asked to cancel. It can clean up before it closes, or ignore the request."
           confirm="Cancel workflow"
           dismiss="Keep running"
+          context={props}
           onClose={close}
           onConfirm={async () => {
             await api.cancelWorkflow(ref, { entityRef });
@@ -258,6 +265,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           dismiss="Keep running"
           destructive
           reason
+          context={props}
           onClose={close}
           onConfirm={async reason => {
             await api.terminateWorkflow(ref, { reason }, { entityRef });
@@ -271,6 +279,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           description="A new workflow starts with the input, type, task queue and search attributes of this run, under a new workflow ID. This run stays as it is."
           confirm="Rerun"
           dismiss="Close"
+          context={props}
           onClose={close}
           onConfirm={async () => {
             const started = await api.rerunWorkflow(ref, {}, { entityRef });

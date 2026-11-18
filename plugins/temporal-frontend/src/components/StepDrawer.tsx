@@ -15,7 +15,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { WorkflowGraphNode, WorkflowRef } from '../common';
+import type { WorkflowGraphNode, WorkflowRef, WorkflowRunRef } from '../common';
 import { Button, ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react';
 import { LlmPanel } from './llm/LlmPanel';
@@ -77,7 +77,7 @@ export interface StepDrawerProps {
   /** Every step of the run, for the tool calls of a model call. */
   nodes?: WorkflowGraphNode[];
   /** The run, to load the record of a model call. */
-  workflowRef?: WorkflowRef;
+  workflowRef?: WorkflowRunRef;
   entityRef?: string;
   /** Selects another step, for the links between model and tool calls. */
   onSelectStep?(id: string): void;

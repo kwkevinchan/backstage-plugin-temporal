@@ -188,6 +188,9 @@ describe('legacy plugin extensions and ./ui sub-path', () => {
     expect(workflowLink({ namespace: 'default', workflowId: 'wf/1' })).toBe(
       'namespaces/default/workflows/wf%2F1',
     );
+    expect(
+      workflowLink({ namespace: 'default', workflowId: 'wf/1', runId: 'r/1' }),
+    ).toBe('namespaces/default/workflows/wf%2F1/runs/r%2F1');
 
     render(
       <PanelCard title="Status summary">

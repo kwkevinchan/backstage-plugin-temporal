@@ -394,6 +394,84 @@ describe('WorkflowControls', () => {
     );
   });
 
+  it('links a refused operation on a run that continued as new to the run it continued as', async () => {
+    const reload = jest.fn();
+    const hrefOf = (r: { workflowId: string; runId?: string }) =>
+      `/wf/${r.workflowId}/${r.runId ?? ''}`;
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={reload}
+        workflowHref={hrefOf}
+      />,
+    );
+    api.cancelWorkflow.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with 409 Conflict'), {
+        statusCode: 409,
+        body: {
+          error: {
+            name: 'ConflictError',
+            message: 'Workflow payment-1 is not running (ContinuedAsNew)',
+            continuedAsNewRunId: 'run-3',
+          },
+        },
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cancel' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel workflow' }),
+    );
+    const notice = await screen.findByTestId('operation-continued-as-new');
+    expect(
+      within(notice).getByRole('link', {
+        name: 'Open the run it continued as',
+      }),
+    ).toHaveAttribute('href', '/wf/payment-1/run-3');
+    expect(
+      screen.getByText('Workflow payment-1 is not running (ContinuedAsNew)'),
+    ).toBeInTheDocument();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('reloads the page when an operation finds no run', async () => {
+    const reload = jest.fn();
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={reload}
+        workflowHref={href}
+      />,
+    );
+    api.signalWorkflow.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with 404 Not Found'), {
+        statusCode: 404,
+        body: {
+          error: {
+            name: 'NotFoundError',
+            message: 'workflow execution already completed',
+          },
+        },
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Signal…' }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Send signal' }),
+    );
+    expect(
+      await screen.findByText('workflow execution already completed'),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(
+      screen.queryByTestId('operation-continued-as-new'),
+    ).not.toBeInTheDocument();
+  });
+
   it('opens the new workflow after a rerun', async () => {
     const { api } = render(
       <WorkflowControls

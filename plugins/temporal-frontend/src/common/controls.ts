@@ -18,8 +18,8 @@
 // Edit the backend file and run `yarn sync:common`.
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import { buildWorkflowPath } from './paths';
-import type { WorkflowRef } from './types';
+import { buildWorkflowRunPath } from './paths';
+import type { WorkflowRunRef } from './types';
 
 /**
  * The built-in operations on one workflow execution. `query` only reads; the
@@ -79,43 +79,42 @@ export interface WorkflowStartRequest {
  *
  * @public
  */
-export type WorkflowStartResponse = Required<WorkflowRef>;
+export type WorkflowStartResponse = WorkflowRunRef;
 
 /**
- * Builds the path of an operation on one workflow execution, relative to the
- * backend plugin root, for example
- * `/namespaces/default/workflows/order-1/signal`.
+ * Builds the path of an operation on one run, relative to the backend plugin
+ * root, for example `/namespaces/default/workflows/order-1/runs/r1/signal`.
  *
  * @public
  */
 export function buildWorkflowOperationPath(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   operation: WorkflowControlOperation,
 ): string {
-  return `${buildWorkflowPath(ref)}/${operation}`;
+  return `${buildWorkflowRunPath(ref)}/${operation}`;
 }
 
 /**
- * Builds the path of a custom action on one workflow execution:
- * `.../actions/:actionId`.
+ * Builds the path of a custom action on one run:
+ * `.../runs/:runId/actions/:actionId`.
  *
  * @public
  */
 export function buildWorkflowActionPath(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   actionId: string,
 ): string {
-  return `${buildWorkflowPath(ref)}/actions/${encodeURIComponent(actionId)}`;
+  return `${buildWorkflowRunPath(ref)}/actions/${encodeURIComponent(actionId)}`;
 }
 
 /**
- * Builds the path of the handler list of one workflow execution:
- * `.../handlers`.
+ * Builds the path of the handler list of one run:
+ * `.../runs/:runId/handlers`.
  *
  * @public
  */
-export function buildWorkflowHandlersPath(ref: WorkflowRef): string {
-  return `${buildWorkflowPath(ref)}/handlers`;
+export function buildWorkflowHandlersPath(ref: WorkflowRunRef): string {
+  return `${buildWorkflowRunPath(ref)}/handlers`;
 }
 
 /**

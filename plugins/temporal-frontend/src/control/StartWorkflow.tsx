@@ -44,7 +44,7 @@ import {
   isValidWorkflowTypeName,
   getTemporalWorkflowSource,
   temporalWorkflowStartPermission,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
 import { useControlEnabled } from './config';
@@ -61,7 +61,7 @@ function specOf(entity: Entity | undefined) {
 function StartWorkflowDialog(props: {
   entity?: Entity;
   onClose(): void;
-  onStarted(ref: Required<WorkflowRef>): void;
+  onStarted(ref: WorkflowRunRef): void;
 }) {
   const { entity } = props;
   const api = useApi(temporalApiRef);

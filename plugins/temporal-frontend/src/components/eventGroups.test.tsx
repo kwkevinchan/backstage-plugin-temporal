@@ -791,7 +791,9 @@ describe('event groups on the workflow page', () => {
             [temporalApiRef, groupApi(loopGraph)],
             [permissionApiRef, mockApis.permission()],
           ],
-          initialRouteEntries: ['/namespaces/default/workflows/groups-1'],
+          initialRouteEntries: [
+            '/namespaces/default/workflows/groups-1/runs/run-1',
+          ],
         },
       );
       expect(

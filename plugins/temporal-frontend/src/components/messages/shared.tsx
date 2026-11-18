@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { usePermission } from '@backstage/plugin-permission-react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import { Text } from '@backstage/ui';
+import { Flex, Link, Text } from '@backstage/ui';
+import type { TemporalWorkflowExtensionProps } from '../../extensions';
+import { ErrorAlert } from '../feedback';
 import { tp } from '../styles';
 
 /**
@@ -105,13 +107,81 @@ export function WithReason(props: { reason?: string; children: ReactNode }) {
   );
 }
 
+/** The error of a failed operation, as {@link controlError} gives it. */
+export type ControlError = Error & {
+  /** The HTTP status of the answer, when there was one. */
+  statusCode?: number;
+  /** For a run that continued as new: the run it continued as. */
+  continuedAsNewRunId?: string;
+};
+
 /**
  * The error to show for a failed operation: the backend's message (for
- * example the message of an update validator) rather than the HTTP status.
+ * example the message of an update validator) rather than the HTTP status,
+ * with the status and the run a refused run continued as.
  */
-export function controlError(error: unknown): Error {
-  const message = (error as { body?: { error?: { message?: unknown } } })?.body
-    ?.error?.message;
-  if (typeof message === 'string' && message) return new Error(message);
-  return error instanceof Error ? error : new Error(String(error));
+export function controlError(error: unknown): ControlError {
+  const body = (
+    error as {
+      body?: { error?: { message?: unknown; continuedAsNewRunId?: unknown } };
+    }
+  )?.body?.error;
+  const message = body?.message;
+  const result: ControlError =
+    typeof message === 'string' && message
+      ? new Error(message)
+      : error instanceof Error
+      ? error
+      : new Error(String(error));
+  const statusCode = (error as { statusCode?: unknown })?.statusCode;
+  if (typeof statusCode === 'number') result.statusCode = statusCode;
+  if (
+    typeof body?.continuedAsNewRunId === 'string' &&
+    body.continuedAsNewRunId
+  ) {
+    result.continuedAsNewRunId = body.continuedAsNewRunId;
+  }
+  return result;
+}
+
+/**
+ * The error of an operation on the run of the details page. For a run that
+ * continued as new, a link to the run it continued as. A run that is not
+ * found (it may have closed or continued as new meanwhile) reloads the
+ * page.
+ */
+export function ControlErrorAlert(props: {
+  error: ControlError;
+  /** The details page the operation ran from. */
+  context?: Pick<
+    TemporalWorkflowExtensionProps,
+    'workflow' | 'workflowHref' | 'reload'
+  >;
+}) {
+  const { error, context } = props;
+  const reload = context?.reload;
+  useEffect(() => {
+    if (error.statusCode === 404) reload?.();
+  }, [error, reload]);
+  const next = error.continuedAsNewRunId;
+  return (
+    <Flex direction="column" gap="2">
+      <ErrorAlert error={error} />
+      {next && context && (
+        <Text variant="body-small" data-testid="operation-continued-as-new">
+          This run continued as new.{' '}
+          <Link
+            href={context.workflowHref({
+              namespace: context.workflow.namespace,
+              workflowId: context.workflow.workflowId,
+              runId: next,
+            })}
+            variant="body-small"
+          >
+            Open the run it continued as
+          </Link>
+        </Text>
+      )}
+    </Flex>
+  );
 }

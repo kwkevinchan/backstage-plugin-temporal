@@ -565,6 +565,11 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
       .fn()
       .mockResolvedValue({ items: [], truncated: false }),
     getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
+    // The run list of the workflow ID of `failedWorkflow`: that run only.
+    listWorkflowRuns: jest.fn().mockResolvedValue({
+      namespace: 'default',
+      items: [failedWorkflow],
+    }),
     getWorkflow: jest.fn().mockResolvedValue(failedWorkflow),
     getWorkflowHistory: jest.fn().mockResolvedValue(historyResponse),
     getWorkflowGraph: jest.fn().mockResolvedValue(graphResponse),

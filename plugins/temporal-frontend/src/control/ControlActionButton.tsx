@@ -31,11 +31,12 @@ import {
 import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
 import {
+  ControlError,
   controlError,
+  ControlErrorAlert,
   useControlPermission,
   WithReason,
 } from '../components/messages/shared';
-import { ErrorAlert } from '../components/feedback';
 import { JsonView } from '../components/PayloadView';
 import { tp } from '../components/styles';
 import type { WorkflowDetail } from '../common';
@@ -66,7 +67,7 @@ export interface TemporalControlActionButtonOptions {
   permission?: ResourcePermission<'catalog-entity'>;
 }
 
-type Outcome = { result?: JsonValue } | { error: Error };
+type Outcome = { result?: JsonValue } | { error: ControlError };
 
 function PermissionGate(props: {
   permission: ResourcePermission<'catalog-entity'>;
@@ -178,7 +179,7 @@ function ControlActionButtonContent(
               data-testid="workflow-action-result"
             >
               {'error' in outcome ? (
-                <ErrorAlert error={outcome.error} />
+                <ControlErrorAlert error={outcome.error} context={props} />
               ) : (
                 <>
                   <Alert status="success" icon title="Done" />

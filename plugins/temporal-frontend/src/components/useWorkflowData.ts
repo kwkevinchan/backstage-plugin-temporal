@@ -19,7 +19,7 @@ import { useApi } from '@backstage/core-plugin-api';
 import type {
   WorkflowDetail,
   WorkflowGraphResponse,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../common';
 import { temporalApiRef } from '../extensions';
 
@@ -54,7 +54,7 @@ export interface WorkflowData {
  * without an event (a heartbeat is not among them).
  * Undefined when the history length is not known.
  */
-function graphKey(ref: WorkflowRef, workflow: WorkflowDetail) {
+function graphKey(ref: WorkflowRunRef, workflow: WorkflowDetail) {
   if (workflow.historyLength === undefined) return undefined;
   return JSON.stringify([
     ref.namespace,
@@ -98,7 +98,7 @@ function usePageVisible(): boolean {
  * A page that was hidden reloads when it is shown again.
  */
 export function useWorkflowData(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   entityRef: string | undefined,
   autoRefresh: boolean,
 ): WorkflowData {

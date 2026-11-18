@@ -21,7 +21,7 @@ import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import type {
   WorkflowHistoryEvent,
   WorkflowHistoryResponse,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../common';
 import { temporalApiRef } from '../extensions';
 import { mockTemporalApi } from '../testData';
@@ -55,11 +55,11 @@ function page(
   return { events: ids.map(id => event(id, `${type}${id}`)), nextPageToken };
 }
 
-const runA: WorkflowRef = { namespace: 'ns', workflowId: 'wf', runId: 'a' };
-const runB: WorkflowRef = { namespace: 'ns', workflowId: 'wf', runId: 'b' };
+const runA: WorkflowRunRef = { namespace: 'ns', workflowId: 'wf', runId: 'a' };
+const runB: WorkflowRunRef = { namespace: 'ns', workflowId: 'wf', runId: 'b' };
 
 type Call = {
-  ref: WorkflowRef;
+  ref: WorkflowRunRef;
   pageToken?: string;
   response: Deferred<WorkflowHistoryResponse>;
 };
@@ -79,7 +79,7 @@ function setup() {
     const button = screen.queryByRole('button', { name: /events/ });
     commits.push({ disabled: button?.hasAttribute('disabled') ?? false });
   };
-  const ui = (ref: WorkflowRef, entityRef?: string) => (
+  const ui = (ref: WorkflowRunRef, entityRef?: string) => (
     <TestApiProvider apis={[[temporalApiRef, api]]}>
       <Profiler id="history" onRender={record}>
         <WorkflowHistory workflowRef={ref} entityRef={entityRef} />

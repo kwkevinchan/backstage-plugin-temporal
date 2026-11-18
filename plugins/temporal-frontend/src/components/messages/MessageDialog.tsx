@@ -23,7 +23,7 @@ import {
   WorkflowDetail,
   WorkflowHandler,
   WorkflowHandlersResponse,
-  WorkflowRef,
+  WorkflowRunRef,
 } from '../../common';
 import {
   Alert,
@@ -36,12 +36,16 @@ import {
   Flex,
   Text,
 } from '@backstage/ui';
-import { temporalApiRef } from '../../extensions';
-import { ErrorAlert } from '../feedback';
+import {
+  temporalApiRef,
+  type TemporalWorkflowExtensionProps,
+} from '../../extensions';
 import { JsonView } from '../PayloadView';
 import { tp } from '../styles';
 import {
+  ControlError,
   controlError,
+  ControlErrorAlert,
   JsonArgsField,
   parseArgs,
   useControlPermission,
@@ -60,7 +64,7 @@ const NO_HANDLERS: WorkflowHandlersResponse = {
  * false; empty when the backend cannot tell.
  */
 export function useWorkflowHandlers(
-  ref: WorkflowRef,
+  ref: WorkflowRunRef,
   entityRef: string | undefined,
   enabled: boolean,
 ): WorkflowHandlersResponse | undefined {
@@ -193,6 +197,8 @@ export function MessageDialog(props: {
     args: JsonValue[];
   }): Promise<{ result?: JsonValue }>;
   onClose(): void;
+  /** The details page of the run, for the links of its errors. */
+  context?: TemporalWorkflowExtensionProps;
 }) {
   const { kind, text } = props;
   const ArgsField = props.argsField ?? JsonMessageArgsField;
@@ -208,7 +214,7 @@ export function MessageDialog(props: {
     { args: JsonValue[] } | { error: string }
   >({ args: [] });
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<Error>();
+  const [error, setError] = useState<ControlError>();
   const [done, setDone] = useState<{ result?: JsonValue }>();
 
   const submit = async () => {
@@ -253,7 +259,7 @@ export function MessageDialog(props: {
             userEntityRef={userEntityRef}
             onChange={setParsed}
           />
-          {error && <ErrorAlert error={error} />}
+          {error && <ControlErrorAlert error={error} context={props.context} />}
           {done && (
             <div data-testid={`workflow-${kind}-result`}>
               <Alert
@@ -333,7 +339,7 @@ export function PermissionButton(props: {
 }
 
 /** Reference of a workflow run, from its details. */
-export function refOf(workflow: WorkflowDetail): WorkflowRef {
+export function refOf(workflow: WorkflowDetail): WorkflowRunRef {
   return {
     namespace: workflow.namespace,
     workflowId: workflow.workflowId,
