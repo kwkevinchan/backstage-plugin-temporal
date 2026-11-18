@@ -18,18 +18,6 @@ import type { WorkflowEventGroupKind, WorkflowNodeKind } from '../../common';
 import { kindTint } from './StepNode';
 
 /**
- * Which end of an edge gives it its kind color. Flip this to try the other
- * variant; both are implemented, and the same classification is used.
- *
- * `target` colors the arrow by the step (or group) it leads to, so the
- * kind of what comes next is visible at a glance. `source` colors it by
- * the step it leaves.
- */
-export const EDGE_KIND_COLOR_FROM: 'target' | 'source' = 'target';
-
-export type EdgeKindColorFrom = 'target' | 'source';
-
-/**
  * Kind tint of a group box or a collapsed group used as an edge endpoint:
  * a signal or update group counts as a message, like the signal or update
  * that started it; a label group (a loop or other ordinary group) stays
@@ -55,13 +43,11 @@ export function endpointKindTint(
   return undefined;
 }
 
-/** Kind tint that colors one edge, from the chosen end. */
+/** Kind tint that colors an edge: the kind of the step or group it leads to. */
 export function edgeKindTint(
-  source: string,
   target: string,
   nodes: ReadonlyArray<{ id: string; kind: WorkflowNodeKind }>,
   boxes?: ReadonlyMap<string, { group: { kind: WorkflowEventGroupKind } }>,
-  from: EdgeKindColorFrom = EDGE_KIND_COLOR_FROM,
 ): string | undefined {
-  return endpointKindTint(from === 'target' ? target : source, nodes, boxes);
+  return endpointKindTint(target, nodes, boxes);
 }

@@ -354,10 +354,10 @@ function StepCanvas(
       source: string;
       target: string;
     }): Edge => {
-      // Kind color of the chosen end. Running steps and tool calls keep
-      // their own look: the CSS for those classes beats the kind color.
+      // Kind color of the step the arrow leads to. Running steps and
+      // tool calls keep their own look: those CSS classes beat the kind
+      // color.
       const tint = edgeKindTint(
-        e.source,
         e.target,
         structure.nodes,
         structure.groups?.plan.boxes,

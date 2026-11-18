@@ -15,12 +15,7 @@
  */
 
 import type { WorkflowEventGroupKind, WorkflowNodeKind } from '../../common';
-import {
-  EDGE_KIND_COLOR_FROM,
-  edgeKindTint,
-  endpointKindTint,
-  groupKindTint,
-} from './edgeKind';
+import { edgeKindTint, endpointKindTint, groupKindTint } from './edgeKind';
 
 const nodes: Array<{ id: string; kind: WorkflowNodeKind }> = [
   { id: 'start', kind: 'workflowStarted' },
@@ -43,10 +38,6 @@ const boxes = new Map<string, { group: { kind: WorkflowEventGroupKind } }>([
 ]);
 
 describe('edgeKindTint', () => {
-  it('defaults to coloring by the target of the edge', () => {
-    expect(EDGE_KIND_COLOR_FROM).toBe('target');
-  });
-
   it('maps each step kind the same way as kindTint', () => {
     expect(endpointKindTint('act', nodes)).toBe('activity');
     expect(endpointKindTint('tmr', nodes)).toBe('timer');
@@ -73,26 +64,13 @@ describe('edgeKindTint', () => {
     expect(endpointKindTint('group:loop', nodes, boxes)).toBeUndefined();
   });
 
-  it('follows the target or the source, when that flag is set', () => {
-    expect(edgeKindTint('start', 'act', nodes, boxes, 'target')).toBe(
-      'activity',
-    );
-    expect(
-      edgeKindTint('start', 'act', nodes, boxes, 'source'),
-    ).toBeUndefined();
-    expect(edgeKindTint('act', 'sig', nodes, boxes, 'target')).toBe('message');
-    expect(edgeKindTint('act', 'sig', nodes, boxes, 'source')).toBe('activity');
-    expect(
-      edgeKindTint('sig', 'group:loop', nodes, boxes, 'target'),
-    ).toBeUndefined();
-    expect(edgeKindTint('sig', 'group:loop', nodes, boxes, 'source')).toBe(
-      'message',
-    );
-    expect(edgeKindTint('act', 'group:hint', nodes, boxes, 'target')).toBe(
-      'message',
-    );
-    expect(
-      edgeKindTint('group:loop', 'tmr', nodes, boxes, 'source'),
-    ).toBeUndefined();
+  it('colors an edge by the step or group it leads to', () => {
+    expect(edgeKindTint('act', nodes, boxes)).toBe('activity');
+    expect(edgeKindTint('sig', nodes, boxes)).toBe('message');
+    expect(edgeKindTint('start', nodes, boxes)).toBeUndefined();
+    expect(edgeKindTint('end', nodes, boxes)).toBeUndefined();
+    expect(edgeKindTint('group:hint', nodes, boxes)).toBe('message');
+    expect(edgeKindTint('group:upd', nodes, boxes)).toBe('message');
+    expect(edgeKindTint('group:loop', nodes, boxes)).toBeUndefined();
   });
 });
