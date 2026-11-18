@@ -119,12 +119,14 @@ export function mapQueryError(error: unknown): never {
 }
 
 /**
- * Like the errors of a query, for the operations that change workflows and
- * schedules (`WorkflowCommands`): a workflow ID that is taken is a conflict
- * too.
+ * For the operations that change workflows and schedules
+ * (`WorkflowCommands`): a workflow ID that is taken and a workflow in the
+ * wrong state are conflicts. An operation waits for Temporal, not for a
+ * worker, so a missed deadline is Temporal's.
  */
 export function mapCommandError(error: unknown): never {
   const { code, message } = grpcErrorOf(error);
   if (code === GRPC_ALREADY_EXISTS) throw new ConflictError(message);
-  return mapQueryError(error);
+  if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
+  return mapTemporalError(error);
 }

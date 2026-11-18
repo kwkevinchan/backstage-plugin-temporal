@@ -1173,7 +1173,7 @@ describe('deadlines of the operations', () => {
     });
     const res = await request(server).post(schedulePath('trigger')).send({});
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toContain('No worker answered in time');
+    expect(res.body.error.message).toContain('Temporal did not answer in time');
   });
 
   it('gives the update and each poll its own deadline, so a slow update finishes', async () => {
