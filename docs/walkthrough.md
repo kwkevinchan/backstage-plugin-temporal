@@ -290,6 +290,8 @@ development backend allows everything; see
    (`docker compose -f examples/docker-compose.rustfs.yaml down -v`, with the
    variables set).
 
+   ![The step panel for buildReport: output stored in External Storage, with size, an s3:// location, a SHA-256, copy buttons and an Open link. The plugin does not show the stored content.](images/external-storage.png)
+
 **Why:** the event history has a size limit, so long workflows continue as new and
 big payloads go outside. See the primer's
 [long-running workflows](temporal-primer.md#long-running-workflows).
@@ -334,15 +336,25 @@ integration, so the plugin shows them without a setting.
    `mixedAgentWorkflow` mixes ordinary activities, model calls, parallel
    tools and a child workflow.
 
+![A step graph of a Vercel AI SDK model-call run: fake-reasoner boxes with token counts, and tool calls (search, glossary, read_file) linked beside them.](images/llm-graph.png)
+
+![The LLM panel of a model call: input, expanded thinking, output, tool calls and token usage.](images/llm-panel.png)
+
 **Why:** Temporal only sees a series of activities. The official AI
 integrations write a known payload shape; the plugin's adapters read it.
 See [LLM steps](../README.md#model-calls-and-tool-calls).
 
 Workflows that group their steps with Temporal Event Groups (server 1.32 or
 later) get a box per group, without a setting: the graph nests the
-boxes and collapses the rounds of a loop into a row (`×3`), and the
-**Event Groups** tab lists the groups. The example worker does not use Event
-Groups yet. See [Event groups](../README.md#event-groups).
+boxes and can stack the rounds of a loop when they are expanded. A signal
+received in a round is drawn inside that round's frame, under the main
+steps. The **Event Groups** tab and the timeline list the groups (the
+timeline has **Expand groups** and **Collapse groups**). The example worker
+does not use Event Groups yet. See [Event groups](../README.md#event-groups).
+
+![A step graph with a loop of three stacked child groups; in round 2 a hint signal group with notify sits inside the round frame, under the main steps.](images/event-groups.png)
+
+![The Timeline tab with group rows and the Expand groups and Collapse groups buttons.](images/timeline.png)
 
 ## 8. The Temporal side
 
