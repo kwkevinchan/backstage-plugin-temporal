@@ -68,6 +68,7 @@ import {
 } from './GraphCanvas';
 import { frameInsets } from './frameEdge';
 import { StepFlowNode, StepNode } from './StepNode';
+import { edgeKindTint } from './edgeKind';
 import { tp } from '../styles';
 
 const nodeTypes = {
@@ -353,26 +354,37 @@ function StepCanvas(
       id: string;
       source: string;
       target: string;
-    }): Edge => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: 'smoothstep',
-      markerEnd: EDGE_ARROW_ID,
-      // Arrows into open steps move, like the step itself.
-      animated: open.has(e.target),
-      className:
-        [
-          open.has(e.target) ? tp('tp-edge-active') : '',
-          // A plain class too, for tests and custom styles.
-          structure.toolEdges.has(e.id)
-            ? `${tp('tp-edge-tool')} temporal-llm-tool-edge`
-            : '',
-        ]
-          .filter(Boolean)
-          .join(' ') || undefined,
-      focusable: false,
-    });
+    }): Edge => {
+      // Kind color of the step the arrow leads to. Running steps and
+      // tool calls keep their own look: those CSS classes beat the kind
+      // color.
+      const tint = edgeKindTint(
+        e.target,
+        structure.nodes,
+        structure.groups?.plan.boxes,
+      );
+      return {
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: 'smoothstep',
+        markerEnd: EDGE_ARROW_ID,
+        // Arrows into open steps move, like the step itself.
+        animated: open.has(e.target),
+        className:
+          [
+            tint ? tp(`tp-edge-kind-${tint}`) : '',
+            open.has(e.target) ? tp('tp-edge-active') : '',
+            // A plain class too, for tests and custom styles.
+            structure.toolEdges.has(e.id)
+              ? `${tp('tp-edge-tool')} temporal-llm-tool-edge`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ') || undefined,
+        focusable: false,
+      };
+    };
     const result: Edge[] = [];
     // With frames of event groups, the arrows between steps and group boxes
     // turn outside the frames they leave or enter.

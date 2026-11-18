@@ -141,6 +141,8 @@
 
    打開 `example-report-…`，選 `buildReport`、`summarizeReport` 和 `renderChart`。輸出會顯示 **Stored in External Storage**、大小、位置（`s3://temporal-payloads/…`）和 SHA-256，各有複製按鈕，沒有內容：外掛不讀這些物件。想在位置旁邊加上 **Open** 連結，就設定 `temporal.externalStorage.objectUrl`（見 README 的 [Large payloads](../../README.md#large-payloads-external-storage)），並重新啟動後端。做完請停掉 RustFS（設好變數後執行 `docker compose -f examples/docker-compose.rustfs.yaml down -v`）。
 
+   ![buildReport 的步驟面板：輸出顯示 Stored in External Storage、大小、s3:// 位置、SHA-256、複製按鈕和 Open 連結。外掛不顯示儲存的內容。](../images/external-storage.png)
+
 **為什麼：** 事件紀錄有大小上限，所以長流程要 Continue-As-New，大的 Payload 要放到外面。見入門裡的[長時間執行的流程](temporal-primer.md#長時間執行的流程)。
 
 ## 6. 用 YAML 寫的流程定義（選用）
@@ -161,9 +163,17 @@ YAML 範例在 [Zigflow](https://github.com/zigflow/zigflow) 裡執行，需要 
 
 1. **LLM 步驟。** 打開 `example-agent-…`。每次模型呼叫（`invokeModel`，標著模型、token 數和工具數）是一個方塊，工具掛在旁邊；其中一個工具（`read_file`）會重試。選一個模型呼叫：面板顯示輸入、thinking、輸出、tool call 和用量。`mixedAgentWorkflow` 混合了一般的 Activity、模型呼叫、並行的工具和一個子流程。
 
+![Vercel AI SDK 模型呼叫流程圖：fake-reasoner 方塊標著 token 數，旁邊連著工具呼叫（search、glossary、read_file）。](../images/llm-graph.png)
+
+![模型呼叫的 LLM 面板：輸入、展開的 thinking、輸出、工具呼叫和 token 用量。](../images/llm-panel.png)
+
 **為什麼：** Temporal 只看到一串 Activity。官方 AI 整合寫出已知的 payload 形狀，外掛的轉接器讀它。見 [LLM steps](../../README.md#model-calls-and-tool-calls)。
 
-用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要設定：流程圖把箱子巢狀排好，迴圈的每一輪收成一排小方塊（`×3`），**Event Groups** 分頁列出所有群組。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
+用 Temporal Event Groups 分組步驟的流程（server 1.32 以上）則是一個群組一個箱子，不需要設定：流程圖把箱子巢狀排好，展開時迴圈的每一輪上下疊。某一輪收到的 signal 會畫在那一輪的框裡、主線步驟下方。**Event Groups** 分頁和時間軸會列出群組（時間軸有 **Expand groups**／**Collapse groups**）。範例 Worker 還沒有用到 Event Groups。見 [Event groups](../../README.md#event-groups)。
+
+![步驟流程圖：迴圈裡三個子群組上下疊；第 2 輪的框裡、主線步驟下方有 hint signal 群組和 notify。](../images/event-groups.png)
+
+![時間軸分頁：群組列，以及 Expand groups、Collapse groups 按鈕。](../images/timeline.png)
 
 ## 8. 從 Temporal 這一側看
 

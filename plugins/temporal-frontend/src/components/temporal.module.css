@@ -1366,6 +1366,45 @@
   --tp-tint: 12%;
   --tp-tint-hover: 18%;
 }
+
+/* Edges use the same kind hues as the boxes, at full strength so the
+   stroke meets a 3:1 contrast against the graph background in both
+   themes. Running-step and tool-call edges keep their own colors. */
+.tp-graph
+  :global(.react-flow__edge).tp-edge-kind-activity:not(.tp-edge-active):not(
+    .tp-edge-tool
+  )
+  path {
+  stroke: var(--tp-kind-activity);
+}
+.tp-graph
+  :global(.react-flow__edge).tp-edge-kind-timer:not(.tp-edge-active):not(
+    .tp-edge-tool
+  )
+  path {
+  stroke: var(--tp-kind-timer);
+}
+.tp-graph
+  :global(.react-flow__edge).tp-edge-kind-message:not(.tp-edge-active):not(
+    .tp-edge-tool
+  )
+  path {
+  stroke: var(--tp-kind-message);
+}
+.tp-graph
+  :global(.react-flow__edge).tp-edge-kind-child:not(.tp-edge-active):not(
+    .tp-edge-tool
+  )
+  path {
+  stroke: var(--tp-kind-child);
+}
+.tp-graph
+  :global(.react-flow__edge).tp-edge-kind-marker:not(.tp-edge-active):not(
+    .tp-edge-tool
+  )
+  path {
+  stroke: var(--tp-kind-marker);
+}
 .tp-node[data-llm] {
   border-left-color: var(--tp-llm);
   background: color-mix(
