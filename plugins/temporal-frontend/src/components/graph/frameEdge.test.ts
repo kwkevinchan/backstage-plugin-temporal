@@ -49,6 +49,18 @@ const CLEAR = 20;
 /** Random runs and graphs the layout is checked with. */
 const FIRST_SEED = 2001;
 const SEEDS = 150;
+/**
+ * At most this many problems in the random layouts below, as measured. A
+ * bound against regressions, not a demand for none: a problem a random
+ * layout turns up is a known limit, weighed when a change adds one, not a
+ * rule to add.
+ */
+const KNOWN_PROBLEMS = {
+  runs: 0,
+  graphs: 0,
+  'one or two signals': 0,
+  'one to three signals, some leading nowhere': 0,
+};
 /** Space between two columns of steps. */
 const COLUMN = 56;
 
@@ -679,6 +691,73 @@ describe('arrows that share the gap between two rows', () => {
     expect(below - Math.max(...ys)).toBeGreaterThanOrEqual(CLEAR);
   });
 
+  it('keep to the gap of their own frame where two frames have gaps at one y', () => {
+    // Two loops of the same shape one after the other, both rounds of each
+    // open: the gaps between the rounds of the two loops are at one y, and
+    // the arrow between the rounds of each loop runs alone in its gap.
+    const group = (
+      key: string,
+      nodeIds: string[],
+      parent?: string,
+    ): WorkflowEventGroup => ({
+      key,
+      kind: 'label',
+      id: key,
+      name: key,
+      nodeIds,
+      children: [],
+      status: 'Completed',
+      ...(parent ? { parent } : {}),
+    });
+    const ids = ['start'];
+    const edges: WorkflowGraphEdge[] = [];
+    const groups: WorkflowEventGroup[] = [];
+    const views: GroupViews = {};
+    for (const loop of ['a', 'b']) {
+      const frame = group(`label:${loop}`, []);
+      groups.push(frame);
+      for (const round of [1, 2]) {
+        const key = `label:${loop}${round}`;
+        const steps = [`${loop}${round}x`, `${loop}${round}y`];
+        groups.push(group(key, steps, frame.key));
+        frame.children.push(key);
+        frame.nodeIds.push(...steps);
+        views[key] = true;
+        for (const id of steps) {
+          edges.push({
+            id: `${ids[ids.length - 1]}->${id}`,
+            source: ids[ids.length - 1],
+            target: id,
+          });
+          ids.push(id);
+        }
+      }
+    }
+    edges.push({
+      id: `${ids[ids.length - 1]}->end`,
+      source: ids[ids.length - 1],
+      target: 'end',
+    });
+    ids.push('end');
+    const result = layoutGroupedSteps(
+      ids.map(id => ({ id })),
+      edges,
+      groups,
+      views,
+    );
+    const gaps = [...(result.layout.stackGaps ?? new Map()).values()];
+    expect(gaps).toHaveLength(2);
+    expect(gaps[0]).toHaveLength(1);
+    expect(gaps[1]).toEqual(gaps[0]);
+    const across = arrows(result).filter(
+      a => a.edge.data?.centerY !== undefined,
+    );
+    expect(across.map(a => [a.edge.id, a.edge.data!.centerY])).toEqual([
+      ['a1y->a2x', gaps[0][0]],
+      ['b1y->b2x', gaps[0][0]],
+    ]);
+  });
+
   it('turn down at different x out of the loop and into the groups below', () => {
     // A signal group whose signal the history does not name: the signal is
     // a box of its own, next to the loop.
@@ -1256,8 +1335,8 @@ describe('random runs', () => {
     ['runs', randomRun],
     ['graphs', randomGraph],
   ] as const)(
-    'never run arrows through boxes because of lined up rows, nor spread turns too close, in random %s',
-    (_, random) => {
+    'run no more arrows through boxes because of lined up rows, nor spread turns too close, than known in random %s',
+    (name, random) => {
       const found: string[] = [];
       for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
         const run = random(seed);
@@ -1272,7 +1351,7 @@ describe('random runs', () => {
           }
         }
       }
-      expect(found).toEqual([]);
+      expect(found.length).toBeLessThanOrEqual(KNOWN_PROBLEMS[name]);
     },
     60_000,
   );
@@ -1282,9 +1361,9 @@ describe('random loops with their child groups stacked', () => {
   it.each([
     ['one or two signals', false],
     ['one to three signals, some leading nowhere', true],
-  ])(
-    'keep the boxes apart and the arrows clear of boxes and frames, with %s',
-    (_, more) => {
+  ] as const)(
+    'keep the boxes apart and the arrows clear of boxes and frames as often as known, with %s',
+    (name, more) => {
       const found: string[] = [];
       let stacked = 0;
       for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
@@ -1323,7 +1402,7 @@ describe('random loops with their child groups stacked', () => {
           for (const hit of runningOn(list)) found.push(`${at}: ${hit}`);
         }
       }
-      expect(found).toEqual([]);
+      expect(found.length).toBeLessThanOrEqual(KNOWN_PROBLEMS[name]);
       expect(stacked).toBe(2 * SEEDS);
     },
     120_000,

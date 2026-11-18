@@ -19,7 +19,6 @@ import type {
   WorkflowGraphEdge,
   WorkflowGraphNode,
 } from '../../common';
-import { unplacedBeside } from './stackLayout';
 import {
   boxSize,
   hideSteps,
@@ -918,7 +917,9 @@ export function layoutGroupedSteps(
         width,
         { frames: graph.frames },
       );
-      const unplaced = unplacedBeside(layout).filter(id => !below.has(id));
+      const unplaced = (layout.unplacedBeside ?? []).filter(
+        id => !below.has(id),
+      );
       if (unplaced.length === 0) break;
       for (const id of unplaced) below.add(id);
     }

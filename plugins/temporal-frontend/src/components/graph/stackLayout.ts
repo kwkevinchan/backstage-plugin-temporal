@@ -15,7 +15,6 @@
  */
 
 import {
-  copyStackSidePads,
   EDGE_LANE_GAP,
   FRAME_GAP,
   FRAME_PADDING,
@@ -27,21 +26,8 @@ import {
   setStackSidePad,
   STACK_GAP,
   STACK_SIDE,
-  stackSidePadEntries,
   StepLayout,
 } from './geometry';
-
-const unplacedOf = new WeakMap<StepLayout, string[]>();
-
-/**
- * The boxes and frames placed beside the boxes of a frame (`after`, in a
- * frame that is not stacked) where one part found no lane below them that
- * keeps its arrows clear of the other parts, in a layout of
- * `layoutStacked`. They go in a row below that frame instead.
- */
-export function unplacedBeside(layout: StepLayout): string[] {
-  return unplacedOf.get(layout) ?? [];
-}
 
 /** Room between a column and a part placed beside the boxes of a frame. */
 const BESIDE_GAP = 2 * (FRAME_GAP + EDGE_LANE_GAP);
@@ -549,7 +535,7 @@ export function layoutStacked(
           gaps.map(g => part.y + g),
         );
       }
-      for (const [id, pad] of stackSidePadEntries(laid)) {
+      for (const [id, pad] of laid.stackSidePads ?? []) {
         setStackSidePad(layout, id, pad);
       }
       // Reaching to the column before the target: a part of one box or
@@ -756,7 +742,7 @@ export function layoutStacked(
         for (const [id, list] of part.laid.stackGaps ?? []) {
           joinedGaps.set(id, list);
         }
-        for (const [id, pad] of stackSidePadEntries(part.laid)) {
+        for (const [id, pad] of part.laid.stackSidePads ?? []) {
           setStackSidePad(joined, id, pad);
         }
       });
@@ -905,7 +891,7 @@ export function layoutStacked(
     block.stackGaps.set(frame, gaps);
     rememberPad(block, frame, sidePad);
     for (const row of laid) {
-      for (const [id, pad] of stackSidePadEntries(row))
+      for (const [id, pad] of row.stackSidePads ?? [])
         rememberPad(block, id, pad);
     }
     blocks.set(frame, block);
@@ -913,7 +899,7 @@ export function layoutStacked(
   }
 
   const layout = region(children(undefined), width);
-  if (unplaced.length > 0) unplacedOf.set(layout, unplaced);
+  if (unplaced.length > 0) layout.unplacedBeside = unplaced;
   return layout;
 }
 
@@ -951,8 +937,10 @@ function normalized(layout: StepLayout) {
     width: right - left,
     height: bottom - top,
     wrapped: false,
+    ...(layout.stackSidePads
+      ? { stackSidePads: new Map(layout.stackSidePads) }
+      : {}),
   };
-  copyStackSidePads(layout, next);
   return next;
 }
 
