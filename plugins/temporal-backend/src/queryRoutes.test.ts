@@ -22,7 +22,9 @@ import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
+  createFakeConnection,
   createFakeWorkflowService,
+  deadlineExceeded,
   executionInfo,
   fakeTemporalServiceFactory,
   checkoutEntity,
@@ -122,6 +124,7 @@ async function start(options?: {
     ...runningWorkflowService(),
     ...fakeScheduleService(options?.schedules ?? []),
   };
+  const connection = createFakeConnection(workflowService);
   const decide = (r: any) => ({
     result: options?.deny?.includes(r.permission.name)
       ? AuthorizeResult.DENY
@@ -154,6 +157,7 @@ async function start(options?: {
       }),
       fakeTemporalServiceFactory(workflowService, {
         entityRefAttribute: options?.entityRefAttribute,
+        connection,
       }),
       permissions.factory,
       auditor.factory,
@@ -169,6 +173,7 @@ async function start(options?: {
     permissions,
     auditor,
     auditEvent,
+    connection,
   };
 }
 
@@ -577,5 +582,69 @@ describe('query routes of the core plugin', () => {
       .send({ name: 'addNote' });
     expect(res.status).toBe(404);
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+  });
+});
+
+describe('deadlines of queries and schedule reads', () => {
+  it('runs a query under 35 seconds, longer than the server waits for a worker', async () => {
+    const { server, connection } = await start();
+    await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state' })
+      .expect(200);
+    // The last query is the user's; the ones before are the reads of the
+    // workflow's metadata, with their own 5 seconds.
+    const timeouts = connection.timeoutsOf('queryWorkflow');
+    expect(timeouts[timeouts.length - 1]).toBe(35_000);
+    expect(new Set(timeouts.slice(0, -1))).toEqual(
+      new Set(timeouts.length > 1 ? [5_000] : []),
+    );
+  });
+
+  it('answers 503 when no worker answers a query in time', async () => {
+    const { server, workflowService } = await start();
+    workflowService.queryWorkflow.mockRejectedValue(
+      Object.assign(
+        new Error(
+          '4 DEADLINE_EXCEEDED: query timed out before a worker could process it',
+        ),
+        { code: 4 },
+      ),
+    );
+    const res = await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state' });
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toContain('No worker answered in time');
+  });
+
+  it('reads every page of the schedule list under one 15-second deadline', async () => {
+    const { server, workflowService, connection } = await start({
+      schedules: [{ scheduleId: 'nightly', workflowType: 'orderWorkflow' }],
+    });
+    const page = workflowService.listSchedules.getMockImplementation()!;
+    workflowService.listSchedules
+      .mockImplementationOnce(async req => ({
+        ...(await page(req)),
+        nextPageToken: Uint8Array.of(1),
+      }))
+      .mockRejectedValueOnce(deadlineExceeded());
+    const res = await request(server).get('/api/temporal/schedules');
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toContain('Temporal did not answer in time');
+    // The second page is read under the deadline too.
+    expect(connection.timeoutsOf('listSchedules')).toEqual([15_000, 15_000]);
+  });
+
+  it('describes the schedules of an entity under 10 seconds each', async () => {
+    const { server, connection } = await start({
+      schedules: [{ scheduleId: 'nightly', workflowType: 'orderWorkflow' }],
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(res.status).toBe(200);
+    expect(connection.timeoutsOf('listSchedules')).toEqual([15_000]);
+    expect(connection.timeoutsOf('describeSchedule')).toEqual([10_000]);
   });
 });

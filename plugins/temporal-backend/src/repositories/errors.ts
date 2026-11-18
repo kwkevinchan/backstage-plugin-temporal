@@ -29,6 +29,7 @@ const GRPC_UNAUTHENTICATED = 16;
 const GRPC_DEADLINE_EXCEEDED = 4;
 const GRPC_FAILED_PRECONDITION = 9;
 const GRPC_NOT_FOUND = 5;
+const GRPC_RESOURCE_EXHAUSTED = 8;
 const GRPC_UNAVAILABLE = 14;
 
 /**
@@ -78,6 +79,17 @@ export function mapTemporalError(error: unknown): never {
   if (code === GRPC_UNAVAILABLE) {
     throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
   }
+  if (code === GRPC_DEADLINE_EXCEEDED) {
+    throw new ServiceUnavailableError(
+      `Temporal did not answer in time: ${message}`,
+    );
+  }
+  if (code === GRPC_RESOURCE_EXHAUSTED) {
+    // The backend's own connection is rate limited, not the user.
+    throw new ServiceUnavailableError(
+      `Temporal is rate limiting the backend: ${message}`,
+    );
+  }
   if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
     // The backend's own credentials, not the user's: a server-side problem.
     throw new ServiceUnavailableError(
@@ -85,6 +97,15 @@ export function mapTemporalError(error: unknown): never {
     );
   }
   throw error;
+}
+
+/**
+ * Rethrows an error of opening the connection to Temporal (the first call,
+ * or a call after a failed attempt) as a 503, like an unavailable server.
+ */
+export function mapConnectionError(error: unknown): never {
+  const { message } = grpcErrorOf(error);
+  throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
 }
 
 /** Like {@link mapTemporalError}, with the errors of a query. */

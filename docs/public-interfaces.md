@@ -472,8 +472,9 @@ Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (the workflow
 is not running, the action's filter refused it, or Temporal refused it: a
 workflow ID already in use, a schedule in the wrong state), `503` Temporal
-not reachable, Temporal refusing the backend's own credentials, or no
-worker answering a query or an update in time.
+not reachable, not answering within the deadline of the call, rate limiting
+the backend, refusing the backend's own credentials, or no worker answering
+a query or an update in time.
 Routes the backend does not serve answer `404` **without** a body: the
 operations when `temporal.control.enabled` is false, and the definition route
 without the Zigflow backend module. The two list routes take
