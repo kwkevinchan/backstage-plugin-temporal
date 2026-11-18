@@ -238,9 +238,10 @@ served as `POST …/actions/:actionId` ([flow](#one-custom-action-from-the-butto
 
 The extension point is registered even when `temporal.control.enabled` is
 false, so modules still start; their actions are then ignored with a
-warning. The `client` reaches every workflow of the namespace with the
-backend's credentials: an action that touches other workflows must check
-them itself with `temporalAccessServiceRef`.
+warning. An invalid `id` also fails startup, whether operations are
+enabled or not. The `client` reaches every workflow of the namespace with
+the backend's credentials: an action that touches other workflows must
+check them itself with `temporalAccessServiceRef`.
 
 ### `temporalWorkflowEnricherExtensionPoint`
 

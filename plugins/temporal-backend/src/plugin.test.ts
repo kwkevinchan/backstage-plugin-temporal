@@ -28,6 +28,7 @@ import {
   TemporalWorkflowEnricher,
 } from './node/alpha';
 import request from 'supertest';
+import { stringifyTemporalWorkflowResourceRef } from './common';
 import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
@@ -114,6 +115,7 @@ async function start(options?: {
   }
   const { server } = await startTestBackend({ features });
   return {
+    backend: server,
     server: await withOpenApiValidation(server),
     workflowService,
     permissions,
@@ -1046,5 +1048,41 @@ describe('temporal backend plugin', () => {
         .get(`/api/temporal/namespaces/default/workflows/wf-1?entityRef=${ref}`)
         .expect(403);
     });
+  });
+
+  it('denies apply-conditions when describing the workflow fails', async () => {
+    const logger = mockServices.logger.mock();
+    logger.child.mockReturnValue(logger);
+    const workflowService = createFakeWorkflowService();
+    const error = new Error('temporal unavailable');
+    error.name = 'ServiceUnavailableError';
+    workflowService.describeWorkflowExecution.mockRejectedValue(error);
+    const { backend } = await start({ workflowService, logger });
+    const resourceRef = stringifyTemporalWorkflowResourceRef({
+      namespace: 'default',
+      workflowId: 'wf-1',
+    });
+    const res = await request(backend)
+      .post('/api/temporal/.well-known/backstage/permissions/apply-conditions')
+      .set('Authorization', mockCredentials.service.header())
+      .send({
+        items: [
+          {
+            id: '1',
+            resourceRef,
+            resourceType: 'temporal-workflow',
+            conditions: {
+              rule: 'HAS_WORKFLOW_TYPE',
+              resourceType: 'temporal-workflow',
+              params: { workflowTypes: ['orderWorkflow'] },
+            },
+          },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.items).toEqual([{ id: '1', result: AuthorizeResult.DENY }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      `Failed to describe permission resource ${resourceRef}: ServiceUnavailableError`,
+    );
   });
 });

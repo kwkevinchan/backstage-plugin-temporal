@@ -1016,6 +1016,26 @@ describe('with temporal.control.enabled: false', () => {
   });
 });
 
+describe('control action ids', () => {
+  const invalid = {
+    id: '1bad',
+    permission: temporalWorkflowUpdatePermission,
+    handle: jest.fn(async () => ({})),
+  };
+
+  it('rejects an invalid id when control is enabled', async () => {
+    await expect(
+      start({ action: invalid, control: { enabled: true } }),
+    ).rejects.toThrow(/Invalid control action id: 1bad/);
+  });
+
+  it('rejects an invalid id when control is disabled', async () => {
+    await expect(
+      start({ action: invalid, control: { enabled: false } }),
+    ).rejects.toThrow(/Invalid control action id: 1bad/);
+  });
+});
+
 describe('input length limits', () => {
   const schedules = [
     {
