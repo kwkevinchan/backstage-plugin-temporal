@@ -18,6 +18,7 @@ import { mockServices } from '@backstage/backend-test-utils';
 import type { WorkflowGraphNode, WorkflowLlmRecord } from '../../common';
 import type { TemporalLlmAdapter } from '../../node/alpha';
 import { readHistoryFixture } from '../../__testUtils__/fixtures';
+import { recordingLogger } from '../../__testUtils__/recordingLogger';
 import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph, buildWorkflowGraphWithLlm } from '../graph';
 import { LlmAdapters } from './LlmAdapters';
@@ -611,7 +612,7 @@ describe('LLM adapters', () => {
   });
 
   it('shows a step as a plain step when an adapter fails, and warns once', () => {
-    const logger = mockServices.logger.mock();
+    const logger = recordingLogger();
     const adapters = new LlmAdapters(logger);
     adapters.add({
       id: 'throws',
@@ -632,19 +633,31 @@ describe('LLM adapters', () => {
     );
     for (const node of graph.nodes) expect(node.llm).toBeUndefined();
     expect(JSON.stringify(graph)).not.toContain('secret detail');
-    // Once per adapter, with the event ID and the error name only.
-    expect(logger.warn).toHaveBeenCalledTimes(2);
-    expect(logger.warn).toHaveBeenCalledWith(
-      'LLM adapter throws: readModelCalls threw Error; the step is shown as a plain step (activity type invokeModel, event 2)',
-    );
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringMatching(
-        /^LLM adapter invalid: readModelCalls returned a value of the wrong shape/,
-      ),
-    );
-    expect(JSON.stringify(logger.warn.mock.calls)).not.toContain(
-      'secret detail',
-    );
+    // Once per adapter, with the IDs and the error name only.
+    expect(logger.records).toEqual([
+      {
+        level: 'warn',
+        message:
+          'readModelCalls threw an error; the step is shown as a plain step',
+        meta: {
+          llmAdapterId: 'throws',
+          activityType: 'invokeModel',
+          historyEventId: '2',
+          errorName: 'Error',
+        },
+      },
+      {
+        level: 'warn',
+        message:
+          'readModelCalls returned a value of the wrong shape; the step is shown as a plain step',
+        meta: {
+          llmAdapterId: 'invalid',
+          activityType: 'runAgent',
+          historyEventId: expect.any(String),
+        },
+      },
+    ]);
+    expect(JSON.stringify(logger.records)).not.toContain('secret detail');
   });
 
   it('asks the adapters that modules add before the built-in ones', () => {
@@ -764,7 +777,7 @@ describe('LLM adapter results', () => {
     adapter: TemporalLlmAdapter,
     events = history([vercelCall]),
   ) => {
-    const logger = mockServices.logger.mock();
+    const logger = recordingLogger();
     const adapters = new LlmAdapters(logger);
     adapters.add(adapter);
     adapters.addBuiltIns();
@@ -808,9 +821,11 @@ describe('LLM adapter results', () => {
     for (const { graph, logger } of [withArgs, withRaw, withFunction]) {
       // The step is a plain step, not the built-in adapter's call.
       expect(graph.nodes.find(n => n.llm)).toBeUndefined();
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('not plain JSON'),
-      );
+      expect(logger.records).toHaveLength(1);
+      expect(logger.records[0]).toMatchObject({
+        level: 'warn',
+        message: expect.stringContaining('not plain JSON'),
+      });
     }
   });
 
@@ -877,9 +892,13 @@ describe('LLM adapter results', () => {
     );
     expect(graph.nodes.find(n => n.kind === 'marker')!.llm).toBeUndefined();
     expect(readCalls).not.toHaveBeenCalled();
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('isModelCall is true for a local activity'),
-    );
+    expect(logger.records).toHaveLength(1);
+    expect(logger.records[0]).toMatchObject({
+      level: 'warn',
+      message: expect.stringContaining(
+        'isModelCall is true for a local activity',
+      ),
+      meta: { llmAdapterId: 'local', activityType: 'callLocal' },
+    });
   });
 });

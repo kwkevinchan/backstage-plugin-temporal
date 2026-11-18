@@ -453,6 +453,12 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
           level: debug
   ```
 
+- **Log**（logger 服務，外掛 `temporal`）。訊息是固定字串，會變動的值放在欄位裡，所以可以用欄位篩選 log（`logger.child({ ... }).warn('固定訊息')`），流程 ID 是自由文字也一樣。欄位有：`namespace`、`workflowId`、`runId`、`workflowType`、`taskQueue`、`entityRef`、`scheduleId`（和稽核事件用的名稱一致），以及 `temporalCall`（對 Temporal 的呼叫類別，例如 `describeWorkflowExecution`、`schedule.list`）、`grpcCode`、`grpcStatus`、`durationMs`、`timeoutMs`、`enricherId`、`llmAdapterId`、`activityType`、`historyEventId`、`resourceRef`、`permission`、`updateId`、`messageName`（signal、update 或 query 的名稱）、`errorName`。欄位名稱避開 Backstage 的 logger 已經在用的（`plugin`、`service`、`type`、`status`、`level`、`message`、`stack`）。
+
+  每個對 Temporal 的呼叫都會以 `debug` 記下類別、namespace 和耗時。呼叫失敗時會帶 gRPC 狀態：伺服端或後端自己的憑證出問題時記 `warn`（`UNAVAILABLE`、`RESOURCE_EXHAUSTED`、`PERMISSION_DENIED`、`UNAUTHENTICATED`、`INTERNAL`、`UNKNOWN`、`UNIMPLEMENTED`，以及 query 以外的呼叫超過期限），請求本身造成的記 `debug`（`NOT_FOUND`、`INVALID_ARGUMENT`、`ALREADY_EXISTS`、`FAILED_PRECONDITION`、不存在的排程或 namespace、沒有 worker 回答的 query）。其他的 `warn`：外掛套不上的權限條件（這是政策的問題，呼叫者只看到被拒絕）、spec 不合法的 `TemporalWorkflow` 實體、開不起來的連線、輪詢結束時還沒完成的 update，以及失敗的 enricher、LLM adapter 和定義檔。
+
+  **不會**進 log 的：payload、signal／update／query 的參數和結果、token、請求和回應的 body。欄位只放 ID、名稱、狀態碼和耗時。
+
 外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。
 
 ## Scaffolder

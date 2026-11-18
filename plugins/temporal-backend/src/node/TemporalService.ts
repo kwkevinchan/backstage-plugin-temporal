@@ -186,11 +186,9 @@ export class DefaultTemporalService implements TemporalService {
       const { address, auth } = this.#options;
       const tls = this.#options.tls === true;
       const bearer = auth?.type === 'bearer';
-      this.#logger?.info(
-        `Connecting to Temporal at ${address}${tls ? ' with TLS' : ''}${
-          bearer ? ' with a bearer token' : ''
-        }`,
-      );
+      this.#logger
+        ?.child({ address, tls, authType: bearer ? 'bearer' : 'none' })
+        .info('Connecting to Temporal');
       this.#connection = Connection.connect({
         address,
         // TLS only when configured (the client would turn it on for an API
@@ -199,6 +197,9 @@ export class DefaultTemporalService implements TemporalService {
         ...(bearer ? { apiKey: auth.token } : {}),
       }).catch(error => {
         this.#connection = undefined;
+        this.#logger
+          ?.child({ address })
+          .warn('Could not open the connection to Temporal', error);
         throw error;
       });
     }
@@ -281,7 +282,7 @@ export const temporalServiceRef = createServiceRef<TemporalService>({
       },
       factory({ config, logger, lifecycle }) {
         const temporal = DefaultTemporalService.fromConfig(config, {
-          logger: logger.child({ service: 'temporal' }),
+          logger,
         });
         lifecycle.addShutdownHook(() => temporal.close());
         return temporal;

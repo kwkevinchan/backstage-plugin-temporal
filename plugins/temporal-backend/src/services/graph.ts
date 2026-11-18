@@ -102,6 +102,8 @@ export interface BuildGraphOptions {
   searchAttributes?: JsonObject;
   /** False leaves out inputs, results and marker details. */
   includePayloads: boolean;
+  /** Called when arrows beyond {@link MAX_GRAPH_EDGES} were left out. */
+  onEdgesCapped?: () => void;
   /** Failure of the closed run from describe, when the history is cut. */
   failure?: WorkflowFailure;
   /** The LLM adapters that read model calls and tool calls. */
@@ -848,7 +850,7 @@ export function buildWorkflowGraphWithLlm(
     visible.push(node);
   }
 
-  const edges = buildEdges(visible);
+  const edges = buildEdges(visible, options.onEdgesCapped);
 
   const steps = visible.filter(n => STEP_KINDS.has(n.kind));
   const startNode = nodes.find(n => n.kind === 'workflowStarted');
@@ -886,7 +888,10 @@ export function buildWorkflowGraphWithLlm(
  * predecessors: A → B when A ended before B started and no step C started
  * after A ended and ended before B started.
  */
-function buildEdges(nodes: Building[]): WorkflowGraphEdge[] {
+function buildEdges(
+  nodes: Building[],
+  onCapped?: () => void,
+): WorkflowGraphEdge[] {
   const ordered = [...nodes].sort((x, y) => x.first - y.first);
   const edges: WorkflowGraphEdge[] = [];
   for (const target of ordered) {
@@ -904,7 +909,10 @@ function buildEdges(nodes: Building[]): WorkflowGraphEdge[] {
         source.last < target.first &&
         source.last >= latestStart
       ) {
-        if (edges.length >= MAX_GRAPH_EDGES) return edges;
+        if (edges.length >= MAX_GRAPH_EDGES) {
+          onCapped?.();
+          return edges;
+        }
         edges.push({
           id: `${source.id}->${target.id}`,
           source: source.id,

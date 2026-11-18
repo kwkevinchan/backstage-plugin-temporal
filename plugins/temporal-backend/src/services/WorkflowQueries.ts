@@ -47,7 +47,7 @@ import {
   toWorkflowDetail,
   toWorkflowSteps,
 } from './convert';
-import { buildWorkflowGraph } from './graph';
+import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { workflowBelongsToEntity, workflowIdCondition } from './query';
@@ -100,6 +100,7 @@ export class WorkflowQueries {
     private readonly sources: EntityWorkflowSources,
     private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
       temporal,
+      logger,
     ),
     options: {
       /** The LLM adapters that read model calls; the built-in ones by default. */
@@ -136,7 +137,16 @@ export class WorkflowQueries {
         });
         current = current.map((item, i) => ({ ...item, ...enriched[i] }));
       } catch (error) {
-        this.logger.warn(`Workflow enricher ${enricher.id} failed: ${error}`);
+        this.logger
+          .child({
+            enricherId: enricher.id,
+            namespace: context.namespace,
+            entityRef: context.entityRef,
+          })
+          .warn(
+            'A workflow enricher failed, so its fields are left out',
+            error as Error,
+          );
       }
     }
     return current;
@@ -301,6 +311,15 @@ export class WorkflowQueries {
       includePayloads: options.includePayloads,
       failure: workflow.failure,
       llmAdapters: this.llmAdapters,
+      onEdgesCapped: () =>
+        this.logger
+          .child({
+            namespace: workflow.namespace,
+            workflowId: workflow.workflowId,
+            runId: workflow.runId,
+            maxEdges: MAX_GRAPH_EDGES,
+          })
+          .debug('The graph has more edges than are drawn'),
     });
     return graph;
   }
@@ -334,7 +353,13 @@ export class WorkflowQueries {
       ]);
       return index > 0 && total >= index ? { ...chain, index, total } : chain;
     } catch (error) {
-      this.logger.debug(`Could not count the runs of a workflow: ${error}`);
+      this.logger
+        .child({
+          namespace: workflow.namespace,
+          workflowId: workflow.workflowId,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        .debug('Could not count the runs of a workflow');
       return chain;
     }
   }
@@ -384,7 +409,14 @@ export class WorkflowQueries {
         queries: handlerList(definition?.queryDefinitions),
       };
     } catch (error) {
-      this.logger.debug(`Workflow metadata query failed: ${error}`);
+      this.logger
+        .child({
+          namespace: workflow.namespace,
+          workflowId: workflow.workflowId,
+          runId: workflow.runId,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        .debug('The metadata query of a workflow failed');
       return empty;
     }
   }

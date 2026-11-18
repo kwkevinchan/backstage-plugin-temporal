@@ -255,14 +255,18 @@ export class LlmAdapters {
       step: TemporalLlmStep,
       eventId: string | undefined,
       message: string,
+      errorName?: string,
     ) => {
       if (warned.has(adapter.id)) return;
       warned.add(adapter.id);
-      this.logger?.warn(
-        `LLM adapter ${adapter.id}: ${message} (activity type ${
-          step.activityType
-        }${eventId ? `, event ${eventId}` : ''})`,
-      );
+      this.logger
+        ?.child({
+          llmAdapterId: adapter.id,
+          activityType: step.activityType,
+          ...(eventId ? { historyEventId: eventId } : {}),
+          ...(errorName ? { errorName } : {}),
+        })
+        .warn(message);
     };
     const guard = <T>(
       adapter: TemporalLlmAdapter,
@@ -282,7 +286,8 @@ export class LlmAdapters {
           adapter,
           step,
           eventId,
-          `${what} threw ${name}; the step is shown as a plain step`,
+          `${what} threw an error; the step is shown as a plain step`,
+          name,
         );
         throw new AdapterFailure();
       }

@@ -50,6 +50,11 @@ import {
   paymentWorkflowEntity,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
+import {
+  recordingLogger,
+  recordingLoggerFactory,
+  type RecordingLogger,
+} from './__testUtils__/recordingLogger';
 
 const entities = [
   ordersEntity,
@@ -72,6 +77,8 @@ async function start(options?: {
   entityRefAttribute?: string;
   entities?: Entity[];
   logger?: ReturnType<typeof mockServices.logger.mock>;
+  /** Records what the plugin logs, with the fields of its child loggers. */
+  recorder?: RecordingLogger;
   /** An error of opening the connection to Temporal. */
   connectionError?: unknown;
 }) {
@@ -103,6 +110,9 @@ async function start(options?: {
     permissions.factory,
   ];
   if (options?.logger) features.push(options.logger.factory);
+  if (options?.recorder) {
+    features.push(recordingLoggerFactory(options.recorder));
+  }
   if (options?.enricher) {
     const enricher = options.enricher;
     features.push(
@@ -909,10 +919,10 @@ describe('temporal backend plugin', () => {
   it('queries the first 20 related TemporalWorkflow entities and marks the rest', async () => {
     const total = MAX_RELATED_WORKFLOW_ENTITIES + 1;
     const { entity, workflows } = entityWithRelatedWorkflows(total);
-    const logger = mockServices.logger.mock();
+    const logger = recordingLogger();
     const { server, workflowService } = await start({
       entities: [entity, ...workflows],
-      logger,
+      recorder: logger,
     });
     const res = await request(server).get(
       '/api/temporal/entities/component/default/many-workflows/workflows',
@@ -940,9 +950,16 @@ describe('temporal backend plugin', () => {
         ),
       }),
     );
-    expect(logger.debug).toHaveBeenCalledWith(
-      `component:default/many-workflows depends on ${total} TemporalWorkflow entities; querying the first ${MAX_RELATED_WORKFLOW_ENTITIES}`,
-    );
+    expect(logger.records).toContainEqual({
+      level: 'debug',
+      message:
+        'An entity depends on more TemporalWorkflow entities than are queried',
+      meta: {
+        entityRef: 'component:default/many-workflows',
+        total,
+        queried: MAX_RELATED_WORKFLOW_ENTITIES,
+      },
+    });
     const stats = await request(server).get(
       '/api/temporal/entities/component/default/many-workflows/workflow-stats',
     );
@@ -953,14 +970,36 @@ describe('temporal backend plugin', () => {
     });
   });
 
+  it('warns about a related TemporalWorkflow entity with an invalid spec, and leaves it out', async () => {
+    const { entity, workflows } = entityWithRelatedWorkflows(2);
+    workflows[0].spec = { owner: 'group:default/team-a', workflowType: 7 };
+    const logger = recordingLogger();
+    const { server } = await start({
+      entities: [entity, ...workflows],
+      recorder: logger,
+    });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/many-workflows/workflows',
+    );
+    expect(res.status).toBe(200);
+    expect(logger.records).toContainEqual({
+      level: 'warn',
+      message: 'Skipping a TemporalWorkflow entity with an invalid spec',
+      meta: {
+        entityRef: 'temporalworkflow:default/related-workflow-0',
+        field: 'workflowType',
+      },
+    });
+  });
+
   it('does not mark related TemporalWorkflow entities when there are 20 or fewer', async () => {
     const { entity, workflows } = entityWithRelatedWorkflows(
       MAX_RELATED_WORKFLOW_ENTITIES,
     );
-    const logger = mockServices.logger.mock();
+    const logger = recordingLogger();
     const { server, workflowService } = await start({
       entities: [entity, ...workflows],
-      logger,
+      recorder: logger,
     });
     const res = await request(server).get(
       '/api/temporal/entities/component/default/many-workflows/workflows',
@@ -977,8 +1016,8 @@ describe('temporal backend plugin', () => {
         ),
       }),
     );
-    expect(logger.debug).not.toHaveBeenCalledWith(
-      expect.stringContaining('TemporalWorkflow entities'),
+    expect(logger.records.filter(r => r.meta.queried !== undefined)).toEqual(
+      [],
     );
     const stats = await request(server).get(
       '/api/temporal/entities/component/default/many-workflows/workflow-stats',
@@ -1239,13 +1278,12 @@ describe('temporal backend plugin', () => {
   });
 
   it('denies apply-conditions when describing the workflow fails', async () => {
-    const logger = mockServices.logger.mock();
-    logger.child.mockReturnValue(logger);
+    const logger = recordingLogger();
     const workflowService = createFakeWorkflowService();
     const error = new Error('temporal unavailable');
     error.name = 'ServiceUnavailableError';
     workflowService.describeWorkflowExecution.mockRejectedValue(error);
-    const { backend } = await start({ workflowService, logger });
+    const { backend } = await start({ workflowService, recorder: logger });
     const resourceRef = stringifyTemporalWorkflowResourceRef({
       namespace: 'default',
       workflowId: 'wf-1',
@@ -1269,8 +1307,11 @@ describe('temporal backend plugin', () => {
       });
     expect(res.status).toBe(200);
     expect(res.body.items).toEqual([{ id: '1', result: AuthorizeResult.DENY }]);
-    expect(logger.warn).toHaveBeenCalledWith(
-      `Failed to describe permission resource ${resourceRef}: ServiceUnavailableError`,
-    );
+    expect(logger.records).toContainEqual({
+      level: 'warn',
+      message: 'Failed to describe a permission resource',
+      meta: { resourceRef },
+      error,
+    });
   });
 });
