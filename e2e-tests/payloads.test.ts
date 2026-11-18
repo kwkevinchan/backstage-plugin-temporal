@@ -178,10 +178,10 @@ test('large payloads stored in S3: the location is shown, the content is not', a
   await expect(output).not.toContainText('SKU-0001');
   await shot(page, '31-s3-reference');
 
-  // A PNG: no thumbnail.
+  // A PNG: no image is drawn.
   await step(page, /^renderChart, Completed/).click();
   await expect(output.getByTestId('external-payload')).toBeVisible();
-  await expect(output.getByTestId('payload-thumbnail')).toHaveCount(0);
+  await expect(output.locator('img')).toHaveCount(0);
   await shot(page, '32-s3-image');
 
   expect(serverErrors).toEqual([]);

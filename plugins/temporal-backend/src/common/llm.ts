@@ -71,8 +71,8 @@ export interface WorkflowLlmToolCallRef {
  *
  * - `available`: read from the result;
  * - `pending`: the call has not ended;
- * - `unreadable`: the result is encoded by a codec, or stored in S3 and
- *   larger than the backend reads inline (the full record route reads it);
+ * - `unreadable`: the result is encoded by a codec, or stored in External
+ *   Storage (the backend does not read it);
  * - `missing`: the result has no record.
  *
  * Experimental: the shape changes before the first stable release.

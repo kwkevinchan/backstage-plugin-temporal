@@ -811,10 +811,13 @@ dependency and needs no credentials or access to the bucket, so installing
 a plugin that shows workflows does not give it access to your data. Where a
 payload would be shown, the plugin shows where it is stored:
 
-- the input and output of a step (the step panel), the memo of a workflow
-  and the events of the History tab: "Stored in External Storage", the size
-  the reference records, the location `s3://bucket/key` and the SHA-256 of
-  the stored object, each with a copy button, and no content;
+- the input and output of a step (the step panel) and the memo of a
+  workflow: "Stored in External Storage", the size the reference records,
+  the location `s3://bucket/key` and the SHA-256 of the stored object, each
+  with a copy button, and no content;
+- the History tab and the raw events of a step show the events as JSON; a
+  stored payload appears in it as `{ "encoding": …, "external": { store,
+  bucket, key, size, sha256 } }`, not as a card;
 - the LLM panel of a model call whose result is stored there says that the
   record is not available and shows where it is. See
   [Model calls and tool calls](#model-calls-and-tool-calls);

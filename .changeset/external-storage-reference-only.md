@@ -6,8 +6,9 @@
 The plugin no longer reads payloads from Temporal External Storage. It shows
 where a stored payload is, from the reference in the history: the location
 (`s3://bucket/key`), the SHA-256 and the size, with copy buttons, for the
-inputs and results of steps, the events, the memo and the record of a model
-call. A model call whose result is stored there shows no model or tokens, and
+inputs and results of steps, the memo and the record of a model call. The
+History tab and the raw events show the events as JSON, where a stored
+payload appears as `{ encoding, external }`. A model call whose result is stored there shows no model or tokens, and
 a tool step whose arguments are stored there is matched to its model call by
 the tool name alone.
 

@@ -29,7 +29,6 @@ describe('storage references of the official S3 driver', () => {
     const stored = await storeExternally(memoryS3(), value);
     const reference = referenceOf(stored.payload);
     expect(reference).toEqual({
-      driverName: 'aws.s3driver',
       bucket: 'payloads',
       key: stored.key,
       sha256: stored.sha256,
@@ -45,17 +44,6 @@ describe('storage references of the official S3 driver', () => {
       size: stored.size,
       sha256: stored.sha256,
     });
-  });
-
-  it('keeps the driver name the workers chose', async () => {
-    const stored = await storeExternally(
-      memoryS3(),
-      { a: 1 },
-      {
-        driverName: 'reports',
-      },
-    );
-    expect(referenceOf(stored.payload)?.driverName).toBe('reports');
   });
 
   it('is not fooled by ordinary payloads', () => {
@@ -91,7 +79,6 @@ describe('parseStorageReference', () => {
     expect(
       parseStorageReference({ driverName: 'aws.s3driver', claimData }, 10),
     ).toEqual({
-      driverName: 'aws.s3driver',
       bucket: 'b',
       key: 'k',
       sha256: hash,

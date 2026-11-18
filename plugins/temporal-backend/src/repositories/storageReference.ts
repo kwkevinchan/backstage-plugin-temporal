@@ -39,12 +39,11 @@ import type { ExternalPayload } from '../common';
 /** `encoding` metadata of a reference payload. */
 export const REFERENCE_ENCODING = 'json/protobuf';
 /** `messageType` metadata of a reference payload. */
-export const REFERENCE_MESSAGE_TYPE =
+const REFERENCE_MESSAGE_TYPE =
   'temporal.api.sdk.v1.ExternalStorageReference';
 
 /** Where a payload is stored, read from its reference payload. */
 export interface StorageReference {
-  driverName: string;
   bucket: string;
   key: string;
   /** SHA-256 of the stored object, lowercase hex. */
@@ -97,7 +96,7 @@ export function parseStorageReference(
   if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0) {
     throw new TypeError('Storage reference has an invalid size');
   }
-  return { driverName: v.driverName, bucket, key, sha256: hash, sizeBytes };
+  return { bucket, key, sha256: hash, sizeBytes };
 }
 
 function decodeBase64(value: unknown): string {

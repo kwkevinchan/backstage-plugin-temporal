@@ -25,8 +25,8 @@ import { buildWorkflowGraphWithLlm } from './graph';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
 
 /**
- * The payload in External Storage a result or failure was read from, and
- * why a model call would have no record from it.
+ * The payload in External Storage that holds a result or failure, if any,
+ * and why a model call would have no record from it.
  */
 function readState(roots: unknown[]): {
   external?: ExternalPayload;

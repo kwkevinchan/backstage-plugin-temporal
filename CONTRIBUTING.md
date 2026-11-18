@@ -166,8 +166,7 @@ module. Change it together with the routes and the types in `src/common`:
   `src/__testUtils__/openapi.ts`): a parameter, body, status code or
   response field that the spec does not describe fails the test. Requests to
   paths that are not in the spec (other plugins, routes that are switched
-  off) go to the test backend directly. The payload download is not
-  checked: the proxy only reads JSON responses.
+  off) go to the test backend directly.
 
 The routers are plain Express routers; nothing is generated from the spec.
 

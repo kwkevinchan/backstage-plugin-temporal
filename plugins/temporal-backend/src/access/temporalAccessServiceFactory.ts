@@ -48,9 +48,9 @@ export const temporalAccessServiceFactory = createServiceFactory({
     temporal: temporalServiceRef,
   },
   factory({ logger, permissions, permissionsRegistry, catalog, temporal }) {
-    // The access checks only need the workflow's status and search
-    // attributes: no enrichers. The routes answer with the plugin's own
-    // query classes.
+    // The access checks need the workflow's status and search attributes
+    // only, so there are no enrichers. The workflow it loads is the one the
+    // routes answer with; enrichers run in the plugin's own query classes.
     const sources = new EntityWorkflowSources(temporal, logger);
     const queries = new WorkflowQueries(temporal, [], logger, sources);
     return new DefaultTemporalAccessService(

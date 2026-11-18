@@ -119,8 +119,7 @@ so a workflow that keeps continuing as new is listed once); `namespace`,
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it
 (404 otherwise). Without it, `temporal.workflow.list` (with
-`temporal.workflow.history.list` for history, steps, model calls and
-downloads) allows the workflows it covers; when it does not, the entity
+`temporal.workflow.history.list` for history, steps and model calls) allows the workflows it covers; when it does not, the entity
 comes from the `searchAttributes.entityRef` search attribute.
 
 The routes that change one workflow (signal, update, cancel, terminate,
@@ -162,8 +161,7 @@ route checks (`x-temporal-permissions`), the routes that
 experimental routes (`x-temporal-experimental`; they and the experimental
 fields change before the first stable release) and the definition route of
 the Zigflow backend module (`x-temporal-module`). The tests of the routes
-check their requests and responses against it (the binary payload download
-excepted).
+check their requests and responses against it.
 
 To show it in the catalog, register an `API` entity that reads the file of
 the version you run. Replace `main` with the commit SHA of that release, not

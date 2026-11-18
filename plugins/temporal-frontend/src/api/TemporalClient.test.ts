@@ -190,7 +190,7 @@ describe('TemporalClient requests and responses', () => {
     );
   });
 
-  it('serializes workflow read, history, graph, llm-call, progress, handlers, and download requests', async () => {
+  it('serializes workflow read, history, graph, llm-call, progress, and handlers requests', async () => {
     const { client, discoveryApi, fetch } = createClientHarness();
     const base = await discoveryApi.getBaseUrl('temporal');
 

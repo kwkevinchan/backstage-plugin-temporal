@@ -96,12 +96,15 @@ describe('payloads in External Storage', () => {
           objectUrl: 'https://console.example.com/s3/{bucket}?prefix={key}',
         },
       });
-      expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute(
+      const link = screen.getByRole('link', { name: 'Open' });
+      expect(link).toHaveAttribute(
         'href',
         `https://console.example.com/s3/payloads?prefix=${encodeURIComponent(
           external.key,
         )}`,
       );
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     });
 
     it('does not link when the template is not https', async () => {

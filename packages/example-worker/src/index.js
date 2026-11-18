@@ -137,8 +137,7 @@ async function startAll(client, withSearchAttributes) {
           topic: 'payload storage',
           seed: 3,
           conversation: `agent-${suffix}`,
-          // Long enough for S3 (above the 128 KiB threshold of the codec,
-          // below the 256 KiB the backend shows inline).
+          // Long enough for S3 (above the 128 KiB threshold of the codec).
           reportSize: process.env.PAYLOAD_S3_ENDPOINT ? 170_000 : 4000,
         },
       ],
