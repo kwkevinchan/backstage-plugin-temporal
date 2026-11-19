@@ -190,7 +190,7 @@ describe('TemporalClient requests and responses', () => {
     );
   });
 
-  it('serializes workflow read, history, graph, llm-call, progress, and handlers requests', async () => {
+  it('serializes workflow read, history, graph, llm-call, progress, and message-definitions requests', async () => {
     const { client, discoveryApi, fetch } = createClientHarness();
     const base = await discoveryApi.getBaseUrl('temporal');
 
@@ -249,11 +249,11 @@ describe('TemporalClient requests and responses', () => {
       `${base}/namespaces/default/workflows/wf-1/runs/run-1/progress?entityRef=component%3Adefault%2Forders`,
     );
 
-    await client.getWorkflowHandlers(ref, {
+    await client.getWorkflowMessageDefinitions(ref, {
       entityRef: 'component:default/orders',
     });
     expect(fetch).toHaveBeenLastCalledWith(
-      `${base}/namespaces/default/workflows/wf-1/runs/run-1/handlers?entityRef=component%3Adefault%2Forders`,
+      `${base}/namespaces/default/workflows/wf-1/runs/run-1/message-definitions?entityRef=component%3Adefault%2Forders`,
     );
   });
 

@@ -90,7 +90,7 @@ in the repository README for examples.
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/progress`                  | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
-| GET    | `.../workflows/:workflowId/runs/:runId/handlers`                                     | `temporal.workflow.read`                      |
+| GET    | `.../workflows/:workflowId/runs/:runId/message-definitions`                          | `temporal.workflow.read`                      |
 | POST   | `.../workflows/:workflowId/runs/:runId/query`                                        | `temporal.workflow.query` + read              |
 
 The routes that change workflows, unless `temporal.control.enabled` is
@@ -161,9 +161,9 @@ workflows (signal, update, cancel, terminate, rerun, start, custom actions
 and the schedule operations) do not exist when `temporal.control.enabled` is
 false: they answer 404 without a body, like the definition route without the
 Zigflow backend module. Errors of the routes that exist have the JSON error
-body of the Backstage backend. Query and `GET .../handlers` (the
+body of the Backstage backend. Query and `GET .../message-definitions` (the
 signals, updates and queries a running workflow defines) are always served:
-a query needs `temporal.workflow.query`, the handler list only the read
+a query needs `temporal.workflow.query`, the message definition list only the read
 permission. The schedule operations take `?entityRef=` (the schedule must
 start one of the entity's workflow types) or, without it, need the
 permission without conditions; pause and unpause take an optional body

@@ -22,14 +22,14 @@ import {
   MessageDialog,
   PermissionButton,
   refOf,
-  useWorkflowHandlers,
+  useWorkflowMessageDefinitions,
 } from './MessageDialog';
 import { SchemaArgsField } from './SchemaArgsField';
 
 /**
  * "Query…" in the action bar of the details page: runs a query on the
  * workflow and shows its result. Needs `temporal.workflow.query`; the
- * names come from the workflow's handlers when its worker tells them. A
+ * names come from the workflow's message definitions when its worker tells them. A
  * query with an input schema (`spec.messages`) gets a form for its
  * argument, any other query a JSON field.
  */
@@ -41,7 +41,11 @@ export function QueryButton(props: {
   const api = useApi(temporalApiRef);
   const [open, setOpen] = useState(false);
   const ref = refOf(workflow);
-  const handlers = useWorkflowHandlers(ref, entityRef, open);
+  const messageDefinitions = useWorkflowMessageDefinitions(
+    ref,
+    entityRef,
+    open,
+  );
   return (
     <>
       <PermissionButton
@@ -61,7 +65,7 @@ export function QueryButton(props: {
             submit: 'Run query',
             help: 'A query reads the state of the workflow without changing it.',
           }}
-          handlers={handlers?.queries ?? []}
+          messageDefinitions={messageDefinitions?.queries ?? []}
           allowsCustomValue
           argsField={SchemaArgsField}
           send={request => api.queryWorkflow(ref, request, { entityRef })}

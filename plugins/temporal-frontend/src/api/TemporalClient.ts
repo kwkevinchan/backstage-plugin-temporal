@@ -20,9 +20,9 @@ import { ResponseError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import {
   buildEntityWorkflowStatsPath,
-  buildWorkflowHandlersPath,
+  buildWorkflowMessageDefinitionsPath,
   buildWorkflowOperationPath,
-  WorkflowHandlersResponse,
+  WorkflowMessageDefinitionsResponse,
   WorkflowMessageResponse,
   buildEntityWorkflowsPath,
   buildLlmCallPath,
@@ -302,12 +302,12 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
-  getWorkflowHandlers(
+  getWorkflowMessageDefinitions(
     ref: WorkflowRunRef,
     options?: { entityRef?: string },
-  ): Promise<WorkflowHandlersResponse> {
+  ): Promise<WorkflowMessageDefinitionsResponse> {
     return this.get(
-      buildWorkflowHandlersPath(ref) +
+      buildWorkflowMessageDefinitionsPath(ref) +
         queryString({ entityRef: options?.entityRef }),
     );
   }

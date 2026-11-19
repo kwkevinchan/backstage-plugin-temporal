@@ -19,7 +19,10 @@
 
 import type { Entity } from '@backstage/catalog-model';
 import type { JsonObject, JsonValue } from '@backstage/types';
-import type { WorkflowHandler, WorkflowHandlersResponse } from './controls';
+import type {
+  WorkflowMessageDefinition,
+  WorkflowMessageDefinitionsResponse,
+} from './controls';
 
 /**
  * How a `TemporalWorkflow` entity describes one signal, update or query of
@@ -28,17 +31,17 @@ import type { WorkflowHandler, WorkflowHandlersResponse } from './controls';
  * @public
  */
 export type TemporalWorkflowMessageSpec = {
-  /** The handler name, as the workflow defines it. */
+  /** The message name, as the workflow defines it. */
   name: string;
   description?: string;
   /**
-   * JSON Schema of the one argument the handler takes. The dialogs show a
+   * JSON Schema of the one argument this message takes. The dialogs show a
    * form for it instead of a JSON field.
    */
   inputSchema?: JsonObject;
   /**
    * Example arguments, filled in the dialog: an array of arguments, or one
-   * value for a handler with one argument. With `inputSchema`, the starting
+   * value for a message with one argument. With `inputSchema`, the starting
    * value of the form.
    */
   example?: JsonValue;
@@ -74,11 +77,11 @@ export const temporalWorkflowMessageSchema = {
     description: { type: 'string' },
     inputSchema: {
       type: 'object',
-      description: 'JSON Schema of the one argument the handler takes.',
+      description: 'JSON Schema of the one argument this message takes.',
     },
     example: {
       description:
-        'Example arguments: an array of arguments, or one value for a handler with one argument.',
+        'Example arguments: an array of arguments, or one value for a message with one argument.',
     },
     userField: {
       type: 'string',
@@ -95,25 +98,25 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function readMessage(value: unknown): WorkflowHandler | undefined {
+function readMessage(value: unknown): WorkflowMessageDefinition | undefined {
   if (!isObject(value)) return undefined;
   const { name, description, inputSchema, example, userField } = value;
   if (typeof name !== 'string' || !name.trim() || name.length > 200) {
     return undefined;
   }
-  const handler: WorkflowHandler = { name: name.trim() };
+  const definition: WorkflowMessageDefinition = { name: name.trim() };
   if (typeof description === 'string' && description.trim()) {
-    handler.description = description.trim();
+    definition.description = description.trim();
   }
-  if (isObject(inputSchema)) handler.inputSchema = inputSchema as JsonObject;
-  if (example !== undefined) handler.example = example as JsonValue;
+  if (isObject(inputSchema)) definition.inputSchema = inputSchema as JsonObject;
+  if (example !== undefined) definition.example = example as JsonValue;
   if (
     typeof userField === 'string' &&
     /^[A-Za-z_$][\w$]{0,99}$/.test(userField)
   ) {
-    handler.userField = userField;
+    definition.userField = userField;
   }
-  return handler;
+  return definition;
 }
 
 /**
@@ -125,8 +128,8 @@ function readMessage(value: unknown): WorkflowHandler | undefined {
  */
 export function getTemporalWorkflowMessages(
   entity: Entity | undefined,
-): WorkflowHandlersResponse {
-  const result: WorkflowHandlersResponse = {
+): WorkflowMessageDefinitionsResponse {
+  const result: WorkflowMessageDefinitionsResponse = {
     signals: [],
     updates: [],
     queries: [],
@@ -141,9 +144,9 @@ export function getTemporalWorkflowMessages(
     const list = messages[kind];
     if (!Array.isArray(list)) continue;
     for (const item of list) {
-      const handler = readMessage(item);
-      if (handler && !result[kind].some(h => h.name === handler.name)) {
-        result[kind].push(handler);
+      const definition = readMessage(item);
+      if (definition && !result[kind].some(d => d.name === definition.name)) {
+        result[kind].push(definition);
       }
     }
   }
@@ -151,21 +154,21 @@ export function getTemporalWorkflowMessages(
 }
 
 /**
- * Adds what an entity describes to the handlers a workflow reports: the
+ * Adds what an entity describes to the message definitions a workflow reports: the
  * description, input schema and example of each one, and the described
- * handlers the workflow did not report (for example when no worker
+ * definitions the workflow did not report (for example when no worker
  * answered), after the reported ones.
  *
  * @public
  */
-export function mergeWorkflowHandlers(
-  reported: WorkflowHandlersResponse,
-  described: WorkflowHandlersResponse,
-): WorkflowHandlersResponse {
+export function mergeWorkflowMessageDefinitions(
+  reported: WorkflowMessageDefinitionsResponse,
+  described: WorkflowMessageDefinitionsResponse,
+): WorkflowMessageDefinitionsResponse {
   const merge = (
-    own: WorkflowHandler[],
-    extra: WorkflowHandler[],
-  ): WorkflowHandler[] => [
+    own: WorkflowMessageDefinition[],
+    extra: WorkflowMessageDefinition[],
+  ): WorkflowMessageDefinition[] => [
     ...own.map(h => {
       const d = extra.find(e => e.name === h.name);
       return d

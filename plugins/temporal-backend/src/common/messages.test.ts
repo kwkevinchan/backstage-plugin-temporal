@@ -18,7 +18,7 @@ import { Entity, entityKindSchemaValidator } from '@backstage/catalog-model';
 import {
   exampleArgs,
   getTemporalWorkflowMessages,
-  mergeWorkflowHandlers,
+  mergeWorkflowMessageDefinitions,
 } from './messages';
 import { temporalWorkflowEntityV1alpha1Schema } from './workflowEntity';
 
@@ -87,9 +87,9 @@ describe('spec.messages', () => {
     expect(getTemporalWorkflowMessages(workflow('nope'))).toEqual(empty);
   });
 
-  it('merges them into the handlers a workflow reports', () => {
+  it('merges them into the message definitions a workflow reports', () => {
     expect(
-      mergeWorkflowHandlers(
+      mergeWorkflowMessageDefinitions(
         {
           signals: [{ name: 'note', description: 'From the worker' }],
           updates: [{ name: 'approve', description: 'From the worker' }],

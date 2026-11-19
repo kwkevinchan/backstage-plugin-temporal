@@ -25,7 +25,7 @@ import {
   getTemporalWorkflowMessages,
   SCHEDULES_PATH,
   isTemporalWorkflowEntity,
-  mergeWorkflowHandlers,
+  mergeWorkflowMessageDefinitions,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
   WorkflowDetail,
@@ -340,14 +340,17 @@ export async function createRouter(
   // dialogs), with what its TemporalWorkflow entity describes in
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
-  router.get(workflowRunSubpath('handlers'), async (req, res) => {
+  router.get(workflowRunSubpath('message-definitions'), async (req, res) => {
     const { workflow, context, credentials } = await loadWorkflow(req, 'read');
     const [reported, entity] = await Promise.all([
-      queries.handlers(workflow),
+      queries.messageDefinitions(workflow),
       workflowEntityOf(workflow, context, credentials),
     ]);
     res.json(
-      mergeWorkflowHandlers(reported, getTemporalWorkflowMessages(entity)),
+      mergeWorkflowMessageDefinitions(
+        reported,
+        getTemporalWorkflowMessages(entity),
+      ),
     );
   });
 

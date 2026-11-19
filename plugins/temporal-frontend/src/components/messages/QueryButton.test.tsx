@@ -17,7 +17,7 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
-import type { WorkflowDetail, WorkflowHandler } from '../../common';
+import type { WorkflowDetail, WorkflowMessageDefinition } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import { failedWorkflow, mockTemporalApi } from '../../testData';
 import { QueryButton } from './QueryButton';
@@ -39,10 +39,10 @@ const ref = {
 };
 const entityRef = 'component:default/orders';
 
-function render(deny: string[] = [], queries?: WorkflowHandler[]) {
+function render(deny: string[] = [], queries?: WorkflowMessageDefinition[]) {
   const api = mockTemporalApi();
   if (queries) {
-    api.getWorkflowHandlers.mockResolvedValue({
+    api.getWorkflowMessageDefinitions.mockResolvedValue({
       signals: [],
       updates: [],
       queries,
@@ -66,7 +66,9 @@ describe('QueryButton', () => {
     );
     const name = await screen.findByRole('combobox', { name: /Query name/ });
     await waitFor(() => expect(name).toHaveValue('notes'));
-    expect(api.getWorkflowHandlers).toHaveBeenCalledWith(ref, { entityRef });
+    expect(api.getWorkflowMessageDefinitions).toHaveBeenCalledWith(ref, {
+      entityRef,
+    });
     await userEvent.click(screen.getByRole('button', { name: 'Run query' }));
     expect(
       await screen.findByTestId('workflow-query-result'),
@@ -127,9 +129,9 @@ describe('QueryButton', () => {
     expect(screen.queryByTestId('message-form')).toBeNull();
   });
 
-  it('asks for a name when the backend cannot list the handlers', async () => {
+  it('asks for a name when the backend cannot list the message definitions', async () => {
     const api = render();
-    (api.getWorkflowHandlers as jest.Mock).mockRejectedValueOnce(
+    (api.getWorkflowMessageDefinitions as jest.Mock).mockRejectedValueOnce(
       new Error('no worker'),
     );
     await userEvent.click(

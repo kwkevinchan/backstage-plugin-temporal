@@ -21,8 +21,8 @@ import type { JsonValue } from '@backstage/types';
 import {
   exampleArgs,
   WorkflowDetail,
-  WorkflowHandler,
-  WorkflowHandlersResponse,
+  WorkflowMessageDefinition,
+  WorkflowMessageDefinitionsResponse,
   WorkflowRunRef,
 } from '../../common';
 import {
@@ -52,32 +52,35 @@ import {
   WithReason,
 } from './shared';
 
-const NO_HANDLERS: WorkflowHandlersResponse = {
+const NO_MESSAGE_DEFINITIONS: WorkflowMessageDefinitionsResponse = {
   signals: [],
   updates: [],
   queries: [],
 };
 
 /**
- * The signals, updates and queries a workflow defines
- * (`GET .../handlers`). Undefined while loading or when `enabled` is
+ * The message definitions of a workflow
+ * (`GET .../message-definitions`). Undefined while loading or when `enabled` is
  * false; empty when the backend cannot tell.
  */
-export function useWorkflowHandlers(
+export function useWorkflowMessageDefinitions(
   ref: WorkflowRunRef,
   entityRef: string | undefined,
   enabled: boolean,
-): WorkflowHandlersResponse | undefined {
+): WorkflowMessageDefinitionsResponse | undefined {
   const api = useApi(temporalApiRef);
-  const [value, setValue] = useState<WorkflowHandlersResponse>();
+  const [value, setValue] = useState<WorkflowMessageDefinitionsResponse>();
   const { namespace, workflowId, runId } = ref;
   useEffect(() => {
     if (!enabled) return undefined;
     let current = true;
     api
-      .getWorkflowHandlers({ namespace, workflowId, runId }, { entityRef })
-      .then(handlers => current && setValue(handlers))
-      .catch(() => current && setValue(NO_HANDLERS));
+      .getWorkflowMessageDefinitions(
+        { namespace, workflowId, runId },
+        { entityRef },
+      )
+      .then(definitions => current && setValue(definitions))
+      .catch(() => current && setValue(NO_MESSAGE_DEFINITIONS));
     return () => {
       current = false;
     };
@@ -116,15 +119,15 @@ export function useUserEntityRef(): string | undefined {
 }
 
 /**
- * The example arguments of a handler, with its `userField` set to the
+ * The example arguments of a message definition, with its `userField` set to the
  * signed-in user on an object argument.
  */
-export function handlerExampleArgs(
-  handler: WorkflowHandler | undefined,
+export function messageDefinitionExampleArgs(
+  definition: WorkflowMessageDefinition | undefined,
   userEntityRef: string | undefined,
 ): JsonValue[] {
-  const args = exampleArgs(handler?.example);
-  const field = handler?.userField;
+  const args = exampleArgs(definition?.example);
+  const field = definition?.userField;
   if (!field || !userEntityRef) return args;
   const first = args[0];
   const base =
@@ -134,9 +137,9 @@ export function handlerExampleArgs(
 
 /** Props of the arguments field of a {@link MessageDialog}. */
 export interface MessageArgsFieldProps {
-  /** The chosen handler, when the workflow or its entity describes it. */
-  handler?: WorkflowHandler;
-  /** The signed-in user's entity reference, for `handler.userField`. */
+  /** The chosen message definition, when the workflow or its entity describes it. */
+  messageDefinition?: WorkflowMessageDefinition;
+  /** The signed-in user's entity reference, for `messageDefinition.userField`. */
   userEntityRef?: string;
   /** Called with the arguments, or why they are not valid. */
   onChange(value: { args: JsonValue[] } | { error: string }): void;
@@ -151,18 +154,23 @@ function argsText(args: JsonValue[]): string {
 }
 
 /**
- * The default arguments field: JSON, filled with the handler's example.
+ * The default arguments field: JSON, filled with the message definition's example.
  */
 export function JsonMessageArgsField(props: MessageArgsFieldProps) {
-  const { handler, userEntityRef, onChange } = props;
+  const { messageDefinition, userEntityRef, onChange } = props;
   const [text, setText] = useState(() =>
-    argsText(handlerExampleArgs(handler, userEntityRef)),
+    argsText(messageDefinitionExampleArgs(messageDefinition, userEntityRef)),
   );
   const [edited, setEdited] = useState(false);
   // The user's reference may come after the field opens.
   useEffect(() => {
-    if (!edited) setText(argsText(handlerExampleArgs(handler, userEntityRef)));
-  }, [edited, handler, userEntityRef]);
+    if (!edited)
+      setText(
+        argsText(
+          messageDefinitionExampleArgs(messageDefinition, userEntityRef),
+        ),
+      );
+  }, [edited, messageDefinition, userEntityRef]);
   useEffect(() => {
     onChange(parseArgs(text));
   }, [text, onChange]);
@@ -181,14 +189,14 @@ export function JsonMessageArgsField(props: MessageArgsFieldProps) {
  * Signal, update or query: a name, the arguments, then the result.
  * `send` sends the message; the dialog shows its result unless
  * `showResult` is false. `argsField` replaces the JSON field, for example
- * with a form for handlers with an input schema.
+ * with a form for message definitions with an input schema.
  */
 export function MessageDialog(props: {
   /** `signal`, `update` or `query`; names the result's test ID. */
   kind: string;
   text: MessageDialogText;
-  /** The handlers to choose from. */
-  handlers: WorkflowHandler[];
+  /** The message definitions to choose from. */
+  messageDefinitions: WorkflowMessageDefinition[];
   allowsCustomValue: boolean;
   showResult?: boolean;
   argsField?: ComponentType<MessageArgsFieldProps>;
@@ -203,13 +211,15 @@ export function MessageDialog(props: {
   const { kind, text } = props;
   const ArgsField = props.argsField ?? JsonMessageArgsField;
   const userEntityRef = useUserEntityRef();
-  const [name, setName] = useState(props.handlers[0]?.name ?? '');
-  // The handler names may come after the dialog opens.
-  const firstOption = props.handlers[0]?.name;
+  const [name, setName] = useState(props.messageDefinitions[0]?.name ?? '');
+  // The message definition names may come after the dialog opens.
+  const firstOption = props.messageDefinitions[0]?.name;
   useEffect(() => {
     if (firstOption) setName(current => current || firstOption);
   }, [firstOption]);
-  const handler = props.handlers.find(h => h.name === name.trim());
+  const messageDefinition = props.messageDefinitions.find(
+    d => d.name === name.trim(),
+  );
   const [parsed, setParsed] = useState<
     { args: JsonValue[] } | { error: string }
   >({ args: [] });
@@ -241,10 +251,10 @@ export function MessageDialog(props: {
           </Text>
           <Combobox
             label={text.label}
-            description={handler?.description}
-            options={props.handlers.map(h => ({
-              value: h.name,
-              label: h.name,
+            description={messageDefinition?.description}
+            options={props.messageDefinitions.map(d => ({
+              value: d.name,
+              label: d.name,
             }))}
             allowsCustomValue={props.allowsCustomValue}
             inputValue={name}
@@ -253,9 +263,9 @@ export function MessageDialog(props: {
             isRequired
           />
           <ArgsField
-            // A new field, with its example, for each described handler.
-            key={handler?.name ?? ''}
-            handler={handler}
+            // A new field, with its example, for each described message definition.
+            key={messageDefinition?.name ?? ''}
+            messageDefinition={messageDefinition}
             userEntityRef={userEntityRef}
             onChange={setParsed}
           />

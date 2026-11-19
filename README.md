@@ -1114,7 +1114,7 @@ type, task queue, memo, timeouts, retry policy and search attributes of the
 run's start event, under a new workflow ID, and opens it. The Signal, Update
 and Query dialogs offer the names the workflow defines (read with the
 `__temporal_workflow_metadata` query of the Temporal SDKs; any name can be
-typed; the backend lists them at `GET .../handlers`), take the arguments as
+typed; the backend lists them at `GET .../message-definitions`), take the arguments as
 JSON and show the result or the error, for example the message of an update
 validator.
 
@@ -1125,7 +1125,7 @@ an `inputSchema` (JSON Schema of its one argument), show a form instead of
 the JSON field (with `@rjsf/core`, as in the Scaffolder). `userField` names a
 property of the argument that is filled with the signed-in user's entity
 reference and cannot be changed in the form; the workflow should still check
-it, since a request can be sent without the form. Handlers the entity
+it, since a request can be sent without the form. Message definitions the entity
 describes are listed even when no worker answers the metadata query.
 
 ```yaml

@@ -280,9 +280,11 @@ describe('query routes of the core plugin', () => {
     expect(conditional.workflowService.queryWorkflow).not.toHaveBeenCalled();
   });
 
-  it('lists the handlers with the read permission only', async () => {
+  it('lists the message definitions with the read permission only', async () => {
     const { server } = await start({ deny: ['temporal.workflow.query'] });
-    const res = await request(server).get(`${wf}/handlers${withEntity}`);
+    const res = await request(server).get(
+      `${wf}/message-definitions${withEntity}`,
+    );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({
       signals: [{ name: 'addNote', description: 'Add a note' }],
@@ -312,15 +314,17 @@ describe('query routes of the core plugin', () => {
     };
     // Opened with the TemporalWorkflow entity itself.
     const own = await request(server).get(
-      `${wf}/handlers?entityRef=temporalworkflow:default/ticket-workflow`,
+      `${wf}/message-definitions?entityRef=temporalworkflow:default/ticket-workflow`,
     );
     expect(own.status).toBe(200);
     expect(own.body).toEqual(expected);
     // Opened with another entity, or from the Workflows page: the entity
     // that matches the workflow type and task queue.
-    const other = await request(server).get(`${wf}/handlers${withEntity}`);
+    const other = await request(server).get(
+      `${wf}/message-definitions${withEntity}`,
+    );
     expect(other.body).toEqual(expected);
-    const page = await request(server).get(`${wf}/handlers`);
+    const page = await request(server).get(`${wf}/message-definitions`);
     expect(page.body).toEqual(expected);
   });
 
@@ -331,7 +335,7 @@ describe('query routes of the core plugin', () => {
       entities: [ticketWorkflowEntity],
       deny: ['temporal.workflow.read'],
     });
-    const res = await request(server).get(`${wf}/handlers`);
+    const res = await request(server).get(`${wf}/message-definitions`);
     expect(res.status).toBe(200);
     expect(res.body.updates).toEqual([{ name: 'setPriority' }]);
   });
@@ -553,7 +557,7 @@ describe('query routes of the core plugin', () => {
     expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
   });
 
-  it('lists the handlers of a closed run, for the Query dialog', async () => {
+  it('lists the message definitions of a closed run, for the Query dialog', async () => {
     const { server, workflowService } = await start();
     workflowService.describeWorkflowExecution.mockImplementation(
       async (req: any) => ({
@@ -564,17 +568,21 @@ describe('query routes of the core plugin', () => {
         pendingActivities: [],
       }),
     );
-    const res = await request(server).get(`${wf}/handlers${withEntity}`);
+    const res = await request(server).get(
+      `${wf}/message-definitions${withEntity}`,
+    );
     expect(res.status).toBe(200);
     expect(res.body.queries).toEqual([{ name: 'state' }]);
   });
 
-  it('lists no handlers when no worker answers', async () => {
+  it('lists no message definitions when no worker answers', async () => {
     const { server, workflowService } = await start();
     workflowService.queryWorkflow.mockRejectedValue(
       Object.assign(new Error('deadline'), { code: 4 }),
     );
-    const res = await request(server).get(`${wf}/handlers${withEntity}`);
+    const res = await request(server).get(
+      `${wf}/message-definitions${withEntity}`,
+    );
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ signals: [], updates: [], queries: [] });
   });

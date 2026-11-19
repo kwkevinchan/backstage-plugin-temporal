@@ -119,7 +119,7 @@ export const temporalWorkflowHistoryListPermission = createPermission({
 
 /**
  * Run a query chosen by the user on a workflow of an entity (the Query
- * dialog). Queries only read; the backend's own queries (the handler list)
+ * dialog). Queries only read; the backend's own queries (the message definition list)
  * need {@link temporalWorkflowReadPermission} only.
  * Checked on the entity; without an entity, only a policy that allows it
  * for every entity lets it through.

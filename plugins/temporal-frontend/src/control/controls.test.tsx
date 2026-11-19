@@ -60,12 +60,12 @@ function Opened() {
 
 function render(
   element: JSX.Element,
-  options?: { deny?: string[]; control?: object; handlers?: object },
+  options?: { deny?: string[]; control?: object; messageDefinitions?: object },
 ) {
   const api = {
     ...mockTemporalApi(),
-    getWorkflowHandlers: jest.fn().mockResolvedValue(
-      options?.handlers ?? {
+    getWorkflowMessageDefinitions: jest.fn().mockResolvedValue(
+      options?.messageDefinitions ?? {
         signals: [{ name: 'addNote' }],
         updates: [],
         queries: [{ name: 'state' }],
@@ -183,7 +183,7 @@ describe('WorkflowControls', () => {
     expect(reload).toHaveBeenCalled();
   });
 
-  it('fills the JSON field with the example of a described handler', async () => {
+  it('fills the JSON field with the example of a described message definition', async () => {
     const { api } = render(
       <WorkflowControls
         workflow={running}
@@ -192,7 +192,7 @@ describe('WorkflowControls', () => {
         workflowHref={href}
       />,
       {
-        handlers: {
+        messageDefinitions: {
           signals: [
             {
               name: 'addNote',
@@ -228,7 +228,7 @@ describe('WorkflowControls', () => {
     );
   });
 
-  it('shows a form for a handler with an input schema', async () => {
+  it('shows a form for a message definition with an input schema', async () => {
     const { api } = render(
       <WorkflowControls
         workflow={running}
@@ -237,7 +237,7 @@ describe('WorkflowControls', () => {
         workflowHref={href}
       />,
       {
-        handlers: {
+        messageDefinitions: {
           signals: [],
           updates: [
             {
@@ -291,7 +291,7 @@ describe('WorkflowControls', () => {
     );
   });
 
-  it('shows a form for a handler whose argument is a string', async () => {
+  it('shows a form for a message definition whose argument is a string', async () => {
     const { api } = render(
       <WorkflowControls
         workflow={running}
@@ -300,7 +300,7 @@ describe('WorkflowControls', () => {
         workflowHref={href}
       />,
       {
-        handlers: {
+        messageDefinitions: {
           signals: [
             {
               name: 'addNote',

@@ -126,12 +126,12 @@ order, and three for the other parts of the package:
 
 The query classes in `services/` each cover one kind of read:
 
-| Class                   | Holds                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks     |
-| `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list   |
-| `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and handlers |
-| `AiWorkflowQueries`     | The records of a run's model calls                                                                        |
+| Class                   | Holds                                                                                                                |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks                |
+| `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, schedules and the progress of runs in a list              |
+| `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and message definitions |
+| `AiWorkflowQueries`     | The records of a run's model calls                                                                                   |
 
 `EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
 `WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
