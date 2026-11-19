@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { WorkflowHandler } from '../common';
+import type { WorkflowMessageDefinition } from '../common';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import {
   Button,
@@ -39,7 +39,7 @@ import {
   MessageDialog,
   type MessageDialogText,
   PermissionButton,
-  useWorkflowHandlers,
+  useWorkflowMessageDefinitions,
 } from '../components/messages/MessageDialog';
 import { SchemaArgsField } from '../components/messages/SchemaArgsField';
 import {
@@ -158,16 +158,20 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
     workflowId: workflow.workflowId,
     runId: workflow.runId,
   };
-  const handlers = useWorkflowHandlers(
+  const messageDefinitions = useWorkflowMessageDefinitions(
     ref,
     entityRef,
     open === 'signal' || open === 'update',
   );
   const close = () => setOpen(undefined);
 
-  const messageOptions = (kind: MessageKind): [WorkflowHandler[], boolean] => {
+  const messageOptions = (
+    kind: MessageKind,
+  ): [WorkflowMessageDefinition[], boolean] => {
     const defined =
-      (kind === 'signal' ? handlers?.signals : handlers?.updates) ?? [];
+      (kind === 'signal'
+        ? messageDefinitions?.signals
+        : messageDefinitions?.updates) ?? [];
     const allowed =
       kind === 'signal' ? config.allowedSignals : config.allowedUpdates;
     if (allowed.length > 0) {
@@ -225,7 +229,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           key={open}
           kind={open}
           text={MESSAGE_TEXT[open]}
-          handlers={messageOptions(open)[0]}
+          messageDefinitions={messageOptions(open)[0]}
           allowsCustomValue={messageOptions(open)[1]}
           argsField={SchemaArgsField}
           showResult={open === 'update'}

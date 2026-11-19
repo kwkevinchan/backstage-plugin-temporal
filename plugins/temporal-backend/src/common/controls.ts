@@ -34,7 +34,7 @@ export type WorkflowControlOperation =
 
 /**
  * Body of `POST .../signal`, `.../update` and `.../query`. `args` are the
- * handler arguments, sent as JSON payloads.
+ * arguments of the message, sent as JSON payloads.
  *
  * @public
  */
@@ -105,25 +105,27 @@ export function buildWorkflowActionPath(
 }
 
 /**
- * Builds the path of the handler list of one run:
- * `.../runs/:runId/handlers`.
+ * Builds the path of the message definitions of one run:
+ * `.../runs/:runId/message-definitions`.
  *
  * @public
  */
-export function buildWorkflowHandlersPath(ref: WorkflowRunRef): string {
-  return `${buildWorkflowRunPath(ref)}/handlers`;
+export function buildWorkflowMessageDefinitionsPath(
+  ref: WorkflowRunRef,
+): string {
+  return `${buildWorkflowRunPath(ref)}/message-definitions`;
 }
 
 /**
- * A signal, update or query that a workflow defines.
+ * A message definition: a signal, update or query that a workflow defines.
  *
  * @public
  */
-export interface WorkflowHandler {
+export interface WorkflowMessageDefinition {
   name: string;
   description?: string;
   /**
-   * JSON Schema of the one argument the handler takes, from the
+   * JSON Schema of the one argument this message takes, from the
    * `spec.messages` of the workflow's `TemporalWorkflow` entity.
    */
   inputSchema?: JsonObject;
@@ -134,15 +136,15 @@ export interface WorkflowHandler {
 }
 
 /**
- * The handlers of a workflow (`GET .../handlers`): from the metadata query
+ * The message definitions of a workflow (`GET .../message-definitions`): from the metadata query
  * of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity
  * describes in `spec.messages`. Names starting with `__` (the SDKs' own)
  * are left out.
  *
  * @public
  */
-export interface WorkflowHandlersResponse {
-  signals: WorkflowHandler[];
-  updates: WorkflowHandler[];
-  queries: WorkflowHandler[];
+export interface WorkflowMessageDefinitionsResponse {
+  signals: WorkflowMessageDefinition[];
+  updates: WorkflowMessageDefinition[];
+  queries: WorkflowMessageDefinition[];
 }

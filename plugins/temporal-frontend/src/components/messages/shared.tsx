@@ -53,7 +53,7 @@ export function parseArgs(
   }
 }
 
-/** A JSON text area with a label, for handler and workflow arguments. */
+/** A JSON text area with a label, for message and workflow arguments. */
 export function JsonArgsField(props: {
   value: string;
   onChange(value: string): void;

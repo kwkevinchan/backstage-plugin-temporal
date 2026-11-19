@@ -76,7 +76,9 @@ export function buildWorkflowActionPath(
 ): string;
 
 // @public
-export function buildWorkflowHandlersPath(ref: WorkflowRunRef): string;
+export function buildWorkflowMessageDefinitionsPath(
+  ref: WorkflowRunRef,
+): string;
 
 // @public
 export function buildWorkflowOperationPath(
@@ -140,7 +142,7 @@ export function getTemporalWorkflowExampleArgs(
 // @public
 export function getTemporalWorkflowMessages(
   entity: Entity | undefined,
-): WorkflowHandlersResponse;
+): WorkflowMessageDefinitionsResponse;
 
 // @public
 export function getTemporalWorkflowSource(entity: Entity): TemporalAnnotations;
@@ -183,10 +185,10 @@ export function isValidWorkflowIdPrefix(value: string): boolean;
 export function isValidWorkflowTypeName(value: string): boolean;
 
 // @public
-export function mergeWorkflowHandlers(
-  reported: WorkflowHandlersResponse,
-  described: WorkflowHandlersResponse,
-): WorkflowHandlersResponse;
+export function mergeWorkflowMessageDefinitions(
+  reported: WorkflowMessageDefinitionsResponse,
+  described: WorkflowMessageDefinitionsResponse,
+): WorkflowMessageDefinitionsResponse;
 
 // @public
 export const NAME_PATTERN_SOURCES: {
@@ -473,10 +475,10 @@ export const temporalWorkflowEntityV1alpha1Schema: {
                       };
                       readonly inputSchema: {
                         readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument the handler takes.';
+                        readonly description: 'JSON Schema of the one argument this message takes.';
                       };
                       readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a handler with one argument.';
+                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
                       };
                       readonly userField: {
                         readonly type: 'string';
@@ -503,10 +505,10 @@ export const temporalWorkflowEntityV1alpha1Schema: {
                       };
                       readonly inputSchema: {
                         readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument the handler takes.';
+                        readonly description: 'JSON Schema of the one argument this message takes.';
                       };
                       readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a handler with one argument.';
+                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
                       };
                       readonly userField: {
                         readonly type: 'string';
@@ -533,10 +535,10 @@ export const temporalWorkflowEntityV1alpha1Schema: {
                       };
                       readonly inputSchema: {
                         readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument the handler takes.';
+                        readonly description: 'JSON Schema of the one argument this message takes.';
                       };
                       readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a handler with one argument.';
+                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
                       };
                       readonly userField: {
                         readonly type: 'string';
@@ -604,10 +606,10 @@ export const temporalWorkflowMessageSchema: {
     };
     readonly inputSchema: {
       readonly type: 'object';
-      readonly description: 'JSON Schema of the one argument the handler takes.';
+      readonly description: 'JSON Schema of the one argument this message takes.';
     };
     readonly example: {
-      readonly description: 'Example arguments: an array of arguments, or one value for a handler with one argument.';
+      readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
     };
     readonly userField: {
       readonly type: 'string';
@@ -800,27 +802,6 @@ export interface WorkflowGraphResponse {
 }
 
 // @public
-export interface WorkflowHandler {
-  // (undocumented)
-  description?: string;
-  example?: JsonValue;
-  inputSchema?: JsonObject;
-  // (undocumented)
-  name: string;
-  userField?: string;
-}
-
-// @public
-export interface WorkflowHandlersResponse {
-  // (undocumented)
-  queries: WorkflowHandler[];
-  // (undocumented)
-  signals: WorkflowHandler[];
-  // (undocumented)
-  updates: WorkflowHandler[];
-}
-
-// @public
 export interface WorkflowHistoryEvent {
   // (undocumented)
   attributes?: JsonObject;
@@ -985,6 +966,27 @@ export interface WorkflowLlmUsage {
   outputTokens?: number;
   // (undocumented)
   reasoningTokens?: number;
+}
+
+// @public
+export interface WorkflowMessageDefinition {
+  // (undocumented)
+  description?: string;
+  example?: JsonValue;
+  inputSchema?: JsonObject;
+  // (undocumented)
+  name: string;
+  userField?: string;
+}
+
+// @public
+export interface WorkflowMessageDefinitionsResponse {
+  // (undocumented)
+  queries: WorkflowMessageDefinition[];
+  // (undocumented)
+  signals: WorkflowMessageDefinition[];
+  // (undocumented)
+  updates: WorkflowMessageDefinition[];
 }
 
 // @public

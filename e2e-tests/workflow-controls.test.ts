@@ -96,13 +96,13 @@ async function fillMessage(
   button: string,
   field: string,
   name: string,
-  /** JSON arguments, or a value for the form field of a described handler. */
+  /** JSON arguments, or a value for the form field of a described message definition. */
   args: string | { field: string; value: string },
 ) {
   await page.getByRole('button', { name: button, exact: true }).click();
   const nameField = dialog(page).getByRole('combobox', { name: field });
   await expect(nameField).toBeVisible();
-  // The handler names come from the workflow; wait for the first one.
+  // The message definition names come from the workflow; wait for the first one.
   await expect(nameField).not.toHaveValue('');
   await nameField.fill(name);
   // Tab closes the list of names, which hides the rest of the dialog.
@@ -112,7 +112,7 @@ async function fillMessage(
       .getByRole('textbox', { name: 'Arguments (JSON)' })
       .fill(args);
   } else {
-    // spec.messages gives this handler an input schema: a form.
+    // spec.messages gives this message definition an input schema: a form.
     await dialog(page)
       .getByTestId('message-form')
       .getByRole('textbox', { name: args.field })

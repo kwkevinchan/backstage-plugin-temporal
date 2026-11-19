@@ -77,7 +77,7 @@ Plugins and app modules that add buttons or tabs to the workflow page, or
 that call the Temporal backend from their own components, use these exports.
 
 - `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
-  workflow reads, queries and handler names, the operations that change
+  workflow reads, queries and message definition names, the operations that change
   workflows and custom backend actions.
 - `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`,
   `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`: actions,

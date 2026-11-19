@@ -18,7 +18,7 @@ import { createApiRef } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
 import type {
   WorkflowDetail,
-  WorkflowHandlersResponse,
+  WorkflowMessageDefinitionsResponse,
   WorkflowMessageResponse,
   WorkflowGraphResponse,
   WorkflowLlmCallResponse,
@@ -173,10 +173,10 @@ export interface TemporalApi {
    * metadata query of the Temporal SDKs. Closed runs answer too while a
    * worker of their task queue runs; empty when no worker answers.
    */
-  getWorkflowHandlers(
+  getWorkflowMessageDefinitions(
     ref: WorkflowRunRef,
     options?: { entityRef?: string },
-  ): Promise<WorkflowHandlersResponse>;
+  ): Promise<WorkflowMessageDefinitionsResponse>;
 
   /**
    * Starts a workflow. With `entityRef`, a workflow of that entity (its

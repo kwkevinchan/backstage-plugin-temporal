@@ -20,7 +20,7 @@ import type { RJSFSchema, UiSchema } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
-  handlerExampleArgs,
+  messageDefinitionExampleArgs,
   JsonMessageArgsField,
   type MessageArgsFieldProps,
 } from './MessageDialog';
@@ -32,23 +32,27 @@ function isObject(value: unknown): value is JsonObject {
 
 /**
  * The arguments field of the signal, update and query dialogs: a form for a
- * handler with an input schema (from `spec.messages`), the JSON field
- * otherwise. The form gives the handler's one argument.
+ * message definition with an input schema (from `spec.messages`), the JSON field
+ * otherwise. The form gives the message's one argument.
  */
 export function SchemaArgsField(props: MessageArgsFieldProps) {
-  if (!props.handler?.inputSchema) return <JsonMessageArgsField {...props} />;
-  return <SchemaForm {...props} schema={props.handler.inputSchema} />;
+  if (!props.messageDefinition?.inputSchema)
+    return <JsonMessageArgsField {...props} />;
+  return <SchemaForm {...props} schema={props.messageDefinition.inputSchema} />;
 }
 
 function SchemaForm(props: MessageArgsFieldProps & { schema: JsonObject }) {
-  const { handler, userEntityRef, onChange } = props;
+  const { messageDefinition, userEntityRef, onChange } = props;
   const schema = props.schema as RJSFSchema;
-  const field = handler?.userField;
+  const field = messageDefinition?.userField;
   // rjsf's default ID prefix is `root`, the ID of the element Backstage
   // mounts the app in: the labels would point there.
   const idPrefix = `tp-message-${useId().replace(/[^A-Za-z0-9]/g, '')}`;
   const [data, setData] = useState<JsonValue | undefined>(() => {
-    const [first] = handlerExampleArgs(handler, userEntityRef);
+    const [first] = messageDefinitionExampleArgs(
+      messageDefinition,
+      userEntityRef,
+    );
     return first ?? (schema.type === 'object' ? {} : undefined);
   });
   // The user's reference may come after the form opens.

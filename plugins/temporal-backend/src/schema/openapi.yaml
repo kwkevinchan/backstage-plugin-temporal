@@ -1004,7 +1004,7 @@ components:
         truncated:
           type: boolean
       additionalProperties: false
-    WorkflowHandler:
+    WorkflowMessageDefinition:
       type: object
       required:
         - name
@@ -1022,7 +1022,7 @@ components:
         userField:
           type: string
       additionalProperties: false
-    WorkflowHandlersResponse:
+    WorkflowMessageDefinitionsResponse:
       type: object
       required:
         - signals
@@ -1032,15 +1032,15 @@ components:
         signals:
           type: array
           items:
-            $ref: '#/components/schemas/WorkflowHandler'
+            $ref: '#/components/schemas/WorkflowMessageDefinition'
         updates:
           type: array
           items:
-            $ref: '#/components/schemas/WorkflowHandler'
+            $ref: '#/components/schemas/WorkflowMessageDefinition'
         queries:
           type: array
           items:
-            $ref: '#/components/schemas/WorkflowHandler'
+            $ref: '#/components/schemas/WorkflowMessageDefinition'
       additionalProperties: false
     WorkflowMessageRequest:
       type: object
@@ -1859,9 +1859,9 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/handlers:
+  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/message-definitions:
     get:
-      operationId: getWorkflowRunHandlers
+      operationId: getWorkflowRunMessageDefinitions
       summary: List the signals, updates and queries of a workflow (one run)
       description: |-
         From the metadata query of the Temporal SDKs, with what the workflow's `TemporalWorkflow` entity describes in `spec.messages`. Names starting with `__` are left out. The descriptions of a `TemporalWorkflow` entity other than the one the workflow is opened from are used only when the caller has `temporal.workflow.read` on it; otherwise they are left out, without a 403.
@@ -1883,7 +1883,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowHandlersResponse'
+                $ref: '#/components/schemas/WorkflowMessageDefinitionsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

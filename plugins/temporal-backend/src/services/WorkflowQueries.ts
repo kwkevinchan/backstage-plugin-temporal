@@ -29,8 +29,8 @@ import {
   WorkflowStatus,
   WorkflowStepsResponse,
   WorkflowSummary,
-  WorkflowHandler,
-  WorkflowHandlersResponse,
+  WorkflowMessageDefinition,
+  WorkflowMessageDefinitionsResponse,
 } from '../common';
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
@@ -59,13 +59,15 @@ import { EntityWorkflowSources } from './EntityWorkflowSources';
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
 /** Most history events read to build the steps of one run. */
 export const MAX_STEP_EVENTS = 5000;
-/** Query of the Temporal SDKs that lists a workflow's handlers. */
+/** Query of the Temporal SDKs that lists a workflow's message definitions. */
 export const METADATA_QUERY = '__temporal_workflow_metadata';
 /** Time the metadata query may take. */
 export const METADATA_QUERY_TIMEOUT_MS = 5000;
 
-/** Handler definitions of the metadata query, without the SDKs' own (`__`). */
-function handlerList(definitions: unknown): WorkflowHandler[] {
+/** Message definitions of the metadata query, without the SDKs' own (`__`). */
+function messageDefinitionList(
+  definitions: unknown,
+): WorkflowMessageDefinition[] {
   if (!Array.isArray(definitions)) return [];
   return definitions.flatMap(d => {
     const name = (d as { name?: unknown })?.name;
@@ -88,7 +90,7 @@ export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
 
 /**
  * The read use cases of the plugin for one workflow: details, membership of
- * an entity, history, steps, graph, run position, queries and handlers. Callers check permissions first (see
+ * an entity, history, steps, graph, run position, queries and message definitions. Callers check permissions first (see
  * `access/`); this class checks that namespaces are allowed and reads
  * Temporal through {@link TemporalReadRepository}.
  */
@@ -391,8 +393,10 @@ export class WorkflowQueries {
    * their task queue runs (the Query dialog needs the query names). Empty
    * lists when no worker answers in time or the workflow does not answer it.
    */
-  async handlers(workflow: WorkflowDetail): Promise<WorkflowHandlersResponse> {
-    const empty: WorkflowHandlersResponse = {
+  async messageDefinitions(
+    workflow: WorkflowDetail,
+  ): Promise<WorkflowMessageDefinitionsResponse> {
+    const empty: WorkflowMessageDefinitionsResponse = {
       signals: [],
       updates: [],
       queries: [],
@@ -407,9 +411,9 @@ export class WorkflowQueries {
       const definition = (decodeJsonPayloads(response.result) as any)
         ?.definition;
       return {
-        signals: handlerList(definition?.signalDefinitions),
-        updates: handlerList(definition?.updateDefinitions),
-        queries: handlerList(definition?.queryDefinitions),
+        signals: messageDefinitionList(definition?.signalDefinitions),
+        updates: messageDefinitionList(definition?.updateDefinitions),
+        queries: messageDefinitionList(definition?.queryDefinitions),
       };
     } catch (error) {
       this.logger
