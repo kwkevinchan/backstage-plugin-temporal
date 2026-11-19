@@ -20,14 +20,14 @@ import {
   parseTemporalAnnotations,
 } from '../common';
 import {
-  buildEntityWorkflowQuery,
-  buildNamespaceWorkflowQuery,
+  buildEntityVisibilityQuery,
+  buildNamespaceVisibilityQuery,
   matchingWorkflowEntity,
   parseStatus,
   scheduleBelongsToSources,
   workflowBelongsToEntity,
   workflowIdCondition,
-} from './query';
+} from './visibilityQuery';
 
 function entity(annotations: Record<string, string>): Entity {
   return {
@@ -40,7 +40,7 @@ function entity(annotations: Record<string, string>): Entity {
 
 const ref = 'component:default/orders';
 
-describe('buildEntityWorkflowQuery', () => {
+describe('buildEntityVisibilityQuery', () => {
   it('combines task queue and workflow types', () => {
     const annotations = parseTemporalAnnotations(
       entity({
@@ -48,7 +48,7 @@ describe('buildEntityWorkflowQuery', () => {
         'temporal.io/workflow-type': 'a, b',
       }),
     );
-    expect(buildEntityWorkflowQuery({ annotations, entityRef: ref })).toBe(
+    expect(buildEntityVisibilityQuery({ annotations, entityRef: ref })).toBe(
       "TaskQueue = 'orders' AND WorkflowType IN ('a', 'b')",
     );
   });
@@ -58,7 +58,7 @@ describe('buildEntityWorkflowQuery', () => {
       entity({ 'temporal.io/workflow-type': 'orderWorkflow' }),
     );
     expect(
-      buildEntityWorkflowQuery(
+      buildEntityVisibilityQuery(
         {
           annotations,
           entityRef: ref,
@@ -76,15 +76,15 @@ describe('buildEntityWorkflowQuery', () => {
       entity({ 'temporal.io/task-queue': 'orders' }),
     );
     const filter = { annotations, entityRef: ref };
-    expect(buildEntityWorkflowQuery(filter, { allRuns: false })).toBe(
+    expect(buildEntityVisibilityQuery(filter, { allRuns: false })).toBe(
       "(TaskQueue = 'orders') AND ExecutionStatus != 'ContinuedAsNew'",
     );
-    expect(buildEntityWorkflowQuery(filter, { allRuns: true })).toBe(
+    expect(buildEntityVisibilityQuery(filter, { allRuns: true })).toBe(
       "TaskQueue = 'orders'",
     );
     // A chosen status replaces the filter, so continued runs can be listed.
     expect(
-      buildEntityWorkflowQuery(filter, {
+      buildEntityVisibilityQuery(filter, {
         allRuns: false,
         status: 'ContinuedAsNew',
       }),
@@ -96,14 +96,14 @@ describe('buildEntityWorkflowQuery', () => {
       entity({ 'temporal.io/namespace': 'default' }),
     );
     expect(
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         annotations,
         entityRef: ref,
         entityRefAttribute: 'BackstageEntityRef',
       }),
     ).toBe("BackstageEntityRef = 'component:default/orders'");
     expect(() =>
-      buildEntityWorkflowQuery({ annotations, entityRef: ref }),
+      buildEntityVisibilityQuery({ annotations, entityRef: ref }),
     ).toThrow(/annotation/);
   });
 
@@ -127,20 +127,20 @@ describe('buildEntityWorkflowQuery', () => {
 
   it('rejects injected values that bypass annotation parsing', () => {
     expect(() =>
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         annotations: { taskQueue: "x' OR 'a'='a", workflowTypes: [] },
         entityRef: ref,
       }),
     ).toThrow();
     expect(() =>
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         annotations: { workflowTypes: ['ok'] },
         entityRef: "component:default/x' OR 'a'='a",
         entityRefAttribute: 'BackstageEntityRef',
       }),
     ).toThrow();
     expect(() =>
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         annotations: { workflowTypes: ['ok'] },
         entityRef: ref,
         entityRefAttribute: 'Bad Name',
@@ -152,7 +152,7 @@ describe('buildEntityWorkflowQuery', () => {
 describe('the search attribute filter', () => {
   it('keeps the workflows whose Bool search attribute is true', () => {
     expect(
-      buildNamespaceWorkflowQuery({
+      buildNamespaceVisibilityQuery({
         workflowType: 'demoRelease',
         searchAttribute: 'ApprovalPending',
         status: 'Running',
@@ -161,7 +161,7 @@ describe('the search attribute filter', () => {
       "WorkflowType = 'demoRelease' AND ApprovalPending = true AND ExecutionStatus = 'Running'",
     );
     expect(
-      buildEntityWorkflowQuery(
+      buildEntityVisibilityQuery(
         {
           annotations: { workflowTypes: ['demoRelease'] },
           entityRef: 'component:default/release',
@@ -171,7 +171,7 @@ describe('the search attribute filter', () => {
     ).toBe("(WorkflowType = 'demoRelease') AND ApprovalPending = true");
     // With several alternatives and every run, the filter applies to all.
     expect(
-      buildEntityWorkflowQuery(
+      buildEntityVisibilityQuery(
         {
           annotations: { workflowTypes: ['demoRelease'] },
           entityRef: 'component:default/release',
@@ -186,7 +186,7 @@ describe('the search attribute filter', () => {
 
   it('rejects names that are not search attribute names', () => {
     expect(() =>
-      buildNamespaceWorkflowQuery({ searchAttribute: 'x = true OR y' }),
+      buildNamespaceVisibilityQuery({ searchAttribute: 'x = true OR y' }),
     ).toThrow('Invalid search attribute name');
   });
 });
@@ -254,11 +254,11 @@ describe('related TemporalWorkflow entities', () => {
   };
 
   it('adds each related entity as an alternative', () => {
-    expect(buildEntityWorkflowQuery(filter)).toBe(
+    expect(buildEntityVisibilityQuery(filter)).toBe(
       "TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow'",
     );
     expect(
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         ...filter,
         entityRefAttribute: 'BackstageEntityRef',
       }),
@@ -269,7 +269,7 @@ describe('related TemporalWorkflow entities', () => {
 
   it('rejects injected values in related entities', () => {
     expect(() =>
-      buildEntityWorkflowQuery({
+      buildEntityVisibilityQuery({
         ...filter,
         related: [
           {
@@ -303,11 +303,11 @@ describe('related TemporalWorkflow entities', () => {
   });
 });
 
-describe('buildNamespaceWorkflowQuery', () => {
+describe('buildNamespaceVisibilityQuery', () => {
   it('combines the filters', () => {
-    expect(buildNamespaceWorkflowQuery({})).toBe('');
+    expect(buildNamespaceVisibilityQuery({})).toBe('');
     expect(
-      buildNamespaceWorkflowQuery({
+      buildNamespaceVisibilityQuery({
         workflowType: 'orderWorkflow',
         workflowIdPrefix: 'order-',
         status: 'Running',
@@ -318,20 +318,20 @@ describe('buildNamespaceWorkflowQuery', () => {
   });
 
   it('lists only the latest run of a workflow that continues as new', () => {
-    expect(buildNamespaceWorkflowQuery({ allRuns: false })).toBe(
+    expect(buildNamespaceVisibilityQuery({ allRuns: false })).toBe(
       "ExecutionStatus != 'ContinuedAsNew'",
     );
     expect(
-      buildNamespaceWorkflowQuery({
+      buildNamespaceVisibilityQuery({
         allRuns: false,
         workflowIdPrefix: 'poll-',
       }),
     ).toBe(
       "WorkflowId STARTS_WITH 'poll-' AND ExecutionStatus != 'ContinuedAsNew'",
     );
-    expect(buildNamespaceWorkflowQuery({ allRuns: true })).toBe('');
+    expect(buildNamespaceVisibilityQuery({ allRuns: true })).toBe('');
     expect(
-      buildNamespaceWorkflowQuery({ allRuns: false, status: 'Completed' }),
+      buildNamespaceVisibilityQuery({ allRuns: false, status: 'Completed' }),
     ).toBe("ExecutionStatus = 'Completed'");
   });
 });

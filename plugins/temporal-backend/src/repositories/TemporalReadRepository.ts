@@ -66,7 +66,7 @@ export class TemporalReadRepository {
 
   async listExecutions(
     namespace: string,
-    query: string,
+    visibilityQuery: string,
     page: { pageSize: number; nextPageToken?: Uint8Array },
   ): Promise<TemporalPage<any>> {
     const response = await this.call(
@@ -76,7 +76,7 @@ export class TemporalReadRepository {
       service =>
         service.listWorkflowExecutions({
           namespace,
-          query,
+          query: visibilityQuery,
           pageSize: page.pageSize,
           nextPageToken: page.nextPageToken,
         }),
@@ -87,12 +87,16 @@ export class TemporalReadRepository {
     };
   }
 
-  async countExecutions(namespace: string, query: string): Promise<number> {
+  async countExecutions(
+    namespace: string,
+    visibilityQuery: string,
+  ): Promise<number> {
     const response = await this.call(
       'countWorkflowExecutions',
       namespace,
       TEMPORAL_DEADLINES.list,
-      service => service.countWorkflowExecutions({ namespace, query }),
+      service =>
+        service.countWorkflowExecutions({ namespace, query: visibilityQuery }),
     );
     return Number(response.count ?? 0);
   }

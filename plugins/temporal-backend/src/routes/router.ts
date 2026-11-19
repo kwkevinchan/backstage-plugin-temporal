@@ -54,7 +54,7 @@ import {
   openApiSpecFor,
 } from './openApiRoutes';
 import { decodePageToken } from '../services/convert';
-import { parseStatus, workflowIdCondition } from '../services/query';
+import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
   entityRefFromParams,
   optionalString,
@@ -170,7 +170,7 @@ export async function createRouter(
       optionalString(req.query.namespace, 'namespace') ||
       entitySources.defaultNamespace();
     // Undefined, or the visibility query of a conditional decision.
-    const permissionQuery = await access.authorizeWorkflowList(
+    const permissionFilter = await access.authorizeWorkflowList(
       namespace,
       credentials,
     );
@@ -187,7 +187,7 @@ export async function createRouter(
         searchAttribute:
           optionalString(req.query.searchAttribute, 'searchAttribute') ||
           undefined,
-        permissionQuery,
+        permissionFilter,
       },
       {
         pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
@@ -253,13 +253,13 @@ export async function createRouter(
       return;
     }
     // Undefined, or the visibility query of a conditional decision.
-    const permissionQuery = await access.authorizeWorkflowList(
+    const permissionFilter = await access.authorizeWorkflowList(
       namespace,
       credentials,
     );
     const result = await lists.listNamespaceWorkflows(
       namespace,
-      { workflowId, permissionQuery },
+      { workflowId, permissionFilter },
       page,
     );
     res.json({

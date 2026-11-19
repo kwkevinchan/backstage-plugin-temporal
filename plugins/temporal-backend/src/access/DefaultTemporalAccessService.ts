@@ -58,9 +58,12 @@ import {
   TemporalAccessService,
   TemporalEntityContext,
   TemporalWorkflowAccessLevel,
-  TemporalWorkflowQuery,
+  TemporalWorkflowFilter,
 } from '../node/alpha';
-import { inQuery, isValidEntityRefValue } from '../services/query';
+import {
+  inCondition,
+  isValidEntityRefValue,
+} from '../services/visibilityQuery';
 import {
   EntityWorkflowSources,
   logSkippedWorkflowEntity,
@@ -73,7 +76,7 @@ export const MAX_RELATED_WORKFLOW_ENTITIES = 20;
 /** The rules of the `temporal-workflow` resource type. */
 export type TemporalWorkflowRuleset = PermissionRuleset<
   WorkflowSummary,
-  TemporalWorkflowQuery,
+  TemporalWorkflowFilter,
   'temporal-workflow'
 >;
 
@@ -89,11 +92,12 @@ export interface WorkflowListScope {
  * Turns the conditions of a decision into a visibility query for the
  * namespace being listed: `allOf` with AND, `anyOf` with OR. Conditions on
  * the namespace, and on the initiator without its search attribute, are
- * decided here and become `true` or `false`. Temporal's query language has
- * no general NOT, so a `not` condition is refused unless it is decided here.
+ * decided here and become `true` or `false`. Temporal's visibility query
+ * language has no general NOT, so a `not` condition is refused unless it is
+ * decided here.
  */
 export function criteriaToVisibilityQuery(
-  criteria: PermissionCriteria<TemporalWorkflowQuery>,
+  criteria: PermissionCriteria<TemporalWorkflowFilter>,
   scope: WorkflowListScope,
 ): string | boolean {
   if (isAndCriteria(criteria) || isOrCriteria(criteria)) {
@@ -103,9 +107,11 @@ export function criteriaToVisibilityQuery(
     );
     // false decides AND, true decides OR; the other one drops out.
     if (parts.includes(!and)) return !and;
-    const queries = parts.filter((p): p is string => typeof p === 'string');
-    if (queries.length === 0) return and;
-    return queries.map(q => `(${q})`).join(and ? ' AND ' : ' OR ');
+    const visibilityQueries = parts.filter(
+      (p): p is string => typeof p === 'string',
+    );
+    if (visibilityQueries.length === 0) return and;
+    return visibilityQueries.map(q => `(${q})`).join(and ? ' AND ' : ' OR ');
   }
   if (isNotCriteria(criteria)) {
     const inner = criteriaToVisibilityQuery(criteria.not, scope);
@@ -119,7 +125,7 @@ export function criteriaToVisibilityQuery(
     return criteria.namespaces.includes(scope.namespace);
   }
   if (!scope.initiatorAttribute) return false;
-  return inQuery(
+  return inCondition(
     scope.initiatorAttribute,
     criteria.initiators,
     isValidEntityRefValue,
@@ -234,11 +240,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     if (decision.result !== AuthorizeResult.CONDITIONAL) return undefined;
     // A condition the plugin cannot apply is a policy problem, not a bad
     // request: it allows nothing.
-    let query: string | boolean;
+    let visibilityQuery: string | boolean;
     try {
-      const criteria: PermissionCriteria<TemporalWorkflowQuery> =
+      const criteria: PermissionCriteria<TemporalWorkflowFilter> =
         createConditionTransformer(this.workflowRules())(decision.conditions);
-      query = criteriaToVisibilityQuery(criteria, {
+      visibilityQuery = criteriaToVisibilityQuery(criteria, {
         namespace,
         initiatorAttribute: this.options.initiatorAttribute,
       });
@@ -256,12 +262,12 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         `The workflow list conditions cannot be applied: ${error}`,
       );
     }
-    if (query === false) {
+    if (visibilityQuery === false) {
       throw new NotAllowedError(
         `The policy allows no workflows of namespace ${namespace}`,
       );
     }
-    return query === true ? undefined : query;
+    return visibilityQuery === true ? undefined : visibilityQuery;
   }
 
   /**

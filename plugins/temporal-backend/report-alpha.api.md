@@ -193,7 +193,7 @@ export type TemporalWorkflowAccessLevel = 'read' | 'history';
 export const temporalWorkflowConditions: Conditions<{
   hasWorkflowType: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       workflowTypes: string[];
@@ -201,7 +201,7 @@ export const temporalWorkflowConditions: Conditions<{
   >;
   hasTaskQueue: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       taskQueues: string[];
@@ -209,7 +209,7 @@ export const temporalWorkflowConditions: Conditions<{
   >;
   inNamespace: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       namespaces: string[];
@@ -217,7 +217,7 @@ export const temporalWorkflowConditions: Conditions<{
   >;
   isInitiator: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       claims: string[];
@@ -255,9 +255,19 @@ export interface TemporalWorkflowEnricherExtensionPoint {
 export const temporalWorkflowEnricherExtensionPoint: ExtensionPoint<TemporalWorkflowEnricherExtensionPoint>;
 
 // @alpha
+export type TemporalWorkflowFilter =
+  | string
+  | {
+      namespaces: string[];
+    }
+  | {
+      initiators: string[];
+    };
+
+// @alpha
 export const temporalWorkflowPermissionResourceRef: PermissionResourceRef<
   WorkflowSummary,
-  TemporalWorkflowQuery,
+  TemporalWorkflowFilter,
   'temporal-workflow',
   'temporal'
 >;
@@ -266,7 +276,7 @@ export const temporalWorkflowPermissionResourceRef: PermissionResourceRef<
 export const temporalWorkflowPermissionRules: {
   hasWorkflowType: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       workflowTypes: string[];
@@ -274,7 +284,7 @@ export const temporalWorkflowPermissionRules: {
   >;
   hasTaskQueue: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       taskQueues: string[];
@@ -282,7 +292,7 @@ export const temporalWorkflowPermissionRules: {
   >;
   inNamespace: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       namespaces: string[];
@@ -290,23 +300,13 @@ export const temporalWorkflowPermissionRules: {
   >;
   isInitiator: PermissionRule<
     WorkflowSummary,
-    TemporalWorkflowQuery,
+    TemporalWorkflowFilter,
     'temporal-workflow',
     {
       claims: string[];
     }
   >;
 };
-
-// @alpha
-export type TemporalWorkflowQuery =
-  | string
-  | {
-      namespaces: string[];
-    }
-  | {
-      initiators: string[];
-    };
 
 // (No @packageDocumentation comment for this package)
 ```

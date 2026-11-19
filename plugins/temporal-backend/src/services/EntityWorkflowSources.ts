@@ -28,7 +28,7 @@ import {
 } from '../common';
 import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
-import { EntityWorkflowFilter, RelatedWorkflowSource } from './query';
+import { EntityWorkflowFilter, RelatedWorkflowSource } from './visibilityQuery';
 
 /**
  * Reads the workflow filter of an entity: the spec of a `TemporalWorkflow`

@@ -50,7 +50,10 @@ import {
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
-import { workflowBelongsToEntity, workflowIdCondition } from './query';
+import {
+  workflowBelongsToEntity,
+  workflowIdCondition,
+} from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
@@ -345,8 +348,8 @@ export class WorkflowQueries {
     // The start time of describe is cut to milliseconds.
     const until = new Date(start + 1).toISOString();
     try {
-      const count = (query: string) =>
-        this.temporalReads.countExecutions(workflow.namespace, query);
+      const count = (visibilityQuery: string) =>
+        this.temporalReads.countExecutions(workflow.namespace, visibilityQuery);
       const [index, total] = await Promise.all([
         count(`${byId} AND StartTime < '${until}'`),
         count(byId),
