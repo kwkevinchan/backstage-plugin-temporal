@@ -87,7 +87,6 @@ in the repository README for examples.
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId`                           | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.history.read`              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/result`                    | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/steps`                     | `temporal.workflow.history.read`              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/progress`                  | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
@@ -134,7 +133,7 @@ so a workflow that keeps continuing as new is listed once); `namespace`,
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it
 (404 otherwise). Without it, `temporal.workflow.list` (with
-`temporal.workflow.history.list` for history, steps, result and model calls) allows the workflows it covers; when it does not, the entity
+`temporal.workflow.history.list` for history, result and model calls) allows the workflows it covers; when it does not, the entity
 comes from the `searchAttributes.entityRef` search attribute.
 
 The routes that change one workflow (signal, update, cancel, terminate,

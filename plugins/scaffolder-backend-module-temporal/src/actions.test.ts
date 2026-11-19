@@ -72,7 +72,6 @@ function setup(defaultNamespace = 'default') {
     }),
     describe: jest.fn(),
     latestRunId: jest.fn().mockResolvedValue('run-1'),
-    steps: jest.fn(),
     result: jest.fn(),
     send: jest.fn().mockResolvedValue({ result: { approved: true } }),
   };
@@ -255,7 +254,7 @@ describe('temporal:workflow:wait', () => {
     });
     await createTemporalWorkflowWaitAction(options).handler(ctx);
     expect(ctx.output).toHaveBeenCalledWith('status', 'Running');
-    expect(client.steps).not.toHaveBeenCalled();
+    expect(client.result).not.toHaveBeenCalled();
   });
 
   it('fails when the workflow does not complete', async () => {

@@ -283,13 +283,6 @@ describe('LLM routes', () => {
       framework: 'vercel-ai-sdk',
       model: 'gpt-small',
     });
-    const steps = await request(server).get(path('/steps'));
-    expect(steps.status).toBe(200);
-    expect(
-      steps.body.activities.find(
-        (a: { activityId: string }) => a.activityId === 'model-small',
-      ).llm,
-    ).toMatchObject({ model: 'gpt-small' });
     const res = await request(server).get(path('/llm-calls/4'));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -415,19 +408,6 @@ describe('LLM routes', () => {
     expect(byId('activity-2').llm.record).toBe('unreadable');
     expect(byId('activity-8').llm.record).toBe('unreadable');
     expect(byId('activity-6').llm).toBeUndefined();
-  });
-
-  it('adds summaries to the steps', async () => {
-    const { server } = await start({ history: true });
-    const res = await request(server).get(path('/steps'));
-    expect(res.status).toBe(200);
-    const small = res.body.activities.find(
-      (a: any) => a.activityId === 'model-small',
-    );
-    expect(small.llm).toMatchObject({
-      record: 'available',
-      model: 'gpt-small',
-    });
   });
 
   it('shows names and numbers of official model calls to readers without the history permission', async () => {

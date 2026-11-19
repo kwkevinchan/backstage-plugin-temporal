@@ -25,7 +25,6 @@ import {
   toWorkflowFailure,
   resultFromCloseEvent,
   statusFromCloseEvent,
-  toWorkflowSteps,
 } from './convert';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
@@ -293,107 +292,6 @@ describe('resultFromCloseEvent', () => {
         workflowExecutionCanceledEventAttributes: {},
       }),
     ).toBe('Canceled');
-  });
-});
-
-describe('toWorkflowSteps', () => {
-  it('pairs activity inputs with results and failures', () => {
-    const steps = toWorkflowSteps(
-      [
-        {
-          eventId: '1',
-          workflowExecutionStartedEventAttributes: {
-            input: { payloads: [jsonPayload({ orderId: 'o-1' })] },
-          },
-        },
-        {
-          eventId: '5',
-          eventTime: { seconds: '1700000000' },
-          activityTaskScheduledEventAttributes: {
-            activityId: '1',
-            activityType: { name: 'reserve' },
-            input: { payloads: [jsonPayload('a'), jsonPayload(2)] },
-          },
-        },
-        {
-          eventId: '6',
-          activityTaskStartedEventAttributes: {
-            scheduledEventId: '5',
-            attempt: 2,
-          },
-        },
-        {
-          eventId: '7',
-          eventTime: { seconds: '1700000003' },
-          activityTaskCompletedEventAttributes: {
-            scheduledEventId: '5',
-            result: { payloads: [jsonPayload({ ok: true })] },
-          },
-        },
-        {
-          eventId: '11',
-          activityTaskScheduledEventAttributes: {
-            activityId: '2',
-            activityType: { name: 'charge' },
-            input: {
-              payloads: [
-                {
-                  metadata: { encoding: b64('binary/encrypted') },
-                  data: 'AAAA',
-                },
-              ],
-            },
-          },
-        },
-        {
-          eventId: '13',
-          activityTaskFailedEventAttributes: {
-            scheduledEventId: '11',
-            failure: { message: 'declined', applicationFailureInfo: {} },
-          },
-        },
-        {
-          eventId: '20',
-          workflowExecutionCompletedEventAttributes: {
-            result: { payloads: [jsonPayload('done')] },
-          },
-        },
-      ],
-      false,
-    );
-    expect(steps).toEqual({
-      truncated: false,
-      input: { encoding: 'json/plain', value: { orderId: 'o-1' } },
-      result: { encoding: 'json/plain', value: 'done' },
-      activities: [
-        {
-          activityId: '1',
-          activityType: 'reserve',
-          scheduledEventId: '5',
-          status: 'Completed',
-          attempt: 2,
-          scheduledTime: '2023-11-14T22:13:20.000Z',
-          closeTime: '2023-11-14T22:13:23.000Z',
-          input: [
-            { encoding: 'json/plain', value: 'a' },
-            { encoding: 'json/plain', value: 2 },
-          ],
-          result: { encoding: 'json/plain', value: { ok: true } },
-        },
-        {
-          activityId: '2',
-          activityType: 'charge',
-          scheduledEventId: '11',
-          status: 'Failed',
-          input: { encoding: 'binary/encrypted', size: 3, undecodable: true },
-          failure: {
-            message: 'declined',
-            kind: 'ApplicationFailure',
-            nonRetryable: false,
-          },
-        },
-      ],
-    });
   });
 });
 

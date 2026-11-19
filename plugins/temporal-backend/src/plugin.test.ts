@@ -616,35 +616,6 @@ describe('temporal backend plugin', () => {
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
   });
 
-  it('returns inputs and outputs with the history permission', async () => {
-    const { server, permissions } = await start();
-    const res = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps?entityRef=${ref}`,
-    );
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      input: { encoding: 'json/plain', value: 42 },
-      activities: [],
-      truncated: false,
-    });
-    expect(permissions.authorize).toHaveBeenLastCalledWith(
-      [
-        expect.objectContaining({
-          permission: expect.objectContaining({
-            name: 'temporal.workflow.history.read',
-          }),
-        }),
-      ],
-      expect.anything(),
-    );
-    const denied = await start({ permission: AuthorizeResult.DENY });
-    await request(denied.server)
-      .get(
-        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps?entityRef=${ref}`,
-      )
-      .expect(403);
-  });
-
   it("returns a failed run's failure from the close event", async () => {
     const { server, permissions, workflowService } = await start();
     const res = await request(server).get(
@@ -1382,11 +1353,6 @@ describe('temporal backend plugin', () => {
         .expect(200);
       await request(server)
         .get(
-          '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps',
-        )
-        .expect(200);
-      await request(server)
-        .get(
           '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result',
         )
         .expect(200);
@@ -1413,7 +1379,7 @@ describe('temporal backend plugin', () => {
         .expect(200);
       // The workflow has no entity reference attribute to fall back to:
       // the same answer as for a workflow that does not exist.
-      for (const path of ['history', 'steps', 'result']) {
+      for (const path of ['history', 'result']) {
         await request(server)
           .get(
             `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/${path}`,

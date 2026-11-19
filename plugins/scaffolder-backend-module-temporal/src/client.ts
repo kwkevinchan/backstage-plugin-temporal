@@ -35,7 +35,6 @@ import {
   WorkflowStartRequest,
   WorkflowResultResponse,
   WorkflowStartResponse,
-  WorkflowStepsResponse,
   WORKFLOWS_PATH,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 
@@ -166,19 +165,6 @@ export class TemporalPluginClient {
     return this.call(
       'GET',
       `${buildWorkflowRunPath(ref)}/result${query(entityRef)}`,
-      credentials,
-    );
-  }
-
-  /** The workflow's input and result; needs the history permission. */
-  steps(
-    ref: WorkflowRunRef,
-    entityRef: string | undefined,
-    credentials: BackstageCredentials,
-  ): Promise<WorkflowStepsResponse> {
-    return this.call(
-      'GET',
-      `${buildWorkflowRunPath(ref)}/steps${query(entityRef)}`,
       credentials,
     );
   }

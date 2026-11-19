@@ -303,11 +303,6 @@ export async function createRouter(
     res.json(await queries.result(workflow));
   });
 
-  router.get(workflowRunSubpath('steps'), async (req, res) => {
-    const { ref, workflow } = await loadWorkflow(req, 'history');
-    res.json(await queries.steps({ ...ref, runId: workflow.runId }));
-  });
-
   router.get(workflowRunSubpath('graph'), async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
     const { workflow } = loaded;

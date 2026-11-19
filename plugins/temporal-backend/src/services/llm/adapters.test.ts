@@ -19,7 +19,6 @@ import type { WorkflowGraphNode, WorkflowLlmRecord } from '../../common';
 import type { TemporalLlmAdapter } from '../../node/alpha';
 import { readHistoryFixture } from '../../__testUtils__/fixtures';
 import { recordingLogger } from '../../__testUtils__/recordingLogger';
-import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph, buildWorkflowGraphWithLlm } from '../graph';
 import { LlmAdapters } from './LlmAdapters';
 
@@ -404,27 +403,6 @@ describe('OpenAI Agents adapter', () => {
       'model call for DocsAgent (object)',
       'model call for DocsAgent (object)',
     ]);
-  });
-});
-
-describe('Steps response', () => {
-  it('has the same model calls and links as the graph', () => {
-    const steps = toWorkflowSteps(fixture('vercel-ai-sdk-agent'), false);
-    const step = (id: number) =>
-      steps.activities.find(a => a.scheduledEventId === String(id))!;
-    expect(step(11).llm).toMatchObject({
-      framework: 'vercel-ai-sdk',
-      usage: { inputTokens: 121, outputTokens: 30 },
-    });
-    expect(step(17).tool).toMatchObject({
-      llmNodeId: 'activity-11',
-      inferred: true,
-    });
-    expect(step(29).tool).toEqual({
-      toolCallId: 'call_r1_read',
-      llmNodeId: 'activity-23',
-      name: 'read_file',
-    });
   });
 });
 

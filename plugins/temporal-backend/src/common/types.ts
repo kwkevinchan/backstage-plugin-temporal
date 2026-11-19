@@ -15,7 +15,6 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
-import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
 
 /**
  * Status of a workflow execution, named like the Temporal visibility
@@ -278,55 +277,6 @@ export type DecodedPayload =
       metadata?: JsonObject;
     }
   | { encoding: string; external: ExternalPayload };
-
-/**
- * One activity of a workflow run, from scheduling to its result.
- *
- * @public
- */
-export interface ActivityStep {
-  activityId: string;
-  activityType: string;
-  /** Event ID of `ActivityTaskScheduled`, unique within the run. */
-  scheduledEventId: string;
-  status:
-    | 'Scheduled'
-    | 'Started'
-    | 'Completed'
-    | 'Failed'
-    | 'TimedOut'
-    | 'Canceled';
-  attempt?: number;
-  scheduledTime?: string;
-  startedTime?: string;
-  closeTime?: string;
-  /** Decoded input; one argument is a single payload, more are an array. */
-  input?: JsonValue;
-  /** Decoded result of a completed activity. */
-  result?: JsonValue;
-  failure?: WorkflowFailure;
-  /** A model call, recognized by an LLM adapter. Experimental. */
-  llm?: WorkflowLlmSummary;
-  /** A tool call of a model call. Experimental. */
-  tool?: WorkflowToolLink;
-}
-
-/**
- * Inputs and outputs of a workflow run: the workflow input and result, and
- * every activity with its input, result or failure.
- *
- * @public
- */
-export interface WorkflowStepsResponse {
-  /** Decoded workflow input. */
-  input?: JsonValue;
-  /** Decoded workflow result, when completed. */
-  result?: JsonValue;
-  failure?: WorkflowFailure;
-  activities: ActivityStep[];
-  /** True when the history was longer than the backend reads for steps. */
-  truncated: boolean;
-}
 
 /**
  * The result or failure of a workflow run, read from its close event. A

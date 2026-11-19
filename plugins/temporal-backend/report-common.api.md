@@ -9,39 +9,6 @@ import type { JsonObject } from '@backstage/types';
 import type { JsonValue } from '@backstage/types';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
 
-// @public
-export interface ActivityStep {
-  // (undocumented)
-  activityId: string;
-  // (undocumented)
-  activityType: string;
-  // (undocumented)
-  attempt?: number;
-  // (undocumented)
-  closeTime?: string;
-  // (undocumented)
-  failure?: WorkflowFailure;
-  input?: JsonValue;
-  // Warning: (ae-incompatible-release-tags) The symbol "llm" is marked as @public, but its signature references "WorkflowLlmSummary" which is marked as @alpha
-  llm?: WorkflowLlmSummary;
-  result?: JsonValue;
-  scheduledEventId: string;
-  // (undocumented)
-  scheduledTime?: string;
-  // (undocumented)
-  startedTime?: string;
-  // (undocumented)
-  status:
-    | 'Scheduled'
-    | 'Started'
-    | 'Completed'
-    | 'Failed'
-    | 'TimedOut'
-    | 'Canceled';
-  // Warning: (ae-incompatible-release-tags) The symbol "tool" is marked as @public, but its signature references "WorkflowToolLink" which is marked as @alpha
-  tool?: WorkflowToolLink;
-}
-
 // @alpha
 export function addLlmUsage(
   a: WorkflowLlmUsage | undefined,
@@ -1145,17 +1112,6 @@ export type WorkflowStatus =
   | 'ContinuedAsNew'
   | 'TimedOut'
   | 'Unknown';
-
-// @public
-export interface WorkflowStepsResponse {
-  // (undocumented)
-  activities: ActivityStep[];
-  // (undocumented)
-  failure?: WorkflowFailure;
-  input?: JsonValue;
-  result?: JsonValue;
-  truncated: boolean;
-}
 
 // @public
 export interface WorkflowSummary {

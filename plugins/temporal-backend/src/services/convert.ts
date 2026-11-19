@@ -16,19 +16,14 @@
 
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
-  type ActivityStep,
   PendingActivity,
-  WorkflowStepsResponse,
   WorkflowResultResponse,
   WorkflowDetail,
   WorkflowFailure,
   WorkflowHistoryEvent,
-  WorkflowNodeStatus,
   WorkflowStatus,
   WorkflowSummary,
 } from '../common';
-import { LlmLinkNode, LlmStepEntry, readLlmSteps } from './llm/llm';
-import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import {
   referenceInfo,
   referenceOf,
@@ -526,133 +521,4 @@ export function summaryText(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const line = value.trim().split('\n')[0].trim();
   return line || undefined;
-}
-
-const ACTIVITY_CLOSE_EVENTS: Record<string, ActivityStep['status']> = {
-  activityTaskCompletedEventAttributes: 'Completed',
-  activityTaskFailedEventAttributes: 'Failed',
-  activityTaskTimedOutEventAttributes: 'TimedOut',
-  activityTaskCanceledEventAttributes: 'Canceled',
-};
-
-/**
- * Builds workflow input/result and one step per activity from history events
- * (JSON form, oldest first). The LLM adapters add the model calls and tool
- * calls.
- */
-export function toWorkflowSteps(
-  events: Json[],
-  truncated: boolean,
-  llmAdapters?: LlmAdapters,
-): WorkflowStepsResponse {
-  const response: WorkflowStepsResponse = { activities: [], truncated };
-  const byScheduledId = new Map<string, ActivityStep>();
-  // The activities as steps for the LLM adapters, by scheduled event ID,
-  // and the event IDs of their closing events.
-  const entries = new Map<string, LlmStepEntry>();
-  const closedBy = new Map<string, number>();
-  const nodeOf = (step: ActivityStep): LlmLinkNode => {
-    const status: WorkflowNodeStatus =
-      step.status === 'Started' ? 'Running' : step.status;
-    return dropUndefined({
-      id: `activity-${step.scheduledEventId}`,
-      kind: 'activity' as const,
-      name: step.activityType,
-      status,
-      startTime: step.startedTime ?? step.scheduledTime,
-      endTime: step.closeTime,
-      events: [],
-      first: Number(step.scheduledEventId),
-    });
-  };
-  for (const event of events) {
-    const time = toIsoTime(event.eventTime);
-    const started = event.workflowExecutionStartedEventAttributes;
-    if (started) {
-      response.input = decodePayloads(started.input) ?? null;
-      continue;
-    }
-    const completed = event.workflowExecutionCompletedEventAttributes;
-    if (completed) {
-      response.result = decodePayloads(completed.result) ?? null;
-      continue;
-    }
-    const failed = event.workflowExecutionFailedEventAttributes;
-    if (failed) {
-      response.failure = toWorkflowFailure(failed.failure);
-      continue;
-    }
-    const scheduled = event.activityTaskScheduledEventAttributes;
-    if (scheduled) {
-      const step: ActivityStep = dropUndefined({
-        activityId: scheduled.activityId ?? '',
-        activityType: scheduled.activityType?.name ?? '',
-        scheduledEventId: String(event.eventId ?? ''),
-        status: 'Scheduled' as const,
-        scheduledTime: time,
-        input: decodePayloads(scheduled.input),
-      });
-      byScheduledId.set(step.scheduledEventId, step);
-      response.activities.push(step);
-      entries.set(step.scheduledEventId, {
-        node: nodeOf(step),
-        step: dropUndefined({
-          kind: 'activity' as const,
-          activityType: step.activityType,
-          activityId: step.activityId || undefined,
-          summary: summaryOf(event),
-        }),
-        input: scheduled.input,
-        failures: [],
-      });
-      continue;
-    }
-    const startedActivity = event.activityTaskStartedEventAttributes;
-    if (startedActivity) {
-      const step = byScheduledId.get(String(startedActivity.scheduledEventId));
-      if (step) {
-        step.status = 'Started';
-        step.attempt = Number(startedActivity.attempt ?? 1);
-        if (time) step.startedTime = time;
-        if (step.attempt > 1 && startedActivity.lastFailure) {
-          entries
-            .get(step.scheduledEventId)!
-            .failures.unshift(startedActivity.lastFailure);
-        }
-      }
-      continue;
-    }
-    for (const [key, status] of Object.entries(ACTIVITY_CLOSE_EVENTS)) {
-      const attrs = event[key];
-      if (!attrs) continue;
-      const step = byScheduledId.get(String(attrs.scheduledEventId));
-      if (!step) break;
-      step.status = status;
-      if (time) step.closeTime = time;
-      if (attrs.result) step.result = decodePayloads(attrs.result) ?? null;
-      if (attrs.failure) step.failure = toWorkflowFailure(attrs.failure);
-      const entry = entries.get(step.scheduledEventId)!;
-      closedBy.set(step.scheduledEventId, Number(event.eventId));
-      if (attrs.result) entry.result = attrs.result;
-      if (attrs.failure) entry.failures.unshift(attrs.failure);
-      break;
-    }
-  }
-  for (const step of response.activities) {
-    const entry = entries.get(step.scheduledEventId)!;
-    entry.node = nodeOf(step);
-    const last = closedBy.get(step.scheduledEventId);
-    if (last !== undefined) entry.node.last = last;
-  }
-  readLlmSteps(
-    [...entries.values()],
-    (llmAdapters ?? builtInOnlyLlmAdapters()).reader(),
-    decodePayloads,
-  );
-  for (const step of response.activities) {
-    const { node } = entries.get(step.scheduledEventId)!;
-    if (node.llm) step.llm = node.llm;
-    if (node.tool) step.tool = node.tool;
-  }
-  return response;
 }
