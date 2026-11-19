@@ -213,7 +213,11 @@ export interface WorkflowGraphResponse {
   currentDeadline?: WorkflowDeadline;
   /** Steps that are done (completed activities, timers, children, updates). */
   completedSteps: number;
-  /** Activities, timers, children and updates in the graph. */
+  /**
+   * Activities, timers, children and updates seen so far in the history read.
+   * Not a total for a running workflow, because later steps are not known until
+   * they run; when `truncated` is true it covers only the first events read.
+   */
   totalSteps: number;
   /** True when the history was longer than the backend reads. */
   truncated: boolean;
@@ -239,10 +243,23 @@ export interface WorkflowGraphResponse {
  * @public
  */
 export interface WorkflowProgressResponse {
+  /** Current execution status of the run. */
   status: WorkflowStatus;
+  /**
+   * Steps that are done (completed activities, timers, children, updates) in
+   * the events read.
+   */
   completedSteps: number;
+  /**
+   * Steps seen so far in the history read. Not a total for a running
+   * workflow, because later steps are not known until they run; when
+   * `truncated` is true it covers only the first events read.
+   */
   totalSteps: number;
+  /** Short text of where the run is now: what it waits for or where it failed. */
   current?: string;
+  /** Deadline of the step in `current`, shown in the user's time zone. */
   currentDeadline?: WorkflowDeadline;
+  /** True when the history was longer than the backend reads for progress. */
   truncated: boolean;
 }
