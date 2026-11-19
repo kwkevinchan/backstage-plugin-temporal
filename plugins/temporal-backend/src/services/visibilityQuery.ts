@@ -42,7 +42,7 @@ export function parseStatus(value: unknown): WorkflowStatus | undefined {
   return value as WorkflowStatus;
 }
 
-/** True for a value that may be an entity reference in a query. */
+/** True for a value that may be an entity reference in a visibility query. */
 export function isValidEntityRefValue(value: string): boolean {
   return ENTITY_REF_PATTERN.test(value);
 }
@@ -62,7 +62,7 @@ export function trueAttributeCondition(name: string): string {
 export function quote(value: string): string {
   // Values are validated before they get here; this is a second guard.
   if (/['"\\\s()]/.test(value)) {
-    throw new InputError('Value is not allowed in a workflow query');
+    throw new InputError('Value is not allowed in a visibility query');
   }
   return `'${value}'`;
 }
@@ -84,7 +84,7 @@ export function workflowIdCondition(workflowId: string): string {
 }
 
 /** `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. */
-export function inQuery(
+export function inCondition(
   field: string,
   values: string[],
   isValid: (value: string) => boolean,
@@ -156,7 +156,7 @@ function sourceCondition(source: {
  */
 const LATEST_RUNS = `ExecutionStatus != 'ContinuedAsNew'`;
 
-export function buildEntityWorkflowQuery(
+export function buildEntityVisibilityQuery(
   filter: EntityWorkflowFilter,
   options?: {
     status?: WorkflowStatus;
@@ -198,22 +198,28 @@ export function buildEntityWorkflowQuery(
     );
   }
 
-  let query =
+  let visibilityQuery =
     alternatives.length === 1
       ? alternatives[0]
       : alternatives.map(a => `(${a})`).join(' OR ');
   if (options?.status) {
-    query = `(${query}) AND ExecutionStatus = ${quote(options.status)}`;
+    visibilityQuery = `(${visibilityQuery}) AND ExecutionStatus = ${quote(
+      options.status,
+    )}`;
   } else if (options?.allRuns === false) {
-    query = `(${query}) AND ${LATEST_RUNS}`;
+    visibilityQuery = `(${visibilityQuery}) AND ${LATEST_RUNS}`;
   }
   if (options?.searchAttribute) {
-    query = `(${query}) AND ${trueAttributeCondition(options.searchAttribute)}`;
+    visibilityQuery = `(${visibilityQuery}) AND ${trueAttributeCondition(
+      options.searchAttribute,
+    )}`;
   }
   if (options?.workflowId) {
-    query = `(${query}) AND ${workflowIdCondition(options.workflowId)}`;
+    visibilityQuery = `(${visibilityQuery}) AND ${workflowIdCondition(
+      options.workflowId,
+    )}`;
   }
-  return query;
+  return visibilityQuery;
 }
 
 export function matchesSource(
@@ -285,7 +291,7 @@ export interface NamespaceWorkflowFilter {
   /** False leaves out runs that continued as new. */
   allRuns?: boolean;
   /** A visibility query from a conditional permission decision. */
-  permissionQuery?: string;
+  permissionFilter?: string;
 }
 
 /**
@@ -293,7 +299,7 @@ export interface NamespaceWorkflowFilter {
  * `WorkflowType = 'a' AND WorkflowId STARTS_WITH 'order-'`. Empty without
  * filters (every workflow).
  */
-export function buildNamespaceWorkflowQuery(
+export function buildNamespaceVisibilityQuery(
   filter: NamespaceWorkflowFilter,
 ): string {
   const parts: string[] = [];
@@ -320,13 +326,13 @@ export function buildNamespaceWorkflowQuery(
   } else if (filter.allRuns === false) {
     parts.push(LATEST_RUNS);
   }
-  if (filter.permissionQuery) parts.push(`(${filter.permissionQuery})`);
+  if (filter.permissionFilter) parts.push(`(${filter.permissionFilter})`);
   return parts.join(' AND ');
 }
 
 /**
  * True when a workflow belongs to the entity by the same rules as
- * {@link buildEntityWorkflowQuery}. Used before showing a single workflow.
+ * {@link buildEntityVisibilityQuery}. Used before showing a single workflow.
  */
 export function workflowBelongsToEntity(
   workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType' | 'entityRef'>,

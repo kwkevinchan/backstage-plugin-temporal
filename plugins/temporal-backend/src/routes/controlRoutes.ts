@@ -54,7 +54,10 @@ import {
   EntityWorkflowSources,
   readEntityWorkflowFilter,
 } from '../services/EntityWorkflowSources';
-import { matchesSource, scheduleBelongsToSources } from '../services/query';
+import {
+  matchesSource,
+  scheduleBelongsToSources,
+} from '../services/visibilityQuery';
 import {
   entityRefFromParams,
   isValidControlActionId,

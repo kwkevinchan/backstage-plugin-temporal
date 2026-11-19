@@ -51,7 +51,7 @@ import {
  *
  * @alpha
  */
-export type TemporalWorkflowQuery =
+export type TemporalWorkflowFilter =
   | string
   | { namespaces: string[] }
   | { initiators: string[] };
@@ -66,7 +66,7 @@ export type TemporalWorkflowQuery =
  * @alpha
  */
 export const temporalWorkflowPermissionResourceRef =
-  createPermissionResourceRef<WorkflowSummary, TemporalWorkflowQuery>().with({
+  createPermissionResourceRef<WorkflowSummary, TemporalWorkflowFilter>().with({
     pluginId: 'temporal',
     resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   });

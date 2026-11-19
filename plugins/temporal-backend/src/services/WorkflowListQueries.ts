@@ -37,12 +37,12 @@ import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { isScheduleNotFound, mapTemporalError } from '../repositories/errors';
 import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 import {
-  buildEntityWorkflowQuery,
-  buildNamespaceWorkflowQuery,
+  buildEntityVisibilityQuery,
+  buildNamespaceVisibilityQuery,
   NamespaceWorkflowFilter,
   matchingWorkflowEntity,
   scheduleBelongsToSources,
-} from './query';
+} from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
 
@@ -186,12 +186,15 @@ export class WorkflowListQueries {
       credentials: BackstageCredentials;
     },
   ): Promise<WorkflowListResponse> {
-    const query = buildEntityWorkflowQuery(this.sources.filterOf(context), {
-      status: options.status,
-      allRuns: options.allRuns,
-      searchAttribute: options.searchAttribute,
-      workflowId: options.workflowId,
-    });
+    const visibilityQuery = buildEntityVisibilityQuery(
+      this.sources.filterOf(context),
+      {
+        status: options.status,
+        allRuns: options.allRuns,
+        searchAttribute: options.searchAttribute,
+        workflowId: options.workflowId,
+      },
+    );
     let nextPageToken: Uint8Array | undefined;
     try {
       nextPageToken = decodePageToken(options.pageToken);
@@ -200,7 +203,7 @@ export class WorkflowListQueries {
     }
     const response = await this.temporalReads.listExecutions(
       context.namespace,
-      query,
+      visibilityQuery,
       { pageSize: options.pageSize, nextPageToken },
     );
     const convert = this.queries.convertOptions(context.namespace);
@@ -230,17 +233,21 @@ export class WorkflowListQueries {
     options: { pageSize: number; pageToken?: string },
   ): Promise<WorkflowListResponse> {
     this.sources.checkNamespace(namespace);
-    const query = buildNamespaceWorkflowQuery(filter);
+    const visibilityQuery = buildNamespaceVisibilityQuery(filter);
     let nextPageToken: Uint8Array | undefined;
     try {
       nextPageToken = decodePageToken(options.pageToken);
     } catch {
       throw new InputError('Invalid page token');
     }
-    const response = await this.temporalReads.listExecutions(namespace, query, {
-      pageSize: options.pageSize,
-      nextPageToken,
-    });
+    const response = await this.temporalReads.listExecutions(
+      namespace,
+      visibilityQuery,
+      {
+        pageSize: options.pageSize,
+        nextPageToken,
+      },
+    );
     const convert = this.queries.convertOptions(namespace);
     return {
       items: response.items.map(e => toWorkflowSummary(e, convert)),
@@ -254,10 +261,12 @@ export class WorkflowListQueries {
     context: TemporalEntityContext,
     options: { limit: number },
   ): Promise<WorkflowStatsResponse> {
-    const query = buildEntityWorkflowQuery(this.sources.filterOf(context));
+    const visibilityQuery = buildEntityVisibilityQuery(
+      this.sources.filterOf(context),
+    );
     const response = await this.temporalReads.listExecutions(
       context.namespace,
-      query,
+      visibilityQuery,
       { pageSize: options.limit },
     );
     const convert = this.queries.convertOptions(context.namespace);

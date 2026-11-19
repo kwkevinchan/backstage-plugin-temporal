@@ -23,7 +23,10 @@ import {
 } from '../common';
 import { temporalWorkflowPermissionResourceRef } from '../node/alpha';
 import { z } from 'zod';
-import { inQuery, isValidEntityRefValue } from '../services/query';
+import {
+  inCondition,
+  isValidEntityRefValue,
+} from '../services/visibilityQuery';
 
 const hasWorkflowType = createPermissionRule({
   name: 'HAS_WORKFLOW_TYPE',
@@ -38,7 +41,7 @@ const hasWorkflowType = createPermissionRule({
   apply: (workflow, { workflowTypes }) =>
     workflowTypes.includes(workflow.workflowType),
   toQuery: ({ workflowTypes }) =>
-    inQuery('WorkflowType', workflowTypes, isValidWorkflowTypeName),
+    inCondition('WorkflowType', workflowTypes, isValidWorkflowTypeName),
 });
 
 const hasTaskQueue = createPermissionRule({
@@ -54,7 +57,7 @@ const hasTaskQueue = createPermissionRule({
   apply: (workflow, { taskQueues }) =>
     workflow.taskQueue !== undefined && taskQueues.includes(workflow.taskQueue),
   toQuery: ({ taskQueues }) =>
-    inQuery('TaskQueue', taskQueues, isValidTaskQueueName),
+    inCondition('TaskQueue', taskQueues, isValidTaskQueueName),
 });
 
 const inNamespace = createPermissionRule({

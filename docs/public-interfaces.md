@@ -116,7 +116,7 @@ it from the package of your side. The entry points for modules (`./node`,
 | `temporalControlExtensionPoint`, `TemporalControlExtensionPoint`, `TemporalControlAction`, `TemporalControlActionContext`                                                                 | `./alpha` | Custom workflow actions                                                                                  | You add an operation of your own                                              |
 | `temporalWorkflowEnricherExtensionPoint`, `TemporalWorkflowEnricherExtensionPoint`, `TemporalWorkflowEnricher`, `TemporalWorkflowEnricherContext`                                         | `./alpha` | Enrichers of workflow summaries                                                                          | You add data to the lists and the details                                     |
 | `temporalLlmAdapterExtensionPoint`, `TemporalLlmAdapterExtensionPoint`, `TemporalLlmAdapter`, `TemporalLlmStep`, `TemporalLlmStepPayloads`, `TemporalLlmModelCall`, `TemporalLlmToolStep` | `./alpha` | LLM adapters: model calls and tool calls of a framework ([below](#llm-adapters))                         | The plugin should show the model calls of a framework it does not know        |
-| `temporalWorkflowPermissionResourceRef`, `TemporalWorkflowQuery`                                                                                                                          | `./alpha` | The `temporal-workflow` permission resource and what a rule turns into for lists                         | You add permission rules                                                      |
+| `temporalWorkflowPermissionResourceRef`, `TemporalWorkflowFilter`                                                                                                                         | `./alpha` | The `temporal-workflow` permission resource and what a rule turns into for lists                         | You add permission rules                                                      |
 | `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | The four rules of that resource                                                                          | You build conditions with other helpers                                       |
 | `temporalWorkflowConditions`, `createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | Conditions and conditional decisions for the list permissions                                            | Your permission policy                                                        |
 
@@ -613,9 +613,17 @@ conditions are `temporalWorkflowConditions` with
 A module of the plugin adds rules with
 `coreServices.permissionsRegistry.addPermissionRules` and
 `temporalWorkflowPermissionResourceRef`; a rule's `toQuery` returns a
-`TemporalWorkflowQuery` (a visibility query, or `{ namespaces }` or
+`TemporalWorkflowFilter` (a visibility query, or `{ namespaces }` or
 `{ initiators }`). The permission of a custom action is a `catalog-entity`
 permission, usually one of these.
+
+In the plugin's code, a standalone "query" is a Temporal Query (the
+operation that runs a query handler on a worker). Conditions used to search
+or list workflows are a visibility query or a filter, for example
+`TemporalWorkflowFilter` and `buildEntityVisibilityQuery`. Two exceptions:
+URL query parameters (`req.query`, `queryString`) keep that name because it
+is the usual term of the framework, and a permission rule's `toQuery` keeps
+the name required by the Backstage permission framework.
 
 ## Configuration keys
 
