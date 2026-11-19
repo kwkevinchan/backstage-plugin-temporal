@@ -1052,12 +1052,12 @@ components:
           minLength: 1
           maxLength: 200
           pattern: '^.*\S.*$'
-          description: The handler name; it is trimmed, and cannot be blank.
+          description: The message name; it is trimmed, and cannot be blank.
         args:
           type:
             - array
             - 'null'
-          description: The handler arguments, sent as JSON payloads. `null` is treated as if `args` was omitted.
+          description: The arguments of the message, sent as JSON payloads. `null` is treated as if `args` was omitted.
           items: {}
     WorkflowMessageResponse:
       type: object
