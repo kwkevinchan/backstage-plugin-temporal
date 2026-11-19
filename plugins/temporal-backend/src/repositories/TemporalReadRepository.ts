@@ -21,6 +21,12 @@ import type { TemporalService } from '../node';
 import { mapQueryError, mapTemporalError } from './errors';
 import { callTemporal, QUERY_CALL, TEMPORAL_DEADLINES } from './temporalCall';
 
+/**
+ * `HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT` on
+ * `GetWorkflowExecutionHistory`. A running run returns no events.
+ */
+export const HISTORY_EVENT_FILTER_CLOSE = 2;
+
 /** The protobuf JSON of a Temporal response message. */
 function toJson(message: unknown): any {
   const m = message as { toJSON?: () => unknown } | undefined;
@@ -129,6 +135,29 @@ export class TemporalReadRepository {
         }),
     );
     return toJson(response.history?.events?.[0]);
+  }
+
+  /**
+   * The close event of a run, when it has closed. A running run has none.
+   * One Temporal call, independent of history length.
+   */
+  async closeEvent(
+    ref: WorkflowRef & { runId: string },
+  ): Promise<any | undefined> {
+    const response = await this.call(
+      'getWorkflowExecutionHistory',
+      ref.namespace,
+      TEMPORAL_DEADLINES.read,
+      service =>
+        service.getWorkflowExecutionHistory({
+          namespace: ref.namespace,
+          execution: { workflowId: ref.workflowId, runId: ref.runId },
+          historyEventFilterType: HISTORY_EVENT_FILTER_CLOSE,
+          maximumPageSize: 1,
+        }),
+    );
+    const event = response.history?.events?.[0];
+    return event === undefined ? undefined : toJson(event);
   }
 
   /** One page of a run's history, oldest first. */

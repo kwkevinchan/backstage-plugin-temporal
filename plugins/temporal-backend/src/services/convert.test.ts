@@ -23,6 +23,8 @@ import {
   toHistoryEvent,
   toWorkflowDetail,
   toWorkflowFailure,
+  resultFromCloseEvent,
+  statusFromCloseEvent,
   toWorkflowSteps,
 } from './convert';
 
@@ -244,6 +246,53 @@ describe('toHistoryEvent', () => {
         workflowTaskTimeout: '10s',
       },
     });
+  });
+});
+
+describe('resultFromCloseEvent', () => {
+  it('decodes a completed result', () => {
+    expect(
+      resultFromCloseEvent({
+        workflowExecutionCompletedEventAttributes: {
+          result: { payloads: [jsonPayload('done')] },
+        },
+      }),
+    ).toEqual({ result: { encoding: 'json/plain', value: 'done' } });
+    expect(
+      statusFromCloseEvent({
+        workflowExecutionCompletedEventAttributes: {},
+      }),
+    ).toBe('Completed');
+  });
+
+  it('returns the failure of a failed close event', () => {
+    expect(
+      resultFromCloseEvent({
+        workflowExecutionFailedEventAttributes: {
+          failure: { message: 'boom', applicationFailureInfo: {} },
+        },
+      }),
+    ).toEqual({
+      failure: {
+        message: 'boom',
+        kind: 'ApplicationFailure',
+        nonRetryable: false,
+      },
+    });
+  });
+
+  it('is empty for a running run and for canceled', () => {
+    expect(resultFromCloseEvent(undefined)).toEqual({});
+    expect(
+      resultFromCloseEvent({
+        workflowExecutionCanceledEventAttributes: {},
+      }),
+    ).toEqual({});
+    expect(
+      statusFromCloseEvent({
+        workflowExecutionCanceledEventAttributes: {},
+      }),
+    ).toBe('Canceled');
   });
 });
 

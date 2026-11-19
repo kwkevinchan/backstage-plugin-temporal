@@ -73,6 +73,7 @@ function setup(defaultNamespace = 'default') {
     describe: jest.fn(),
     latestRunId: jest.fn().mockResolvedValue('run-1'),
     steps: jest.fn(),
+    result: jest.fn(),
     send: jest.fn().mockResolvedValue({ result: { approved: true } }),
   };
   const options = {
@@ -222,7 +223,10 @@ describe('temporal:workflow:wait', () => {
     client.describe
       .mockResolvedValueOnce(running)
       .mockResolvedValueOnce({ ...running, status: 'Completed' });
-    client.steps.mockResolvedValue({ result: 'deployed', activities: [] });
+    client.result.mockResolvedValue({
+      status: 'Completed',
+      result: 'deployed',
+    });
     const ctx = context({
       workflowId: 'release-1',
       intervalSeconds: 1,

@@ -27,6 +27,7 @@ import {
   WorkflowRef,
   WorkflowRunRef,
   WorkflowStatus,
+  WorkflowResultResponse,
   WorkflowStepsResponse,
   WorkflowSummary,
   WorkflowMessageDefinition,
@@ -45,6 +46,7 @@ import {
   encodePageToken,
   toHistoryEvent,
   toWorkflowDetail,
+  resultFromCloseEvent,
   toWorkflowSteps,
 } from './convert';
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
@@ -277,6 +279,25 @@ export class WorkflowQueries {
       nextPageToken = response.nextPageToken;
     } while (nextPageToken && events.length < max);
     return { events, truncated: Boolean(nextPageToken) };
+  }
+
+  /**
+   * The result or failure of a run, from its close event. A running run
+   * returns only `status`.
+   */
+  async result(workflow: WorkflowDetail): Promise<WorkflowResultResponse> {
+    this.sources.checkNamespace(workflow.namespace);
+    const event = await this.temporalReads.closeEvent({
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId: workflow.runId,
+    });
+    const { result, failure } = resultFromCloseEvent(event);
+    return {
+      status: workflow.status,
+      ...(result !== undefined ? { result } : {}),
+      ...(failure !== undefined ? { failure } : {}),
+    };
   }
 
   /** Workflow input/result and activity inputs/results of one run. */

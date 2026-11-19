@@ -327,3 +327,16 @@ export interface WorkflowStepsResponse {
   /** True when the history was longer than the backend reads for steps. */
   truncated: boolean;
 }
+
+/**
+ * The result or failure of a workflow run, read from its close event. A
+ * running run has only `status`.
+ *
+ * @public
+ */
+export interface WorkflowResultResponse {
+  status: WorkflowStatus;
+  /** Decoded workflow result, when completed. */
+  result?: JsonValue;
+  failure?: WorkflowFailure;
+}

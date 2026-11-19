@@ -1082,6 +1082,15 @@ export interface WorkflowRef {
 }
 
 // @public
+export interface WorkflowResultResponse {
+  // (undocumented)
+  failure?: WorkflowFailure;
+  result?: JsonValue;
+  // (undocumented)
+  status: WorkflowStatus;
+}
+
+// @public
 export interface WorkflowRunChain {
   index?: number;
   nextRunId?: string;

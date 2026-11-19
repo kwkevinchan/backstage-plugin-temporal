@@ -49,6 +49,7 @@ import {
   otherNamespaceWorkflowEntity,
   paymentWorkflowEntity,
 } from './testUtils';
+import { HISTORY_EVENT_FILTER_CLOSE } from './repositories/TemporalReadRepository';
 import { withOpenApiValidation } from './__testUtils__/openapi';
 import {
   recordingLogger,
@@ -644,6 +645,162 @@ describe('temporal backend plugin', () => {
       .expect(403);
   });
 
+  it("returns a failed run's failure from the close event", async () => {
+    const { server, permissions, workflowService } = await start();
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'Failed',
+      failure: {
+        message: 'outer',
+        type: 'Outer',
+        cause: { message: 'inner' },
+      },
+    });
+    expect(permissions.authorize).toHaveBeenLastCalledWith(
+      [
+        expect.objectContaining({
+          permission: expect.objectContaining({
+            name: 'temporal.workflow.history.read',
+          }),
+        }),
+      ],
+      expect.anything(),
+    );
+    expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: 'default',
+        execution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+        historyEventFilterType: HISTORY_EVENT_FILTER_CLOSE,
+        maximumPageSize: 1,
+      }),
+    );
+    const denied = await start({ permission: AuthorizeResult.DENY });
+    await request(denied.server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result?entityRef=${ref}`,
+      )
+      .expect(403);
+  });
+
+  it('returns the close-event result in one history call, even when the oldest-first history has no close event', async () => {
+    const b64 = (s: string) => Buffer.from(s).toString('base64');
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-1',
+        status: 'WORKFLOW_EXECUTION_STATUS_COMPLETED',
+      }),
+      pendingActivities: [],
+    });
+    workflowService.getWorkflowExecutionHistory.mockImplementation(
+      async (req: any) => {
+        const filter = req?.historyEventFilterType;
+        const closeEvent =
+          filter === HISTORY_EVENT_FILTER_CLOSE ||
+          filter === 2 ||
+          filter === 'HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT';
+        if (!closeEvent) {
+          return {
+            history: {
+              events: [
+                {
+                  eventId: '1',
+                  workflowExecutionStartedEventAttributes: {},
+                },
+              ],
+            },
+            nextPageToken: new Uint8Array([1]),
+          };
+        }
+        return {
+          history: {
+            events: [
+              {
+                eventId: '6001',
+                workflowExecutionCompletedEventAttributes: {
+                  result: {
+                    payloads: [
+                      {
+                        metadata: { encoding: b64('json/plain') },
+                        data: b64(JSON.stringify('deployed')),
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        };
+      },
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      status: 'Completed',
+      result: { encoding: 'json/plain', value: 'deployed' },
+    });
+    expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        historyEventFilterType: HISTORY_EVENT_FILTER_CLOSE,
+        maximumPageSize: 1,
+      }),
+    );
+  });
+
+  it('returns 200 with only status for a running run, not 404', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-1',
+        status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+      }),
+      pendingActivities: [],
+    });
+    workflowService.getWorkflowExecutionHistory.mockImplementation(
+      async (req: any) => {
+        const filter = req?.historyEventFilterType;
+        const closeEvent =
+          filter === HISTORY_EVENT_FILTER_CLOSE ||
+          filter === 2 ||
+          filter === 'HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT';
+        if (closeEvent) {
+          return { history: { events: [] } };
+        }
+        return {
+          history: {
+            events: [
+              { eventId: '1', workflowExecutionStartedEventAttributes: {} },
+            ],
+          },
+        };
+      },
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ status: 'Running' });
+    const denied = await start({
+      workflowService,
+      deny: ['temporal.workflow.history.list'],
+    });
+    const hidden = await request(denied.server).get(
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result',
+    );
+    expect(hidden.status).toBe(404);
+    expect(hidden.body.error).toBeDefined();
+  });
+
   it('returns the step graph, with payloads when the history may be read', async () => {
     const { server, permissions } = await start();
     const res = await request(server).get(
@@ -1228,6 +1385,11 @@ describe('temporal backend plugin', () => {
           '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/steps',
         )
         .expect(200);
+      await request(server)
+        .get(
+          '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result',
+        )
+        .expect(200);
       // Only basic permissions were checked, no entity.
       for (const [requests] of permissions.authorize.mock.calls as any[]) {
         expect(requests).toEqual([
@@ -1251,7 +1413,7 @@ describe('temporal backend plugin', () => {
         .expect(200);
       // The workflow has no entity reference attribute to fall back to:
       // the same answer as for a workflow that does not exist.
-      for (const path of ['history', 'steps']) {
+      for (const path of ['history', 'steps', 'result']) {
         await request(server)
           .get(
             `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/${path}`,

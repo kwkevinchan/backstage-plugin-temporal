@@ -750,6 +750,19 @@ components:
           type: boolean
           description: True when the history was longer than the backend reads for steps.
       additionalProperties: false
+    WorkflowResultResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/WorkflowStatus'
+        result:
+          description: Decoded workflow result, when completed.
+        failure:
+          $ref: '#/components/schemas/WorkflowFailure'
+      additionalProperties: false
+      description: The result or failure of a workflow run, from its close event. A running run has only `status`.
     WorkflowNodeKind:
       type: string
       enum:
@@ -1698,6 +1711,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowHistoryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/result:
+    get:
+      operationId: getWorkflowRunResult
+      summary: Get the result or failure of a workflow run (one run)
+      description: |-
+        Reads only the close event of the run, in one Temporal call, independent of history length. A running run returns 200 with only `status` (not 404).
+
+        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
+      tags:
+        - Workflows
+      x-temporal-permissions:
+        - temporal.workflow.history.read
+        - temporal.workflow.list
+        - temporal.workflow.history.list
+      parameters:
+        - $ref: '#/components/parameters/namespace'
+        - $ref: '#/components/parameters/workflowId'
+        - $ref: '#/components/parameters/runId'
+        - $ref: '#/components/parameters/entityRef'
+      responses:
+        '200':
+          description: The run's status, and its result or failure when it has closed. A running run returns 200 with only `status`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowResultResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

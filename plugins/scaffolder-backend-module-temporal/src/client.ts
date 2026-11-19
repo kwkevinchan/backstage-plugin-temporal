@@ -33,6 +33,7 @@ import {
   WorkflowRef,
   WorkflowRunRef,
   WorkflowStartRequest,
+  WorkflowResultResponse,
   WorkflowStartResponse,
   WorkflowStepsResponse,
   WORKFLOWS_PATH,
@@ -154,6 +155,19 @@ export class TemporalPluginClient {
       credentials,
     );
     return list.items[0]?.runId;
+  }
+
+  /** The workflow's result or failure; needs the history permission. */
+  result(
+    ref: WorkflowRunRef,
+    entityRef: string | undefined,
+    credentials: BackstageCredentials,
+  ): Promise<WorkflowResultResponse> {
+    return this.call(
+      'GET',
+      `${buildWorkflowRunPath(ref)}/result${query(entityRef)}`,
+      credentials,
+    );
   }
 
   /** The workflow's input and result; needs the history permission. */
