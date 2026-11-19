@@ -92,8 +92,9 @@ export interface WorkflowListScope {
  * Turns the conditions of a decision into a visibility query for the
  * namespace being listed: `allOf` with AND, `anyOf` with OR. Conditions on
  * the namespace, and on the initiator without its search attribute, are
- * decided here and become `true` or `false`. Temporal's visibility query language has
- * no general NOT, so a `not` condition is refused unless it is decided here.
+ * decided here and become `true` or `false`. Temporal's visibility query
+ * language has no general NOT, so a `not` condition is refused unless it is
+ * decided here.
  */
 export function criteriaToVisibilityQuery(
   criteria: PermissionCriteria<TemporalWorkflowFilter>,
