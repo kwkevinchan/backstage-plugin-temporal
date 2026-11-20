@@ -142,9 +142,9 @@ executions**.
 
 1. **The list.** Look at the status (Completed, Failed, Running), the times and the
    progress column: the current step, or the step where it failed (for example
-   `0/1 steps · Waiting for approval · times out in 23h 58m`, or `0/1 steps · Failed at
-chargeCard`). Try the status filter and **Show all runs**; the URL changes with
-   them, so the browser's back button returns to the same page.
+   `0 steps done · Waiting for approval · times out in 23h 58m`, or
+   `0/1 steps · Failed at chargeCard`). Try the status filter and **Show all runs**;
+   the URL changes with them, so the browser's back button returns to the same page.
 2. **A failed run.** Open `example-payment-…`. The header shows the Workflow ID,
    the Run ID, the status and where it stopped (`Failed at chargeCard`). In the
    **Steps** graph the failed box is red; select it to see, in the panel on the

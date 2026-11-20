@@ -911,10 +911,13 @@ components:
           $ref: '#/components/schemas/WorkflowDeadline'
         completedSteps:
           type: integer
+          description: Steps that are done in the history events read.
         totalSteps:
           type: integer
+          description: Steps seen so far in the history read; not a total for a running workflow, because later steps are unknown until they run. When truncated is true, covers only the first events read.
         truncated:
           type: boolean
+          description: True when the history was longer than the backend reads for a graph (5000 events).
         payloadsHidden:
           type: boolean
         runChain:
@@ -941,14 +944,17 @@ components:
           $ref: '#/components/schemas/WorkflowStatus'
         completedSteps:
           type: integer
+          description: Steps that are done in the history events read.
         totalSteps:
           type: integer
+          description: Steps seen so far in the history read; not a total for a running workflow, because later steps are unknown until they run. When truncated is true, covers only the first events read.
         current:
           type: string
         currentDeadline:
           $ref: '#/components/schemas/WorkflowDeadline'
         truncated:
           type: boolean
+          description: True when the history was longer than the backend reads for progress (1000 events).
       additionalProperties: false
     WorkflowMessageDefinition:
       type: object
