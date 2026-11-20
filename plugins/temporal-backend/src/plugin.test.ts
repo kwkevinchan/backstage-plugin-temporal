@@ -1233,7 +1233,8 @@ describe('temporal backend plugin', () => {
     });
     expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
       expect.objectContaining({
-        query: "TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow'",
+        query:
+          "(TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow') AND ExecutionStatus != 'ContinuedAsNew'",
         pageSize: 10,
       }),
     );
@@ -1248,6 +1249,59 @@ describe('temporal backend plugin', () => {
         '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats',
       )
       .expect(403);
+  });
+
+  it('leaves continued-as-new runs out of the statistics sample', async () => {
+    const workflowService = createFakeWorkflowService();
+    const closed = (id: string, status: string, seconds: number) => ({
+      ...executionInfo({ workflowId: id, status }),
+      closeTime: { seconds: String(1700000000 + seconds), nanos: 0 },
+    });
+    const executions = [
+      closed('a', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 2),
+      closed('b', 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW', 3),
+      closed('c', 'WORKFLOW_EXECUTION_STATUS_FAILED', 6),
+      closed('d', 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW', 7),
+      executionInfo({
+        workflowId: 'e',
+        status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+      }),
+    ];
+    (workflowService.listWorkflowExecutions as jest.Mock).mockImplementation(
+      async (req: any) => {
+        const latestOnly = (req.query as string).includes(
+          "ExecutionStatus != 'ContinuedAsNew'",
+        );
+        return {
+          executions: latestOnly
+            ? executions.filter(
+                e => e.status !== 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW',
+              )
+            : executions,
+          nextPageToken: new Uint8Array(),
+        };
+      },
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=10',
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      namespace: 'default',
+      sampleSize: 3,
+      limit: 10,
+      byStatus: { Completed: 1, Failed: 1, Running: 1 },
+      succeeded: 1,
+      failed: 1,
+      running: 1,
+      averageDurationMs: 4000,
+    });
+    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: expect.stringContaining("ExecutionStatus != 'ContinuedAsNew'"),
+      }),
+    );
   });
 
   describe('Workflows page', () => {

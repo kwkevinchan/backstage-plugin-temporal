@@ -524,6 +524,8 @@ Reads are always served:
 | `POST /:wf/query`                                     | read level and `temporal.workflow.query`; audited                                                                                                                             | `WorkflowMessageRequest`                                                                                            | `WorkflowMessageResponse`                         |
 | `GET /:wf/llm-calls/:eventId`                         | history level. **Experimental**                                                                                                                                               | `entityRef`, `index`                                                                                                | `WorkflowLlmCallResponse`                         |
 
+The sample of `GET /entities/:kind/:namespace/:name/workflow-stats` matches the default of the entity workflow list: runs that continued as new are left out.
+
 The read and history levels are decided as in
 [Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
 

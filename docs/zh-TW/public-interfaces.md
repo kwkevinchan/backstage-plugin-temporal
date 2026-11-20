@@ -328,6 +328,8 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 | `POST /:wf/query`                                     | read 層級加 `temporal.workflow.query`；有稽核                                                                                                           | `WorkflowMessageRequest`                                                                                           | `WorkflowMessageResponse`                                                                     |
 | `GET /:wf/llm-calls/:eventId`                         | history 層級。**實驗性**                                                                                                                                | `entityRef`、`index`                                                                                               | `WorkflowLlmCallResponse`                                                                     |
 
+統計路由 `GET /entities/:kind/:namespace/:name/workflow-stats` 的樣本和實體流程清單的預設一樣，不含已接續（continue-as-new）的中間 run。
+
 read 和 history 層級照[流程在哪個實體上檢查權限](#流程在哪個實體上檢查權限)決定。
 
 workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序是 Temporal visibility store 回傳的順序：外掛不指定排序（SQL visibility 不接受 `ORDER BY`；它先列執行中的 run，再列已結束的，最後結束的在前）。超過 namespace 保留期限的 run 不會列出。帶 `entityRef` 時，實體流程的子流程不會列出，雖然用這個實體打得開它們的 run。workflow ID 含引號、反斜線或控制字元時無法列出（`400`）：請用 run ID 打開那次執行。
