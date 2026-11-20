@@ -585,7 +585,7 @@ components:
           type: string
         sampleSize:
           type: integer
-          description: Number of most recent runs the numbers are computed from.
+          description: Number of most recent runs the numbers are computed from, using the same default as the workflow list (runs that continued as new are left out).
         limit:
           type: integer
           description: The requested maximum of runs.
@@ -680,76 +680,19 @@ components:
           type: string
           description: SHA-256 of the stored object, lowercase hex.
       additionalProperties: false
-    ActivityStep:
+    WorkflowResultResponse:
       type: object
       required:
-        - activityId
-        - activityType
-        - scheduledEventId
         - status
       properties:
-        activityId:
-          type: string
-        activityType:
-          type: string
-        scheduledEventId:
-          type: string
-          description: Event ID of `ActivityTaskScheduled`, unique within the run.
         status:
-          type: string
-          enum:
-            - Scheduled
-            - Started
-            - Completed
-            - Failed
-            - TimedOut
-            - Canceled
-        attempt:
-          type: integer
-        scheduledTime:
-          type: string
-          description: ISO 8601 timestamp.
-        startedTime:
-          type: string
-          description: ISO 8601 timestamp.
-        closeTime:
-          type: string
-          description: ISO 8601 timestamp.
-        input:
-          description: Decoded input; one argument is a single payload, more are an array.
-        result:
-          description: Decoded result of a completed activity.
-        failure:
-          $ref: '#/components/schemas/WorkflowFailure'
-        llm:
-          type: object
-          additionalProperties: {}
-          description: 'A model call, recognized by an LLM adapter. Experimental: the shape changes before the first stable release.'
-        tool:
-          type: object
-          additionalProperties: {}
-          description: 'A tool call of a model call. Experimental: the shape changes before the first stable release.'
-      additionalProperties: false
-    WorkflowStepsResponse:
-      type: object
-      required:
-        - activities
-        - truncated
-      properties:
-        input:
-          description: Decoded workflow input.
+          $ref: '#/components/schemas/WorkflowStatus'
         result:
           description: Decoded workflow result, when completed.
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
-        activities:
-          type: array
-          items:
-            $ref: '#/components/schemas/ActivityStep'
-        truncated:
-          type: boolean
-          description: True when the history was longer than the backend reads for steps.
       additionalProperties: false
+      description: The result or failure of a workflow run, from its close event. A running run has only `status`.
     WorkflowNodeKind:
       type: string
       enum:
@@ -1576,7 +1519,7 @@ paths:
       operationId: getEntityWorkflowStats
       summary: Summarize an entity's most recent runs
       description: |-
-        The runs of the entity's workflow sources, as in the workflow list. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
+        The runs of the entity's workflow sources, as in the default of the workflow list: runs that continued as new are left out. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity.
       tags:
@@ -1716,11 +1659,14 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/steps:
+  /namespaces/{namespace}/workflows/{workflowId}/runs/{runId}/result:
     get:
-      operationId: getWorkflowRunSteps
-      summary: Get the inputs and outputs of a workflow run (one run)
-      description: "Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given."
+      operationId: getWorkflowRunResult
+      summary: Get the result or failure of a workflow run (one run)
+      description: |-
+        Reads only the close event of the run, in one Temporal call, independent of history length. A running run returns 200 with only `status` (not 404).
+
+        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
       tags:
         - Workflows
       x-temporal-permissions:
@@ -1734,11 +1680,11 @@ paths:
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':
-          description: OK
+          description: The run's status, and its result or failure when it has closed. A running run returns 200 with only `status`.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowStepsResponse'
+                $ref: '#/components/schemas/WorkflowResultResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
