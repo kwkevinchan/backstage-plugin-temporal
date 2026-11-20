@@ -154,13 +154,18 @@ export function ControlErrorAlert(props: {
     TemporalWorkflowExtensionProps,
     'workflow' | 'workflowHref' | 'reload'
   >;
+  /**
+   * Show the "Open the run it continued as" link when the conflict carries
+   * `continuedAsNewRunId` (only signals lock to one run).
+   */
+  showContinuedAsNew?: boolean;
 }) {
   const { error, context } = props;
   const reload = context?.reload;
   useEffect(() => {
     if (error.statusCode === 404) reload?.();
   }, [error, reload]);
-  const next = error.continuedAsNewRunId;
+  const next = props.showContinuedAsNew ? error.continuedAsNewRunId : undefined;
   return (
     <Flex direction="column" gap="2">
       <ErrorAlert error={error} />

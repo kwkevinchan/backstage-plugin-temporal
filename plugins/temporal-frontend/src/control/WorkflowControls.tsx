@@ -70,9 +70,22 @@ const MESSAGE_TEXT: Record<MessageKind, MessageDialogText> = {
     doneSuffix: ' done',
     title: 'Send an update',
     submit: 'Send update',
-    help: 'The workflow handles the update and returns a result, or rejects it.',
+    help: 'Applies to the workflow’s current running execution (including if this run continues as new). The workflow handles the update and returns a result, or rejects it.',
   },
 };
+
+function messageText(
+  kind: MessageKind,
+  continuedAsNew: boolean,
+): MessageDialogText {
+  if (kind === 'signal') return MESSAGE_TEXT.signal;
+  return {
+    ...MESSAGE_TEXT.update,
+    help: continuedAsNew
+      ? 'This run already continued as new. The update is sent to the run of this workflow that is currently running, and returns its result or rejects it.'
+      : MESSAGE_TEXT.update.help,
+  };
+}
 
 /** Asks before cancel, terminate (with a reason) or rerun. */
 export function ConfirmDialog(props: {
@@ -151,6 +164,8 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
   const config = useControlConfig();
   const [open, setOpen] = useState<Open>();
   const running = workflow.status === 'Running';
+  const continuedAsNew = workflow.status === 'ContinuedAsNew';
+  const canOperateChain = running || continuedAsNew;
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   const resourceRef = entityRef ?? workflow.entityRef;
   const ref = {
@@ -187,13 +202,15 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
   return (
     <>
       {running && (
+        <PermissionButton
+          label="Signal…"
+          permission={temporalWorkflowSignalPermission}
+          resourceRef={resourceRef}
+          onPress={() => setOpen('signal')}
+        />
+      )}
+      {canOperateChain && (
         <>
-          <PermissionButton
-            label="Signal…"
-            permission={temporalWorkflowSignalPermission}
-            resourceRef={resourceRef}
-            onPress={() => setOpen('signal')}
-          />
           <PermissionButton
             label="Update…"
             permission={temporalWorkflowUpdatePermission}
@@ -228,7 +245,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
         <MessageDialog
           key={open}
           kind={open}
-          text={MESSAGE_TEXT[open]}
+          text={messageText(open, continuedAsNew)}
           messageDefinitions={messageOptions(open)[0]}
           allowsCustomValue={messageOptions(open)[1]}
           argsField={SchemaArgsField}
@@ -250,7 +267,11 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
       {open === 'cancel' && (
         <ConfirmDialog
           title="Cancel this workflow?"
-          description="The workflow is asked to cancel. It can clean up before it closes, or ignore the request."
+          description={
+            continuedAsNew
+              ? 'This run already continued as new. Cancellation is requested for the run of this workflow that is currently running; it can clean up before it closes, or ignore the request.'
+              : 'Asks the workflow’s current running execution to cancel (including if this run continues as new). It can clean up before it closes, or ignore the request.'
+          }
           confirm="Cancel workflow"
           dismiss="Keep running"
           context={props}
@@ -264,7 +285,11 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
       {open === 'terminate' && (
         <ConfirmDialog
           title="Terminate this workflow?"
-          description="The workflow stops at once, without running any more code. The reason is kept in its history."
+          description={
+            continuedAsNew
+              ? 'This run already continued as new. Terminating stops the run of this workflow that is currently running at once, without running any more code. The reason is kept in its history.'
+              : 'Stops the workflow’s current running execution at once (including if this run continues as new), without running any more code. The reason is kept in its history.'
+          }
           confirm="Terminate"
           dismiss="Keep running"
           destructive

@@ -155,6 +155,11 @@ export interface WorkflowDetail extends WorkflowSummary {
   failure?: WorkflowFailure;
   /** The run this one continued as, for a run that continued as new. */
   continuedAsNewRunId?: string;
+  /**
+   * Run ID of the first execution in this run's chain (Continue-As-New,
+   * workflow retry, cron or reset).
+   */
+  firstRunId?: string;
   pendingActivities: PendingActivity[];
 }
 

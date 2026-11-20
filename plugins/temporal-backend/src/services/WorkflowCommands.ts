@@ -44,10 +44,21 @@ import {
 import {
   isScheduleNotFound,
   mapActionError,
+  mapChainCommandError,
   mapCommandError,
   mapConnectionError,
 } from '../repositories/errors';
 import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
+
+/**
+ * Identifies an execution chain (Continue-As-New, workflow retry, cron or
+ * reset) without locking to one run ID.
+ */
+export interface WorkflowChainRef {
+  namespace: string;
+  workflowId: string;
+  firstExecutionRunId: string;
+}
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -155,6 +166,32 @@ export class WorkflowCommands {
   }
 
   /**
+   * A call to Temporal addressed to an execution chain (`workflowId` plus
+   * `firstExecutionRunId`), mapping ended / mismatched-chain errors to 409.
+   */
+  private callChain<T>(
+    temporalCall: string,
+    ref: WorkflowChainRef,
+    timeoutMs: number,
+    fn: (connection: Connection) => Promise<T>,
+  ): Promise<T> {
+    if (!ref.firstExecutionRunId) {
+      throw new InputError('firstExecutionRunId is required');
+    }
+    return callTemporal(
+      this.temporal,
+      {
+        timeoutMs,
+        mapError: error => mapChainCommandError(ref.workflowId, error),
+        temporalCall,
+        namespace: ref.namespace,
+        logger: this.logger,
+      },
+      fn,
+    );
+  }
+
+  /**
    * Runs a custom action with the client of `namespace`, under the deadline
    * of an action (`TEMPORAL_DEADLINES.action`) for every call it makes, and
    * rethrows its errors with `mapActionError`.
@@ -216,28 +253,26 @@ export class WorkflowCommands {
   }
 
   async update(
-    ref: Required<WorkflowRef>,
+    ref: WorkflowChainRef,
     name: string,
     args: JsonValue[] | undefined,
     identity: string,
   ): Promise<JsonValue | undefined> {
     this.checkUpdate(name);
-    const workflowExecution = {
-      workflowId: ref.workflowId,
-      runId: ref.runId,
-    };
+    const workflowExecution = { workflowId: ref.workflowId };
     const updateId = randomUUID();
     const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
     // Each call has its own deadline: a slow update that finishes within
     // the polls is not cut short.
-    let response: any = await this.call(
+    let response: any = await this.callChain(
       'updateWorkflowExecution',
-      ref.namespace,
+      ref,
       TEMPORAL_DEADLINES.update,
       c =>
         c.workflowService.updateWorkflowExecution({
           namespace: ref.namespace,
           workflowExecution,
+          firstExecutionRunId: ref.firstExecutionRunId,
           waitPolicy,
           request: {
             meta: { updateId, identity },
@@ -245,17 +280,27 @@ export class WorkflowCommands {
           },
         }),
     );
+    // Poll the run that actually accepted the update when the server
+    // returned it, else keep addressing the workflow ID without runId.
+    const acceptedExecution: { workflowId: string; runId?: string } = response
+      ?.updateRef?.workflowExecution?.runId
+      ? {
+          workflowId:
+            response.updateRef.workflowExecution.workflowId || ref.workflowId,
+          runId: response.updateRef.workflowExecution.runId,
+        }
+      : workflowExecution;
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await this.call(
+      response = await this.callChain(
         'pollWorkflowExecutionUpdate',
-        ref.namespace,
+        ref,
         TEMPORAL_DEADLINES.update,
         c =>
           c.workflowService.pollWorkflowExecutionUpdate({
             namespace: ref.namespace,
-            updateRef: { workflowExecution, updateId },
+            updateRef: { workflowExecution: acceptedExecution, updateId },
             identity,
             waitPolicy,
           }),
@@ -268,7 +313,10 @@ export class WorkflowCommands {
         .child({
           namespace: ref.namespace,
           workflowId: ref.workflowId,
-          runId: ref.runId,
+          firstRunId: ref.firstExecutionRunId,
+          ...(acceptedExecution.runId
+            ? { runId: acceptedExecution.runId }
+            : {}),
           messageName: name,
           updateId,
         })
@@ -281,15 +329,16 @@ export class WorkflowCommands {
     return decodeJsonPayloads(outcome.success);
   }
 
-  async cancel(ref: Required<WorkflowRef>, identity: string): Promise<void> {
-    await this.call(
+  async cancel(ref: WorkflowChainRef, identity: string): Promise<void> {
+    await this.callChain(
       'requestCancelWorkflowExecution',
-      ref.namespace,
+      ref,
       TEMPORAL_DEADLINES.operation,
       c =>
         c.workflowService.requestCancelWorkflowExecution({
           namespace: ref.namespace,
-          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+          workflowExecution: { workflowId: ref.workflowId },
+          firstExecutionRunId: ref.firstExecutionRunId,
           identity,
           requestId: randomUUID(),
         }),
@@ -297,18 +346,19 @@ export class WorkflowCommands {
   }
 
   async terminate(
-    ref: Required<WorkflowRef>,
+    ref: WorkflowChainRef,
     reason: string,
     identity: string,
   ): Promise<void> {
-    await this.call(
+    await this.callChain(
       'terminateWorkflowExecution',
-      ref.namespace,
+      ref,
       TEMPORAL_DEADLINES.operation,
       c =>
         c.workflowService.terminateWorkflowExecution({
           namespace: ref.namespace,
-          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+          workflowExecution: { workflowId: ref.workflowId },
+          firstExecutionRunId: ref.firstExecutionRunId,
           reason,
           identity,
         }),

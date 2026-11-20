@@ -49,7 +49,10 @@ import {
 } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
-import { WorkflowCommands } from '../services/WorkflowCommands';
+import {
+  WorkflowChainRef,
+  WorkflowCommands,
+} from '../services/WorkflowCommands';
 import {
   EntityWorkflowSources,
   readEntityWorkflowFilter,
@@ -137,6 +140,14 @@ function runRef(workflow: WorkflowDetail): WorkflowRunRef {
     namespace: workflow.namespace,
     workflowId: workflow.workflowId,
     runId: workflow.runId,
+  };
+}
+
+function chainRef(workflow: WorkflowDetail): WorkflowChainRef {
+  return {
+    namespace: workflow.namespace,
+    workflowId: workflow.workflowId,
+    firstExecutionRunId: workflow.firstRunId ?? workflow.runId,
   };
 }
 
@@ -253,20 +264,18 @@ export function createControlRouter(
     );
     const { name, args } = parseMessageBody(req);
     commands.checkUpdate(name);
-    assertRunning(loaded.workflow);
+    const chain = chainRef(loaded.workflow);
     const result = await audited(
       auditor,
       req,
       'workflow-update',
-      workflowMeta(loaded.workflow, entityRef, { name }),
+      workflowMeta(loaded.workflow, entityRef, {
+        firstRunId: chain.firstExecutionRunId,
+        scope: 'chain',
+        name,
+      }),
       'medium',
-      () =>
-        commands.update(
-          runRef(loaded.workflow),
-          name,
-          args,
-          identityOf(loaded.credentials),
-        ),
+      () => commands.update(chain, name, args, identityOf(loaded.credentials)),
     );
     res.json({ result });
   });
@@ -277,18 +286,17 @@ export function createControlRouter(
       temporalWorkflowCancelPermission,
       loaded,
     );
-    assertRunning(loaded.workflow);
+    const chain = chainRef(loaded.workflow);
     await audited(
       auditor,
       req,
       'workflow-cancel',
-      workflowMeta(loaded.workflow, entityRef),
+      workflowMeta(loaded.workflow, entityRef, {
+        firstRunId: chain.firstExecutionRunId,
+        scope: 'chain',
+      }),
       'medium',
-      () =>
-        commands.cancel(
-          runRef(loaded.workflow),
-          identityOf(loaded.credentials),
-        ),
+      () => commands.cancel(chain, identityOf(loaded.credentials)),
     );
     res.status(202).json({});
   });
@@ -302,19 +310,18 @@ export function createControlRouter(
     const reason =
       optionalText(requestBody(req).reason, 'reason', MAX_REASON_LENGTH) ??
       'Terminated from Backstage';
-    assertRunning(loaded.workflow);
+    const chain = chainRef(loaded.workflow);
     await audited(
       auditor,
       req,
       'workflow-terminate',
-      workflowMeta(loaded.workflow, entityRef, { reason }),
+      workflowMeta(loaded.workflow, entityRef, {
+        firstRunId: chain.firstExecutionRunId,
+        scope: 'chain',
+        reason,
+      }),
       'high',
-      () =>
-        commands.terminate(
-          runRef(loaded.workflow),
-          reason,
-          identityOf(loaded.credentials),
-        ),
+      () => commands.terminate(chain, reason, identityOf(loaded.credentials)),
     );
     res.json({});
   });
@@ -384,6 +391,7 @@ export function createControlRouter(
           action.handle(runRef(loaded.workflow), req.body as JsonValue, {
             entity,
             workflow: loaded.workflow,
+            firstRunId: loaded.workflow.firstRunId,
             credentials: loaded.credentials,
             client,
           }),

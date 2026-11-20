@@ -182,12 +182,12 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `./alpha`，`@alpha`。`addControlAction(action)` 加一個自訂操作，路由是 `POST …/actions/:actionId`（[流程](#一次自訂操作從按鈕到-temporal)）。`TemporalControlAction` 的欄位：
 
-| 欄位         | 意思                                                                                                                |
-| ------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `id`         | 英文字母、數字、`.`、`_`、`-`，以字母開頭；不能重複（重複會讓啟動失敗）                                             |
-| `permission` | 在 `handle` 執行前，對流程所屬實體檢查的 `catalog-entity` 權限                                                      |
-| `filter?`    | `(workflow: WorkflowDetail) => boolean`；false 時回 `409`                                                           |
-| `handle`     | `(ref, body, { entity?, workflow, credentials, client }) => Promise<JsonValue \| void>`；回傳值以 `{ result }` 送回 |
+| 欄位         | 意思                                                                                                                                                                                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`         | 英文字母、數字、`.`、`_`、`-`，以字母開頭；不能重複（重複會讓啟動失敗）                                                                                                                                                                                                      |
+| `permission` | 在 `handle` 執行前，對流程所屬實體檢查的 `catalog-entity` 權限                                                                                                                                                                                                               |
+| `filter?`    | `(workflow: WorkflowDetail) => boolean`；false 時回 `409`                                                                                                                                                                                                                    |
+| `handle`     | `(ref, body, { entity?, workflow, firstRunId?, credentials, client }) => Promise<JsonValue \| void>`；`ref` 是打開的那次執行，`firstRunId`（也是 `workflow.firstRunId`）是 Temporal 回報的執行鏈 ID，讓 action 自己決定要對單一 run 或整條鏈操作；回傳值以 `{ result }` 送回 |
 
 即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 帶著後端的連線：可以碰到 namespace 裡的每個流程，以及該連線的憑證能到的其他 namespace：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
 
@@ -306,7 +306,7 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 - 沒有：先用 list 權限判斷流程本身（`temporal.workflow.list`；history 層級還要 `temporal.workflow.history.list`），條件也會套用。不允許時，改對流程 `searchAttributes.entityRef` 屬性指的實體做上面的檢查。list 權限和實體上的讀取權限都不可能允許的呼叫者，在讀流程之前就回 `403`。其他人，除非 list 權限允許所有流程，打不開的流程（沒有這個屬性，或透過他讀不到的實體）回的 `404` 和流程不存在時一樣。
 - 操作接著檢查自己的權限：在讀取時用的實體上，否則在 search attribute 指的實體上；兩者都沒有時，這個權限必須無條件允許。
 
-錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
+錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`cancel`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
 
 讀取一定提供：
 
@@ -338,10 +338,10 @@ workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序�
 | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------------------------------- |
 | `POST /entities/:kind/:namespace/:name/workflows`                             | 實體上的 `temporal.workflow.start`（不檢查 read 層級）；只能是它的 workflow type 和 task queue             | `WorkflowStartRequest`                          | `201` `WorkflowStartResponse`                     |
 | `POST /workflows`                                                             | `temporal.workflow.list` 和 `temporal.workflow.start`，都要無條件（不檢查 read 層級）                      | `WorkflowStartRequest`                          | `201` `WorkflowStartResponse`                     |
-| `POST /:wf/signal`                                                            | read 層級加 `temporal.workflow.signal`；只限執行中                                                         | `WorkflowMessageRequest`                        | `202` `{}`                                        |
-| `POST /:wf/update`                                                            | read 層級加 `temporal.workflow.update`；只限執行中                                                         | `WorkflowMessageRequest`                        | `WorkflowMessageResponse`                         |
-| `POST /:wf/cancel`                                                            | read 層級加 `temporal.workflow.cancel`；只限執行中                                                         |                                                 | `202` `{}`                                        |
-| `POST /:wf/terminate`                                                         | read 層級加 `temporal.workflow.terminate`；只限執行中                                                      | `{ reason? }`                                   | `{}`                                              |
+| `POST /:wf/signal`                                                            | read 層級加 `temporal.workflow.signal`；只限打開的那個執行中 run                                           | `WorkflowMessageRequest`                        | `202` `{}`                                        |
+| `POST /:wf/update`                                                            | read 層級加 `temporal.workflow.update`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）       | `WorkflowMessageRequest`                        | `WorkflowMessageResponse`                         |
+| `POST /:wf/cancel`                                                            | read 層級加 `temporal.workflow.cancel`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）       |                                                 | `202` `{}`                                        |
+| `POST /:wf/terminate`                                                         | read 層級加 `temporal.workflow.terminate`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）    | `{ reason? }`                                   | `{}`                                              |
 | `POST /:wf/rerun`                                                             | read 層級加 `temporal.workflow.rerun`；只限已結束                                                          | `{ workflowId? }`                               | `201` `WorkflowStartResponse`                     |
 | `POST /:wf/actions/:actionId`                                                 | read 層級，再來是操作的 `permission`，再來是它的 `filter`；不認得的 `actionId` 回 `404`                    | 任何 JSON                                       | `WorkflowMessageResponse`（`{ result }` 或 `{}`） |
 | `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `?entityRef=` 實體上的 `temporal.workflow.start`（排程必須啟動它的流程），否則要無條件（不檢查 read 層級） | `TemporalScheduleNoteRequest`（`trigger` 不收） | `202` `{}`                                        |
@@ -354,7 +354,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 ![一次自訂操作的九個步驟。瀏覽器裡：（1）TemporalControlActionBlueprint 的按鈕，你給的參數有 label、confirm、body、permission（讓按鈕停用）和 filter（決定是否顯示）；（2）TemporalApi.runWorkflowAction()；（3）POST /api/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId/actions/:actionId。後端裡：（4）只有 temporal.control.enabled 為 true 時這條路由才存在，actionId 也必須已註冊，否則 404；（5）loadWorkflow() 檢查 namespace 和實體上的讀取權限；（6）authorizeOn() 檢查這個操作的權限，否則 403；（7）操作的 filter，否則 409；（8）稽核記錄 workflow-action；（9）action.handle() 拿到實體、流程、身分和 Temporal client 並呼叫 Temporal。回傳值以 { result } 送回，按鈕顯示結果。你的程式在第 1、7、9 步執行。](images/action-flow.svg)
 
-內建的操作也是同樣的順序，只是權限不同、中間沒有你的程式。Query 在讀取路由下用同樣方式執行，所以操作關閉時 Query 仍然在。
+內建的操作也是同樣的順序，只是權限不同、中間沒有你的程式。`update`、`cancel`、`terminate` 的權限和實體歸屬是對畫面上打開的那個 run 檢查的，實際執行時透過 `firstExecutionRunId`（不帶 `runId`）作用在同一條執行鏈上目前在跑的 run（並確保不會誤傷後來重用同一個 workflow ID 的別條鏈）。外掛假設同一條執行鏈上的所有 run 屬於同一個實體：workflow ID 在一條鏈裡不會變，且 `continueAsNew` 未指定 search attribute 時 Temporal 會保留前一個 run 的值，但流程程式在 Continue-As-New 時仍可換掉 workflow type、task queue 或 search attribute；依這些欄位決定實體歸屬或下權限條件的環境，接續後的 run 有可能歸到另一個實體，設定政策時需自行留意。Query 在讀取路由下用同樣方式執行，所以操作關閉時 Query 仍然在。
 
 ## 權限
 
@@ -442,7 +442,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
   外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。在 Backstage 以外啟動流程的程式設了這兩個屬性，效果相同，所以只設成流程真正所屬的實體和使用者。
 
 - **Identity。** 操作以 `backstage:<使用者實體 reference>`（或 `backstage:<服務 subject>`）作為 Temporal identity，會顯示在歷史裡。
-- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。
+- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體；`workflow-update`、`workflow-cancel`、`workflow-terminate` 還會附上打開的 `runId`、`firstRunId` 和 `scope: 'chain'`。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。
 
   Backstage 預設的對應是 `low` 送到 `debug`，`medium`、`high`、`critical` 送到 `info`。後端預設只輸出 `info` 以上，所以 `low` 的事件不會出現在 log 裡。若要看到 `low` 的事件，可以把 `backend.auditor.severityLogLevelMappings.low` 設成 `info`（這是全域設定，會連 catalog 的讀取事件一起打開），或只用 logger override 提高這個外掛的稽核事件：
 
@@ -456,7 +456,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
           level: debug
   ```
 
-- **Log**（logger 服務，外掛 `temporal`）。訊息是固定字串，會變動的值放在欄位裡，所以可以用欄位篩選 log（`logger.child({ ... }).warn('固定訊息')`），流程 ID 是自由文字也一樣。欄位有：`namespace`、`workflowId`、`runId`、`workflowType`、`taskQueue`、`entityRef`、`scheduleId`（和稽核事件用的名稱一致），以及 `temporalCall`（對 Temporal 的呼叫類別，例如 `describeWorkflowExecution`、`schedule.list`）、`grpcCode`、`grpcStatus`、`durationMs`、`timeoutMs`、`enricherId`、`llmAdapterId`、`activityType`、`historyEventId`、`resourceRef`、`permission`、`updateId`、`messageName`（signal、update 或 query 的名稱）、`errorName`。欄位名稱避開 Backstage 的 logger 已經在用的（`plugin`、`service`、`type`、`status`、`level`、`message`、`stack`）。
+- **Log**（logger 服務，外掛 `temporal`）。訊息是固定字串，會變動的值放在欄位裡，所以可以用欄位篩選 log（`logger.child({ ... }).warn('固定訊息')`），流程 ID 是自由文字也一樣。欄位有：`namespace`、`workflowId`、`runId`、`firstRunId`、`workflowType`、`taskQueue`、`entityRef`、`scheduleId`（和稽核事件用的名稱一致），以及 `temporalCall`（對 Temporal 的呼叫類別，例如 `describeWorkflowExecution`、`schedule.list`）、`grpcCode`、`grpcStatus`、`durationMs`、`timeoutMs`、`enricherId`、`llmAdapterId`、`activityType`、`historyEventId`、`resourceRef`、`permission`、`updateId`、`messageName`（signal、update 或 query 的名稱）、`errorName`。欄位名稱避開 Backstage 的 logger 已經在用的（`plugin`、`service`、`type`、`status`、`level`、`message`、`stack`）。
 
   每個對 Temporal 的呼叫都會以 `debug` 記下類別、namespace 和耗時。呼叫失敗時會帶 gRPC 狀態：伺服端或後端自己的憑證出問題時記 `warn`（`UNAVAILABLE`、`RESOURCE_EXHAUSTED`、`PERMISSION_DENIED`、`UNAUTHENTICATED`、`INTERNAL`、`UNKNOWN`、`UNIMPLEMENTED`，以及 query 以外的呼叫超過期限），請求本身造成的記 `debug`（`NOT_FOUND`、`INVALID_ARGUMENT`、`ALREADY_EXISTS`、`FAILED_PRECONDITION`、不存在的排程或 namespace、沒有 worker 回答的 query）。其他的 `warn`：外掛套不上的權限條件（這是政策的問題，呼叫者只看到被拒絕）、spec 不合法的 `TemporalWorkflow` 實體、開不起來的連線、輪詢結束時還沒完成的 update，以及失敗的 enricher、LLM adapter 和定義檔。
 

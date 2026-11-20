@@ -1188,13 +1188,25 @@ entity (with `entityRef`; the workflow must belong to it, 404 otherwise), or
 given, else `temporal.workflow.read` on the entity of the search attribute.
 A user with `temporal.workflow.signal` but without read access gets 403.
 Queries only read the workflow; they need `temporal.workflow.query` besides
-the read permission. Denied requests answer 403. Signal, update, cancel and
-terminate answer 409 when the workflow is not running, start and rerun when
-the workflow ID is taken, and the schedule operations when Temporal refuses
-the operation in the state of the schedule. Each operation is recorded
-with the auditor service (`workflow-start`, `workflow-signal`,
-`workflow-update`, `workflow-query`, `workflow-cancel`, `workflow-terminate`,
-`workflow-rerun`, `workflow-action`), with the user, the workflow and the
+the read permission. Denied requests answer 403. Terminate, cancel and
+update apply to the workflow's execution chain (`firstExecutionRunId` without
+`runId`), so they reach whichever run in the chain is currently running even
+after Continue-As-New; their permissions and entity membership are still checked
+on the opened run (assuming runs in one chain belong to the same entity —
+while the workflow ID stays constant and Temporal preserves search attributes
+when omitted, workflow code can change workflow type, task queue or search
+attributes on Continue-As-New, which can associate a continued run with another
+entity in environments that match entities or permissions on those fields).
+Signal stays locked to the opened run because Temporal's signal API has no
+chain check: signal answers 409 (with `continuedAsNewRunId` when continued as
+new) if that run is not running. Update, cancel and terminate answer 409 when
+the chain has ended or the workflow ID now belongs to a different chain; start
+and rerun answer 409 when the workflow ID is taken; schedule operations answer
+409 when Temporal refuses the operation in the state of the schedule. Each
+operation is recorded with the auditor service (`workflow-start`,
+`workflow-signal`, `workflow-update`, `workflow-query`, `workflow-cancel`,
+`workflow-terminate`, `workflow-rerun`, `workflow-action`), with the user, the
+workflow (and `firstRunId` / `scope: 'chain'` for chain operations) and the
 operation. The Temporal history shows the user as the identity
 (`backstage:user:default/jane`).
 

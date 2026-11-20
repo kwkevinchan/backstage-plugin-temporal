@@ -106,6 +106,7 @@ export interface TemporalControlActionContext {
   // (undocumented)
   credentials: BackstageCredentials;
   entity?: Entity;
+  firstRunId?: string;
   workflow: WorkflowDetail;
 }
 

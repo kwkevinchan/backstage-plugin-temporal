@@ -561,9 +561,14 @@ export function createTemporalWorkflowSignalAction(
           try {
             response = await send(runId);
           } catch (error) {
-            // The run the action looked up continued as new since: send to
-            // the run it continued as, once. A given run ID is kept.
-            const next = input.runId ? undefined : continuedAsNewRunIdOf(error);
+            // Signals lock to one run: if the run looked up continued as new
+            // since, send once more to the run it continued as. Updates follow
+            // the chain in the backend and do not return continuedAsNewRunId;
+            // a given run ID is kept.
+            const next =
+              kind === 'signal' && !input.runId
+                ? continuedAsNewRunIdOf(error)
+                : undefined;
             if (!next) throw error;
             usedRunId = next;
             response = await send(next);

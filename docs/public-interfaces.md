@@ -227,12 +227,12 @@ the [HTTP API](#http-api) as the user instead.
 served as `POST …/actions/:actionId` ([flow](#one-custom-action-from-the-button-to-temporal)).
 `TemporalControlAction` has:
 
-| Field        | Meaning                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `id`         | Letters, digits, `.`, `_`, `-`, starting with a letter; unique (a duplicate fails the startup)                                  |
-| `permission` | A `catalog-entity` permission checked on the workflow's entity before `handle` runs                                             |
-| `filter?`    | `(workflow: WorkflowDetail) => boolean`; false answers `409`                                                                    |
-| `handle`     | `(ref, body, { entity?, workflow, credentials, client }) => Promise<JsonValue \| void>`; the value is sent back as `{ result }` |
+| Field        | Meaning                                                                                                                                                                                                                                                                                                                                              |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`         | Letters, digits, `.`, `_`, `-`, starting with a letter; unique (a duplicate fails the startup)                                                                                                                                                                                                                                                       |
+| `permission` | A `catalog-entity` permission checked on the workflow's entity before `handle` runs                                                                                                                                                                                                                                                                  |
+| `filter?`    | `(workflow: WorkflowDetail) => boolean`; false answers `409`                                                                                                                                                                                                                                                                                         |
+| `handle`     | `(ref, body, { entity?, workflow, firstRunId?, credentials, client }) => Promise<JsonValue \| void>`; `ref` names the opened run and `firstRunId` (also `workflow.firstRunId`) is the execution chain ID when Temporal reports it, letting the action choose whether to target the run or the chain; the returned value is sent back as `{ result }` |
 
 The extension point is registered even when `temporal.control.enabled` is
 false, so modules still start; their actions are then ignored with a
@@ -490,11 +490,12 @@ for.
   neither needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
-credentials, `403` denied, `404` not found, `409` a conflict (the workflow
-is not running, with `continuedAsNewRunId` in the error for a run that
-continued as new; a rerun of a run that is still running; the action's
-filter refused it, or Temporal refused it: a
-workflow ID already in use, a schedule in the wrong state), `503` Temporal
+credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a
+run that is not running, with `continuedAsNewRunId` in the error when it
+continued as new; `update`, `cancel` or `terminate` when the execution chain
+has ended or the workflow ID now belongs to a different chain; a rerun of a
+run that is still running; the action's filter refused it, or Temporal
+refused it: a workflow ID already in use, a schedule in the wrong state), `503` Temporal
 not reachable, not answering within the deadline of the call, rate limiting
 the backend, refusing the backend's own credentials, or no worker answering
 a query or an update in time.
@@ -544,10 +545,10 @@ recorded with the auditor ([event IDs](#what-the-plugin-writes)):
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------ |
 | `POST /entities/:kind/:namespace/:name/workflows`                             | `temporal.workflow.start` on the entity (no read level); only its workflow types and task queue                             | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
 | `POST /workflows`                                                             | `temporal.workflow.list` and `temporal.workflow.start`, both without conditions (no read level)                             | `WorkflowStartRequest`                            | `201` `WorkflowStartResponse`                    |
-| `POST /:wf/signal`                                                            | read level and `temporal.workflow.signal`; running only                                                                     | `WorkflowMessageRequest`                          | `202` `{}`                                       |
-| `POST /:wf/update`                                                            | read level and `temporal.workflow.update`; running only                                                                     | `WorkflowMessageRequest`                          | `WorkflowMessageResponse`                        |
-| `POST /:wf/cancel`                                                            | read level and `temporal.workflow.cancel`; running only                                                                     |                                                   | `202` `{}`                                       |
-| `POST /:wf/terminate`                                                         | read level and `temporal.workflow.terminate`; running only                                                                  | `{ reason? }`                                     | `{}`                                             |
+| `POST /:wf/signal`                                                            | read level and `temporal.workflow.signal`; opened run only (must be running)                                                | `WorkflowMessageRequest`                          | `202` `{}`                                       |
+| `POST /:wf/update`                                                            | read level and `temporal.workflow.update`; execution chain (`firstExecutionRunId`, without `runId`)                         | `WorkflowMessageRequest`                          | `WorkflowMessageResponse`                        |
+| `POST /:wf/cancel`                                                            | read level and `temporal.workflow.cancel`; execution chain (`firstExecutionRunId`, without `runId`)                         |                                                   | `202` `{}`                                       |
+| `POST /:wf/terminate`                                                         | read level and `temporal.workflow.terminate`; execution chain (`firstExecutionRunId`, without `runId`)                      | `{ reason? }`                                     | `{}`                                             |
 | `POST /:wf/rerun`                                                             | read level and `temporal.workflow.rerun`; closed runs only                                                                  | `{ workflowId? }`                                 | `201` `WorkflowStartResponse`                    |
 | `POST /:wf/actions/:actionId`                                                 | read level, then the action's `permission`, then its `filter`; an unknown `actionId` answers `404`                          | any JSON                                          | `WorkflowMessageResponse` (`{ result }` or `{}`) |
 | `POST /namespaces/:namespace/schedules/:scheduleId/(pause\|unpause\|trigger)` | `temporal.workflow.start` on `?entityRef=` (the schedule must start its workflows), else without conditions (no read level) | `TemporalScheduleNoteRequest` (not for `trigger`) | `202` `{}`                                       |
@@ -572,8 +573,18 @@ paths by hand. From the browser, use `temporalApiRef` instead.
 ![One custom action in nine steps. In the browser: (1) the button of TemporalControlActionBlueprint, with your params label, confirm, body, permission (disables the button) and filter (shows it); (2) TemporalApi.runWorkflowAction(); (3) POST /api/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId/actions/:actionId. In the backend: (4) the route exists only when temporal.control.enabled is true, and the actionId must be registered, else 404; (5) loadWorkflow() checks the namespace and the read level on the entity; (6) authorizeOn() checks the action’s permission, else 403; (7) the action’s filter, else 409; (8) the auditor records workflow-action; (9) action.handle() runs with the entity, workflow, credentials and Temporal client and calls Temporal. Its value comes back as { result } and the button shows it. Your code runs at steps 1, 7 and 9.](images/action-flow.svg)
 
 The same order holds for the built-in operations, with their own
-permission and without your code. A Query runs the same way under the read
-routes, so it stays when the operations are off.
+permission and without your code. For `update`, `cancel` and `terminate`,
+permissions and `entityRef` membership are checked on the opened run, while
+Temporal executes the operation on whichever run is currently running in the
+same execution chain (`firstExecutionRunId` without `runId`, which prevents
+affecting any later chain that reused the workflow ID). The plugin assumes
+all runs in an execution chain belong to the same catalog entity: workflow
+IDs do not change across a chain and Temporal preserves search attributes
+when `continueAsNew` omits them, but workflow code can still switch workflow
+type, task queue or search attributes on Continue-As-New, so environments
+that match entities or permission conditions on those fields should account
+for that. A Query runs the same way under the read routes, so it stays
+when the operations are off.
 
 ## Permissions
 
@@ -706,7 +717,9 @@ Other systems can read these, so they are interfaces too:
   `workflow-signal`, `workflow-update`, `workflow-query`, `workflow-cancel`,
   `workflow-terminate`, `workflow-rerun`, `workflow-action`,
   `schedule-pause`, `schedule-unpause`, `schedule-trigger`, with the
-  namespace, workflow and entity in the metadata. Their severity is
+  namespace, workflow and entity in the metadata; `workflow-update`,
+  `workflow-cancel` and `workflow-terminate` also include `firstRunId` and
+  `scope: 'chain'`. Their severity is
   `medium`, except `workflow-terminate`, which is `high` because a
   terminate cannot be undone.
 
@@ -731,7 +744,7 @@ Other systems can read these, so they are interfaces too:
   strings; what varies is in fields, so a log can be filtered by field
   (`logger.child({ ... }).warn('Fixed message')`), also for a workflow ID,
   which is free text. The fields are:
-  `namespace`, `workflowId`, `runId`, `workflowType`, `taskQueue`,
+  `namespace`, `workflowId`, `runId`, `firstRunId`, `workflowType`, `taskQueue`,
   `entityRef`, `scheduleId` (the names the audit events use), and
   `temporalCall` (the category of a call to Temporal, such as
   `describeWorkflowExecution` or `schedule.list`), `grpcCode`, `grpcStatus`,

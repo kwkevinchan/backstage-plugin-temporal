@@ -394,7 +394,7 @@ describe('WorkflowControls', () => {
     );
   });
 
-  it('links a refused operation on a run that continued as new to the run it continued as', async () => {
+  it('links a refused signal on a run that continued as new to the run it continued as', async () => {
     const reload = jest.fn();
     const hrefOf = (r: { workflowId: string; runId?: string }) =>
       `/wf/${r.workflowId}/${r.runId ?? ''}`;
@@ -406,7 +406,7 @@ describe('WorkflowControls', () => {
         workflowHref={hrefOf}
       />,
     );
-    api.cancelWorkflow.mockRejectedValueOnce(
+    api.signalWorkflow.mockRejectedValueOnce(
       Object.assign(new Error('Request failed with 409 Conflict'), {
         statusCode: 409,
         body: {
@@ -419,10 +419,10 @@ describe('WorkflowControls', () => {
       }),
     );
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Cancel' }),
+      await screen.findByRole('button', { name: 'Signal…' }),
     );
     await userEvent.click(
-      screen.getByRole('button', { name: 'Cancel workflow' }),
+      await screen.findByRole('button', { name: 'Send signal' }),
     );
     const notice = await screen.findByTestId('operation-continued-as-new');
     expect(
@@ -434,6 +434,139 @@ describe('WorkflowControls', () => {
       screen.getByText('Workflow payment-1 is not running (ContinuedAsNew)'),
     ).toBeInTheDocument();
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('does not show the continued-as-new link on 409 errors for cancel or update', async () => {
+    const { api } = render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={(r: { workflowId: string; runId?: string }) =>
+          `/wf/${r.workflowId}/${r.runId ?? ''}`
+        }
+      />,
+      { control: { allowedUpdates: ['setPriority'] } },
+    );
+    api.cancelWorkflow.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with 409 Conflict'), {
+        statusCode: 409,
+        body: {
+          error: {
+            name: 'ConflictError',
+            message: 'Workflow payment-1 has already ended',
+            continuedAsNewRunId: 'run-3',
+          },
+        },
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Cancel' }),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Cancel workflow' }),
+    );
+    expect(
+      await screen.findByText('Workflow payment-1 has already ended'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('operation-continued-as-new'),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }));
+
+    api.updateWorkflow.mockRejectedValueOnce(
+      Object.assign(new Error('Request failed with 409 Conflict'), {
+        statusCode: 409,
+        body: {
+          error: {
+            name: 'ConflictError',
+            message:
+              'Workflow payment-1 now belongs to a different execution chain',
+            continuedAsNewRunId: 'run-3',
+          },
+        },
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Update…' }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Send update' }));
+    expect(
+      await screen.findByText(
+        'Workflow payment-1 now belongs to a different execution chain',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('operation-continued-as-new'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('explains execution-chain scope in terminate, cancel and update dialogs for a running workflow', async () => {
+    render(
+      <WorkflowControls
+        workflow={running}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { control: { allowedUpdates: ['setPriority'] } },
+    );
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Terminate' }),
+    );
+    expect(
+      await screen.findByText(/current running execution/),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(
+      await screen.findByText(/current running execution/),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Update…' }));
+    expect(
+      await screen.findByText(/current running execution/),
+    ).toBeInTheDocument();
+  });
+
+  it('enables update, cancel and terminate on a continued-as-new run with chain wording and hides signal', async () => {
+    const continued: WorkflowDetail = {
+      ...failedWorkflow,
+      status: 'ContinuedAsNew',
+      firstRunId: 'run-0',
+    };
+    render(
+      <WorkflowControls
+        workflow={continued}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      { control: { allowedUpdates: ['setPriority'] } },
+    );
+    for (const name of ['Update…', 'Cancel', 'Terminate', 'Rerun']) {
+      expect(await screen.findByRole('button', { name })).toBeEnabled();
+    }
+    expect(screen.queryByRole('button', { name: 'Signal…' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Terminate' }));
+    expect(
+      await screen.findByText(/This run already continued as new\./),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(
+      await screen.findByText(/This run already continued as new\./),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep running' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Update…' }));
+    expect(
+      await screen.findByText(/This run already continued as new\./),
+    ).toBeInTheDocument();
   });
 
   it('reloads the page when an operation finds no run', async () => {

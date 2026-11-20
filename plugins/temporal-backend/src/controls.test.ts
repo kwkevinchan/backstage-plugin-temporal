@@ -334,6 +334,8 @@ describe('workflow controls', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ result: { priority: 'high' } });
     const call = workflowService.updateWorkflowExecution.mock.calls[0][0];
+    expect(call.workflowExecution).toEqual({ workflowId: 'wf-1' });
+    expect(call.firstExecutionRunId).toBe('wf-1-run');
     expect(call.request.input.name).toBe('setPriority');
     expect(call.request.input.args.payloads.map(decode)).toEqual(['high']);
   });
@@ -350,6 +352,31 @@ describe('workflow controls', () => {
     expect(res.body).toEqual({ result: 7 });
   });
 
+  it('polls a chain update against the run ID returned by Temporal', async () => {
+    const { server, workflowService } = await start();
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({
+      updateRef: {
+        workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run-3' },
+        updateId: 'upd-1',
+      },
+    } as any);
+    workflowService.pollWorkflowExecutionUpdate.mockResolvedValueOnce({
+      outcome: { success: { payloads: [json({ ok: true })] } },
+    } as any);
+    const res = await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority' });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ result: { ok: true } });
+    expect(
+      workflowService.pollWorkflowExecutionUpdate.mock.calls[0][0],
+    ).toMatchObject({
+      updateRef: {
+        workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run-3' },
+      },
+    });
+  });
+
   it('answers 400 with the message of a rejected update', async () => {
     const { server, workflowService, auditEvent } = await start();
     workflowService.updateWorkflowExecution.mockResolvedValueOnce({
@@ -363,23 +390,30 @@ describe('workflow controls', () => {
     expect(auditEvent.fail).toHaveBeenCalled();
   });
 
-  it('cancels and terminates with a reason', async () => {
+  it('cancels and terminates the chain with a reason', async () => {
     const { server, workflowService } = await start();
     expect(
       (await request(server).post(`${wf}/cancel${withEntity}`).send({})).status,
     ).toBe(202);
-    expect(
-      workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
-    ).toMatchObject({
-      workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+    const cancelCall =
+      workflowService.requestCancelWorkflowExecution.mock.calls[0][0];
+    expect(cancelCall).toMatchObject({
+      workflowExecution: { workflowId: 'wf-1' },
+      firstExecutionRunId: 'wf-1-run',
     });
+    expect(cancelCall.workflowExecution.runId).toBeUndefined();
     const res = await request(server)
       .post(`${wf}/terminate${withEntity}`)
       .send({ reason: 'stuck' });
     expect(res.status).toBe(200);
-    expect(
-      workflowService.terminateWorkflowExecution.mock.calls[0][0],
-    ).toMatchObject({ reason: 'stuck' });
+    const terminateCall =
+      workflowService.terminateWorkflowExecution.mock.calls[0][0];
+    expect(terminateCall).toMatchObject({
+      workflowExecution: { workflowId: 'wf-1' },
+      firstExecutionRunId: 'wf-1-run',
+      reason: 'stuck',
+    });
+    expect(terminateCall.workflowExecution.runId).toBeUndefined();
   });
 
   it('answers 409 when a closed workflow is signaled', async () => {
@@ -391,7 +425,7 @@ describe('workflow controls', () => {
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 
-  it('answers 409 with the run it continued as when a run that continued as new is operated', async () => {
+  it('answers 409 with the run it continued as when a run that continued as new is signaled', async () => {
     const { server, workflowService } = await start({
       status: 'CONTINUED_AS_NEW',
     });
@@ -408,11 +442,129 @@ describe('workflow controls', () => {
         ],
       },
     } as any);
+    const res = await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatchObject({
+      name: 'ConflictError',
+      continuedAsNewRunId: 'wf-1-run-2',
+    });
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 without a run to follow when a completed run is signaled', async () => {
+    const { server } = await start({ status: 'COMPLETED' });
+    const res = await request(server)
+      .post(`${wf}/signal${withEntity}`)
+      .send({ name: 'addNote' });
+    expect(res.status).toBe(409);
+    expect(res.body.error.continuedAsNewRunId).toBeUndefined();
+  });
+
+  it('operates update, cancel and terminate across the chain from a continued-as-new run using run A permissions only', async () => {
+    const { server, workflowService, permissions, auditor } = await start({
+      status: 'CONTINUED_AS_NEW',
+    });
+    const runAPath =
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run-2';
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: {
+        ...executionInfo({
+          workflowId: 'wf-1',
+          runId: 'wf-1-run-2',
+          firstRunId: 'wf-1-run-1',
+          status: 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW',
+        }),
+        searchAttributes: {
+          indexedFields: {
+            BackstageEntityRef: json('component:default/orders'),
+          },
+        },
+      },
+      pendingActivities: [],
+    } as any);
+
+    const updateRes = await request(server)
+      .post(`${runAPath}/update${withEntity}`)
+      .send({ name: 'setPriority', args: ['high'] });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body).toEqual({ result: { priority: 'high' } });
+
+    const cancelRes = await request(server)
+      .post(`${runAPath}/cancel${withEntity}`)
+      .send({});
+    expect(cancelRes.status).toBe(202);
+
+    const terminateRes = await request(server)
+      .post(`${runAPath}/terminate${withEntity}`)
+      .send({ reason: 'chain stop' });
+    expect(terminateRes.status).toBe(200);
+
+    for (const call of [
+      workflowService.updateWorkflowExecution.mock.calls[0][0],
+      workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
+      workflowService.terminateWorkflowExecution.mock.calls[0][0],
+    ]) {
+      expect(call.workflowExecution).toEqual({ workflowId: 'wf-1' });
+      expect((call.workflowExecution as any).runId).toBeUndefined();
+      expect(call.firstExecutionRunId).toBe('wf-1-run-1');
+    }
+
+    // Option 2: only the opened run A is described and authorized, never Run B.
+    expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(3);
+    for (const [descReq] of workflowService.describeWorkflowExecution.mock
+      .calls) {
+      expect(descReq.execution).toEqual({
+        workflowId: 'wf-1',
+        runId: 'wf-1-run-2',
+      });
+    }
+    const authRequests = permissions.authorize.mock.calls.flatMap(
+      ([reqs]) => reqs,
+    );
+    expect(authRequests.map(r => (r as any).resourceRef)).toEqual(
+      Array(authRequests.length).fill('component:default/orders'),
+    );
+    expect(authRequests.map(r => r.permission.name)).toEqual(
+      expect.arrayContaining([
+        'temporal.workflow.read',
+        'temporal.workflow.update',
+        'temporal.workflow.cancel',
+        'temporal.workflow.terminate',
+      ]),
+    );
+
+    for (const eventId of [
+      'workflow-update',
+      'workflow-cancel',
+      'workflow-terminate',
+    ]) {
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId,
+          meta: expect.objectContaining({
+            workflowId: 'wf-1',
+            runId: 'wf-1-run-2',
+            firstRunId: 'wf-1-run-1',
+            scope: 'chain',
+          }),
+        }),
+      );
+    }
+  });
+
+  it('answers 409 without continuedAsNewRunId when Temporal rejects a chain whose workflow ID moved to another chain', async () => {
+    const { server, workflowService } = await start();
+    const err = grpcError(5, 'workflow execution not found');
+    workflowService.updateWorkflowExecution.mockRejectedValueOnce(err);
+    workflowService.requestCancelWorkflowExecution.mockRejectedValueOnce(err);
+    workflowService.terminateWorkflowExecution.mockRejectedValueOnce(err);
+
     for (const [route, body] of [
-      ['signal', { name: 'addNote' }],
       ['update', { name: 'setPriority' }],
       ['cancel', {}],
-      ['terminate', {}],
+      ['terminate', { reason: 'stuck' }],
     ] as const) {
       const res = await request(server)
         .post(`${wf}/${route}${withEntity}`)
@@ -420,19 +572,32 @@ describe('workflow controls', () => {
       expect([route, res.status]).toEqual([route, 409]);
       expect(res.body.error).toMatchObject({
         name: 'ConflictError',
-        continuedAsNewRunId: 'wf-1-run-2',
+        message: expect.stringMatching(/different execution chain/),
       });
+      expect(res.body.error.continuedAsNewRunId).toBeUndefined();
     }
-    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 
-  it('answers 409 without a run to follow when a completed run is operated', async () => {
-    const { server } = await start({ status: 'COMPLETED' });
-    const res = await request(server)
-      .post(`${wf}/cancel${withEntity}`)
-      .send({});
-    expect(res.status).toBe(409);
-    expect(res.body.error.continuedAsNewRunId).toBeUndefined();
+  it('answers 409 when Temporal reports the execution chain has already ended', async () => {
+    const { server, workflowService } = await start({ status: 'COMPLETED' });
+    const err = grpcError(5, 'workflow execution already completed');
+    workflowService.updateWorkflowExecution.mockRejectedValueOnce(err);
+    workflowService.terminateWorkflowExecution.mockRejectedValueOnce(err);
+
+    for (const [route, body] of [
+      ['update', { name: 'setPriority' }],
+      ['terminate', { reason: 'stuck' }],
+    ] as const) {
+      const res = await request(server)
+        .post(`${wf}/${route}${withEntity}`)
+        .send(body);
+      expect([route, res.status]).toEqual([route, 409]);
+      expect(res.body.error).toMatchObject({
+        name: 'ConflictError',
+        message: expect.stringMatching(/already ended/),
+      });
+      expect(res.body.error.continuedAsNewRunId).toBeUndefined();
+    }
   });
 
   it('answers 409 for a rerun of a run that is still running', async () => {
@@ -711,8 +876,24 @@ describe('workflow controls', () => {
 
     beforeEach(() => handle.mockClear());
 
-    it('runs a registered action', async () => {
-      const { server, auditor } = await start({ action });
+    it('runs a registered action with opened run ref and chain firstRunId', async () => {
+      const { server, workflowService, auditor } = await start({ action });
+      workflowService.describeWorkflowExecution.mockResolvedValueOnce({
+        workflowExecutionInfo: {
+          ...executionInfo({
+            workflowId: 'wf-1',
+            runId: 'wf-1-run',
+            firstRunId: 'wf-1-run-0',
+            status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+          }),
+          searchAttributes: {
+            indexedFields: {
+              BackstageEntityRef: json('component:default/orders'),
+            },
+          },
+        },
+        pendingActivities: [],
+      } as any);
       const res = await request(server)
         .post(`${wf}/actions/escalate${withEntity}`)
         .send({ level: 2 });
@@ -724,6 +905,9 @@ describe('workflow controls', () => {
         namespace: 'default',
         workflowId: 'wf-1',
         runId: 'wf-1-run',
+      });
+      expect(handle.mock.calls[0][2]).toMatchObject({
+        firstRunId: 'wf-1-run-0',
       });
       expect(auditor.createEvent).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1054,7 +1238,8 @@ describe('operations without a request body', () => {
         expect(
           workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
         ).toMatchObject({
-          workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run' },
+          workflowExecution: { workflowId: 'wf-1' },
+          firstExecutionRunId: 'wf-1-run',
           identity: 'backstage:user:default/mock',
         }),
     },
@@ -1462,7 +1647,7 @@ describe('logs', () => {
       meta: {
         namespace: 'default',
         workflowId: 'wf-1',
-        runId: 'wf-1-run',
+        firstRunId: 'wf-1-run',
         messageName: 'setPriority',
         updateId,
       },

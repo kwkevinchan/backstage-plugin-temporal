@@ -177,15 +177,19 @@ const b64 = (s: string) => Buffer.from(s).toString('base64');
 
 export function executionInfo(overrides: {
   workflowId: string;
+  runId?: string;
+  firstRunId?: string;
   type?: string;
   taskQueue?: string;
   status?: string;
 }) {
+  const runId = overrides.runId ?? `${overrides.workflowId}-run`;
   return {
     execution: {
       workflowId: overrides.workflowId,
-      runId: `${overrides.workflowId}-run`,
+      runId,
     },
+    firstRunId: overrides.firstRunId ?? runId,
     type: { name: overrides.type ?? 'orderWorkflow' },
     taskQueue: overrides.taskQueue ?? 'orders',
     status: overrides.status ?? 'WORKFLOW_EXECUTION_STATUS_COMPLETED',

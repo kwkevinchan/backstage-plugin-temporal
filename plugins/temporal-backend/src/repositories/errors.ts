@@ -222,6 +222,36 @@ export function mapCommandError(error: unknown): never {
 }
 
 /**
+ * Like {@link mapCommandError}, for operations addressed to a workflow chain
+ * via `firstExecutionRunId` without a `runId` (terminate, cancel, update):
+ * Temporal answers `NOT_FOUND` when the chain has already closed or when the
+ * workflow ID now belongs to a different execution chain, both of which are
+ * conflicts (`409`) on an opened run.
+ */
+export function mapChainCommandError(
+  workflowId: string,
+  error: unknown,
+): never {
+  const { code, message } = grpcErrorOf(error);
+  const details =
+    typeof (error as { details?: unknown })?.details === 'string'
+      ? (error as { details: string }).details
+      : '';
+  if (code === GRPC_NOT_FOUND) {
+    if (
+      /already completed/i.test(message) ||
+      /already completed/i.test(details)
+    ) {
+      throw new ConflictError(`Workflow ${workflowId} has already ended`);
+    }
+    throw new ConflictError(
+      `Workflow ${workflowId} now belongs to a different execution chain`,
+    );
+  }
+  return mapCommandError(error);
+}
+
+/**
  * For custom actions: Backstage errors are kept, the errors of the Temporal
  * client become the error of what they mean (a workflow that is not found,
  * an update that failed or did not finish in time), and gRPC errors are

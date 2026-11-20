@@ -269,7 +269,13 @@ export function MessageDialog(props: {
             userEntityRef={userEntityRef}
             onChange={setParsed}
           />
-          {error && <ControlErrorAlert error={error} context={props.context} />}
+          {error && (
+            <ControlErrorAlert
+              error={error}
+              context={props.context}
+              showContinuedAsNew={kind === 'signal'}
+            />
+          )}
           {done && (
             <div data-testid={`workflow-${kind}-result`}>
               <Alert
