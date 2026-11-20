@@ -226,27 +226,53 @@ export function createFakeWorkflowService() {
         ],
       },
     })),
-    getWorkflowExecutionHistory: jest.fn(async () => ({
-      history: {
-        events: [
-          {
-            eventId: '1',
-            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
-            workflowExecutionStartedEventAttributes: {
-              input: {
-                payloads: [
-                  {
-                    metadata: { encoding: b64('json/plain') },
-                    data: b64('42'),
+    getWorkflowExecutionHistory: jest.fn(async (req: any): Promise<any> => {
+      const filter = req?.historyEventFilterType;
+      const closeEvent =
+        filter === 2 ||
+        filter === 'HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT' ||
+        filter === 'CLOSE_EVENT';
+      if (closeEvent) {
+        return {
+          history: {
+            events: [
+              {
+                eventId: '5',
+                eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
+                workflowExecutionFailedEventAttributes: {
+                  failure: {
+                    message: 'outer',
+                    applicationFailureInfo: { type: 'Outer' },
+                    cause: { message: 'inner', applicationFailureInfo: {} },
                   },
-                ],
+                },
+              },
+            ],
+          },
+        };
+      }
+      return {
+        history: {
+          events: [
+            {
+              eventId: '1',
+              eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+              workflowExecutionStartedEventAttributes: {
+                input: {
+                  payloads: [
+                    {
+                      metadata: { encoding: b64('json/plain') },
+                      data: b64('42'),
+                    },
+                  ],
+                },
               },
             },
-          },
-        ],
-      },
-      nextPageToken: new Uint8Array(),
-    })),
+          ],
+        },
+        nextPageToken: new Uint8Array(),
+      };
+    }),
   };
 }
 

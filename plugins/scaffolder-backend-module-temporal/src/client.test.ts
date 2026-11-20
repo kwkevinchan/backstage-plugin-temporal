@@ -99,19 +99,19 @@ describe('TemporalPluginClient', () => {
     });
   });
 
-  it('reads the steps of a run for its result', async () => {
+  it('reads the result of a run', async () => {
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ result: 'ok', activities: [] })),
+      new Response(JSON.stringify({ status: 'Completed', result: 'ok' })),
     );
     const { c } = client();
-    const steps = await c.steps(
+    const outcome = await c.result(
       { namespace: 'default', workflowId: 'w', runId: 'r' },
       undefined,
       mockCredentials.user(),
     );
-    expect(steps.result).toBe('ok');
+    expect(outcome.result).toBe('ok');
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'http://backend/api/temporal/namespaces/default/workflows/w/runs/r/steps',
+      'http://backend/api/temporal/namespaces/default/workflows/w/runs/r/result',
     );
     expect(fetchMock.mock.calls[0][1].method).toBe('GET');
   });
