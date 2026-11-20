@@ -585,7 +585,7 @@ components:
           type: string
         sampleSize:
           type: integer
-          description: Number of most recent runs the numbers are computed from.
+          description: Number of most recent runs the numbers are computed from, using the same default as the workflow list (runs that continued as new are left out).
         limit:
           type: integer
           description: The requested maximum of runs.
@@ -1570,7 +1570,7 @@ paths:
       operationId: getEntityWorkflowStats
       summary: Summarize an entity's most recent runs
       description: |-
-        The runs of the entity's workflow sources, as in the workflow list. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
+        The runs of the entity's workflow sources, as in the default of the workflow list: runs that continued as new are left out. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
 
         Permission: `temporal.workflow.read` on the entity.
       tags:
