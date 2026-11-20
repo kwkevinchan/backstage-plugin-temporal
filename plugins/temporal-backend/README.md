@@ -155,8 +155,10 @@ answers 409 when the opened run is not running (for a run that continued as
 new, the error body has the run it continued as in
 `error.continuedAsNewRunId`); update, cancel and terminate target the execution
 chain (`firstExecutionRunId` without `runId`, permissions still checked on the
-opened run assuming the chain shares an entity) and answer 409 when the chain
-has ended or the workflow ID belongs to another chain; rerun answers 409 when
+opened run assuming the chain shares an entity) (when the Temporal server does not
+report the chain ID, they act on the opened run only); update and terminate answer
+409 when the chain has ended or the workflow ID belongs to another chain; cancel
+answers 202 when the chain has ended, because Temporal does nothing for it; rerun answers 409 when
 the run is still running; start and rerun when the workflow ID is taken; the
 schedule operations when Temporal refuses the operation in the state of the
 schedule; custom actions when the action does not apply to the workflow. The routes that change

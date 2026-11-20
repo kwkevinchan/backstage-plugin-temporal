@@ -514,7 +514,11 @@ export function createTemporalWorkflowSignalAction(
       output: {
         result: z => z.any().optional().describe('The result of an update'),
         runId: z =>
-          z.string().describe('The run the signal or update was sent to'),
+          z
+            .string()
+            .describe(
+              'The run the signal or update was sent to; for `kind: update` it only locates the workflow chain, and the update acts on the run of the chain that is currently running',
+            ),
       },
     },
     async handler(ctx) {

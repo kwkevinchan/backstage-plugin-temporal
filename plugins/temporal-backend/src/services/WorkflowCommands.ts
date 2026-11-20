@@ -52,13 +52,16 @@ import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 
 /**
  * Identifies an execution chain (Continue-As-New, workflow retry, cron or
- * reset) without locking to one run ID.
+ * reset) without locking to one run ID. Without `firstExecutionRunId` (the
+ * Temporal server did not report it) the request is locked to `runId`.
  */
-export interface WorkflowChainRef {
+export type WorkflowChainRef = {
   namespace: string;
   workflowId: string;
-  firstExecutionRunId: string;
-}
+} & (
+  | { firstExecutionRunId: string; runId?: undefined }
+  | { firstExecutionRunId?: undefined; runId: string }
+);
 
 /** `temporal.control` settings. */
 export interface ControlOptions {
@@ -133,6 +136,25 @@ function keywordAttributes(
 }
 
 /**
+ * The part of a request that addresses the target: the chain (workflow ID
+ * plus `firstExecutionRunId`, never a workflow ID alone) or, without a chain
+ * ID, the one run.
+ */
+function chainTarget(ref: WorkflowChainRef): {
+  workflowExecution: { workflowId: string; runId?: string };
+  firstExecutionRunId?: string;
+} {
+  return ref.firstExecutionRunId
+    ? {
+        workflowExecution: { workflowId: ref.workflowId },
+        firstExecutionRunId: ref.firstExecutionRunId,
+      }
+    : {
+        workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
+      };
+}
+
+/**
  * The operations that change workflows in Temporal: signal, update, cancel,
  * terminate, start and rerun, and pause, unpause and trigger of schedules.
  * Permission checks are done by the routes, through the access service of
@@ -176,7 +198,11 @@ export class WorkflowCommands {
     fn: (connection: Connection) => Promise<T>,
   ): Promise<T> {
     if (!ref.firstExecutionRunId) {
-      throw new InputError('firstExecutionRunId is required');
+      if (!ref.runId) {
+        throw new InputError('firstExecutionRunId or runId is required');
+      }
+      // No chain ID: the request is locked to one run, as before.
+      return this.call(temporalCall, ref.namespace, timeoutMs, fn);
     }
     return callTemporal(
       this.temporal,
@@ -259,7 +285,7 @@ export class WorkflowCommands {
     identity: string,
   ): Promise<JsonValue | undefined> {
     this.checkUpdate(name);
-    const workflowExecution = { workflowId: ref.workflowId };
+    const { workflowExecution } = chainTarget(ref);
     const updateId = randomUUID();
     const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
     // Each call has its own deadline: a slow update that finishes within
@@ -271,8 +297,7 @@ export class WorkflowCommands {
       c =>
         c.workflowService.updateWorkflowExecution({
           namespace: ref.namespace,
-          workflowExecution,
-          firstExecutionRunId: ref.firstExecutionRunId,
+          ...chainTarget(ref),
           waitPolicy,
           request: {
             meta: { updateId, identity },
@@ -281,7 +306,7 @@ export class WorkflowCommands {
         }),
     );
     // Poll the run that actually accepted the update when the server
-    // returned it, else keep addressing the workflow ID without runId.
+    // returned it, else keep addressing the same target as the update.
     const acceptedExecution: { workflowId: string; runId?: string } = response
       ?.updateRef?.workflowExecution?.runId
       ? {
@@ -293,9 +318,9 @@ export class WorkflowCommands {
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await this.callChain(
+      response = await this.call(
         'pollWorkflowExecutionUpdate',
-        ref,
+        ref.namespace,
         TEMPORAL_DEADLINES.update,
         c =>
           c.workflowService.pollWorkflowExecutionUpdate({
@@ -313,7 +338,9 @@ export class WorkflowCommands {
         .child({
           namespace: ref.namespace,
           workflowId: ref.workflowId,
-          firstRunId: ref.firstExecutionRunId,
+          ...(ref.firstExecutionRunId
+            ? { firstRunId: ref.firstExecutionRunId }
+            : {}),
           ...(acceptedExecution.runId
             ? { runId: acceptedExecution.runId }
             : {}),
@@ -337,8 +364,7 @@ export class WorkflowCommands {
       c =>
         c.workflowService.requestCancelWorkflowExecution({
           namespace: ref.namespace,
-          workflowExecution: { workflowId: ref.workflowId },
-          firstExecutionRunId: ref.firstExecutionRunId,
+          ...chainTarget(ref),
           identity,
           requestId: randomUUID(),
         }),
@@ -357,8 +383,7 @@ export class WorkflowCommands {
       c =>
         c.workflowService.terminateWorkflowExecution({
           namespace: ref.namespace,
-          workflowExecution: { workflowId: ref.workflowId },
-          firstExecutionRunId: ref.firstExecutionRunId,
+          ...chainTarget(ref),
           reason,
           identity,
         }),

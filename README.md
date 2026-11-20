@@ -398,7 +398,7 @@ The details page always shows one run: its address has the run ID
 that run. A run that continued as new says so, with a link to the run it
 continued as. A closed run that is not the latest of its workflow ID says
 so, with a link to the runs of the ID (read with your permissions, so only
-runs you may see count). An operation refused because the run continued as
+runs you may see count). A signal refused because the run continued as
 new links to the run it continued as; an operation that finds no run reloads
 the page. An address with only the workflow ID
 (`…/namespaces/:namespace/workflows/:workflowId`, for example a link to a
@@ -1199,8 +1199,11 @@ attributes on Continue-As-New, which can associate a continued run with another
 entity in environments that match entities or permissions on those fields).
 Signal stays locked to the opened run because Temporal's signal API has no
 chain check: signal answers 409 (with `continuedAsNewRunId` when continued as
-new) if that run is not running. Update, cancel and terminate answer 409 when
-the chain has ended or the workflow ID now belongs to a different chain; start
+new) if that run is not running. Update and terminate answer 409 when
+the chain has ended or the workflow ID now belongs to a different chain; cancel
+answers 202 when the chain has ended, because Temporal does nothing for it; when
+the Temporal server does not report the chain ID, these operations act on the
+opened run only; start
 and rerun answer 409 when the workflow ID is taken; schedule operations answer
 409 when Temporal refuses the operation in the state of the schedule. Each
 operation is recorded with the auditor service (`workflow-start`,

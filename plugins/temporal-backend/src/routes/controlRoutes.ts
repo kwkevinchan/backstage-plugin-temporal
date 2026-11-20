@@ -143,12 +143,21 @@ function runRef(workflow: WorkflowDetail): WorkflowRunRef {
   };
 }
 
+function chainMeta(chain: WorkflowChainRef) {
+  return chain.firstExecutionRunId
+    ? { firstRunId: chain.firstExecutionRunId, scope: 'chain' }
+    : { scope: 'run' };
+}
+
 function chainRef(workflow: WorkflowDetail): WorkflowChainRef {
-  return {
+  const base = {
     namespace: workflow.namespace,
     workflowId: workflow.workflowId,
-    firstExecutionRunId: workflow.firstRunId ?? workflow.runId,
   };
+  // Without the chain ID the request stays locked to the opened run.
+  return workflow.firstRunId
+    ? { ...base, firstExecutionRunId: workflow.firstRunId }
+    : { ...base, runId: workflow.runId };
 }
 
 /**
@@ -270,8 +279,7 @@ export function createControlRouter(
       req,
       'workflow-update',
       workflowMeta(loaded.workflow, entityRef, {
-        firstRunId: chain.firstExecutionRunId,
-        scope: 'chain',
+        ...chainMeta(chain),
         name,
       }),
       'medium',
@@ -292,8 +300,7 @@ export function createControlRouter(
       req,
       'workflow-cancel',
       workflowMeta(loaded.workflow, entityRef, {
-        firstRunId: chain.firstExecutionRunId,
-        scope: 'chain',
+        ...chainMeta(chain),
       }),
       'medium',
       () => commands.cancel(chain, identityOf(loaded.credentials)),
@@ -316,8 +323,7 @@ export function createControlRouter(
       req,
       'workflow-terminate',
       workflowMeta(loaded.workflow, entityRef, {
-        firstRunId: chain.firstExecutionRunId,
-        scope: 'chain',
+        ...chainMeta(chain),
         reason,
       }),
       'high',

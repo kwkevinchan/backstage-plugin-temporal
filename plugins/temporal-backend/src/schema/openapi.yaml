@@ -1945,11 +1945,11 @@ paths:
       operationId: updateWorkflowRun
       summary: Send an update to the workflow's execution chain and wait for its result
       description: |-
-        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the chain has ended or the workflow ID now belongs to a different chain; 503 when the update does not finish in time.
+        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the chain has ended or the workflow ID now belongs to a different chain; when the Temporal server does not report the chain ID, the request is locked to the opened run; 503 when the update does not finish in time.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the opened run's entity (assuming runs in a chain belong to the same entity; for a workflow without one, the permission must be allowed without conditions).
 
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`).
+        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`; `scope: 'run'` without `firstRunId` when the chain ID is not reported).
       tags:
         - Operations
       x-temporal-permissions:
@@ -1994,11 +1994,11 @@ paths:
       operationId: cancelWorkflowRun
       summary: Request cancellation of the workflow's execution chain
       description: |-
-        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. 409 when the workflow ID now belongs to a different chain or the chain cannot be canceled. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
+        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. 409 when the workflow ID now belongs to a different chain. When the chain has already ended Temporal does nothing and the answer is still 202. When the Temporal server does not report the chain ID, the request is locked to the opened run. The body is not read and is ignored, including unknown fields, an array, or a non-JSON body.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.cancel` on the opened run's entity (assuming runs in a chain belong to the same entity; for a workflow without one, the permission must be allowed without conditions).
 
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`).
+        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`; `scope: 'run'` without `firstRunId` when the chain ID is not reported).
       tags:
         - Operations
       x-temporal-permissions:
@@ -2043,11 +2043,11 @@ paths:
       operationId: terminateWorkflowRun
       summary: Terminate the workflow's execution chain
       description: |-
-        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), stopping whichever run in the chain is currently running. 409 when the chain has ended or the workflow ID now belongs to a different chain. The reason defaults to `Terminated from Backstage`.
+        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), stopping whichever run in the chain is currently running. 409 when the chain has ended or the workflow ID now belongs to a different chain. When the Temporal server does not report the chain ID, the request is locked to the opened run. The reason defaults to `Terminated from Backstage`.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.terminate` on the opened run's entity (assuming runs in a chain belong to the same entity; for a workflow without one, the permission must be allowed without conditions).
 
-        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`).
+        Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor (`firstRunId`, `scope: 'chain'`; `scope: 'run'` without `firstRunId` when the chain ID is not reported).
       tags:
         - Operations
       x-temporal-permissions:

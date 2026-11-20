@@ -306,7 +306,7 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 - 沒有：先用 list 權限判斷流程本身（`temporal.workflow.list`；history 層級還要 `temporal.workflow.history.list`），條件也會套用。不允許時，改對流程 `searchAttributes.entityRef` 屬性指的實體做上面的檢查。list 權限和實體上的讀取權限都不可能允許的呼叫者，在讀流程之前就回 `403`。其他人，除非 list 權限允許所有流程，打不開的流程（沒有這個屬性，或透過他讀不到的實體）回的 `404` 和流程不存在時一樣。
 - 操作接著檢查自己的權限：在讀取時用的實體上，否則在 search attribute 指的實體上；兩者都沒有時，這個權限必須無條件允許。
 
-錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`cancel`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
+錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈（`cancel` 遇到已結束的鏈回 `202`，Temporal 不做任何事；Temporal 伺服器不回報鏈的 ID 時，這些操作只作用在打開的 run）；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
 
 讀取一定提供：
 

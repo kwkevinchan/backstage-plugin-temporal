@@ -73,7 +73,9 @@ child workflows: pass `runId` in both cases. `wait` follows a run that continued
 to the run it continued as and outputs the run it ended on. `signal` outputs
 the run it sent to; when the run it looked up continued as new before the
 signal arrived (a 409 that names the run it continued as), it sends once more
-to that run. A given `runId` is never replaced.
+to that run. A given `runId` is never replaced. For `kind: update` the `runId`
+only locates the execution chain; the update acts on the run of the chain that
+is currently running.
 
 `wait` and `signal` read the entity from the catalog as the user who runs the
 template; an entity that cannot be read is an error, not the default

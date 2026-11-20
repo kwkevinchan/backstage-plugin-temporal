@@ -269,7 +269,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           title="Cancel this workflow?"
           description={
             continuedAsNew
-              ? 'This run already continued as new. Cancellation is requested for the run of this workflow that is currently running; it can clean up before it closes, or ignore the request.'
+              ? 'This run already continued as new. If this workflow still has a running run, cancellation is requested for it; it can clean up before it closes, or ignore the request. Nothing happens when the whole workflow has already ended.'
               : 'Asks the workflow’s current running execution to cancel (including if this run continues as new). It can clean up before it closes, or ignore the request.'
           }
           confirm="Cancel workflow"

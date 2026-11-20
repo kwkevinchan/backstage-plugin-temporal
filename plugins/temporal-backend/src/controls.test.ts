@@ -600,6 +600,73 @@ describe('workflow controls', () => {
     }
   });
 
+  it('answers 202 for a cancel when Temporal does nothing for an ended chain', async () => {
+    const { server, workflowService } = await start({ status: 'COMPLETED' });
+    workflowService.requestCancelWorkflowExecution.mockResolvedValueOnce({});
+    const res = await request(server)
+      .post(`${wf}/cancel${withEntity}`)
+      .send({});
+    expect(res.status).toBe(202);
+    expect(
+      workflowService.requestCancelWorkflowExecution,
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks update, cancel and terminate to the opened run when Temporal reports no first run ID', async () => {
+    const { server, workflowService } = await start();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: {
+        ...executionInfo({ workflowId: 'wf-1', runId: 'wf-1-run' }),
+        firstRunId: '',
+        searchAttributes: {
+          indexedFields: {
+            BackstageEntityRef: json('component:default/orders'),
+          },
+        },
+      },
+      pendingActivities: [],
+    } as any);
+    for (const [route, body] of [
+      ['update', { name: 'setPriority', args: ['high'] }],
+      ['cancel', {}],
+      ['terminate', { reason: 'stuck' }],
+    ] as const) {
+      const res = await request(server)
+        .post(`${wf}/${route}${withEntity}`)
+        .send(body);
+      expect([route, res.status < 300]).toEqual([route, true]);
+    }
+    for (const call of [
+      workflowService.updateWorkflowExecution.mock.calls[0][0],
+      workflowService.requestCancelWorkflowExecution.mock.calls[0][0],
+      workflowService.terminateWorkflowExecution.mock.calls[0][0],
+    ]) {
+      expect(call.workflowExecution).toEqual({
+        workflowId: 'wf-1',
+        runId: 'wf-1-run',
+      });
+      expect(call.firstExecutionRunId).toBeUndefined();
+    }
+  });
+
+  it('does not map a missing update during polling to another chain', async () => {
+    const { server, workflowService } = await start();
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({
+      updateRef: {
+        workflowExecution: { workflowId: 'wf-1', runId: 'wf-1-run-3' },
+        updateId: 'upd-1',
+      },
+    } as any);
+    workflowService.pollWorkflowExecutionUpdate.mockRejectedValueOnce(
+      grpcError(5, 'update not found'),
+    );
+    const res = await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority' });
+    expect(res.status).toBe(404);
+    expect(res.body.error.message).not.toMatch(/different execution chain/);
+  });
+
   it('answers 409 for a rerun of a run that is still running', async () => {
     const { server, workflowService, auditor } = await start();
     const res = await request(server).post(`${wf}/rerun${withEntity}`).send({});

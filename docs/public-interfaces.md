@@ -492,8 +492,10 @@ for.
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a
 run that is not running, with `continuedAsNewRunId` in the error when it
-continued as new; `update`, `cancel` or `terminate` when the execution chain
-has ended or the workflow ID now belongs to a different chain; a rerun of a
+continued as new; `update` or `terminate` when the execution chain
+has ended or the workflow ID now belongs to a different chain (`cancel` on an
+ended chain answers `202`: Temporal does nothing; when the Temporal server does
+not report the chain ID, these operations act on the opened run only); a rerun of a
 run that is still running; the action's filter refused it, or Temporal
 refused it: a workflow ID already in use, a schedule in the wrong state), `503` Temporal
 not reachable, not answering within the deadline of the call, rate limiting
@@ -721,7 +723,8 @@ Other systems can read these, so they are interfaces too:
   `schedule-pause`, `schedule-unpause`, `schedule-trigger`, with the
   namespace, workflow and entity in the metadata; `workflow-update`,
   `workflow-cancel` and `workflow-terminate` also include `firstRunId` and
-  `scope: 'chain'`. Their severity is
+  `scope: 'chain'` (`scope: 'run'` without `firstRunId` when the Temporal server
+  does not report the chain ID). Their severity is
   `medium`, except `workflow-terminate`, which is `high` because a
   terminate cannot be undone.
 
