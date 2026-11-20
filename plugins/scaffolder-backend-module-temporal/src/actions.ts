@@ -450,13 +450,13 @@ export function createTemporalWorkflowWaitAction(
               );
             }
             if (input.includeResult) {
-              const steps = await options.client.steps(
+              const outcome = await options.client.result(
                 { ...base, runId: workflow.runId },
                 input.entityRef,
                 credentials,
               );
-              if (steps.result !== undefined) {
-                ctx.output('result', steps.result);
+              if (outcome.result !== undefined) {
+                ctx.output('result', outcome.result);
               }
             }
             ctx.logger.info(`${input.workflowId} closed as ${workflow.status}`);

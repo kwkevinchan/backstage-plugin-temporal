@@ -15,7 +15,6 @@
  */
 
 import type { TemporalLlmAdapter } from '../../node/alpha';
-import { toWorkflowSteps } from '../convert';
 import { buildWorkflowGraph } from '../graph';
 import { LlmAdapters } from './LlmAdapters';
 import { summarizeModelCalls } from './llm';
@@ -396,25 +395,5 @@ describe('tool calls without a model call', () => {
       name: 'read',
       toolCallId: 'orphan',
     });
-  });
-});
-
-describe('LLM steps in the steps response', () => {
-  it('adds summaries and tool links', () => {
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    const call = h.activity('invokeModel', 'model-1', {
-      input: vercelInput,
-      result: vercelResult,
-    });
-    const tool = h.activity('search', 'search-1', { result: { hits: [] } });
-    const steps = toWorkflowSteps(h.events, false);
-    const byId = (id: number) =>
-      steps.activities.find(a => a.scheduledEventId === String(id))!;
-    expect(byId(call).llm).toMatchObject({
-      model: 'fake-reasoner-1-2026-11',
-      toolCalls: [{ id: 'call_1', nodeId: `activity-${tool}` }],
-    });
-    expect(byId(tool).tool).toMatchObject({ llmNodeId: `activity-${call}` });
   });
 });

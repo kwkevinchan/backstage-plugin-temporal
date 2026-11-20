@@ -263,6 +263,7 @@ export class WorkflowListQueries {
   ): Promise<WorkflowStatsResponse> {
     const visibilityQuery = buildEntityVisibilityQuery(
       this.sources.filterOf(context),
+      { allRuns: false },
     );
     const response = await this.temporalReads.listExecutions(
       context.namespace,

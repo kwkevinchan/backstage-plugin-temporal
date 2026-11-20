@@ -27,7 +27,7 @@ import {
   WorkflowRef,
   WorkflowRunRef,
   WorkflowStatus,
-  WorkflowStepsResponse,
+  WorkflowResultResponse,
   WorkflowSummary,
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
@@ -45,7 +45,7 @@ import {
   encodePageToken,
   toHistoryEvent,
   toWorkflowDetail,
-  toWorkflowSteps,
+  resultFromCloseEvent,
 } from './convert';
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
@@ -279,10 +279,23 @@ export class WorkflowQueries {
     return { events, truncated: Boolean(nextPageToken) };
   }
 
-  /** Workflow input/result and activity inputs/results of one run. */
-  async steps(ref: WorkflowRunRef): Promise<WorkflowStepsResponse> {
-    const { events, truncated } = await this.readEvents(ref, MAX_STEP_EVENTS);
-    return toWorkflowSteps(events, truncated, this.llmAdapters);
+  /**
+   * The result or failure of a run, from its close event. A running run
+   * returns only `status`.
+   */
+  async result(workflow: WorkflowDetail): Promise<WorkflowResultResponse> {
+    this.sources.checkNamespace(workflow.namespace);
+    const event = await this.temporalReads.closeEvent({
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId: workflow.runId,
+    });
+    const { result, failure } = resultFromCloseEvent(event);
+    return {
+      status: workflow.status,
+      ...(result !== undefined ? { result } : {}),
+      ...(failure !== undefined ? { failure } : {}),
+    };
   }
 
   /**
