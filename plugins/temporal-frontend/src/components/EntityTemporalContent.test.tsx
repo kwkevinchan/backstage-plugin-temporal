@@ -357,6 +357,43 @@ describe('EntityTemporalContent', () => {
     expect(screen.queryByText('Hidden action')).not.toBeInTheDocument();
   });
 
+  it('shows only completed steps in the Steps card header for a running workflow', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflow.mockResolvedValue({ ...failedWorkflow, status: 'Running' });
+    api.getWorkflowGraph
+      .mockResolvedValueOnce({
+        ...graphResponse,
+        status: 'Running',
+        completedSteps: 3,
+        totalSteps: 4,
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        ...graphResponse,
+        status: 'Running',
+        completedSteps: 1,
+        totalSteps: 2,
+        truncated: true,
+      });
+
+    const first = await render(
+      api,
+      '/namespaces/default/workflows/payment-1/runs/run-2',
+    );
+    expect(await screen.findByText('3 steps done')).toBeInTheDocument();
+    expect(screen.queryByText(/of 4 steps done/)).not.toBeInTheDocument();
+    first.unmount();
+
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-3');
+    expect(await screen.findByText('1 step done')).toBeInTheDocument();
+    expect(screen.queryByText(/of 2 steps done/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The history is long; the graph shows its first events.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('shows errors from the backend', async () => {
     const api = mockTemporalApi();
     api.listEntityWorkflows.mockRejectedValue(new Error('Temporal is down'));

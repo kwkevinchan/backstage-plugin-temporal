@@ -74,6 +74,7 @@ import { useRefreshLock } from './useRefreshLock';
 import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { useWorkflowData } from './useWorkflowData';
 import { WorkflowEvents } from './WorkflowEvents';
+import { stepsDoneText } from './WorkflowProgress';
 import { workflowLink } from './WorkflowRunsTable';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { tp } from './styles';
@@ -350,7 +351,9 @@ function GraphCard(props: {
           </Text>
           {graph && graph.totalSteps > 0 && (
             <Text variant="body-small" color="secondary">
-              {graph.completedSteps} of {graph.totalSteps} steps done
+              {graph.status === 'Running'
+                ? stepsDoneText(graph.completedSteps)
+                : `${graph.completedSteps} of ${graph.totalSteps} steps done`}
             </Text>
           )}
         </Flex>

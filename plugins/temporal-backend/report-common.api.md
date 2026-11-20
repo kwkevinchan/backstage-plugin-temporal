@@ -1024,17 +1024,11 @@ export type WorkflowNodeStatus =
 
 // @public
 export interface WorkflowProgressResponse {
-  // (undocumented)
   completedSteps: number;
-  // (undocumented)
   current?: string;
-  // (undocumented)
   currentDeadline?: WorkflowDeadline;
-  // (undocumented)
   status: WorkflowStatus;
-  // (undocumented)
   totalSteps: number;
-  // (undocumented)
   truncated: boolean;
 }
 

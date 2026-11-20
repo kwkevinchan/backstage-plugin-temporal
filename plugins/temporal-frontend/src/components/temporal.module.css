@@ -458,6 +458,14 @@
   font-size: var(--bui-font-size-2, 12px);
   color: var(--bui-fg-secondary);
 }
+.tp-progress-truncated {
+  align-self: flex-start;
+  font-size: var(--bui-font-size-1, 11px);
+  color: var(--bui-fg-secondary);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: help;
+}
 
 /* Grouped events. */
 .tp-group + .tp-group {

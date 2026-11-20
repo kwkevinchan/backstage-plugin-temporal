@@ -68,12 +68,26 @@ function useSeen(ref: React.RefObject<Element>): boolean {
   return seen;
 }
 
+const TRUNCATED_LABEL = 'Partial count · first events only';
+const TRUNCATED_TOOLTIP =
+  'The history is long; only its first events were read, so the step count is incomplete.';
+
+/** Count of finished steps without implying a known total. */
+export function stepsDoneText(completedSteps: number): string {
+  return completedSteps === 1 ? '1 step done' : `${completedSteps} steps done`;
+}
+
 /** Text of a progress: done steps and the current step or failure. */
 export function progressText(progress: WorkflowProgressResponse): string {
-  const steps =
-    progress.totalSteps > 0
-      ? `${progress.completedSteps}/${progress.totalSteps} steps`
-      : 'No steps';
+  let steps: string;
+  if (progress.status === 'Running') {
+    steps = stepsDoneText(progress.completedSteps);
+  } else {
+    steps =
+      progress.totalSteps > 0
+        ? `${progress.completedSteps}/${progress.totalSteps} steps`
+        : 'No steps';
+  }
   const deadline = progress.currentDeadline
     ? deadlineText(progress.currentDeadline)
     : '';
@@ -129,6 +143,7 @@ export function WorkflowProgress(props: {
   } else if (!progress) {
     content = <Skeleton width={120} height={12} />;
   } else {
+    const running = progress.status === 'Running';
     let share = progress.status === 'Completed' ? 1 : 0;
     if (progress.totalSteps > 0) {
       share = progress.completedSteps / progress.totalSteps;
@@ -136,22 +151,33 @@ export function WorkflowProgress(props: {
     const text = progressText(progress);
     content = (
       <>
-        <div
-          className={tp(
-            'tp-progress-bar',
-            `tp-tone-${statusTone(progress.status)}`,
-          )}
-          role="progressbar"
-          aria-label="Steps done"
-          aria-valuemin={0}
-          aria-valuemax={progress.totalSteps}
-          aria-valuenow={progress.completedSteps}
-        >
-          <span style={{ width: `${Math.round(share * 100)}%` }} />
-        </div>
+        {!running && (
+          <div
+            className={tp(
+              'tp-progress-bar',
+              `tp-tone-${statusTone(progress.status)}`,
+            )}
+            role="progressbar"
+            aria-label="Steps done"
+            aria-valuemin={0}
+            aria-valuemax={progress.totalSteps}
+            aria-valuenow={progress.completedSteps}
+          >
+            <span style={{ width: `${Math.round(share * 100)}%` }} />
+          </div>
+        )}
         <span className={tp('tp-progress-text')} title={text}>
           {text}
         </span>
+        {progress.truncated && (
+          <span
+            className={tp('tp-progress-truncated')}
+            title={TRUNCATED_TOOLTIP}
+            data-testid="workflow-progress-truncated"
+          >
+            {TRUNCATED_LABEL}
+          </span>
+        )}
       </>
     );
   }

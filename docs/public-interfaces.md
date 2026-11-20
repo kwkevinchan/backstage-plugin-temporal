@@ -529,6 +529,13 @@ The sample of `GET /entities/:kind/:namespace/:name/workflow-stats` matches the 
 The read and history levels are decided as in
 [Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
 
+On `WorkflowGraphResponse` and `WorkflowProgressResponse`, `totalSteps` is the
+number of steps seen so far in the history events read (not a total for a
+running workflow, because later steps are unknown until they run). When
+`truncated` is true, the history exceeded the backend event limit (5,000 events
+for `/graph` and 1,000 events for `/progress`), so counts cover only the first
+events read.
+
 The run list of a workflow ID has the runs that continued as new. Its order
 is the one of Temporal's visibility store: the plugin asks for none (SQL
 visibility refuses `ORDER BY`; it lists the running run first, then the
