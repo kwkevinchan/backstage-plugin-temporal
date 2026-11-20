@@ -221,6 +221,22 @@ describe('toWorkflowDetail', () => {
         },
       ],
     });
+    expect(detail.firstRunId).toBeUndefined();
+  });
+
+  it('includes firstRunId when set on workflow execution info', () => {
+    const detail = toWorkflowDetail(
+      {
+        workflowExecutionInfo: {
+          execution: { workflowId: 'wf', runId: 'run-2' },
+          firstRunId: 'run-1',
+          type: { name: 'deploy' },
+          status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+        },
+      },
+      { namespace: 'default' },
+    );
+    expect(detail.firstRunId).toBe('run-1');
   });
 });
 

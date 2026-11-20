@@ -150,13 +150,18 @@ Bodies are JSON: `{ name, args }` for signal, update and query (`args` is
 the list of arguments), `{ reason }` for terminate, `{ workflowId? }` for
 rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 `namespace` on `/workflows`). Update, query and actions answer `{ result }`;
-start and rerun answer the new `{ namespace, workflowId, runId }`. Signal,
-update, cancel and terminate answer 409 when the workflow is not running
-(for a run that continued as new, the error body has the run it continued
-as in `error.continuedAsNewRunId`); rerun when the run is still running;
-start and rerun when the workflow ID is taken; the schedule operations when
-Temporal refuses the operation in the state of the schedule; custom actions
-when the action does not apply to the workflow. The routes that change
+start and rerun answer the new `{ namespace, workflowId, runId }`. Signal
+answers 409 when the opened run is not running (for a run that continued as
+new, the error body has the run it continued as in
+`error.continuedAsNewRunId`); update, cancel and terminate target the execution
+chain (`firstExecutionRunId` without `runId`, permissions still checked on the
+opened run assuming the chain shares an entity) (when the Temporal server does not
+report the chain ID, they act on the opened run only); update and terminate answer
+409 when the chain has ended or the workflow ID belongs to another chain; cancel
+answers 202 when the chain has ended, because Temporal does nothing for it; rerun answers 409 when
+the run is still running; start and rerun when the workflow ID is taken; the
+schedule operations when Temporal refuses the operation in the state of the
+schedule; custom actions when the action does not apply to the workflow. The routes that change
 workflows (signal, update, cancel, terminate, rerun, start, custom actions
 and the schedule operations) do not exist when `temporal.control.enabled` is
 false: they answer 404 without a body, like the definition route without the

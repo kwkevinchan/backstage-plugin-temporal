@@ -226,6 +226,14 @@ export interface TemporalControlActionContext {
   entity?: Entity;
   /** The workflow the action runs on, as read just before. */
   workflow: WorkflowDetail;
+  /**
+   * Run ID of the first execution in this run's chain (Continue-As-New,
+   * workflow retry, cron or reset), when Temporal reports it. `ref` names
+   * the opened run; pass `firstRunId` as `firstExecutionRunId` (without
+   * `runId`) if the action should target the chain's running execution
+   * instead.
+   */
+  firstRunId?: string;
   credentials: BackstageCredentials;
   /**
    * The client the plugin changes workflows with (today the shared

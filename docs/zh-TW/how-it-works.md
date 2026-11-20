@@ -26,7 +26,7 @@
 
 1. 按鈕來自前端外掛，確認之後送出 `POST …/cancel`。
 2. `controlRoutes.ts` 先呼叫同一個 `loadWorkflow()`。看不到某個流程的人，也就不能操作它。
-3. 再做第二道檢查：實體上的 `temporal.workflow.cancel` 權限。能讀不代表能取消。流程也必須還在執行，否則回 `409`。
+3. 再做第二道檢查：實體上的 `temporal.workflow.cancel` 權限。能讀不代表能取消。請求作用在打開的 run 所屬的整條執行鏈，所以已接續的流程也會被取消。
 4. `audited()` 先開一筆稽核事件，執行 `WorkflowCommands.cancel()`，並記下成功或失敗。
 5. `WorkflowCommands` 用共用連線送出取消請求，身分是 Backstage 使用者；頁面接著重新讀取流程。
 

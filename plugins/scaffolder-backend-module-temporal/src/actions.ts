@@ -514,7 +514,11 @@ export function createTemporalWorkflowSignalAction(
       output: {
         result: z => z.any().optional().describe('The result of an update'),
         runId: z =>
-          z.string().describe('The run the signal or update was sent to'),
+          z
+            .string()
+            .describe(
+              'The run the signal or update was sent to; for `kind: update` it only locates the workflow chain, and the update acts on the run of the chain that is currently running',
+            ),
       },
     },
     async handler(ctx) {
@@ -561,9 +565,14 @@ export function createTemporalWorkflowSignalAction(
           try {
             response = await send(runId);
           } catch (error) {
-            // The run the action looked up continued as new since: send to
-            // the run it continued as, once. A given run ID is kept.
-            const next = input.runId ? undefined : continuedAsNewRunIdOf(error);
+            // Signals lock to one run: if the run looked up continued as new
+            // since, send once more to the run it continued as. Updates follow
+            // the chain in the backend and do not return continuedAsNewRunId;
+            // a given run ID is kept.
+            const next =
+              kind === 'signal' && !input.runId
+                ? continuedAsNewRunIdOf(error)
+                : undefined;
             if (!next) throw error;
             usedRunId = next;
             response = await send(next);

@@ -20,6 +20,7 @@ import {
   ServiceError,
 } from '@temporalio/client';
 import {
+  mapChainCommandError,
   mapCommandError,
   mapConnectionError,
   mapTemporalError,
@@ -148,5 +149,44 @@ describe('mapCommandError', () => {
   it('keeps other errors', () => {
     const error = grpc(13);
     expect(() => mapCommandError(error)).toThrow(error);
+  });
+});
+
+describe('mapChainCommandError', () => {
+  it('maps gRPC NOT_FOUND for an already completed chain to ConflictError', () => {
+    const error = Object.assign(new Error('code 5'), {
+      code: 5,
+      details: 'workflow execution already completed',
+    });
+    expect(() => mapChainCommandError('wf-1', error)).toThrow(
+      expect.objectContaining({
+        name: 'ConflictError',
+        message: 'Workflow wf-1 has already ended',
+      }),
+    );
+  });
+
+  it('maps gRPC NOT_FOUND for a different chain to ConflictError', () => {
+    const error = Object.assign(new Error('code 5'), {
+      code: 5,
+      details: 'workflow execution not found',
+    });
+    expect(() => mapChainCommandError('wf-1', error)).toThrow(
+      expect.objectContaining({
+        name: 'ConflictError',
+        message: 'Workflow wf-1 now belongs to a different execution chain',
+      }),
+    );
+  });
+
+  it('falls back to mapCommandError for non-NOT_FOUND errors', () => {
+    expect(() => mapChainCommandError('wf-1', grpc(9))).toThrow(
+      expect.objectContaining({ name: 'ConflictError' }),
+    );
+    expect(() => mapChainCommandError('wf-1', grpc(14))).toThrow(
+      expect.objectContaining({ name: 'ServiceUnavailableError' }),
+    );
+    const other = grpc(13);
+    expect(() => mapChainCommandError('wf-1', other)).toThrow(other);
   });
 });

@@ -435,6 +435,7 @@ export function toWorkflowDetail(
     continuedAsNewRunId:
       (options.closeEvent?.workflowExecutionContinuedAsNewEventAttributes
         ?.newExecutionRunId as string) || undefined,
+    firstRunId: (info.firstRunId as string) || undefined,
     pendingActivities: (describe.pendingActivities ?? []).map(
       toPendingActivity,
     ),

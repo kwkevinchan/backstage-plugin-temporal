@@ -136,8 +136,8 @@ async function waitForWorkflowEntity(
 
 // The fake workflow service describes a failed workflow: a route that
 // changes workflows answers 409 (not running) when it exists, 404 when not.
-const cancel =
-  '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/cancel';
+const signal =
+  '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/signal';
 
 describe('the default export of the package', () => {
   it('installs the read routes, the control routes and the TemporalWorkflow kind', async () => {
@@ -146,7 +146,7 @@ describe('the default export of the package', () => {
     const list = await request(server).get('/api/temporal/workflows');
     expect(list.status).toBe(200);
 
-    const res = await request(server).post(cancel).send({});
+    const res = await request(server).post(signal).send({ name: 'poke' });
     expect(res.status).toBe(409);
 
     // Without the Zigflow backend module there is no definition route: a 404
@@ -174,7 +174,7 @@ describe('the default export of the package', () => {
     const list = await request(server).get('/api/temporal/workflows');
     expect(list.status).toBe(200);
 
-    const res = await request(server).post(cancel).send({});
+    const res = await request(server).post(signal).send({ name: 'poke' });
     expect(res.status).toBe(404);
 
     const entity = await waitForWorkflowEntity(server);

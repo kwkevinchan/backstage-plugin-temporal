@@ -60,8 +60,8 @@ permission instead, whose conditions the backend turns into a visibility query.
 2. `controlRoutes.ts` first calls the same `loadWorkflow()`. A user who cannot see
    a workflow cannot operate it.
 3. A second check follows: the `temporal.workflow.cancel` permission on the entity.
-   Being able to read is not being able to cancel. The run must also be running,
-   otherwise the answer is `409`.
+   Being able to read is not being able to cancel. The request targets the whole
+   execution chain of the opened run, so it also reaches a run that continued as new.
 4. `audited()` opens an audit event, runs `WorkflowCommands.cancel()` and records
    success or failure.
 5. `WorkflowCommands` sends the cancel request over the shared connection,

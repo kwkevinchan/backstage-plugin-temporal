@@ -680,6 +680,17 @@ describe('the run of signal', () => {
     ).rejects.toThrow('No run of workflow gone was found');
     expect(client.send).not.toHaveBeenCalled();
   });
+
+  it('does not retry a continuedAsNew conflict for update kind', async () => {
+    const { client, options } = setup();
+    client.send.mockRejectedValue(await conflict('run-2'));
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context({ workflowId: 'long-1', kind: 'update', name: 'setLimit' }),
+      ),
+    ).rejects.toThrow(/409/);
+    expect(client.send).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('the namespace of wait and signal', () => {
