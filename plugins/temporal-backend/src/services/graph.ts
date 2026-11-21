@@ -981,22 +981,36 @@ function buildEdges(
   onCapped?: () => void,
 ): WorkflowGraphEdge[] {
   const ordered = [...nodes].sort((x, y) => x.first - y.first);
+  const closed = ordered
+    .map((node, order) => ({ node, order, last: node.last }))
+    .filter(
+      (entry): entry is { node: Building; order: number; last: number } =>
+        entry.last !== undefined,
+    )
+    .sort((a, b) => a.last - b.last || a.order - b.order);
+
   const edges: WorkflowGraphEdge[] = [];
+  let endPtr = 0;
+  let startPtr = 0;
+  let latestStart = -Infinity;
+
   for (const target of ordered) {
-    // Latest start among the steps that ended before this one started.
-    let latestStart = -Infinity;
-    for (const other of ordered) {
-      if (other.last !== undefined && other.last < target.first) {
-        latestStart = Math.max(latestStart, other.first);
+    while (endPtr < closed.length && closed[endPtr].last < target.first) {
+      if (closed[endPtr].node.first > latestStart) {
+        latestStart = closed[endPtr].node.first;
       }
+      endPtr++;
     }
-    for (const source of ordered) {
-      if (
-        source !== target &&
-        source.last !== undefined &&
-        source.last < target.first &&
-        source.last >= latestStart
-      ) {
+    while (startPtr < endPtr && closed[startPtr].last < latestStart) {
+      startPtr++;
+    }
+    if (startPtr >= endPtr) continue;
+
+    // Preserve `ordered` source emission order when multiple predecessors tie.
+    const count = endPtr - startPtr;
+    if (count === 1) {
+      const source = closed[startPtr].node;
+      if (source !== target) {
         if (edges.length >= MAX_GRAPH_EDGES) {
           onCapped?.();
           return edges;
@@ -1007,6 +1021,23 @@ function buildEdges(
           target: target.id,
         });
       }
+      continue;
+    }
+
+    const sources = closed
+      .slice(startPtr, endPtr)
+      .sort((a, b) => a.order - b.order);
+    for (const { node: source } of sources) {
+      if (source === target) continue;
+      if (edges.length >= MAX_GRAPH_EDGES) {
+        onCapped?.();
+        return edges;
+      }
+      edges.push({
+        id: `${source.id}->${target.id}`,
+        source: source.id,
+        target: target.id,
+      });
     }
   }
   return edges;
