@@ -53,7 +53,7 @@ import {
   loadOpenApiSpec,
   openApiSpecFor,
 } from './openApiRoutes';
-import { decodePageToken } from '../services/convert';
+import { decodePageToken, withoutFailureDetails } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
   entityRefFromParams,
@@ -273,12 +273,18 @@ export async function createRouter(
   });
 
   router.get(workflowRunPath, async (req, res) => {
-    const { credentials, context, workflow } = await loadWorkflow(req, 'read');
-    res.json(
-      context
-        ? await queries.enrichDetail(workflow, context, credentials)
-        : workflow,
+    const loaded = await loadWorkflow(req, 'read');
+    const { credentials, context, workflow } = loaded;
+    // The stack trace and the causes of failures need the history
+    // permission; without it the failures keep their message and type.
+    const includeFailureDetails = await access.canReadPayloads(
+      loaded,
+      credentials,
     );
+    const detail = context
+      ? await queries.enrichDetail(workflow, context, credentials)
+      : workflow;
+    res.json(includeFailureDetails ? detail : withoutFailureDetails(detail));
   });
 
   router.get(workflowRunSubpath('history'), async (req, res) => {

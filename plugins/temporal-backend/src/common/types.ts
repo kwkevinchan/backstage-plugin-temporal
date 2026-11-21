@@ -149,6 +149,12 @@ export interface WorkflowDetail extends WorkflowSummary {
   memo?: JsonObject;
   /** Failure of a closed execution (failed, timed out, terminated). */
   failure?: WorkflowFailure;
+  /**
+   * True when the caller cannot read the event history: `failure` and the
+   * `lastFailure` of the pending activities have only `message`, `kind` and
+   * `type`, without the stack trace and the causes.
+   */
+  failureDetailsHidden?: boolean;
   /** The run this one continued as, for a run that continued as new. */
   continuedAsNewRunId?: string;
   /**
