@@ -1787,6 +1787,8 @@ paths:
       operationId: getWorkflowRunLlmCall
       summary: Get the full record of one model call (one run)
       description: |-
+        Reads at most 5,000 history events of the run. Answers `404` when the events read have no such model call, with a message that says so; when the history is longer and the step lies beyond the events read, the message says that the history was truncated.
+
         Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
 
         Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.

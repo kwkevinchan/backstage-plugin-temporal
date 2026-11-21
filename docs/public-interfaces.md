@@ -565,7 +565,9 @@ number of steps seen so far in the history events read (not a total for a
 running workflow, because later steps are unknown until they run). When
 `truncated` is true, the history exceeded the backend event limit (5,000 events
 for `/graph` and 1,000 events for `/progress`), so counts cover only the first
-events read.
+events read. `GET /:wf/llm-calls/:eventId` uses the same 5,000-event limit and
+answers `404` explaining that the history was truncated when `eventId` lies
+beyond the events read.
 
 The run list of a workflow ID has the runs that continued as new. Its order
 is the one of Temporal's visibility store: the plugin asks for none (SQL

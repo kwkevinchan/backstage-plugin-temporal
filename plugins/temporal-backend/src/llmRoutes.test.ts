@@ -217,6 +217,7 @@ const agentEvents = () => [
 async function start(options: {
   history: boolean;
   events?: () => unknown[];
+  historyPage?: (req: any) => { events: unknown[]; nextPageToken?: Uint8Array };
   features?: any[];
 }) {
   const workflowService = createFakeWorkflowService();
@@ -230,11 +231,19 @@ async function start(options: {
       } as any),
   );
   workflowService.getWorkflowExecutionHistory.mockImplementation(
-    async () =>
-      ({
+    async (req: any) => {
+      if (options.historyPage) {
+        const page = options.historyPage(req);
+        return {
+          history: { events: page.events },
+          nextPageToken: page.nextPageToken ?? new Uint8Array(),
+        } as any;
+      }
+      return {
         history: { events: (options.events ?? events)() },
         nextPageToken: new Uint8Array(),
-      } as any),
+      } as any;
+    },
   );
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
@@ -383,8 +392,57 @@ describe('LLM routes', () => {
     expect(sealed.body.record).toBeUndefined();
     expect(sealed.body.unavailable).toMatch(/codec/);
     expect((await request(server).get(path('/llm-calls/6'))).status).toBe(404);
-    expect((await request(server).get(path('/llm-calls/99'))).status).toBe(404);
+    const missing = await request(server).get(path('/llm-calls/99'));
+    expect(missing.status).toBe(404);
+    expect(missing.body.error.message).toBe('No model call 99 in this run');
     expect((await request(server).get(path('/llm-calls/x2'))).status).toBe(400);
+  });
+
+  it('explains when a model call is beyond the history truncation limit', async () => {
+    const pageSize = 500;
+    const filler = (from: number, to: number) =>
+      Array.from({ length: to - from + 1 }, (_, i) => ({
+        eventId: String(from + i),
+        workflowTaskCompletedEventAttributes: {},
+      }));
+    const { server } = await start({
+      history: true,
+      historyPage: req => {
+        const page =
+          req.nextPageToken && req.nextPageToken.length > 0
+            ? Number(Buffer.from(req.nextPageToken).toString('utf8'))
+            : 0;
+        const startEvent = page * pageSize + 1;
+        const endEvent = (page + 1) * pageSize;
+        return {
+          events:
+            page === 0
+              ? [...events(), ...filler(10, endEvent)]
+              : filler(startEvent, endEvent),
+          nextPageToken: Buffer.from(String(page + 1)),
+        };
+      },
+    });
+
+    const beyond = await request(server).get(path('/llm-calls/5002'));
+    expect(beyond.status).toBe(404);
+    expect(beyond.body.error).toMatchObject({
+      name: 'NotFoundError',
+      message:
+        'Model call 5002 was not found within the first 5000 history events of this run; the history was truncated',
+    });
+
+    for (const id of ['6', '1']) {
+      const notModel = await request(server).get(path(`/llm-calls/${id}`));
+      expect(notModel.status).toBe(404);
+      expect(notModel.body.error.message).toBe(
+        `No model call ${id} in this run`,
+      );
+    }
+
+    const ok = await request(server).get(path('/llm-calls/4'));
+    expect(ok.status).toBe(200);
+    expect(ok.body.record.requestModel).toBe('gpt-small');
   });
 
   it('needs the history permission for the record', async () => {
