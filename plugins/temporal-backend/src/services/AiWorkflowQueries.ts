@@ -65,6 +65,35 @@ function readState(roots: unknown[]): {
 }
 
 /**
+ * True when `scheduledEventId` is a positive integer after the last event read
+ * from history (or when no numeric event IDs were present at all).
+ */
+function isAfterReadEvents(
+  events: unknown[],
+  scheduledEventId: string,
+): boolean {
+  if (!/^\d+$/.test(scheduledEventId)) return false;
+  let maxEventId: bigint | undefined;
+  for (const event of events as { eventId?: unknown }[]) {
+    const raw = event?.eventId;
+    if (
+      typeof raw !== 'string' &&
+      typeof raw !== 'number' &&
+      typeof raw !== 'bigint'
+    ) {
+      continue;
+    }
+    const text = String(raw);
+    if (!/^\d+$/.test(text)) continue;
+    const id = BigInt(text);
+    if (maxEventId === undefined || id > maxEventId) {
+      maxEventId = id;
+    }
+  }
+  return maxEventId === undefined || BigInt(scheduledEventId) > maxEventId;
+}
+
+/**
  * The use cases of the model-call views: the records of a run's model
  * calls. Callers check permissions first (see `access/`).
  */
@@ -88,7 +117,12 @@ export class AiWorkflowQueries {
       workflowId: workflow.workflowId,
       runId: workflow.runId,
     };
-    const { events } = await this.queries.readEvents(ref, MAX_STEP_EVENTS);
+    // Reads up to MAX_STEP_EVENTS and rebuilds the step graph per request
+    // rather than caching or indexing incrementally.
+    const { events, truncated } = await this.queries.readEvents(
+      ref,
+      MAX_STEP_EVENTS,
+    );
     // The result and the failures of the step.
     let result: unknown;
     const failures: unknown[] = [];
@@ -124,7 +158,7 @@ export class AiWorkflowQueries {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
       status: workflow.status,
-      truncated: false,
+      truncated,
       pendingActivities: workflow.pendingActivities,
       includePayloads: false,
       llmAdapters: this.queries.llmAdapters,
@@ -133,6 +167,11 @@ export class AiWorkflowQueries {
     const node = graph.nodes.find(n => n.id === nodeId);
     const read = llm.calls.get(nodeId);
     if (!node?.llm || !read) {
+      if (truncated && !node && isAfterReadEvents(events, scheduledEventId)) {
+        throw new NotFoundError(
+          `Model call ${scheduledEventId} was not found within the first ${MAX_STEP_EVENTS} history events of this run; the history was truncated`,
+        );
+      }
       throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
     }
     const call = read.calls[index];

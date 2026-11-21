@@ -332,7 +332,7 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 
 read 和 history 層級照[流程在哪個實體上檢查權限](#流程在哪個實體上檢查權限)決定。
 
-`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。
+`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。`GET /:wf/llm-calls/:eventId` 使用相同的 5,000 個事件上限；若請求的 `eventId` 在截斷點之後，會回 `404` 並在訊息說明事件紀錄已截斷。
 
 workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序是 Temporal visibility store 回傳的順序：外掛不指定排序（SQL visibility 不接受 `ORDER BY`；它先列執行中的 run，再列已結束的，最後結束的在前）。超過 namespace 保留期限的 run 不會列出。帶 `entityRef` 時，實體流程的子流程不會列出，雖然用這個實體打得開它們的 run。workflow ID 含引號、反斜線或控制字元時無法列出（`400`）：請用 run ID 打開那次執行。
 
