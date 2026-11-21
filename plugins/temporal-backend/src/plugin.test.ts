@@ -923,6 +923,57 @@ describe('temporal backend plugin', () => {
     );
   });
 
+  it('reads the failure of a cut history from the close event', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.getWorkflowExecutionHistory.mockImplementation(
+      async (req: any) => {
+        if (req.historyEventFilterType) {
+          return {
+            history: {
+              events: [
+                {
+                  eventId: '9000',
+                  eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
+                  workflowExecutionFailedEventAttributes: {
+                    failure: {
+                      message: 'Activity task failed',
+                      activityFailureInfo: {
+                        scheduledEventId: '8000',
+                        activityType: { name: 'publish' },
+                      },
+                      cause: { message: 'boom', applicationFailureInfo: {} },
+                    },
+                  },
+                },
+              ],
+            },
+          };
+        }
+        // Full pages that never reach the end of the history.
+        return {
+          history: {
+            events: Array.from({ length: req.maximumPageSize }, () => ({
+              eventId: '1',
+              eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+              workflowExecutionStartedEventAttributes: {},
+            })),
+          },
+          nextPageToken: new Uint8Array([1]),
+        };
+      },
+    );
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      status: 'Failed',
+      truncated: true,
+      current: 'Failed at publish',
+    });
+  });
+
   it('lists workflows for entities of any kind', async () => {
     const { server, workflowService } = await start();
     await request(server)

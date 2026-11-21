@@ -319,6 +319,12 @@ export class WorkflowQueries {
       ref,
       options.maxEvents ?? MAX_STEP_EVENTS,
     );
+    // A cut history misses the close event, whose failure tells the step
+    // the run failed at.
+    const closeEvent =
+      truncated && CLOSED_WITH_FAILURE.includes(workflow.status)
+        ? await this.closeEventOrUndefined(ref)
+        : undefined;
     const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
@@ -328,6 +334,7 @@ export class WorkflowQueries {
       searchAttributes: workflow.searchAttributes,
       includePayloads: options.includePayloads,
       failure: workflow.failure,
+      closeEvent,
       llmAdapters: this.llmAdapters,
       onEdgesCapped: () =>
         this.logger
@@ -340,6 +347,23 @@ export class WorkflowQueries {
           .debug('The graph has more edges than are drawn'),
     });
     return graph;
+  }
+
+  /** The close event of a run; undefined when reading it fails. */
+  private async closeEventOrUndefined(ref: WorkflowRunRef): Promise<unknown> {
+    try {
+      return await this.temporalReads.closeEvent(ref);
+    } catch (error) {
+      this.logger
+        .child({
+          namespace: ref.namespace,
+          workflowId: ref.workflowId,
+          runId: ref.runId,
+          errorName: error instanceof Error ? error.name : 'Error',
+        })
+        .debug('The close event of a run could not be read');
+      return undefined;
+    }
   }
 
   /**
