@@ -197,6 +197,8 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `./alpha`，`@alpha`。`addWorkflowEnricher({ id, enrich })` 在流程摘要上加資料：`enrich(items, { entity?, namespace, credentials })` 依加入順序，在透過實體讀取流程的地方執行：實體的流程列表，以及透過實體讀取的詳細資料（以 `entityRef` 傳入，或 list 權限不允許時改用的 search attribute 實體）。Workflows 頁的列表、以 list 權限開啟的詳細資料不會執行。把你的資料放在每筆摘要的 `extensions[id]`（`WorkflowSummary.extensions`）；回傳的欄位會合併進摘要。前端不會自己顯示它，要搭配一個讀它的[分頁或按鈕](#blueprint-和-props)。丟出錯誤的 enricher 會被略過並記一筆警告；id 重複會讓外掛啟動失敗。不要假設 `entity` 一定有值：之後跨實體的列表可能在沒有實體時也執行 enricher。
 
+詳細資料的 enricher 拿到的是完整的失敗內容，不論呼叫者的權限：外掛在 enricher 執行之後才收起 `failure` 和 `lastFailure`，不會處理放進 `extensions` 的內容。要把失敗細節或 payload 放進去之前，先用 `credentials` 檢查 `temporal.workflow.history.read`。自訂操作也一樣：`handle` 和 `filter` 拿到完整的流程，`handle` 的回傳值原樣送出。
+
 <a id="llm-轉接器"></a>
 
 ### `temporalLlmAdapterExtensionPoint`
@@ -339,7 +341,7 @@ read 和 history 層級照[流程在哪個實體上檢查權限](#流程在哪�
 | read    | 最外層失敗的 `message`、`kind`、`type`。`WorkflowLlmSummary.error` 是模型呼叫的錯誤類型，紀錄沒有類型時是 `error` |
 | history | 完整的 `WorkflowFailure`：另有 `source`、`stackTrace`、`nonRetryable` 和 `cause` 原因鏈                           |
 
-這套用在 `WorkflowDetail.failure` 和其中 pending activity 的 `lastFailure`（`GET /:wf`，read 層級時帶 `failureDetailsHidden: true`），以及流程圖節點和各次嘗試的 `failure`（`GET /:wf/graph`，read 層級時 `payloadsHidden: true`）。流程圖和 `GET /:wf/progress` 的 `current` 文字只用最外層的訊息。清單不含失敗。`GET /:wf/result` 和模型呼叫的紀錄（`GET /:wf/llm-calls/:eventId`）是 history 層級，給完整的失敗。變更流程的路由在流程拒絕 update 時，回應裡帶拒絕的訊息（`400`）。
+這套用在 `WorkflowDetail.failure` 和其中 pending activity 的 `lastFailure`（`GET /:wf`，read 層級時帶 `failureDetailsHidden: true`），以及流程圖節點和各次嘗試的 `failure`（`GET /:wf/graph`，read 層級時 `payloadsHidden: true`）。流程圖和 `GET /:wf/progress` 的 `current` 文字只用最外層的訊息。清單不含失敗。`GET /:wf/result` 和模型呼叫的紀錄（`GET /:wf/llm-calls/:eventId`）是 history 層級，給完整的失敗。變更流程的路由在流程拒絕 update 時，回應裡帶拒絕的訊息和它的原因（`400`），不論有沒有 history 權限，和 update 成功時的結果一樣。各層級顯示的訊息是 SDK 記錄的那一則；有些 SDK 會把原因串進這則訊息。
 
 `WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。
 

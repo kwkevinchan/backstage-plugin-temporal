@@ -272,6 +272,13 @@ throws is skipped with a warning in the log; a second enricher with the same
 `id` makes the plugin fail at startup. Do not rely on `entity` being set:
 lists that span entities may run enrichers without one later.
 
+On the details, enrichers get the whole failure, whatever the permissions
+of the caller: the plugin trims `failure` and `lastFailure` after the
+enrichers run, not what they put in `extensions`. Check
+`temporal.workflow.history.read` with `credentials` before you copy failure
+details or payloads there. The same holds for custom actions: `handle` and
+`filter` get the whole workflow, and what `handle` returns is sent as it is.
+
 <a id="llm-adapters"></a>
 
 ### `temporalLlmAdapterExtensionPoint`
@@ -548,7 +555,10 @@ graph and of `GET /:wf/progress` uses the outermost message only. The lists
 have no failures. `GET /:wf/result` and the model call records
 (`GET /:wf/llm-calls/:eventId`) are at the history level and give the whole
 failure. The routes that change a workflow answer an update the workflow
-rejects with the messages of the rejection (`400`).
+rejects with the messages of the rejection and its causes (`400`), whatever
+the history permission, like the result of an update that succeeds. The
+message a level shows is the one the SDK recorded; some SDKs build it from
+the causes.
 
 On `WorkflowGraphResponse` and `WorkflowProgressResponse`, `totalSteps` is the
 number of steps seen so far in the history events read (not a total for a
