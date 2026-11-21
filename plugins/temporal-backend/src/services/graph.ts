@@ -31,6 +31,7 @@ import {
   durationToMs,
   eventTypeName,
   failureFromCloseEvent,
+  failureSummary,
   summaryOf,
   toDisplayJson,
   toIsoTime,
@@ -101,7 +102,10 @@ export interface BuildGraphOptions {
   pendingActivities?: PendingActivity[];
   /** Search attributes from describe, for the waiting hint. */
   searchAttributes?: JsonObject;
-  /** False leaves out inputs, results and marker details. */
+  /**
+   * False leaves out inputs, results and marker details, and keeps only
+   * the message, kind and type of the failures.
+   */
   includePayloads: boolean;
   /** Called when arrows beyond {@link MAX_GRAPH_EDGES} were left out. */
   onEdgesCapped?: () => void;
@@ -928,7 +932,11 @@ export function buildWorkflowGraphWithLlm(
   const current = currentStep(visible, options, closeEvent);
   const response: WorkflowGraphResponse = {
     status: options.status,
-    nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
+    nodes: nodes.map(({ first: _f, last: _l, ...node }) =>
+      dropUndefined(
+        options.includePayloads ? node : withoutNodeFailureDetails(node),
+      ),
+    ),
     edges,
     current: current.text,
     currentDeadline: current.deadline,
@@ -948,6 +956,19 @@ export function buildWorkflowGraphWithLlm(
     eventGroupsTruncated: groups.truncated || undefined,
   };
   return { graph: dropUndefined(response), llm };
+}
+
+/** A node with its failures as the read level shows them. */
+function withoutNodeFailureDetails(node: WorkflowGraphNode): WorkflowGraphNode {
+  return {
+    ...node,
+    failure: node.failure && failureSummary(node.failure),
+    attempts: node.attempts?.map(attempt =>
+      attempt.failure
+        ? { ...attempt, failure: failureSummary(attempt.failure) }
+        : attempt,
+    ),
+  };
 }
 
 /**

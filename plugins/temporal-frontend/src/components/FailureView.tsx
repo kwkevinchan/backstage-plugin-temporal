@@ -28,8 +28,15 @@ function flatten(failure: WorkflowFailure): WorkflowFailure[] {
   return chain;
 }
 
-/** A failure and its cause chain, outermost first. */
-export function FailureView(props: { failure: WorkflowFailure }) {
+/**
+ * A failure and its cause chain, outermost first. With `detailsHidden`, the
+ * backend gave only the outermost message and type, for lack of the
+ * permission to read the event history.
+ */
+export function FailureView(props: {
+  failure: WorkflowFailure;
+  detailsHidden?: boolean;
+}) {
   const chain = flatten(props.failure);
   return (
     <div>
@@ -62,6 +69,17 @@ export function FailureView(props: { failure: WorkflowFailure }) {
           )}
         </div>
       ))}
+      {props.detailsHidden && (
+        <Text
+          as="p"
+          variant="body-x-small"
+          color="secondary"
+          data-testid="failure-details-hidden"
+        >
+          The stack trace and the causes are hidden: they need the permission to
+          read the event history.
+        </Text>
+      )}
     </div>
   );
 }

@@ -194,6 +194,8 @@ describe('opening one workflow', () => {
             pendingActivities: [],
           } as any,
         }),
+        // The details ask it whether failures keep their details.
+        canReadPayloads: async () => true,
       },
     });
     const res = await request(server).get(path);

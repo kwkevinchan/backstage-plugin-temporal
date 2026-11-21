@@ -319,9 +319,16 @@ function cardStatus(card: ToolCard): WorkflowNodeStatus | undefined {
 }
 
 /** The response of a tool call: from its step, or from the record. */
-function ToolResponse(props: { card: ToolCard }) {
+function ToolResponse(props: { card: ToolCard; payloadsHidden: boolean }) {
   const { node, execution } = props.card;
-  if (node?.failure) return <FailureView failure={node.failure} />;
+  if (node?.failure) {
+    return (
+      <FailureView
+        failure={node.failure}
+        detailsHidden={props.payloadsHidden}
+      />
+    );
+  }
   if (node) return <PayloadView payload={toolResult(node)} />;
   if (execution?.error) {
     return (
@@ -337,7 +344,11 @@ function ToolResponse(props: { card: ToolCard }) {
   return null;
 }
 
-function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
+function ToolCards(props: {
+  cards: ToolCard[];
+  payloadsHidden: boolean;
+  onSelect?(id: string): void;
+}) {
   if (props.cards.length === 0) {
     return (
       <Text as="p" variant="body-small" color="secondary">
@@ -414,7 +425,7 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
                 Response
               </Text>
             )}
-            <ToolResponse card={card} />
+            <ToolResponse card={card} payloadsHidden={props.payloadsHidden} />
           </div>
         );
       })}
@@ -704,7 +715,11 @@ export function LlmPanel(props: {
                 : undefined
             }
           >
-            <ToolCards cards={cards} onSelect={props.onSelectStep} />
+            <ToolCards
+              cards={cards}
+              payloadsHidden={payloadsHidden}
+              onSelect={props.onSelectStep}
+            />
           </Section>
           <Section
             title="Usage"

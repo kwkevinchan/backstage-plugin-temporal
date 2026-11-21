@@ -145,7 +145,10 @@ export interface TemporalAccessService {
     credentials: BackstageCredentials,
   ): Promise<string | undefined>;
 
-  /** True when the caller may see the inputs and results of a workflow. */
+  /**
+   * True when the caller may see the inputs, the results and the failure
+   * details of a workflow.
+   */
   canReadPayloads(
     workflow: TemporalAccessibleWorkflow,
     credentials: BackstageCredentials,

@@ -647,6 +647,7 @@ export interface WorkflowDetail extends WorkflowSummary {
   // (undocumented)
   executionTime?: string;
   failure?: WorkflowFailure;
+  failureDetailsHidden?: boolean;
   firstRunId?: string;
   // (undocumented)
   memo?: JsonObject;

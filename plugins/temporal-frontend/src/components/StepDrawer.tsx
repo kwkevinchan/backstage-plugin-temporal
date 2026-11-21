@@ -222,7 +222,7 @@ export function StepDrawer(props: StepDrawerProps) {
 
       {step.failure && (
         <Section title="Error" testId="step-error">
-          <FailureView failure={step.failure} />
+          <FailureView failure={step.failure} detailsHidden={payloadsHidden} />
         </Section>
       )}
 
@@ -263,7 +263,10 @@ export function StepDrawer(props: StepDrawerProps) {
                 )}
               </Flex>
               {a.failure && !(a.attempt === step.attempt && step.failure) && (
-                <FailureView failure={a.failure} />
+                <FailureView
+                  failure={a.failure}
+                  detailsHidden={payloadsHidden}
+                />
               )}
             </div>
           ))}
