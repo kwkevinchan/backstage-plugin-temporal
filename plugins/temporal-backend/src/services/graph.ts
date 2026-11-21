@@ -30,6 +30,7 @@ import {
   dropUndefined,
   durationToMs,
   eventTypeName,
+  failureFromCloseEvent,
   failureSummary,
   summaryOf,
   toDisplayJson,
@@ -110,6 +111,11 @@ export interface BuildGraphOptions {
   onEdgesCapped?: () => void;
   /** Failure of the closed run from describe, when the history is cut. */
   failure?: WorkflowFailure;
+  /**
+   * The close event of the run (protobuf JSON), when the history is cut
+   * before it: the summary reads the failure from it.
+   */
+  closeEvent?: Json;
   /** The LLM adapters that read model calls and tool calls. */
   llmAdapters?: LlmAdapters;
 }
@@ -167,6 +173,79 @@ export function waitingHint(
       : `Waiting for ${words}`;
   }
   return undefined;
+}
+
+/** Status and text of a pending activity from describe. */
+function pendingActivityState(pending: PendingActivity): {
+  status: WorkflowNodeStatus;
+  waitingFor: string;
+} {
+  const attempt = pending.attempt ?? 1;
+  if (pending.state === 'Started') {
+    return { status: 'Running', waitingFor: `Running attempt ${attempt}` };
+  }
+  if (pending.state === 'Paused' || pending.state === 'PauseRequested') {
+    return { status: 'Waiting', waitingFor: 'Activity is paused' };
+  }
+  if (pending.lastFailure) {
+    return {
+      status: 'Retrying',
+      waitingFor: `Retrying after attempt ${Math.max(1, attempt - 1)} failed: ${
+        pending.lastFailure.message
+      }`,
+    };
+  }
+  return { status: 'Scheduled', waitingFor: 'Waiting for a worker' };
+}
+
+/** What the failure of a close event says, and the step it points at. */
+interface CloseFailure {
+  message: string;
+  /**
+   * The activity (by scheduled event ID) or child workflow (by initiated
+   * event ID) whose failure is in the cause chain, nearest to the top.
+   */
+  step?: { kind: 'activity' | 'childWorkflow'; eventId: string; name: string };
+}
+
+const MAX_CAUSE_DEPTH = 20;
+
+/**
+ * Reads the failure of a close event (protobuf JSON): its message and the
+ * first activity or child workflow in its cause chain. A child workflow
+ * ends the walk, since the event IDs below it are of the child's history.
+ * Undefined when the event is not a failed, timed out or terminated close.
+ */
+function closeFailureOf(event: Json): CloseFailure | undefined {
+  const failure = failureFromCloseEvent(event);
+  if (!failure) return undefined;
+  let cause: Json = event.workflowExecutionFailedEventAttributes?.failure;
+  for (let depth = 0; cause && depth <= MAX_CAUSE_DEPTH; depth += 1) {
+    const activity = cause.activityFailureInfo;
+    if (activity) {
+      return {
+        message: failure.message,
+        step: {
+          kind: 'activity',
+          eventId: String(activity.scheduledEventId ?? ''),
+          name: activity.activityType?.name ?? '',
+        },
+      };
+    }
+    const child = cause.childWorkflowExecutionFailureInfo;
+    if (child) {
+      return {
+        message: failure.message,
+        step: {
+          kind: 'childWorkflow',
+          eventId: String(child.initiatedEventId ?? ''),
+          name: child.workflowType?.name ?? '',
+        },
+      };
+    }
+    cause = cause.cause;
+  }
+  return { message: failure.message };
 }
 
 export function buildWorkflowGraph(
@@ -250,6 +329,7 @@ export function buildWorkflowGraphWithLlm(
     node.attempts?.[node.attempts.length - 1];
 
   let lastEventId = 0;
+  let closeEvent: Json;
   for (const event of events) {
     lastEventId = Math.max(lastEventId, num(event.eventId));
     const time = toIsoTime(event.eventTime);
@@ -288,6 +368,7 @@ export function buildWorkflowGraphWithLlm(
     if (closing) {
       const [key, status] = closing;
       a = event[key];
+      closeEvent = event;
       const node = add('end', event, {
         id: 'end',
         kind: 'workflowClosed',
@@ -766,9 +847,10 @@ export function buildWorkflowGraphWithLlm(
         failure: pending.lastFailure,
       });
     }
+    const state = pendingActivityState(pending);
+    node.status = state.status;
+    node.waitingFor = state.waitingFor;
     if (pending.state === 'Started') {
-      node.status = 'Running';
-      node.waitingFor = `Running attempt ${attempt}`;
       node.attempts.push(
         dropUndefined({
           attempt,
@@ -776,21 +858,6 @@ export function buildWorkflowGraphWithLlm(
           startedTime: pending.lastStartedTime,
         }),
       );
-    } else if (
-      pending.state === 'Paused' ||
-      pending.state === 'PauseRequested'
-    ) {
-      node.status = 'Waiting';
-      node.waitingFor = 'Activity is paused';
-    } else if (pending.lastFailure) {
-      node.status = 'Retrying';
-      node.waitingFor = `Retrying after attempt ${Math.max(
-        1,
-        attempt - 1,
-      )} failed: ${pending.lastFailure.message}`;
-    } else {
-      node.status = 'Scheduled';
-      node.waitingFor = 'Waiting for a worker';
     }
   }
   for (const node of nodes) {
@@ -825,12 +892,12 @@ export function buildWorkflowGraphWithLlm(
   const hint = running ? waitingHint(options.searchAttributes) : undefined;
   // A wait with a time limit, like `condition(fn, '24h')`, leaves only a
   // timer open. With a waiting hint, the timer is the time limit of that
-  // wait: the hint is what the run waits for.
-  if (hint && open.length > 0 && open.every(n => n.kind === 'timer')) {
-    for (const timer of open) {
-      timer.waitingFor = hint;
-      if (timer.deadline) timer.deadline.kind = 'timeout';
-    }
+  // wait: the hint is what the run waits for. With more timers open, which
+  // one is the wait is unknown, so each stays a plain timer.
+  if (hint && open.length === 1 && open[0].kind === 'timer') {
+    const timer = open[0];
+    timer.waitingFor = hint;
+    if (timer.deadline) timer.deadline.kind = 'timeout';
   }
   const latest = visible.reduce<Building | undefined>(
     (found, n) => (!found || n.first > found.first ? n : found),
@@ -862,7 +929,7 @@ export function buildWorkflowGraphWithLlm(
   const previousRunId = startNode?.details?.continuedFromRunId;
   const nextRunId =
     endNode?.status === 'ContinuedAsNew' ? endNode.workflow?.runId : undefined;
-  const current = currentStep(visible, options);
+  const current = currentStep(visible, options, closeEvent);
   const response: WorkflowGraphResponse = {
     status: options.status,
     nodes: nodes.map(({ first: _f, last: _l, ...node }) =>
@@ -958,24 +1025,44 @@ function openStepText(node: Building): string {
 function currentStep(
   nodes: Building[],
   options: BuildGraphOptions,
+  closeEvent: Json,
 ): { text?: string; deadline?: WorkflowGraphNode['deadline'] } {
+  // A cut history ends early: its open steps may have closed since.
   const open = nodes.filter(
     n =>
       options.status === 'Running' &&
+      !options.truncated &&
       ((n.last === undefined && OPEN_STATUSES.has(n.status)) ||
         n.kind === 'waiting'),
   );
   return {
-    text: currentText(nodes, options),
+    text: currentText(nodes, options, closeEvent),
     deadline: open.length === 1 ? open[0].deadline : undefined,
   };
+}
+
+/** Texts of the first two open steps, and how many more there are. */
+function listText(texts: string[]): string {
+  const more = texts.length > 2 ? ` (+${texts.length - 2} more)` : '';
+  return `${texts.slice(0, 2).join('; ')}${more}`;
 }
 
 function currentText(
   nodes: Building[],
   options: BuildGraphOptions,
+  closeEvent: Json,
 ): string | undefined {
   if (options.status === 'Running') {
+    if (options.truncated) {
+      // The history read stops at the start; describe has what runs now.
+      const pending = options.pendingActivities ?? [];
+      if (pending.length === 0) return 'History is long; showing the start';
+      return listText(
+        pending.map(
+          p => `${p.activityType}: ${pendingActivityState(p).waitingFor}`,
+        ),
+      );
+    }
     const open = nodes.filter(
       n =>
         (n.last === undefined && OPEN_STATUSES.has(n.status)) ||
@@ -989,17 +1076,27 @@ function currentText(
         failedTask.failure?.message ?? ''
       }`.trim();
     }
-    if (open.length === 0) {
-      return options.truncated
-        ? 'History is long; showing the start'
-        : undefined;
-    }
-    const texts = open.slice(0, 2).map(openStepText);
-    const more = open.length > 2 ? ` (+${open.length - 2} more)` : '';
-    return `${texts.join('; ')}${more}`;
+    if (open.length === 0) return undefined;
+    return listText(open.map(openStepText));
   }
   if (options.status === 'ContinuedAsNew') return 'Continued as new';
   if (['Failed', 'TimedOut', 'Terminated'].includes(options.status)) {
+    // The close event's cause chain tells which step the run failed at; a
+    // failure caught earlier in the run is not the reason.
+    const closeFailure = closeFailureOf(closeEvent ?? options.closeEvent);
+    if (closeFailure) {
+      const { step } = closeFailure;
+      if (step) {
+        const id = `${step.kind === 'activity' ? 'activity' : 'child'}-${
+          step.eventId
+        }`;
+        const name = nodes.find(n => n.id === id)?.name || step.name;
+        if (name) return `Failed at ${name}`;
+      }
+      if (closeFailure.message) return closeFailure.message;
+    }
+    // A cut history has only the start: describe has the failure.
+    if (options.truncated && options.failure) return options.failure.message;
     const failed = [...nodes]
       .reverse()
       .find(n => n.kind !== 'workflowClosed' && FAILED_STATUSES.has(n.status));

@@ -220,7 +220,17 @@ describe('buildWorkflowGraph', () => {
     });
     h.task();
     h.add('WorkflowExecutionFailed', {
-      failure: { message: 'Payment failed', applicationFailureInfo: {} },
+      failure: {
+        message: 'Payment failed',
+        applicationFailureInfo: {},
+        cause: {
+          message: 'Activity task failed',
+          activityFailureInfo: {
+            scheduledEventId: String(a),
+            activityType: { name: 'chargeCard' },
+          },
+        },
+      },
     });
 
     const graph = buildWorkflowGraph(h.events, options({ status: 'Failed' }));
@@ -619,6 +629,264 @@ describe('buildWorkflowGraph', () => {
     expect(task.internal).toBe(false);
     expect(task.failure?.message).toBe('nondeterminism');
     expect(graph.current).toBe('Workflow task failing: nondeterminism');
+  });
+});
+
+describe('the current step', () => {
+  /** A failure of activity `scheduledEventId`, as the workflow sees it. */
+  const activityFailure = (
+    scheduledEventId: number,
+    activityType: string,
+    cause: unknown = { message: 'boom', applicationFailureInfo: {} },
+  ) => ({
+    message: 'Activity task failed',
+    activityFailureInfo: {
+      scheduledEventId: String(scheduledEventId),
+      activityType: { name: activityType },
+    },
+    cause,
+  });
+
+  it('uses the pending activities when the history is cut', () => {
+    const h = history();
+    h.start();
+    h.task();
+    // The history read stops here; the run went on to other activities.
+    const early = h.schedule('prepare', '1');
+    h.started(early);
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Running',
+        truncated: true,
+        pendingActivities: [
+          {
+            activityId: '42',
+            activityType: 'deploy',
+            state: 'Started',
+            attempt: 2,
+          },
+          {
+            activityId: '43',
+            activityType: 'notify',
+            state: 'Scheduled',
+            attempt: 3,
+            lastFailure: { message: 'mail server down' },
+          },
+          { activityId: '44', activityType: 'audit', state: 'Scheduled' },
+        ],
+      }),
+    );
+    expect(graph.current).toBe(
+      'deploy: Running attempt 2; notify: Retrying after attempt 2 failed: mail server down (+1 more)',
+    );
+    expect(graph.currentDeadline).toBeUndefined();
+    // The graph still shows the start only.
+    expect(graph.nodes.find(n => n.id === `activity-${early}`)!.status).toBe(
+      'Running',
+    );
+    expect(graph.truncated).toBe(true);
+
+    // The same activity in a history read to its end reads the same.
+    const full = history();
+    full.start();
+    full.task();
+    full.schedule('deploy', '42');
+    expect(
+      buildWorkflowGraph(
+        full.events,
+        options({
+          status: 'Running',
+          pendingActivities: [
+            {
+              activityId: '42',
+              activityType: 'deploy',
+              state: 'Started',
+              attempt: 2,
+            },
+          ],
+        }),
+      ).current,
+    ).toBe('deploy: Running attempt 2');
+  });
+
+  it('does not read the open steps of a cut history', () => {
+    const h = history();
+    h.start();
+    h.task();
+    h.add('TimerStarted', {
+      timerId: '1',
+      startToFireTimeout: { seconds: '30' },
+    });
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({ status: 'Running', truncated: true }),
+    );
+    expect(graph.current).toBe('History is long; showing the start');
+    expect(graph.currentDeadline).toBeUndefined();
+  });
+
+  it('does not blame an activity failure the workflow caught', () => {
+    // try { await validate() } catch { ... }; later the workflow fails.
+    const h = history();
+    h.start();
+    h.task();
+    const caught = h.schedule('validate', '1');
+    h.started(caught);
+    h.add('ActivityTaskFailed', {
+      scheduledEventId: String(caught),
+      failure: { message: 'invalid', applicationFailureInfo: {} },
+    });
+    h.task();
+    const next = h.schedule('reserve', '2');
+    h.started(next);
+    h.completed(next, {});
+    h.task();
+    h.add('WorkflowExecutionFailed', {
+      failure: { message: 'Out of stock', applicationFailureInfo: {} },
+    });
+    const graph = buildWorkflowGraph(h.events, options({ status: 'Failed' }));
+    expect(graph.current).toBe('Out of stock');
+  });
+
+  it('names the activity in the cause chain of the close event', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const failing = h.schedule('charge', '1');
+    const caught = h.schedule('notify', '2');
+    h.started(failing);
+    h.started(caught);
+    h.add('ActivityTaskFailed', {
+      scheduledEventId: String(failing),
+      failure: { message: 'declined', applicationFailureInfo: {} },
+    });
+    // The caught failure comes later in the history.
+    h.add('ActivityTaskFailed', {
+      scheduledEventId: String(caught),
+      failure: { message: 'mail down', applicationFailureInfo: {} },
+    });
+    h.task();
+    h.add('WorkflowExecutionFailed', {
+      failure: activityFailure(failing, 'charge'),
+    });
+    const graph = buildWorkflowGraph(h.events, options({ status: 'Failed' }));
+    expect(graph.current).toBe('Failed at charge');
+  });
+
+  it('reads the failure of a cut history from the close event', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const early = h.schedule('prepare', '1');
+    h.started(early);
+    h.add('ActivityTaskFailed', {
+      scheduledEventId: String(early),
+      failure: { message: 'caught', applicationFailureInfo: {} },
+    });
+    const closeEvent = {
+      eventId: '9000',
+      eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
+      workflowExecutionFailedEventAttributes: {
+        failure: activityFailure(8000, 'publish'),
+      },
+    };
+    const failed = buildWorkflowGraph(
+      h.events,
+      options({ status: 'Failed', truncated: true, closeEvent }),
+    );
+    expect(failed.current).toBe('Failed at publish');
+
+    // Without the close event, the failure from describe.
+    const described = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Failed',
+        truncated: true,
+        failure: { message: 'Out of stock' },
+      }),
+    );
+    expect(described.current).toBe('Out of stock');
+  });
+
+  it('uses the close message of terminated and timed out runs', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const a = h.schedule('charge', '1');
+    h.started(a);
+    h.add('ActivityTaskFailed', {
+      scheduledEventId: String(a),
+      failure: { message: 'declined', applicationFailureInfo: {} },
+    });
+    h.task();
+    const end = h.add('WorkflowExecutionTerminated', { reason: 'stuck' });
+    expect(
+      buildWorkflowGraph(h.events, options({ status: 'Terminated' })).current,
+    ).toBe('Terminated: stuck');
+
+    h.events.pop();
+    expect(h.events.length).toBe(end - 1);
+    h.add('WorkflowExecutionTimedOut', {});
+    expect(
+      buildWorkflowGraph(h.events, options({ status: 'TimedOut' })).current,
+    ).toBe('Workflow execution timed out');
+  });
+
+  it('stops at a child workflow in the cause chain', () => {
+    const h = history();
+    h.start();
+    h.task();
+    const child = h.add('StartChildWorkflowExecutionInitiated', {
+      workflowId: 'child-1',
+      workflowType: { name: 'shipOrder' },
+    });
+    h.add('ChildWorkflowExecutionFailed', {
+      initiatedEventId: String(child),
+      failure: { message: 'child failed' },
+    });
+    h.task();
+    h.add('WorkflowExecutionFailed', {
+      failure: {
+        message: 'Child workflow execution failed',
+        childWorkflowExecutionFailureInfo: {
+          initiatedEventId: String(child),
+          workflowType: { name: 'shipOrder' },
+        },
+        // Event IDs of the child's own history.
+        cause: activityFailure(child, 'unrelated'),
+      },
+    });
+    const graph = buildWorkflowGraph(h.events, options({ status: 'Failed' }));
+    expect(graph.current).toBe('Failed at shipOrder');
+  });
+
+  it('does not turn an unrelated timer into the wait of a waiting hint', () => {
+    // condition(() => approved, '24 hours') next to a sleep('5 minutes').
+    const h = history();
+    h.start();
+    h.task();
+    const wait = h.add('TimerStarted', {
+      timerId: '1',
+      startToFireTimeout: { seconds: String(24 * 3600) },
+    });
+    const sleep = h.add('TimerStarted', {
+      timerId: '2',
+      startToFireTimeout: { seconds: '300' },
+    });
+    const graph = buildWorkflowGraph(
+      h.events,
+      options({
+        status: 'Running',
+        searchAttributes: { ApprovalPending: true },
+      }),
+    );
+    for (const id of [`timer-${wait}`, `timer-${sleep}`]) {
+      const timer = graph.nodes.find(n => n.id === id)!;
+      expect(timer.waitingFor).toBeUndefined();
+      expect(timer.deadline?.kind).toBe('fires');
+    }
+    expect(graph.current).toBe('Timer 24h; Timer 5m');
   });
 });
 

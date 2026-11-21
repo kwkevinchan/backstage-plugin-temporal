@@ -270,7 +270,9 @@ describe('failures by permission level', () => {
         kind: 'ApplicationFailure',
         type: 'PaymentError',
       });
-      expect(res.body.current).toBe('Failed at charge');
+      // The close event's failure has no activity in its causes: the summary
+      // is its outermost message, which the read level may see.
+      expect(res.body.current).toBe('Payment failed');
       expectNoFailureDetails(res.body);
     });
 
@@ -280,7 +282,7 @@ describe('failures by permission level', () => {
         `${run}/progress?entityRef=${ref}`,
       );
       expect(progress.status).toBe(200);
-      expect(progress.body.current).toBe('Failed at charge');
+      expect(progress.body.current).toBe('Payment failed');
       expectNoFailureDetails(progress.body);
 
       for (const path of [
