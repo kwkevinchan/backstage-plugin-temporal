@@ -172,7 +172,10 @@ function DetailsTab(props: { workflow: WorkflowDetail }) {
           <Text as="h3" variant="title-x-small">
             Failure
           </Text>
-          <FailureView failure={workflow.failure} />
+          <FailureView
+            failure={workflow.failure}
+            detailsHidden={workflow.failureDetailsHidden}
+          />
         </div>
       )}
       {workflow.pendingActivities.length > 0 && (

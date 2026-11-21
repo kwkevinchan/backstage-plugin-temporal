@@ -528,6 +528,9 @@ components:
           additionalProperties: {}
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
+        failureDetailsHidden:
+          type: boolean
+          description: 'True when the caller cannot read the event history: `failure` and the `lastFailure` of the pending activities have only `message`, `kind` and `type`, without the stack trace and the causes.'
         continuedAsNewRunId:
           type: string
           description: The run this one continued as, for a run that continued as new.
@@ -920,6 +923,7 @@ components:
           description: True when the history was longer than the backend reads for a graph (5000 events).
         payloadsHidden:
           type: boolean
+          description: True when inputs and results were left out for lack of permission. The failures of the steps and their attempts then have only `message`, `kind` and `type`, without the stack trace and the causes.
         runChain:
           $ref: '#/components/schemas/WorkflowRunChain'
         eventGroups:
@@ -1595,12 +1599,17 @@ paths:
     get:
       operationId: getWorkflowRun
       summary: Get the details of a workflow (one run)
-      description: "Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given."
+      description: |-
+        Without the history permission, the failure and the last failures of the pending activities keep only their message, kind and type (`failureDetailsHidden`).
+
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `failureDetailsHidden`.
       tags:
         - Workflows
       x-temporal-permissions:
         - temporal.workflow.read
         - temporal.workflow.list
+        - temporal.workflow.history.read
+        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1705,7 +1714,7 @@ paths:
       operationId: getWorkflowRunGraph
       summary: Get the steps and arrows of a workflow run (one run)
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
+        Inputs and results are left out (`payloadsHidden`) without the history permission, and failures keep only their message, kind and type; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
       tags:
@@ -1778,7 +1787,7 @@ paths:
       operationId: getWorkflowRunLlmCall
       summary: Get the full record of one model call (one run)
       description: |-
-        Reads at most 5,000 history events per run (`MAX_STEP_EVENTS`). Answers `404` (`NotFoundError`) with `No model call <eventId> in this run` (or `No model call <index> in step <eventId>`) when no matching model call exists in the events read, or `Model call <eventId> was not found within the first 5000 history events of this run; the history was truncated` when the run's history was truncated before `eventId`.
+        Reads at most 5,000 history events of the run. Answers `404` when the events read have no such model call, with a message that says so; when the history is longer and the step lies beyond the events read, the message says that the history was truncated.
 
         Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
 

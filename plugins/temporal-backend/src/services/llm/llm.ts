@@ -260,7 +260,9 @@ export function summarizeModelCalls(
     summary.durationMs = last.durationMs;
   if (last.finishReasons?.length) summary.finishReasons = last.finishReasons;
   const error = [...records].reverse().find(r => r.error)?.error;
-  if (error) summary.error = error.type ?? error.message;
+  // The message can hold data, which needs the history level; the read
+  // level sees the error type only.
+  if (error) summary.error = error.type || 'error';
   summary.reasoning = records.some(hasReasoning);
   const requests = records.flatMap(outputToolCalls);
   summary.toolCalls = requests.map(r => r.ref);
