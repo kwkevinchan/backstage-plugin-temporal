@@ -364,6 +364,32 @@ describe('failure details of a model call', () => {
     );
   });
 
+  it('names the error by its type only, without the message', () => {
+    const adapters = new LlmAdapters();
+    adapters.add(failureAdapter);
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const id = h.activity('callModel', 'call-1', {
+      failure: {
+        message: 'wrapped',
+        applicationFailureInfo: {
+          details: payloads({
+            model: 'm',
+            error: { message: 'quota of customer-7731 exceeded' },
+          }),
+        },
+      },
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      status: 'Failed',
+      llmAdapters: adapters,
+    });
+    const node = graph.nodes.find(n => n.id === `activity-${id}`)!;
+    expect(node.llm).toMatchObject({ record: 'available', error: 'error' });
+    expect(JSON.stringify(node.llm)).not.toContain('customer-7731');
+  });
+
   it('has no failure details for a step that completed', () => {
     const seen: unknown[] = [];
     const adapters = new LlmAdapters();

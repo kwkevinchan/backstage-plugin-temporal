@@ -272,6 +272,13 @@ throws is skipped with a warning in the log; a second enricher with the same
 `id` makes the plugin fail at startup. Do not rely on `entity` being set:
 lists that span entities may run enrichers without one later.
 
+On the details, enrichers get the whole failure, whatever the permissions
+of the caller: the plugin trims `failure` and `lastFailure` after the
+enrichers run, not what they put in `extensions`. Check
+`temporal.workflow.history.read` with `credentials` before you copy failure
+details or payloads there. The same holds for custom actions: `handle` and
+`filter` get the whole workflow, and what `handle` returns is sent as it is.
+
 <a id="llm-adapters"></a>
 
 ### `temporalLlmAdapterExtensionPoint`
@@ -305,7 +312,8 @@ Tool calls are linked by the backend: a step whose adapter returns a
 steps scheduled after the model call and before the next call of the agent
 are matched by the tool name and the arguments, and marked `inferred`
 (`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The graph gets names and
-numbers only (`WorkflowLlmSummary`), at the read level; the records need
+numbers only (`WorkflowLlmSummary`, with the error type but not the error
+message), at the read level; the records need
 the history level (`GET /:wf/llm-calls/:eventId`). [Example](#add-an-llm-adapter).
 
 ### Feature loader and catalog module
@@ -518,8 +526,8 @@ Reads are always served:
 | `GET /workflows`                                      | `temporal.workflow.list` (conditions become a query)                                                                                                                          | `namespace`, `status`, `allRuns`, `workflowType`, `workflowId` (prefix), `searchAttribute`, `pageSize`, `pageToken` | `WorkflowListResponse`                            |
 | `GET /schedules`                                      | `temporal.workflow.list`, unconditional                                                                                                                                       | `namespace`                                                                                                         | `TemporalScheduleListResponse`                    |
 | `GET /namespaces/:namespace/workflows/:workflowId`    | with `entityRef`, `temporal.workflow.read` on it (only its runs; the entity must be in the namespace of the path); else `temporal.workflow.list`, its conditions on every run | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowListResponse`                            |
-| `GET /:wf`                                            | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowDetail`                                  |
-| `GET /:wf/graph`                                      | read level (step summaries and event group labels included); inputs and results only with history level                                                                       | `entityRef`                                                                                                         | `WorkflowGraphResponse`                           |
+| `GET /:wf`                                            | read level; failures as below, with `failureDetailsHidden`                                                                                                                    | `entityRef`                                                                                                         | `WorkflowDetail`                                  |
+| `GET /:wf/graph`                                      | read level (step summaries and event group labels included); inputs, results and failure details only with history level                                                      | `entityRef`                                                                                                         | `WorkflowGraphResponse`                           |
 | `GET /:wf/progress`                                   | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowProgressResponse`                        |
 | `GET /:wf/message-definitions`                        | read level                                                                                                                                                                    | `entityRef`                                                                                                         | `WorkflowMessageDefinitionsResponse`              |
 | `GET /:wf/history`                                    | history level                                                                                                                                                                 | `entityRef`, `pageSize`, `pageToken`                                                                                | `WorkflowHistoryResponse`                         |
@@ -531,6 +539,26 @@ The sample of `GET /entities/:kind/:namespace/:name/workflow-stats` matches the 
 
 The read and history levels are decided as in
 [Which entity a workflow is checked on](#which-entity-a-workflow-is-checked-on).
+
+Failures are shown at both levels, with different content:
+
+| Level   | What a failure has                                                                                                                                         |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| read    | `message`, `kind` and `type` of the outermost failure. `WorkflowLlmSummary.error` is the error type of the model call, or `error` when the record has none |
+| history | The whole `WorkflowFailure`: also `source`, `stackTrace`, `nonRetryable` and the `cause` chain                                                             |
+
+This applies to `WorkflowDetail.failure` and the `lastFailure` of its pending
+activities (`GET /:wf`, with `failureDetailsHidden: true` at the read level),
+and to the `failure` of the graph nodes and their attempts (`GET /:wf/graph`,
+with `payloadsHidden: true` at the read level). The `current` text of the
+graph and of `GET /:wf/progress` uses the outermost message only. The lists
+have no failures. `GET /:wf/result` and the model call records
+(`GET /:wf/llm-calls/:eventId`) are at the history level and give the whole
+failure. The routes that change a workflow answer an update the workflow
+rejects with the messages of the rejection and its causes (`400`), whatever
+the history permission, like the result of an update that succeeds. The
+message a level shows is the one the SDK recorded; some SDKs build it from
+the causes.
 
 On `WorkflowGraphResponse` and `WorkflowProgressResponse`, `totalSteps` is the
 number of steps seen so far in the history events read (not a total for a

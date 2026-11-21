@@ -971,9 +971,9 @@ rejected so they cannot change the visibility query.
 | Permission                       | Resource type       | Used for                                                                                                      |
 | -------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph (with step summaries and event group labels), progress, Zigflow definition |
-| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results                                                                             |
+| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results, failure details                                                            |
 | `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                                    |
-| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results without an entity                                                           |
+| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results, failure details without an entity                                          |
 | `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                             |
 | `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                |
 | `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                                 |
@@ -994,7 +994,17 @@ deny them, or return a conditional decision with these rules (see
 ALLOW lets a user read every workflow. When a
 request names an entity (`entityRef`), the entity permissions are checked as
 before. Without the history permission the step graph is still shown, without
-inputs and results. Access is open by default: with the permission
+inputs and results. Failures are shown at both levels, with different
+content:
+
+| Level                                        | What a failure shows                                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| read (`temporal.workflow.read` or list)      | The kind, the application error type and the message of the outermost failure; the error type of a model call |
+| history (also `temporal.workflow.history.*`) | Also the stack trace, the cause chain and the other fields, and the error messages in the model call records  |
+
+The details of a run, the step graph, the progress and the lists use the read
+level; `GET .../result` and the model call records need the history level.
+Access is open by default: with the permission
 framework disabled, or with the allow-all policy (as in the development
 backend), every signed-in user can read every entity's workflows. To restrict
 it, handle these permissions in your Backstage permission policy. Both are

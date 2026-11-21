@@ -124,7 +124,7 @@ export interface WorkflowLlmSummary {
   /** True when the output has reasoning (thinking). */
   reasoning: boolean;
   finishReasons?: string[];
-  /** Error type or message of a failed call. */
+  /** Error type of a failed call, or `error` when the record has none. */
   error?: string;
 }
 
