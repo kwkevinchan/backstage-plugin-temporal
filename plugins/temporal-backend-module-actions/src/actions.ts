@@ -153,7 +153,11 @@ export function registerTemporalActions(
 ): void {
   const { client } = options;
 
-  /** Registers an action whose errors are {@link readable}. */
+  /**
+   * Registers an action whose errors are {@link readable}. The hint to give
+   * the entityRef of a listed workflow is for actions on existing workflows,
+   * not for a start, where an entityRef also changes the namespace.
+   */
   const register: ActionsRegistryService['register'] = action =>
     registry.register({
       ...action,
@@ -163,7 +167,8 @@ export function registerTemporalActions(
         } catch (error) {
           throw readable(
             error,
-            Boolean((context.input as { entityRef?: string }).entityRef),
+            action.name === 'start-workflow' ||
+              Boolean((context.input as { entityRef?: string }).entityRef),
           );
         }
       },

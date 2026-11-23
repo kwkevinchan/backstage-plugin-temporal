@@ -614,6 +614,24 @@ describe('step summary', () => {
 });
 
 describe('errors of the plugin', () => {
+  it('gives no entityRef hint for a start that is refused or not found', async () => {
+    const { client, invoke } = setup();
+    client.start.mockRejectedValue(await responseError(403, 'Denied'));
+    await expect(
+      invoke('start-workflow', {
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+      }),
+    ).rejects.toThrow(/^(?!.*entityRef).*Do not retry/);
+    client.start.mockRejectedValue(await responseError(404, 'No entity'));
+    await expect(
+      invoke('start-workflow', {
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+      }),
+    ).rejects.toMatchObject({ message: 'No entity' });
+  });
+
   it('does not send a signal again to another run when the run was given', async () => {
     const { client, invoke } = setup();
     client.send.mockRejectedValue(

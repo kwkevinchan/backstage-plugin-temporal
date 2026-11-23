@@ -73,8 +73,9 @@ The attributes are static, so they describe the worst case of each call. The
 actions that change workflows are `destructive` because the module does not
 know what a started workflow, a signal or an update does in the workflow that
 receives it; this is also the Backstage default for an action that is not
-`readOnly`. A filter with `destructive: true` in `backend.actions.filter` hides
-them.
+`readOnly`. To hide them, exclude them with a rule that has `attributes: { destructive: true }`
+in `backend.actions.filter.exclude`; a rule in `include` keeps only the
+actions that match it.
 `start-workflow` is not idempotent because a call without `workflowId` starts a
 new workflow each time; give a `workflowId` to make a repeated call fail
 instead of start a second workflow.

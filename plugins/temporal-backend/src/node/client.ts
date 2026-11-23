@@ -45,8 +45,6 @@ import {
  * workflows: the Temporal backend serves no such route because
  * `temporal.control.enabled` is false there. That backend may be another
  * deployment, so its config cannot be read here.
- *
- * @public
  */
 export const CONTROL_DISABLED_MESSAGE =
   'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false in the app-config of the backend that runs it. Set temporal.control.enabled to true there (it is the default) to start, signal or update workflows';
