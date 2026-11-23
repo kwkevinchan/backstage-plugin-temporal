@@ -16,7 +16,7 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its two modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
+![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its three modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
 
 All names carry the prefix `@kwkevinchan/backstage-plugin-`. Teal is the
 core, purple the optional modules. The [README](../README.md#packages) has
