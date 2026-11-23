@@ -30,7 +30,6 @@ export {
 } from './TemporalService';
 export {
   buildWorkflowUrl,
-  CONTROL_DISABLED_MESSAGE,
   continuedAsNewRunIdOf,
   TemporalPluginClient,
 } from './client';

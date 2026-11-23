@@ -65,19 +65,29 @@ const MAX_CURRENT_STEPS = 10;
  * message: a `ResponseError` only says "Request failed with 400", and an
  * assistant reads the message. A refusal (403) also says what to do.
  */
-function readable(error: unknown): unknown {
+function readable(error: unknown, gaveEntityRef: boolean): unknown {
   if (!(error instanceof ResponseError)) return error;
   const status = error.response.status;
   const message = error.body.error.message || error.message;
+  // Without entityRef the plugin checks the permissions of the whole
+  // namespace, which a user may lack although they may read the entity's
+  // workflows.
+  const entityHint = gaveEntityRef
+    ? ''
+    : ' You gave no entityRef: call again once with the entityRef of the entity that you listed the workflow with.';
   switch (status) {
     case 400:
       return new InputError(message);
     case 403:
       return new NotAllowedError(
-        `The Temporal plugin refused this for the signed-in user: ${message}. Do not retry; tell the user that they lack the permission.`,
+        gaveEntityRef
+          ? `The Temporal plugin refused this for the signed-in user: ${message}. Do not retry; tell the user that they lack the permission.`
+          : `The Temporal plugin refused this for the signed-in user: ${message}.${entityHint} If that is refused too, do not retry; tell the user that they lack the permission.`,
       );
     case 404:
-      return new NotFoundError(message);
+      return new NotFoundError(
+        entityHint ? `${message.replace(/\.$/, '')}.${entityHint}` : message,
+      );
     case 409:
       return new ConflictError(message);
     default:
@@ -85,12 +95,13 @@ function readable(error: unknown): unknown {
   }
 }
 
+/** The step kinds that the backend counts in `completedSteps` and `totalSteps` (`services/graph.ts`). */
 const STEP_KINDS = new Set<WorkflowGraphNode['kind']>([
   'activity',
   'timer',
   'childWorkflow',
   'update',
-  'marker',
+  'signalSent',
 ]);
 const RUNNING = new Set<WorkflowGraphNode['status']>([
   'Scheduled',
@@ -150,7 +161,10 @@ export function registerTemporalActions(
         try {
           return await action.action(context);
         } catch (error) {
-          throw readable(error);
+          throw readable(
+            error,
+            Boolean((context.input as { entityRef?: string }).entityRef),
+          );
         }
       },
     });
@@ -290,7 +304,7 @@ export function registerTemporalActions(
       .string()
       .optional()
       .describe(
-        'Catalog entity the workflow belongs to, whose permissions are checked',
+        'Catalog entity the workflow belongs to. Give the entityRef that you used with list-workflows whenever you have it: without it the plugin checks the permission for the whole namespace, and can answer not found or refused',
       ),
   });
 
@@ -336,9 +350,11 @@ export function registerTemporalActions(
               running: z
                 .number()
                 .describe(
-                  'Steps that run or wait now: activities, timers, children',
+                  'Steps that run or wait now: activities, timers, child workflows, updates and signals sent',
                 ),
-              failed: z.number().describe('Steps that failed or timed out'),
+              failed: z
+                .number()
+                .describe('Steps that failed or timed out, of the same kinds'),
               seen: z
                 .number()
                 .describe(
@@ -407,7 +423,7 @@ export function registerTemporalActions(
     title: 'Start a Temporal workflow',
     description:
       'Starts a Temporal workflow, as the signed-in user: the workflow of a catalog entity (a TemporalWorkflow entity, or one with the Temporal annotations), or any workflow type with its task queue. It changes things: a new workflow run starts. Ask the user to confirm before you call it. Returns the workflowId and runId to follow it with get-workflow, and the link to its page. Starting with a workflowId that is already running fails; without a workflowId, every call starts a new workflow.',
-    attributes: { readOnly: false, destructive: false, idempotent: false },
+    attributes: { readOnly: false, idempotent: false },
     schema: {
       input: z =>
         z.object({
@@ -497,7 +513,7 @@ export function registerTemporalActions(
     title: 'Send a signal to a Temporal workflow',
     description:
       'Sends a signal to a running Temporal workflow, as the signed-in user, for example to approve a step it waits for. It changes the workflow and cannot be taken back. Ask the user to confirm before you call it. Only the signals that the Temporal plugin allows work; a refused name comes back as an error with the reason. Returns the run that got the signal; the signal has no result, so read the workflow with get-workflow to see what it did.',
-    attributes: { readOnly: false, destructive: false, idempotent: false },
+    attributes: { readOnly: false, idempotent: false },
     schema: {
       input: z => z.object(messageFields(z)),
       output: z =>
@@ -536,7 +552,7 @@ export function registerTemporalActions(
     title: 'Send an update to a Temporal workflow',
     description:
       'Sends an update to a running Temporal workflow, as the signed-in user, and returns its result. Unlike a signal, the workflow answers an update. It changes the workflow and cannot be taken back. Ask the user to confirm before you call it. Only the updates that the Temporal plugin allows work; a refused name comes back as an error with the reason.',
-    attributes: { readOnly: false, destructive: false, idempotent: false },
+    attributes: { readOnly: false, idempotent: false },
     schema: {
       input: z => z.object(messageFields(z)),
       output: z =>

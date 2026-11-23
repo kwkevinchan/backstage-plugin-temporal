@@ -123,8 +123,8 @@ Which ones to install:
   (frontend and backend) for the Definition tab. Without the backend module
   the tab says that it is missing.
 - **With AI assistants or MCP clients:** the actions module
-  (`temporal-backend-module-actions`). It may run in another backend than the
-  Temporal plugin; it calls the plugin over HTTP.
+  (`temporal-backend-module-actions`). Install it in the same backend as the
+  Temporal backend plugin.
 - **With templates:** the Scaffolder modules. The backend module may run in
   another backend than the Temporal plugin; it calls the plugin over HTTP.
 - **With large payloads in External Storage:** nothing more; the backend

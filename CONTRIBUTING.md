@@ -24,9 +24,10 @@ discuss larger changes before sending a pull request.
 
 Releases are cut by the maintainer from `main`, with
 [changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`: the six packages
+takes every published package from `0.0.0` to `0.1.0`: the seven packages
 `@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal-frontend`,
 `-temporal-backend-module-zigflow`, `-temporal-module-zigflow`,
+`-temporal-backend-module-actions`,
 `-scaffolder-backend-module-temporal` and `-scaffolder-module-temporal`
 (all under `@kwkevinchan/backstage-plugin-`).
 

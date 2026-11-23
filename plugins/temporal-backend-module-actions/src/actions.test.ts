@@ -18,11 +18,12 @@ import { mockCredentials } from '@backstage/backend-test-utils';
 import { actionsRegistryServiceMock } from '@backstage/backend-test-utils/alpha';
 import { ResponseError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
-import {
-  CONTROL_DISABLED_MESSAGE,
-  type TemporalPluginClient,
-} from '@kwkevinchan/backstage-plugin-temporal-backend/node';
+import { type TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import { registerTemporalActions } from './actions';
+
+/** What the client throws when the Temporal backend serves no operations. */
+const CONTROL_DISABLED_MESSAGE =
+  'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false';
 
 const user = mockCredentials.user('user:default/alice');
 
@@ -75,7 +76,9 @@ function responseError(status: number, message: string) {
 }
 
 describe('attributes of the actions', () => {
-  // A chat decides from these whether to ask the user first.
+  // A chat decides from these whether to ask the user first. The module does
+  // not know what a started workflow, a signal or an update does, so the
+  // actions that change workflows are destructive.
   it.each([
     [
       'list-workflows',
@@ -84,15 +87,15 @@ describe('attributes of the actions', () => {
     ['get-workflow', { readOnly: true, destructive: false, idempotent: true }],
     [
       'start-workflow',
-      { readOnly: false, destructive: false, idempotent: false },
+      { readOnly: false, destructive: true, idempotent: false },
     ],
     [
       'signal-workflow',
-      { readOnly: false, destructive: false, idempotent: false },
+      { readOnly: false, destructive: true, idempotent: false },
     ],
     [
       'update-workflow',
-      { readOnly: false, destructive: false, idempotent: false },
+      { readOnly: false, destructive: true, idempotent: false },
     ],
   ])('%s', async (name, attributes) => {
     const { registry } = setup();
@@ -574,5 +577,117 @@ describe('update-workflow', () => {
     await expect(invoke('update-workflow', input)).rejects.toThrow(
       /refused this.*Missing temporal\.workflow\.update/,
     );
+  });
+});
+
+describe('step summary', () => {
+  it('counts the step kinds that the backend counts, and not markers', async () => {
+    const { client, invoke } = setup();
+    client.describe.mockResolvedValue({ ...summary(), pendingActivities: [] });
+    client.graph.mockResolvedValue({
+      status: 'Running',
+      nodes: [
+        { id: 'a', kind: 'signalSent', name: 'notify-peer', status: 'Running' },
+        { id: 'b', kind: 'signalSent', name: 'bad-signal', status: 'Failed' },
+        { id: 'c', kind: 'marker', name: 'local-activity', status: 'Running' },
+        { id: 'd', kind: 'marker', name: 'local-failed', status: 'Failed' },
+        { id: 'e', kind: 'update', name: 'setPriority', status: 'Running' },
+      ],
+      edges: [],
+      completedSteps: 0,
+      totalSteps: 3,
+      truncated: false,
+      payloadsHidden: false,
+    });
+    const { output } = await invoke('get-workflow', {
+      workflowId: 'order-1',
+      runId: 'run-1',
+    });
+    expect((output as any).steps).toEqual(
+      expect.objectContaining({
+        running: 2,
+        failed: 1,
+        currentSteps: ['notify-peer', 'setPriority'],
+      }),
+    );
+  });
+});
+
+describe('errors of the plugin', () => {
+  it('does not send a signal again to another run when the run was given', async () => {
+    const { client, invoke } = setup();
+    client.send.mockRejectedValue(
+      await ResponseError.fromResponse(
+        new Response(
+          JSON.stringify({
+            error: {
+              name: 'ConflictError',
+              message: 'continued as new',
+              continuedAsNewRunId: 'run-2',
+            },
+            response: { statusCode: 409 },
+          }),
+          { status: 409, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+    await expect(
+      invoke('signal-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        name: 'approve',
+      }),
+    ).rejects.toMatchObject({ name: 'ConflictError' });
+    expect(client.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps 404 to NotFoundError and 409 to ConflictError, with the message of the plugin', async () => {
+    const { client, invoke } = setup();
+    client.describe.mockRejectedValue(await responseError(404, 'No such run'));
+    client.graph.mockResolvedValue({});
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'w',
+        runId: 'r',
+        namespace: 'default',
+        entityRef: 'component:default/orders',
+      }),
+    ).rejects.toMatchObject({ name: 'NotFoundError', message: 'No such run' });
+    client.send.mockRejectedValue(
+      await responseError(409, 'The workflow is not running'),
+    );
+    await expect(
+      invoke('update-workflow', {
+        workflowId: 'w',
+        runId: 'r',
+        name: 'setPriority',
+      }),
+    ).rejects.toMatchObject({
+      name: 'ConflictError',
+      message: 'The workflow is not running',
+    });
+  });
+
+  it('tells the caller to give the entityRef that it listed the workflow with', async () => {
+    const { client, invoke } = setup();
+    client.describe.mockRejectedValue(await responseError(404, 'Not found'));
+    client.graph.mockResolvedValue({});
+    await expect(
+      invoke('get-workflow', { workflowId: 'w', runId: 'r' }),
+    ).rejects.toThrow(/gave no entityRef: call again once with the entityRef/);
+    client.describe.mockRejectedValue(await responseError(403, 'Denied'));
+    await expect(
+      invoke('get-workflow', { workflowId: 'w', runId: 'r' }),
+    ).rejects.toThrow(
+      /gave no entityRef: call again once with the entityRef.*do not retry/,
+    );
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'w',
+        runId: 'r',
+        namespace: 'default',
+        entityRef: 'component:default/orders',
+      }),
+    ).rejects.toThrow(/^(?!.*gave no entityRef).*Do not retry/);
   });
 });

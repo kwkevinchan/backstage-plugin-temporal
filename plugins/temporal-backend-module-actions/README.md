@@ -11,10 +11,10 @@ ask a person.
 
 ## Install
 
-The module needs the Temporal backend plugin
-([`@kwkevinchan/backstage-plugin-temporal-backend`](../temporal-backend)) in the
-same Backstage instance or in another backend that the discovery service can
-reach.
+Install the module in the same backend as the Temporal backend plugin
+([`@kwkevinchan/backstage-plugin-temporal-backend`](../temporal-backend)). Its
+plugin ID is `temporal`, so it starts only in the backend that runs that
+plugin.
 
 ```sh
 yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-temporal-backend-module-actions
@@ -43,7 +43,8 @@ Temporal plugin.
 
 Actions are available to other backend plugins through the actions service. To
 serve them to MCP clients, install `@backstage/plugin-mcp-actions-backend` and
-list the Temporal plugin as a source:
+add `temporal` to `backend.actions.pluginSources`. Keep the sources that the
+list already has:
 
 ```yaml
 # app-config.yaml
@@ -64,11 +65,16 @@ MCP client.
 | ----------------- | ---------- | ------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
 | `list-workflows`  | yes        | no            | yes          | The most recent runs of an entity: `entityRef`; `status`, `limit` (10, at most 50)                       |
 | `get-workflow`    | yes        | no            | yes          | One run: `workflowId`; `runId`, `namespace`, `entityRef`. Status, times, initiator, steps, failure, link |
-| `start-workflow`  | no         | no            | no           | Starts a workflow: `entityRef`, or `workflowType` and `taskQueue`; `namespace`, `workflowId`, `args`     |
-| `signal-workflow` | no         | no            | no           | Sends a signal: `workflowId`, `name`; `runId`, `namespace`, `entityRef`, `args`                          |
-| `update-workflow` | no         | no            | no           | Sends an update and returns its result: the same input as `signal-workflow`                              |
+| `start-workflow`  | no         | yes           | no           | Starts a workflow: `entityRef`, or `workflowType` and `taskQueue`; `namespace`, `workflowId`, `args`     |
+| `signal-workflow` | no         | yes           | no           | Sends a signal: `workflowId`, `name`; `runId`, `namespace`, `entityRef`, `args`                          |
+| `update-workflow` | no         | yes           | no           | Sends an update and returns its result: the same input as `signal-workflow`                              |
 
-The attributes are static, so they describe the worst case of each call.
+The attributes are static, so they describe the worst case of each call. The
+actions that change workflows are `destructive` because the module does not
+know what a started workflow, a signal or an update does in the workflow that
+receives it; this is also the Backstage default for an action that is not
+`readOnly`. A filter with `destructive: true` in `backend.actions.filter` hides
+them.
 `start-workflow` is not idempotent because a call without `workflowId` starts a
 new workflow each time; give a `workflowId` to make a repeated call fail
 instead of start a second workflow.
@@ -81,10 +87,12 @@ each call, but a permission to start or signal is not a decision to do it now.
 (when the plugin records it in the `temporal.searchAttributes.initiator`
 search attribute), the number of steps that are completed, running and failed
 with the names of those that run now, the failure of a failed run, and
-`workflowUrl`, the link to the run in Backstage. The failure has the message
-and its causes only when the user has the history permission
-(`temporal.workflow.history.read`); stack traces and the payloads of steps are
-never returned.
+`workflowUrl`, the link to the run in Backstage. The failure always has
+the message, kind and type. Its causes are there only when the user has the
+history permission (`temporal.workflow.history.read`); stack traces and the
+payloads of steps are never returned. The step counts use the step kinds that
+the workflow pages count: activities, timers, child workflows, updates and
+signals sent.
 
 `signal-workflow` and `update-workflow` send only the names that the Temporal
 plugin allows (`temporal.control.allowedSignals` and `allowedUpdates`; every
