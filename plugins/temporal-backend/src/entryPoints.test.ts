@@ -34,7 +34,14 @@ describe('entry points for backend modules', () => {
     jest.isolateModules(() => {
       const node = require('./node');
       expect(node.temporalServiceRef.id).toBe('temporal.client');
-      expect(Object.keys(node).sort()).toEqual(['temporalServiceRef']);
+      expect(Object.keys(node).sort()).toEqual([
+        'CONTROL_DISABLED_MESSAGE',
+        'TemporalPluginClient',
+        'buildWorkflowUrl',
+        'continuedAsNewRunIdOf',
+        'resolveWorkflowNamespace',
+        'temporalServiceRef',
+      ]);
     });
   });
 

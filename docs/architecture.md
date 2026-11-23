@@ -33,6 +33,8 @@ the table with the role of each package and
   systems. It needs the backend.
 - **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
   Definition tab. Each one needs the core of its side.
+- **Actions registry** (`temporal-backend-module-actions`): five actions
+  that AI assistants and MCP clients call as the user.
 - **Scaffolder** (`scaffolder-backend-module-temporal`,
   `scaffolder-module-temporal`): template actions and the workflow picker field.
 - **Development only** (never published): `packages/app`, `packages/app-next`,

@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import { parseEntityRef } from '@backstage/catalog-model';
-import { InputError, NotFoundError, ResponseError } from '@backstage/errors';
+import { InputError, NotFoundError } from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import type { JsonValue } from '@backstage/types';
 import {
-  buildWorkflowRunPath,
   exampleArgs,
-  getTemporalWorkflowSource,
-  InvalidTemporalAnnotationError,
-  InvalidTemporalWorkflowSpecError,
   WorkflowMessageResponse,
-  WorkflowRunRef,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
-import { TemporalPluginClient } from './client';
+import {
+  buildWorkflowUrl,
+  continuedAsNewRunIdOf,
+  resolveWorkflowNamespace,
+  TemporalPluginClient,
+} from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 
 /** Options of the Temporal template actions. */
 export interface TemporalActionsOptions {
@@ -45,61 +44,6 @@ export interface TemporalActionsOptions {
    * given one, else the namespace of the entity, else this one.
    */
   defaultNamespace: string;
-}
-
-/** Link to the run on the Workflows page of the frontend plugin. */
-function workflowUrl(appBaseUrl: string, ref: WorkflowRunRef): string {
-  return `${appBaseUrl.replace(/\/$/, '')}/temporal${buildWorkflowRunPath(
-    ref,
-  )}`;
-}
-
-/**
- * The run an operation was refused on because it continued as new (a 409
- * with `continuedAsNewRunId`), else undefined.
- */
-function continuedAsNewRunIdOf(error: unknown): string | undefined {
-  if (!(error instanceof ResponseError) || error.response.status !== 409) {
-    return undefined;
-  }
-  const runId = (error.body.error as { continuedAsNewRunId?: unknown })
-    .continuedAsNewRunId;
-  return typeof runId === 'string' && runId ? runId : undefined;
-}
-
-/**
- * The namespace of wait and signal: the one given, else the namespace of the
- * entity (read as the user, by the same function the backend uses when it
- * starts the workflow of an entity), else the default one.
- */
-async function resolveNamespace(
-  options: TemporalActionsOptions,
-  input: { namespace?: string; entityRef?: string },
-  credentials: BackstageCredentials,
-): Promise<string> {
-  if (input.namespace) return input.namespace;
-  if (!input.entityRef) return options.defaultNamespace;
-  const entity = await options.catalog.getEntityByRef(input.entityRef, {
-    credentials,
-  });
-  if (!entity) {
-    throw new NotFoundError(
-      `Cannot read the entity ${input.entityRef} to find its Temporal namespace: it does not exist, or you may not read it. Give namespace to skip this lookup`,
-    );
-  }
-  try {
-    return (
-      getTemporalWorkflowSource(entity).namespace ?? options.defaultNamespace
-    );
-  } catch (error) {
-    if (
-      error instanceof InvalidTemporalAnnotationError ||
-      error instanceof InvalidTemporalWorkflowSpecError
-    ) {
-      throw new InputError(error.message);
-    }
-    throw error;
-  }
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -245,7 +189,7 @@ export function createTemporalWorkflowStartAction(
           runId: 'dry-run',
         };
         for (const [k, v] of Object.entries(ref)) ctx.output(k as any, v);
-        ctx.output('workflowUrl', workflowUrl(options.appBaseUrl, ref));
+        ctx.output('workflowUrl', buildWorkflowUrl(options.appBaseUrl, ref));
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
@@ -281,7 +225,7 @@ export function createTemporalWorkflowStartAction(
       ctx.output('namespace', started.namespace);
       ctx.output('workflowId', started.workflowId);
       ctx.output('runId', started.runId);
-      ctx.output('workflowUrl', workflowUrl(options.appBaseUrl, started));
+      ctx.output('workflowUrl', buildWorkflowUrl(options.appBaseUrl, started));
     },
   });
 }
@@ -368,7 +312,7 @@ export function createTemporalWorkflowWaitAction(
       }
       const credentials = await ctx.getInitiatorCredentials();
       const base = {
-        namespace: await resolveNamespace(options, input, credentials),
+        namespace: await resolveWorkflowNamespace(options, input, credentials),
         workflowId: input.workflowId,
       };
       let runId: string | undefined = input.runId;
@@ -537,7 +481,11 @@ export function createTemporalWorkflowSignalAction(
         key: `temporal.${kind}.${ctx.step?.id ?? input.name}`,
         fn: async () => {
           const base = {
-            namespace: await resolveNamespace(options, input, credentials),
+            namespace: await resolveWorkflowNamespace(
+              options,
+              input,
+              credentials,
+            ),
             workflowId: input.workflowId,
           };
           const runId =

@@ -41,7 +41,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 每個數字是一類接口，下面各節照這個順序。青綠色是前端用的，橘色是後端程式用的，紫色是跨過程序邊界的（HTTP、Temporal）。
 
-1. **npm 入口**：六個套件的入口（[npm 入口](#npm-入口)）。
+1. **npm 入口**：七個套件的入口（[npm 入口](#npm-入口)）。
 2. **前端擴充**：blueprint、舊系統的 props 和 `temporalApiRef`（[前端擴充](#前端擴充)）。
 3. **HTTP API**：`/api/temporal` 底下（[HTTP API](#http-api)）。
 4. **後端擴充**：service ref 和擴充點（[後端擴充](#後端擴充)）。
@@ -59,7 +59,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | 套件                                 | 入口       | 名稱數 | 標記                      | 給誰用                             | API report                                                                            |
 | ------------------------------------ | ---------- | -----: | ------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |      3 | `@public`                 | 安裝後端                           | [`report.api.md`](../../plugins/temporal-backend/report.api.md)                       |
-|                                      | `./node`   |      3 | `@public`                 | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
+|                                      | `./node`   |      9 | `@public`                 | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
 |                                      | `./alpha`  |     26 | `@alpha`                  | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |    110 | `@public` 96、`@alpha` 14 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |     25 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
@@ -69,6 +69,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporal-backend-module-zigflow`    | `.`        |      1 | `@public`                 | 安裝模組                           | [`report.api.md`](../../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |      1 | `@public`                 | 舊前端系統                         | [`report.api.md`](../../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |      2 | `@alpha`                  | 新前端系統                         | [`report-alpha.api.md`](../../plugins/temporal-module-zigflow/report-alpha.api.md)    |
+| `temporal-backend-module-actions`    | `.`        |      1 | `@public`                 | 安裝模組                           | [`report.api.md`](../../plugins/temporal-backend-module-actions/report.api.md)        |
 | `scaffolder-backend-module-temporal` | `.`        |      1 | `@public`                 | 安裝模組                           | [`report.api.md`](../../plugins/scaffolder-backend-module-temporal/report.api.md)     |
 | `scaffolder-module-temporal`         | `.`        |      2 | `@public`                 | 舊前端系統                         | [`report.api.md`](../../plugins/scaffolder-module-temporal/report.api.md)             |
 |                                      | `./alpha`  |      2 | `@alpha`                  | 新前端系統                         | [`report-alpha.api.md`](../../plugins/scaffolder-module-temporal/report-alpha.api.md) |
@@ -85,6 +86,9 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporalServiceRef`                                                                                                                                                                      | `./node`  | 共用 Temporal 連線的 root service ref（`temporal.client`）                                            | 其他後端程式要呼叫 Temporal，或你要換掉連線            |
 | `TemporalService`                                                                                                                                                                         | `./node`  | 它的 interface：`getClient()`、`getConnection()`、namespace、search attribute 名稱、Web UI 連結       | 使用或實作這個服務                                     |
 | `TemporalSearchAttributeNames`                                                                                                                                                            | `./node`  | `{ entityRef?, initiator? }`，設定的屬性名稱                                                          | 讀 `getSearchAttributeNames()`                         |
+| `TemporalPluginClient`、`CONTROL_DISABLED_MESSAGE`                                                                                                                                        | `./node`  | 以使用者身分呼叫外掛路由的 client                                                                     | 你的後端模組要代使用者呼叫外掛                         |
+| `buildWorkflowUrl`、`continuedAsNewRunIdOf`                                                                                                                                               | `./node`  | run 在 Backstage 的連結；被拒的操作改接到哪個 run                                                     | 同上                                                   |
+| `resolveWorkflowNamespace`、`WorkflowNamespaceOptions`                                                                                                                                    | `./node`  | 流程的 namespace：給定的、實體的，或預設                                                              | 同上                                                   |
 | `temporalAccessServiceRef`                                                                                                                                                                | `./alpha` | 存取檢查的 plugin scope service ref（`temporal.access`）                                              | 你的模組有自己的路由、要用同樣的檢查，或要自己決定存取 |
 | `temporalAccessServiceFactory`                                                                                                                                                            | `./alpha` | 那個 ref 的預設 factory                                                                               | 只加 `temporalPlugin` 時                               |
 | `TemporalAccessService` 和型別 `TemporalAccessibleWorkflow`、`TemporalEntityContext`、`TemporalWorkflowAccessLevel`                                                                       | `./alpha` | 存取的 interface（[見下](#temporalaccessserviceref)）                                                 | 同上                                                   |
@@ -140,6 +144,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporal-backend-module-zigflow`    | `default`                                                                 | `.`       | 後端模組 `temporal` / `zigflow`：定義檔的路由                                           |
 | `temporal-module-zigflow`            | `EntityTemporalDefinitionContent`                                         | `.`       | 舊系統的 Definition 分頁                                                                |
 |                                      | `default`、`temporalDefinitionContent`                                    | `./alpha` | `temporal` 的前端模組，含 `entity-content:temporal/definition`                          |
+| `temporal-backend-module-actions`    | `default`                                                                 | `.`       | 後端模組 `temporal` / `actions`：actions registry 的五個 action                         |
 | `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | 後端模組 `scaffolder` / `temporal`：三個範本 action                                     |
 | `scaffolder-module-temporal`         | `TemporalWorkflowPickerFieldExtension`、`TemporalWorkflowPickerUiOptions` | `.`       | 舊系統的表單欄位和它的 `ui:options`                                                     |
 |                                      | `default`、`temporalWorkflowPickerFormField`                              | `./alpha` | `scaffolder` 的前端模組，含 `scaffolder-form-field:scaffolder/temporal-workflow-picker` |
@@ -491,6 +496,10 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 `start` 和 `signal` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/result`）。沒給 `runId` 時，`wait` 和 `signal` 從 workflow ID 的 run 清單查出最新的 run（剛啟動的流程可能還不在清單裡；接在 start 後面時請傳 `runId: ${{ steps.start.output.runId }}`）。`wait` 遇到已接續的 run 會換到接續的 run；`signal` 會輸出實際送到的 run，而且當它查到的 run 在這期間被接續時，會改送到接續的 run 一次。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
 `temporal:workflow:wait` 結束後，下一個步驟可以用官方的 `notification:send` 通知相關的人，並把 `link` 設成 `steps.start.output.workflowUrl`。這個做法的限制、較長簽核的替代作法，以及完整範本，見 [Notify when a decision is needed](../../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)（英文）和 [`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml)。
+
+## Actions registry
+
+`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` 在 Backstage 的 actions registry 註冊五個 action：`temporal:list-workflows`、`temporal:get-workflow`、`temporal:start-workflow`、`temporal:signal-workflow`、`temporal:update-workflow`。AI 助理或 MCP client（經 `@backstage/plugin-mcp-actions-backend`）以登入的使用者身分呼叫它們，走和頁面、Scaffolder action 同樣的 HTTP 路由，所以權限檢查和稽核紀錄都一樣。`list-workflows` 和 `get-workflow` 是 `readOnly`；另外三個不是，呼叫方要先問人。取消、終止、重跑不是 action。action、屬性和 MCP 設定見[模組 README](../../plugins/temporal-backend-module-actions/README.md)。
 
 ## Zigflow
 

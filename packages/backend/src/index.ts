@@ -38,6 +38,11 @@ backend.add(
 // The Temporal plugin, with the operations that change workflows
 // (temporal.control.enabled) and the TemporalWorkflow kind of the catalog.
 backend.add(import('@kwkevinchan/backstage-plugin-temporal-backend'));
+// Actions registry actions: an AI assistant or an MCP client calls them as
+// the user.
+backend.add(
+  import('@kwkevinchan/backstage-plugin-temporal-backend-module-actions'),
+);
 // Definition files of TemporalWorkflow entities written for Zigflow.
 backend.add(
   import('@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow'),

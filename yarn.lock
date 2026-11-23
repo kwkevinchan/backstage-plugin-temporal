@@ -5561,6 +5561,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@kwkevinchan/backstage-plugin-temporal-backend-module-actions@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-actions@workspace:plugins/temporal-backend-module-actions":
+  version: 0.0.0-use.local
+  resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-actions@workspace:plugins/temporal-backend-module-actions"
+  dependencies:
+    "@backstage/backend-plugin-api": "backstage:^"
+    "@backstage/backend-test-utils": "backstage:^"
+    "@backstage/cli": "backstage:^"
+    "@backstage/errors": "backstage:^"
+    "@backstage/plugin-catalog-node": "backstage:^"
+    "@backstage/types": "backstage:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:^, @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow":
   version: 0.0.0-use.local
   resolution: "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow@workspace:plugins/temporal-backend-module-zigflow"
@@ -11362,6 +11376,7 @@ __metadata:
     "@backstage/plugin-permission-common": "backstage:^"
     "@backstage/plugin-permission-node": "backstage:^"
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^"
+    "@kwkevinchan/backstage-plugin-temporal-backend-module-actions": "workspace:^"
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^"
     app: "workspace:^"
     better-sqlite3: "npm:^12.0.0"

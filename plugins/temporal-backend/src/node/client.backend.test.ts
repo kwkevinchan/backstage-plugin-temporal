@@ -27,13 +27,10 @@ import {
 } from '@backstage/backend-test-utils';
 import { ResponseError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
-import temporalBackend from '@kwkevinchan/backstage-plugin-temporal-backend';
-import {
-  TemporalService,
-  temporalServiceRef,
-} from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import { AddressInfo } from 'node:net';
+import temporalBackend from '..';
 import { CONTROL_DISABLED_MESSAGE, TemporalPluginClient } from './client';
+import { TemporalService, temporalServiceRef } from './TemporalService';
 
 /** Temporal is never reached in these tests. */
 const temporal: TemporalService = {

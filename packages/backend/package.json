@@ -35,6 +35,7 @@
     "@backstage/plugin-permission-common": "backstage:^",
     "@backstage/plugin-permission-node": "backstage:^",
     "@kwkevinchan/backstage-plugin-temporal-backend": "workspace:^",
+    "@kwkevinchan/backstage-plugin-temporal-backend-module-actions": "workspace:^",
     "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow": "workspace:^",
     "app": "workspace:^",
     "better-sqlite3": "^12.0.0",

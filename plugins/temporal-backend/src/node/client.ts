@@ -28,6 +28,7 @@ import {
   buildWorkflowPath,
   buildWorkflowRunPath,
   WorkflowDetail,
+  WorkflowGraphResponse,
   WorkflowListResponse,
   WorkflowMessageResponse,
   WorkflowRef,
@@ -35,17 +36,50 @@ import {
   WorkflowStartRequest,
   WorkflowResultResponse,
   WorkflowStartResponse,
+  WorkflowStatus,
   WORKFLOWS_PATH,
-} from '@kwkevinchan/backstage-plugin-temporal-backend/common';
+} from '../common';
 
 /**
  * The message of a 404 without an error body from a route that changes
  * workflows: the Temporal backend serves no such route because
  * `temporal.control.enabled` is false there. That backend may be another
  * deployment, so its config cannot be read here.
+ *
+ * @public
  */
 export const CONTROL_DISABLED_MESSAGE =
-  'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false in the app-config of the backend that runs it. Set temporal.control.enabled to true there (it is the default) to start, signal or update workflows from templates';
+  'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false in the app-config of the backend that runs it. Set temporal.control.enabled to true there (it is the default) to start, signal or update workflows';
+
+/**
+ * Builds the link to a run on the Workflows page of the frontend plugin.
+ *
+ * @param appBaseUrl - `app.baseUrl`
+ * @public
+ */
+export function buildWorkflowUrl(
+  appBaseUrl: string,
+  ref: WorkflowRunRef,
+): string {
+  return `${appBaseUrl.replace(/\/$/, '')}/temporal${buildWorkflowRunPath(
+    ref,
+  )}`;
+}
+
+/**
+ * The run an operation was refused on because it continued as new (a 409
+ * with `continuedAsNewRunId`), else undefined.
+ *
+ * @public
+ */
+export function continuedAsNewRunIdOf(error: unknown): string | undefined {
+  if (!(error instanceof ResponseError) || error.response.status !== 409) {
+    return undefined;
+  }
+  const runId = (error.body.error as { continuedAsNewRunId?: unknown })
+    .continuedAsNewRunId;
+  return typeof runId === 'string' && runId ? runId : undefined;
+}
 
 /** True when a response carries a Backstage error body (`{ error }`). */
 async function hasErrorBody(response: Response): Promise<boolean> {
@@ -58,9 +92,12 @@ async function hasErrorBody(response: Response): Promise<boolean> {
 }
 
 /**
- * Calls the routes of the Temporal backend plugin on behalf of the user who
- * runs the template, so that its permission checks, audit records and
- * search attributes apply as when the user uses the pages.
+ * Calls the routes of the Temporal backend plugin on behalf of a user, so
+ * that its permission checks, audit records and search attributes apply as
+ * when the user uses the pages. For backend modules that act for a user, for
+ * example scaffolder actions and actions of the actions registry.
+ *
+ * @public
  */
 export class TemporalPluginClient {
   constructor(
@@ -90,7 +127,7 @@ export class TemporalPluginClient {
     });
     if (response.status === 401) {
       throw new Error(
-        'The Temporal plugin refused the credentials of the user who runs the template; their token may have expired (it lasts about an hour from when the task was created)',
+        'The Temporal plugin refused the credentials of the user; their token may have expired (it lasts about an hour)',
       );
     }
     // A route that changes workflows answers 404 without an error body when
@@ -121,6 +158,39 @@ export class TemporalPluginClient {
       ? buildEntityWorkflowsPath(parseEntityRef(entityRef))
       : WORKFLOWS_PATH;
     return this.call('POST', path, credentials, body, { control: true });
+  }
+
+  /**
+   * One page of the runs of an entity (and of the TemporalWorkflow entities
+   * it depends on), newest first.
+   */
+  listEntityWorkflows(
+    entityRef: string,
+    options: { status?: WorkflowStatus; pageSize?: number },
+    credentials: BackstageCredentials,
+  ): Promise<WorkflowListResponse> {
+    const params = new URLSearchParams();
+    if (options.status) params.set('status', options.status);
+    if (options.pageSize) params.set('pageSize', String(options.pageSize));
+    const search = params.toString() ? `?${params}` : '';
+    return this.call(
+      'GET',
+      buildEntityWorkflowsPath(parseEntityRef(entityRef)) + search,
+      credentials,
+    );
+  }
+
+  /** The steps of a run, with their status; needs the read permission. */
+  graph(
+    ref: WorkflowRunRef,
+    entityRef: string | undefined,
+    credentials: BackstageCredentials,
+  ): Promise<WorkflowGraphResponse> {
+    return this.call(
+      'GET',
+      `${buildWorkflowRunPath(ref)}/graph${query(entityRef)}`,
+      credentials,
+    );
   }
 
   describe(
