@@ -60,6 +60,10 @@ const MAX_LIST_LIMIT = 50;
 /** The most step names that get-workflow returns. */
 const MAX_CURRENT_STEPS = 10;
 
+/** Added to an error of an action on an existing workflow when no entityRef was given. */
+const ENTITY_REF_HINT =
+  ' You gave no entityRef: call again once with the entityRef of the entity that you listed the workflow with.';
+
 /**
  * An answer of the Temporal backend plugin as an error that carries its
  * message: a `ResponseError` only says "Request failed with 400", and an
@@ -72,9 +76,7 @@ function readable(error: unknown, gaveEntityRef: boolean): unknown {
   // Without entityRef the plugin checks the permissions of the whole
   // namespace, which a user may lack although they may read the entity's
   // workflows.
-  const entityHint = gaveEntityRef
-    ? ''
-    : ' You gave no entityRef: call again once with the entityRef of the entity that you listed the workflow with.';
+  const entityHint = gaveEntityRef ? '' : ENTITY_REF_HINT;
   switch (status) {
     case 400:
       return new InputError(message);
@@ -193,7 +195,11 @@ export function registerTemporalActions(
       (await client.latestRunId(base, input.entityRef, credentials));
     if (!runId) {
       throw new NotFoundError(
-        `No run of workflow ${input.workflowId} was found in namespace ${base.namespace}; check the workflow ID and namespace with list-workflows`,
+        `No run of workflow ${input.workflowId} was found in namespace ${
+          base.namespace
+        }; check the workflow ID and namespace with list-workflows.${
+          input.entityRef ? '' : ENTITY_REF_HINT
+        }`,
       );
     }
     return { ...base, runId };

@@ -54,10 +54,20 @@ backend:
       - temporal
 ```
 
-Every action then has the id `temporal:<name>`, for example
-`temporal:list-workflows`. Follow the documentation of
-`@backstage/plugin-mcp-actions-backend` for the endpoint and the sign-in of the
-MCP client.
+The action ids are `temporal:<name>`, for example `temporal:list-workflows`.
+MCP clients see the tools as `temporal.<name>` (with a dot), for example
+`temporal.list-workflows`, because the MCP plugin puts the plugin ID in front of
+the name. The endpoint is `/api/mcp-actions/v1` of the backend.
+
+### Try it in development
+
+An MCP client needs a Backstage token. In the development app, the guest
+provider gives one: `GET http://localhost:7007/api/auth/guest/refresh` returns
+`backstageIdentity.token`; send it as `Authorization: Bearer <token>`. The
+actions then run as the guest user. In production, use the normal sign-in or
+the authentication setup of the MCP plugin itself; see the README and the
+documentation linked there of
+[`@backstage/plugin-mcp-actions-backend`](https://www.npmjs.com/package/@backstage/plugin-mcp-actions-backend).
 
 ## Actions
 

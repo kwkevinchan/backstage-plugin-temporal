@@ -614,6 +614,26 @@ describe('step summary', () => {
 });
 
 describe('errors of the plugin', () => {
+  it('gives the entityRef hint when no run is found and no entityRef was given', async () => {
+    const { client, invoke } = setup();
+    client.latestRunId.mockResolvedValue(undefined);
+    await expect(
+      invoke('get-workflow', { workflowId: 'missing' }),
+    ).rejects.toThrow(
+      /No run of workflow missing was found.*You gave no entityRef: call again once with the entityRef/,
+    );
+    await expect(
+      invoke('signal-workflow', { workflowId: 'missing', name: 'approve' }),
+    ).rejects.toThrow(/You gave no entityRef/);
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'missing',
+        namespace: 'default',
+        entityRef: 'component:default/orders',
+      }),
+    ).rejects.toThrow(/^(?!.*You gave no entityRef).*No run of workflow/);
+  });
+
   it('gives no entityRef hint for a start that is refused or not found', async () => {
     const { client, invoke } = setup();
     client.start.mockRejectedValue(await responseError(403, 'Denied'));
