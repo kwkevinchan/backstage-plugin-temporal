@@ -35,6 +35,7 @@ import { Request } from 'express';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import {
   isValidPathId,
+  MAX_PATH_ID_LENGTH,
   parseEntityRefParam,
   workflowRunRefFromParams,
 } from './params';
@@ -145,11 +146,13 @@ export function auditPathId(value: unknown): string {
 
 /**
  * Canonicalizes a catalog entity reference for initial audit metadata, or
- * returns {@link INVALID_AUDIT_VALUE} when present and malformed.
+ * returns {@link INVALID_AUDIT_VALUE} when present and malformed or overlong.
  */
 export function auditEntityRef(value: unknown): string | undefined {
   if (value === undefined || value === '') return undefined;
-  if (typeof value !== 'string') return INVALID_AUDIT_VALUE;
+  if (typeof value !== 'string' || value.length > MAX_PATH_ID_LENGTH) {
+    return INVALID_AUDIT_VALUE;
+  }
   return canonicalEntityRef(value) ?? INVALID_AUDIT_VALUE;
 }
 

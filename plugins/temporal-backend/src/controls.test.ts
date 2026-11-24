@@ -2210,6 +2210,17 @@ describe('logs', () => {
         }),
       );
 
+      const longEntityRef = `component:default/${'e'.repeat(1001)}`;
+      await request(backend)
+        .post(`${wf}/signal?entityRef=${encodeURIComponent(longEntityRef)}`)
+        .send({ name: 'addNote' });
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({ entityRef: '<invalid>' }),
+        }),
+      );
+
       const badScheduleRes = await request(backend)
         .post(
           `/api/temporal/namespaces/bad%20ns!/schedules/${'s'.repeat(
@@ -2229,7 +2240,7 @@ describe('logs', () => {
         }),
       );
 
-      expect(auditEvent.fail).toHaveBeenCalledTimes(4);
+      expect(auditEvent.fail).toHaveBeenCalledTimes(5);
       expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
     });
 
