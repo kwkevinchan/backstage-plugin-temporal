@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { temporalApiRef } from '../extensions';
 import type { TemporalScheduleActionProps } from '../extensions';
@@ -61,6 +61,19 @@ function ScheduleControlsContent(props: TemporalScheduleActionProps) {
   const { schedule, entity, reload } = props;
   const api = useApi(temporalApiRef);
   const [open, setOpen] = useState<TemporalScheduleOperation>();
+  const mountedRef = useRef(true);
+  const reloadTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (reloadTimerRef.current !== undefined) {
+        clearTimeout(reloadTimerRef.current);
+        reloadTimerRef.current = undefined;
+      }
+    };
+  }, []);
   const entityRef = entity ? stringifyEntityRef(entity) : undefined;
   const operations: TemporalScheduleOperation[] = [
     schedule.paused ? 'unpause' : 'pause',
@@ -94,9 +107,16 @@ function ScheduleControlsContent(props: TemporalScheduleActionProps) {
               undefined,
               { entityRef },
             );
+            if (!mountedRef.current) return;
             reload();
+            if (reloadTimerRef.current !== undefined) {
+              clearTimeout(reloadTimerRef.current);
+            }
             // The schedule list catches up a moment later.
-            setTimeout(reload, 1500);
+            reloadTimerRef.current = setTimeout(() => {
+              reloadTimerRef.current = undefined;
+              if (mountedRef.current) reload();
+            }, 1500);
           }}
         />
       )}

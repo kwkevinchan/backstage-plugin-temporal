@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { memo } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Handle, NodeProps, Position, Node } from '@xyflow/react';
 import type { WorkflowGraphNode, WorkflowNodeKind } from '../../common';
 import {
@@ -116,9 +116,13 @@ export function kindTint(kind: WorkflowNodeKind): string | undefined {
   }
 }
 
+const COUNTDOWN_TICK_MS = 10_000;
+
 /** Status and duration of a tool box, or what it waits for. */
-function toolSubtitle(step: WorkflowGraphNode): string {
-  if (isOpenStep(step)) return stepSubtitle(step) || statusLabel(step.status);
+function toolSubtitle(step: WorkflowGraphNode, now: number): string {
+  if (isOpenStep(step)) {
+    return stepSubtitle(step, now) || statusLabel(step.status);
+  }
   const ms =
     step.startTime && step.endTime
       ? Date.parse(step.endTime) - Date.parse(step.startTime)
@@ -166,6 +170,14 @@ export const StepNode = memo(function StepNodeView(
   props: NodeProps<StepFlowNode>,
 ) {
   const { step, selected, onSelect } = props.data;
+  const hasCountdown = isOpenStep(step) && Boolean(step.deadline);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasCountdown) return undefined;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), COUNTDOWN_TICK_MS);
+    return () => clearInterval(id);
+  }, [hasCountdown, step.deadline?.time]);
   const badge = retryBadge(step);
   if (step.llm || step.tool) {
     const text = step.llm
@@ -217,7 +229,7 @@ export const StepNode = memo(function StepNodeView(
                 {badge && <span className={tp('tp-badge')}>{badge}</span>}
               </span>
               <span className={tp('tp-node-sub', 'tp-tool-sub')}>
-                <span>{toolSubtitle(step)}</span>
+                <span>{toolSubtitle(step, now)}</span>
                 {step.tool?.inferred && (
                   <span
                     className={tp('tp-inferred')}
@@ -243,7 +255,7 @@ export const StepNode = memo(function StepNodeView(
     );
   }
   const dashed = step.kind === 'waiting' || step.status === 'Waiting';
-  const text = stepBoxText(step, Date.now(), { nextRun: props.data.nextRun });
+  const text = stepBoxText(step, now, { nextRun: props.data.nextRun });
   // "Continued as new" is the title already.
   const status =
     statusLabel(step.status) === text.title ? '' : statusLabel(step.status);
