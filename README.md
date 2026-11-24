@@ -691,9 +691,11 @@ Setup, the `spec.definition` field of the entity and the configuration
 ## Configuration
 
 The complete set of keys; only `temporal.connection.address` is required.
-The `definitions` keys belong to the optional Zigflow backend module and are
-described in the README of the Zigflow frontend module
-([`plugins/temporal-module-zigflow`](plugins/temporal-module-zigflow/README.md)).
+The `definitions` keys belong to the optional Zigflow backend module
+([`plugins/temporal-module-zigflow`](plugins/temporal-module-zigflow/README.md)),
+and `actions.allowServiceWrites` belongs to the optional actions registry
+backend module
+([`plugins/temporal-backend-module-actions`](plugins/temporal-backend-module-actions/README.md)).
 
 ```yaml
 temporal:
@@ -738,10 +740,14 @@ temporal:
     #   - host: raw.githubusercontent.com
     #     paths:
     #       - /my-org/my-workflows/
+  # Optional (actions registry backend module): allow service principals to
+  # invoke write actions (start, signal, update). Defaults to false.
+  actions:
+    allowServiceWrites: false
 ```
 
 | Key                             | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
 | `connection.address`            | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                                                                                                                                                                                                           |
 | `connection.namespaces`         | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                                                                                                                                                                                                 |
 | `connection.defaultNamespace`   | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                                                                                                                                                                                                        |
@@ -758,6 +764,7 @@ temporal:
 | `definitions.allow`             | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration (otherwise startup logs a warning).                                                                                                        |
 | `definitions.maxBytes`          | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                                                                                                           |
 | `definitions.readFileLocations` | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |
+| `actions.allowServiceWrites`    | `false`              | Actions module: allow service principals (for example static `backend.auth.externalAccess` tokens) to call write actions (`start-workflow`, `signal-workflow`, `update-workflow`). Read actions remain available regardless of this setting.                                                                                                                                      |     |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi`, `control` and `externalStorage.objectUrl`; the token stays in the

@@ -82,4 +82,98 @@ describe('temporalActionsModule', () => {
       fetchMock.mockRestore();
     }
   });
+
+  it('blocks service writes by default while keeping reads open, and honors temporal.actions.allowServiceWrites', async () => {
+    const service = mockCredentials.service('external:mcp-bot');
+
+    const defaultRegistry = actionsRegistryServiceMock();
+    await startTestBackend({
+      features: [
+        temporalActionsModule,
+        createServiceFactory({
+          service: actionsRegistryServiceRef,
+          deps: {},
+          factory: () => defaultRegistry,
+        }),
+        catalogServiceMock.factory({ entities: [] }),
+        mockServices.rootConfig.factory({
+          data: { app: { baseUrl: 'http://backstage' } },
+        }),
+      ],
+    });
+
+    const fetchDefault = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ items: [] }), { status: 200 }),
+      );
+    try {
+      await expect(
+        defaultRegistry.invoke({
+          id: 'test:list-workflows',
+          input: { entityRef: 'component:default/orders' },
+          credentials: service,
+        }),
+      ).resolves.toMatchObject({ output: { items: [], hasMore: false } });
+      expect(fetchDefault).toHaveBeenCalledTimes(1);
+
+      for (const [id, input] of [
+        ['test:start-workflow', { workflowType: 'wf', taskQueue: 'q' }],
+        [
+          'test:signal-workflow',
+          { workflowId: 'release-1', runId: 'run-1', name: 'approve' },
+        ],
+        [
+          'test:update-workflow',
+          { workflowId: 'release-1', runId: 'run-1', name: 'setPriority' },
+        ],
+      ] as const) {
+        await expect(
+          defaultRegistry.invoke({
+            id,
+            input: { ...input },
+            credentials: service,
+          }),
+        ).rejects.toMatchObject({
+          name: 'NotAllowedError',
+          message: expect.stringMatching(/temporal.actions.allowServiceWrites/),
+        });
+      }
+      expect(fetchDefault).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchDefault.mockRestore();
+    }
+
+    const optInRegistry = actionsRegistryServiceMock();
+    await startTestBackend({
+      features: [
+        temporalActionsModule,
+        createServiceFactory({
+          service: actionsRegistryServiceRef,
+          deps: {},
+          factory: () => optInRegistry,
+        }),
+        catalogServiceMock.factory({ entities: [] }),
+        mockServices.rootConfig.factory({
+          data: {
+            app: { baseUrl: 'http://backstage' },
+            temporal: { actions: { allowServiceWrites: true } },
+          },
+        }),
+      ],
+    });
+    const fetchOptIn = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 202 }));
+    try {
+      await optInRegistry.invoke({
+        id: 'test:signal-workflow',
+        input: { workflowId: 'release-1', runId: 'run-1', name: 'approve' },
+        credentials: service,
+      });
+      expect(fetchOptIn).toHaveBeenCalledTimes(1);
+    } finally {
+      fetchOptIn.mockRestore();
+    }
+  });
 });

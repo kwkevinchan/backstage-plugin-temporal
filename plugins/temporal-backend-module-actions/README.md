@@ -34,7 +34,9 @@ The module uses the actions registry service of Backstage (`@alpha` in
 `@backstage/backend-plugin-api/alpha`), which `createBackend()` of
 `@backstage/backend-defaults` already provides. It reads `app.baseUrl` (for the
 links to the workflow pages) and, as the Temporal plugin does,
-`temporal.connection.defaultNamespace`. There is no config of its own.
+`temporal.connection.defaultNamespace`. Workflow-changing actions reject service
+principals by default; set `temporal.actions.allowServiceWrites: true` to allow
+them (see [Permissions, audit and errors](#permissions-audit-and-errors)).
 
 The module depends on the whole backend package
 `@kwkevinchan/backstage-plugin-temporal-backend`, because it uses its client
@@ -144,21 +146,38 @@ never calls Temporal itself.
 
 The registry gives the credentials of the caller. When the caller
 authenticates as a service (for example an MCP client with a static token from
-`backend.auth.externalAccess`), `auth.getPluginRequestToken` exchanges those
-credentials for a plugin token for `temporal` (`plugin:temporal`), not a token
-carrying the caller's own subject:
+`backend.auth.externalAccess`):
 
-- The Temporal backend sees the service principal `plugin:temporal`. Backstage
-  permission policies are not applied to service principals.
-- Audit logs record `actorId: "plugin:temporal"`, Temporal requests carry
-  `identity: "backstage:plugin:temporal"`, and the `initiator` search attribute
-  records `"plugin:temporal"` rather than a user or the static token's subject.
-- Token `accessRestrictions` in `backend.auth.externalAccess` cannot narrow a
-  service token to read-only Temporal actions: tokens with `permission` or
-  `permissionAttribute` restrictions fail with `NotAllowedError` ("cannot be
-  delegated") on every action (including `list-workflows` and `get-workflow`),
-  a token restricted to `plugin: temporal` only allows all five actions, and a
-  token restricted to other plugins is rejected before any action runs.
+- **Write actions (`start-workflow`, `signal-workflow`, `update-workflow`) are
+  blocked for service principals by default** (`NotAllowedError`), before
+  calling the catalog or the Temporal backend. Read actions (`list-workflows`,
+  `get-workflow`) remain available to service callers.
+- To allow service principals to invoke workflow-changing actions as well, set
+  `temporal.actions.allowServiceWrites: true` in `app-config.yaml`:
+
+  ```yaml
+  # app-config.yaml
+  temporal:
+    actions:
+      allowServiceWrites: true # default: false
+  ```
+
+- Whenever a service principal reaches the Temporal backend (read actions, or
+  write actions when `allowServiceWrites: true`), `auth.getPluginRequestToken`
+  exchanges its credentials for a plugin token for `temporal`
+  (`plugin:temporal`), not a token carrying the caller's own subject:
+  - The Temporal backend sees the service principal `plugin:temporal`. Backstage
+    permission policies are not applied to service principals.
+  - Audit logs record `actorId: "plugin:temporal"`, Temporal requests carry
+    `identity: "backstage:plugin:temporal"`, and the `initiator` search attribute
+    records `"plugin:temporal"` rather than a user or the static token's subject.
+  - Token `accessRestrictions` in `backend.auth.externalAccess` cannot narrow
+    a service token to read-only Temporal actions on its own: tokens with
+    `permission` or `permissionAttribute` restrictions fail with `NotAllowedError`
+    ("cannot be delegated") on every action (including `list-workflows` and
+    `get-workflow`), a token restricted to `plugin: temporal` passes delegation
+    (and writes remain blocked unless `temporal.actions.allowServiceWrites: true`),
+    and a token restricted to other plugins is rejected before any action runs.
 
 To check the permission policy for each person and record their user identity
 in audit logs and `initiator`, connect the MCP client with that user's token.

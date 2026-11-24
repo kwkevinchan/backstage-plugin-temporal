@@ -693,11 +693,14 @@ the name required by the Backstage permission framework.
 
 ## Configuration keys
 
-All keys are under `temporal`. The schemas are the `config.d.ts` of three
-packages: [`temporal-backend`](../plugins/temporal-backend/config.d.ts) (all
-keys below except `definitions`), [`temporal-frontend`](../plugins/temporal-frontend/config.d.ts)
-(the keys the browser sees) and
-[`temporal-backend-module-zigflow`](../plugins/temporal-backend-module-zigflow/config.d.ts).
+All keys are under `temporal`. The schemas are the `config.d.ts` of four
+packages: [`temporal-backend`](../plugins/temporal-backend/config.d.ts) (core
+keys below), [`temporal-frontend`](../plugins/temporal-frontend/config.d.ts)
+(the keys the browser sees),
+[`temporal-backend-module-zigflow`](../plugins/temporal-backend-module-zigflow/config.d.ts)
+(`definitions.*`) and
+[`temporal-backend-module-actions`](../plugins/temporal-backend-module-actions/config.d.ts)
+(`actions.allowServiceWrites`).
 Defaults and meanings are in the [README](../README.md#configuration).
 
 | Key                                                                          | Read by                                                             | Visible in the browser |
@@ -712,6 +715,7 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `control.allowedSignals`, `control.allowedUpdates`                           | backend (rejects), frontend (offers)                                | yes                    |
 | `externalStorage.objectUrl`                                                  | frontend                                                            | yes                    |
 | `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations` | Zigflow backend module                                              |                        |
+| `actions.allowServiceWrites`                                                 | Actions registry backend module                                     |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
 the `workflowUrl` output.
@@ -890,7 +894,11 @@ credentials for `plugin:temporal` (seen by the Temporal backend in the request
 principal, audit `actorId` and `initiator` search attribute); permission policies
 do not apply to service principals, and `externalAccess` tokens with
 `permission` or `permissionAttribute` restrictions fail token delegation on all
-actions (while `plugin: temporal` allows all five). To check each person, the
+actions (while `plugin: temporal` passes delegation). By default, service
+callers are rejected with `NotAllowedError` on the three workflow-changing actions
+(`start-workflow`, `signal-workflow`, `update-workflow`) unless
+`temporal.actions.allowServiceWrites` is set to `true`, while `list-workflows`
+and `get-workflow` remain available. To check each person, the
 MCP client uses the token of that user. Workflow types, step names, failure
 messages and search attributes returned by `list-workflows` and `get-workflow`
 are untrusted data (not instructions); `list-workflows` and `get-workflow` are

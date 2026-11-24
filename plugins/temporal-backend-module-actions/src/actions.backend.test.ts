@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
-import { createServiceFactory } from '@backstage/backend-plugin-api';
+import {
+  createServiceFactory,
+  type BackstageCredentials,
+} from '@backstage/backend-plugin-api';
 import { actionsRegistryServiceRef } from '@backstage/backend-plugin-api/alpha';
 import {
   mockCredentials,
@@ -128,7 +131,9 @@ describe('temporalActionsModule against the Temporal backend', () => {
     await Promise.all(backends.map(b => b.stop()));
   });
 
-  async function setup(options: { deny?: DenyRule[] } = {}) {
+  async function setup(
+    options: { deny?: DenyRule[]; allowServiceWrites?: boolean } = {},
+  ) {
     const deny = options.deny ?? [];
     const workflowService = {
       describeWorkflowExecution: jest.fn(async (req: any) => ({
@@ -232,15 +237,23 @@ describe('temporalActionsModule against the Temporal backend', () => {
         mockServices.rootConfig.factory({
           data: {
             app: { baseUrl: 'http://backstage' },
-            temporal: {},
+            temporal:
+              options.allowServiceWrites === undefined
+                ? {}
+                : {
+                    actions: { allowServiceWrites: options.allowServiceWrites },
+                  },
           },
         }),
       ],
     });
     backends.push(backend);
 
-    const invoke = (name: string, input: object) =>
-      registry.invoke({ id: `test:${name}`, input, credentials: user });
+    const invoke = (
+      name: string,
+      input: object,
+      credentials: BackstageCredentials = user,
+    ) => registry.invoke({ id: `test:${name}`, input, credentials });
 
     return { invoke, workflowService, auditor, auditEvent };
   }
@@ -562,5 +575,131 @@ describe('temporalActionsModule against the Temporal backend', () => {
       }),
     );
     expect(auditEvent.fail).toHaveBeenCalled();
+  });
+
+  it('blocks service principals on write actions by default against the Temporal backend, keeps reads working, and allows writes when opted in', async () => {
+    const service = mockCredentials.service('external:mcp-bot');
+
+    const restricted = await setup();
+    await expect(
+      restricted.invoke(
+        'list-workflows',
+        { entityRef: 'component:default/orders' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { items: [], hasMore: false } });
+    await expect(
+      restricted.invoke(
+        'get-workflow',
+        {
+          workflowId: 'order-1',
+          runId: 'run-1',
+          namespace: 'default',
+          entityRef: 'component:default/orders',
+        },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { workflowId: 'order-1' } });
+
+    for (const [name, input] of [
+      ['start-workflow', { entityRef: 'component:default/orders' }],
+      [
+        'signal-workflow',
+        {
+          workflowId: 'order-1',
+          runId: 'run-1',
+          namespace: 'default',
+          entityRef: 'component:default/orders',
+          name: 'approve',
+        },
+      ],
+      [
+        'update-workflow',
+        {
+          workflowId: 'order-1',
+          runId: 'run-1',
+          namespace: 'default',
+          entityRef: 'component:default/orders',
+          name: 'setPriority',
+        },
+      ],
+    ] as const) {
+      await expect(
+        restricted.invoke(name, { ...input }, service),
+      ).rejects.toMatchObject({
+        name: 'NotAllowedError',
+        message: expect.stringMatching(/temporal.actions.allowServiceWrites/),
+      });
+    }
+    expect(
+      restricted.workflowService.startWorkflowExecution,
+    ).not.toHaveBeenCalled();
+    expect(
+      restricted.workflowService.signalWorkflowExecution,
+    ).not.toHaveBeenCalled();
+    expect(
+      restricted.workflowService.updateWorkflowExecution,
+    ).not.toHaveBeenCalled();
+    expect(restricted.auditor.createEvent).not.toHaveBeenCalled();
+
+    const optedIn = await setup({ allowServiceWrites: true });
+    optedIn.workflowService.describeWorkflowExecution.mockImplementation(
+      async (req: any) => ({
+        workflowExecutionInfo: {
+          execution: {
+            workflowId: req.execution.workflowId,
+            runId: req.execution.runId ?? 'run-1',
+          },
+          type: { name: 'orderWorkflow' },
+          taskQueue: 'orders',
+          status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+          startTime: { seconds: '1700000000', nanos: 0 },
+          historyLength: '2',
+        },
+        pendingActivities: [],
+      }),
+    );
+    await expect(
+      optedIn.invoke(
+        'start-workflow',
+        { entityRef: 'component:default/orders' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { runId: 'started-run-1' } });
+    await expect(
+      optedIn.invoke(
+        'signal-workflow',
+        {
+          workflowId: 'order-1',
+          runId: 'run-1',
+          namespace: 'default',
+          entityRef: 'component:default/orders',
+          name: 'approve',
+        },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { runId: 'run-1' } });
+    await expect(
+      optedIn.invoke(
+        'update-workflow',
+        {
+          workflowId: 'order-1',
+          runId: 'run-1',
+          namespace: 'default',
+          entityRef: 'component:default/orders',
+          name: 'setPriority',
+        },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { runId: 'run-1' } });
+    expect(
+      optedIn.workflowService.startWorkflowExecution,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      optedIn.workflowService.signalWorkflowExecution,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      optedIn.workflowService.updateWorkflowExecution,
+    ).toHaveBeenCalledTimes(1);
   });
 });
