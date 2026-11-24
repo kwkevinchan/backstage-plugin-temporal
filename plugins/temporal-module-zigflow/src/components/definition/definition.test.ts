@@ -398,5 +398,50 @@ describe('run overlay', () => {
     );
     expect(overlay.marks.has('/do/0/one')).toBe(false);
     expect(overlay.marks.get('/do/2/three')?.status).toBe('NotReached');
+    expect(overlay.truncated).toBe(false);
+  });
+
+  it('marks unfound tasks Unknown instead of NotReached or Pending when history is truncated', () => {
+    const doc = {
+      document: { dsl: '1.0.0', workflowType: 'w' },
+      do: [
+        { first: { call: 'activity', with: { name: 'stepOne' } } },
+        {
+          approvals: {
+            listen: {
+              to: {
+                all: [
+                  { with: { id: 'sigA', type: 'signal' } },
+                  { with: { id: 'updB', type: 'update' } },
+                ],
+              },
+            },
+          },
+        },
+        { later: { call: 'activity', with: { name: 'stepTwo' } } },
+      ],
+    };
+
+    const closedTruncated = overlayRun(doc, {
+      ...run('Completed', [
+        step('activity', 'stepOne', 'Completed', 1),
+        step('signal', 'sigA', 'Completed', 2),
+      ]),
+      truncated: true,
+    });
+    expect(closedTruncated.truncated).toBe(true);
+    expect(closedTruncated.marks.get('/do/0/first')?.status).toBe('Completed');
+    expect(closedTruncated.marks.get('/do/1/approvals')?.status).toBe(
+      'Unknown',
+    );
+    expect(closedTruncated.marks.get('/do/2/later')?.status).toBe('Unknown');
+
+    const runningTruncated = overlayRun(doc, {
+      ...run('Running', [step('activity', 'stepOne', 'Completed', 1)]),
+      truncated: true,
+    });
+    expect(runningTruncated.truncated).toBe(true);
+    expect(runningTruncated.marks.get('/do/0/first')?.status).toBe('Completed');
+    expect(runningTruncated.marks.get('/do/2/later')?.status).toBe('Unknown');
   });
 });

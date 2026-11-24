@@ -61,7 +61,11 @@ export interface TaskIdentity {
 }
 
 /** State of a task in a run. */
-export type TaskRunStatus = WorkflowNodeStatus | 'NotReached' | 'Pending';
+export type TaskRunStatus =
+  | WorkflowNodeStatus
+  | 'NotReached'
+  | 'Pending'
+  | 'Unknown';
 
 export interface TaskRunMark {
   status: TaskRunStatus;
@@ -76,6 +80,8 @@ export interface DefinitionOverlay {
   marks: Map<string, TaskRunMark>;
   /** Steps of the run that no task claims. */
   unmatched: number;
+  /** True when the run's history was truncated before its end. */
+  truncated: boolean;
 }
 
 type Obj = Record<string, unknown>;
@@ -252,6 +258,7 @@ export function overlayRun(
   const claimed = new Set<string>();
   const marks = new Map<string, TaskRunMark>();
   const running = run.status === 'Running';
+  const truncated = Boolean(run.truncated);
 
   for (const [pointer, identity] of identities) {
     let found: WorkflowGraphNode[] = [];
@@ -279,8 +286,10 @@ export function overlayRun(
         if ([...names].some(name => !seen.has(name))) {
           // Some of the events have arrived: still waiting for the others.
           for (const step of found) claimed.add(step.id);
+          let status: TaskRunStatus = running ? 'Waiting' : 'NotReached';
+          if (truncated) status = 'Unknown';
           marks.set(pointer, {
-            status: running ? 'Waiting' : 'NotReached',
+            status,
             stepIds: found.map(s => s.id),
             count: 1,
           });
@@ -290,8 +299,10 @@ export function overlayRun(
     }
     if (found.length === 0) {
       if (identity.maybeInChild) continue;
+      let status: TaskRunStatus = running ? 'Pending' : 'NotReached';
+      if (truncated) status = 'Unknown';
       marks.set(pointer, {
-        status: running ? 'Pending' : 'NotReached',
+        status,
         stepIds: [],
         count: 0,
       });
@@ -312,5 +323,6 @@ export function overlayRun(
   return {
     marks,
     unmatched: countable.filter(s => !claimed.has(s.id)).length,
+    truncated,
   };
 }
