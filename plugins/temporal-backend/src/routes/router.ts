@@ -69,6 +69,8 @@ import {
   authorizeOnWorkflow,
   LoadedWorkflow,
   loadRequestWorkflow,
+  optionalBodyString,
+  requestWorkflowMeta,
   workflowMeta,
   workflowPath,
   workflowRunPath,
@@ -407,20 +409,24 @@ export async function createRouter(
   // the worker's code: they need temporal.workflow.query on the entity, and
   // are recorded with the auditor.
   router.post(workflowRunSubpath('query'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const { name, args } = parseMessageBody(req);
-    const entityRef = await authorizeOnWorkflow(
-      access,
-      temporalWorkflowQueryPermission,
-      loaded,
-    );
+    const initialName = optionalBodyString(req, 'name');
     const result = await audited(
       auditor,
       req,
       'workflow-query',
-      workflowMeta(loaded.workflow, entityRef, { name }),
+      requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
-      () => queries.query(loaded.workflow, name, args),
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const { name, args } = parseMessageBody(req);
+        const entityRef = await authorizeOnWorkflow(
+          access,
+          temporalWorkflowQueryPermission,
+          loaded,
+        );
+        setMeta(workflowMeta(loaded.workflow, entityRef, { name }));
+        return queries.query(loaded.workflow, name, args);
+      },
     );
     res.json({ result });
   });
