@@ -221,6 +221,15 @@ false` removes the routes that change workflows (404, not 403) and their
 - **Plain classes, no abstraction in advance.** No repository interfaces and no
   container: the layers are folders, and `plugin.ts` passes the objects to each
   other.
+- **Custom geometry over dagre instead of adopting ELK.** Flat step graphs already
+  ran synchronously on `@dagrejs/dagre` (MIT) inside `@xyflow/react`. Adding
+  event-group frames, row wrapping at minimum readable zoom, stacked loop/group
+  frames, and orthogonal edge-lane routing incrementally on top of dagre kept
+  layout synchronous, preserved identical coordinates for graphs without frames
+  (verified by `layoutBaseline.ts`), and avoided adding `elkjs` (which brings a
+  larger bundle and an asynchronous/worker layout model). Whether ELK was
+  formally benchmarked or prototyped against these requirements beforehand is
+  unconfirmed (no evaluation record exists in the repository).
 - **The SDK's major is the plugin's major.** The backend uses `@temporalio/client`
   1.x; a new major of it is a new major of the plugin packages
   ([Compatibility](../README.md#compatibility)).

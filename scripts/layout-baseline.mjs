@@ -17,8 +17,9 @@
 
 /**
  * Writes `plugins/temporal-frontend/src/components/graph/layoutBaseline.ts`:
- * layouts of `layoutSteps` as it was at commit 58296d1, before the frames
- * of the event groups, for the test that graphs without frames are laid
+ * layouts produced by running `layoutSteps` from commit 58296d1 (before the
+ * frames of the event groups) against the currently installed `@dagrejs/dagre`
+ * and current `../steps`, for the test that graphs without frames are laid
  * out as before. Run it from a clone with that commit:
  *
  *   node scripts/layout-baseline.mjs
@@ -155,9 +156,10 @@ const header = (await import('node:fs'))
 const file = join(graphDir, 'layoutBaseline.ts');
 const source = `${header}
 
-// Layouts of \`layoutSteps\` at commit ${COMMIT}, before the frames of the
-// event groups, for the test that graphs without frames are laid out as
-// before. Written by \`node scripts/layout-baseline.mjs\`.
+// Layouts produced by running \`layoutSteps\` from commit ${COMMIT} (before
+// event-group frames) against the currently installed \`@dagrejs/dagre\` and the
+// current \`../steps\` helpers, for the test that graphs without frames are laid
+// out as before. Written by \`node scripts/layout-baseline.mjs\`.
 
 export const layoutBaseline = ${JSON.stringify(cases)};
 `;

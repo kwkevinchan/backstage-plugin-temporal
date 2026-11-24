@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-// Layouts of `layoutSteps` at commit 58296d1, before the frames of the
-// event groups, for the test that graphs without frames are laid out as
-// before. Written by `node scripts/layout-baseline.mjs`.
+// Layouts produced by running `layoutSteps` from commit 58296d1 (before
+// event-group frames) against the currently installed `@dagrejs/dagre` and the
+// current `../steps` helpers, for the test that graphs without frames are laid
+// out as before. Written by `node scripts/layout-baseline.mjs`.
 
 export const layoutBaseline = [
   {
