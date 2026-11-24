@@ -1282,6 +1282,36 @@ describe('schedule controls', () => {
       .post('/api/temporal/namespaces/secret/schedules/nightly/pause')
       .expect(400);
   });
+
+  it('checks permissions before rejecting an unconfigured namespace on schedule operations', async () => {
+    const forbiddenPath =
+      '/api/temporal/namespaces/forbidden-ns/schedules/nightly/pause';
+    const denied = await start({
+      schedules,
+      deny: ['temporal.workflow.start'],
+    });
+    await request(denied.server)
+      .post(`${forbiddenPath}?entityRef=component:default/orders`)
+      .send({})
+      .expect(403);
+    await request(denied.server).post(forbiddenPath).send({}).expect(403);
+
+    const allowed = await start({ schedules });
+    const withEntityRes = await request(allowed.server)
+      .post(`${forbiddenPath}?entityRef=component:default/orders`)
+      .send({});
+    expect(withEntityRes.status).toBe(400);
+    expect(withEntityRes.body.error.message).toContain(
+      'Temporal namespace is not allowed',
+    );
+    const noEntityRes = await request(allowed.server)
+      .post(forbiddenPath)
+      .send({});
+    expect(noEntityRes.status).toBe(400);
+    expect(noEntityRes.body.error.message).toContain(
+      'Temporal namespace is not allowed',
+    );
+  });
 });
 
 // The request body of these routes is optional. Sent without one (no body,
@@ -1658,11 +1688,17 @@ describe('logs', () => {
       '/api/temporal/workflows?namespace=default',
     );
     expect(list.status).toBe(403);
+    expect(list.body.error.message).toBe(
+      'The workflow list conditions cannot be applied',
+    );
+    expect(list.body.error.message).not.toContain('IS_ENTITY_OWNER');
+    expect(list.body.error.message).not.toContain('Error');
     expect(recorder.records).toContainEqual({
       level: 'warn',
       message:
         'A permission condition cannot be applied, so the list shows nothing',
       meta: { permission: 'temporal.workflow.list', errorName: 'Error' },
+      error: expect.any(Error),
     });
   });
 
