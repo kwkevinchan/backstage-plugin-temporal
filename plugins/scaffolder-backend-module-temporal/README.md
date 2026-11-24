@@ -82,7 +82,15 @@ template; an entity that cannot be read is an error, not the default
 namespace. Pass the `namespace` output of `start` to `wait` and `signal`: it
 saves that read and cannot differ from where the workflow runs. Starting,
 signals and updates are kept in a checkpoint, so a retried task does not start
-or send them again. Dry runs start and send nothing.
+or send them again. When `workflowId` is omitted on `temporal:workflow:start`,
+the action builds a default ID from the workflow type (or entity name), the
+Scaffolder task ID, and the step ID (`<workflow>-<taskId>-<stepId>`), and starts
+it with `workflowIdReusePolicy: REJECT_DUPLICATE`. Even if that workflow has
+already closed before a task retry runs again (for instance, before the
+checkpoint was saved), Temporal refuses to reuse the ID and the action fails
+with a conflict stating that the workflow ID has already been run. Passing an
+explicit `workflowId` keeps Temporal's default workflow ID reuse policy. Dry runs
+start and send nothing.
 
 ## Example
 

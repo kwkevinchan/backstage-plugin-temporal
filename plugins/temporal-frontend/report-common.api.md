@@ -790,6 +790,12 @@ export interface WorkflowHistoryResponse {
 }
 
 // @public
+export type WorkflowIdReusePolicy =
+  | 'ALLOW_DUPLICATE'
+  | 'ALLOW_DUPLICATE_FAILED_ONLY'
+  | 'REJECT_DUPLICATE';
+
+// @public
 export interface WorkflowListResponse {
   // (undocumented)
   items: WorkflowSummary[];
@@ -1077,6 +1083,7 @@ export interface WorkflowStartRequest {
   taskQueue?: string;
   // (undocumented)
   workflowId?: string;
+  workflowIdReusePolicy?: WorkflowIdReusePolicy;
   // (undocumented)
   workflowType?: string;
 }

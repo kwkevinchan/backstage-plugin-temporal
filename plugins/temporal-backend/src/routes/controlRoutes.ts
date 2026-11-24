@@ -39,6 +39,7 @@ import {
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
+  WorkflowIdReusePolicy,
   WorkflowRunRef,
 } from '../common';
 import { TemporalService } from '../node';
@@ -110,6 +111,25 @@ function optionalText(
 
 function parseWorkflowId(value: unknown): string | undefined {
   return optionalText(value, 'workflowId', MAX_WORKFLOW_ID_LENGTH);
+}
+
+const WORKFLOW_ID_REUSE_POLICIES = new Set<WorkflowIdReusePolicy>([
+  'ALLOW_DUPLICATE',
+  'ALLOW_DUPLICATE_FAILED_ONLY',
+  'REJECT_DUPLICATE',
+]);
+
+function parseWorkflowIdReusePolicy(
+  value: unknown,
+): WorkflowIdReusePolicy | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== 'string' ||
+    !WORKFLOW_ID_REUSE_POLICIES.has(value as WorkflowIdReusePolicy)
+  ) {
+    throw new InputError('Invalid workflowIdReusePolicy');
+  }
+  return value as WorkflowIdReusePolicy;
 }
 
 /** The user (or service) a request comes from, as Temporal identity. */
@@ -458,6 +478,9 @@ export function createControlRouter(
       namespace: optionalText(b.namespace, 'namespace', 1000),
       args: parseArgs(b.args),
       workflowId: parseWorkflowId(b.workflowId),
+      workflowIdReusePolicy: parseWorkflowIdReusePolicy(
+        b.workflowIdReusePolicy,
+      ),
     };
   }
 
@@ -525,6 +548,7 @@ export function createControlRouter(
             taskQueue,
             args: start.args,
             workflowId: start.workflowId,
+            workflowIdReusePolicy: start.workflowIdReusePolicy,
             identity: identityOf(credentials),
             searchAttributes: startAttributes(context.entityRef, credentials),
           });
@@ -673,6 +697,7 @@ export function createControlRouter(
           taskQueue,
           args: start.args,
           workflowId: start.workflowId,
+          workflowIdReusePolicy: start.workflowIdReusePolicy,
           identity: identityOf(credentials),
           searchAttributes: startAttributes(undefined, credentials),
         });
