@@ -362,7 +362,14 @@ function GraphCard(props: {
         </Flex>
       </CardHeader>
       <CardBody>
-        {graphError && <ErrorAlert error={graphError} />}
+        {graphError && (
+          <div style={graph ? { marginBottom: 12 } : undefined}>
+            <ErrorAlert
+              title={graph ? 'Could not refresh graph' : undefined}
+              error={graphError}
+            />
+          </div>
+        )}
         {!graph && !graphError && <Loading label="Loading graph" />}
         {graph?.truncated && (
           <Alert
@@ -628,11 +635,27 @@ export function WorkflowDetailPage(
   if (!workflow) {
     return (
       <Flex direction="column" gap="4">
-        {back}
+        <Flex align="center" justify="between" gap="2">
+          {back}
+          <Button
+            variant="secondary"
+            iconStart={<RiRefreshLine />}
+            isPending={refresh.locked || data.refreshing}
+            onPress={refresh.refresh}
+          >
+            Refresh
+          </Button>
+        </Flex>
         <ErrorAlert error={data.error ?? new Error('Workflow not found')} />
       </Flex>
     );
   }
+
+  const graphTabFallback = data.graphError ? (
+    <ErrorAlert error={data.graphError} />
+  ) : (
+    <Loading />
+  );
 
   const extensionProps = {
     workflow,
@@ -832,7 +855,7 @@ export function WorkflowDetailPage(
                 {graph ? (
                   <StepsTable steps={graph.nodes} onSelect={selectFromTab} />
                 ) : (
-                  <Loading />
+                  graphTabFallback
                 )}
               </TabPanel>
               <TabPanel id="timeline">
@@ -846,7 +869,7 @@ export function WorkflowDetailPage(
                     entityRef={entityRef}
                   />
                 ) : (
-                  <Loading />
+                  graphTabFallback
                 )}
               </TabPanel>
               {graph && eventGroups && eventGroups.length > 0 ? (
@@ -859,18 +882,15 @@ export function WorkflowDetailPage(
                 </TabPanel>
               ) : null}
               <TabPanel id="events">
-                {graph ? (
-                  <WorkflowEvents
-                    steps={graph.nodes}
-                    workflowRef={historyRef}
-                    entityRef={entityRef}
-                    reloadKey={historyReload}
-                    payloadsHidden={graph.payloadsHidden}
-                    onSelect={selectFromTab}
-                  />
-                ) : (
-                  <Loading />
-                )}
+                <WorkflowEvents
+                  steps={graph?.nodes}
+                  graphError={data.graphError}
+                  workflowRef={historyRef}
+                  entityRef={entityRef}
+                  reloadKey={historyReload}
+                  payloadsHidden={graph?.payloadsHidden}
+                  onSelect={selectFromTab}
+                />
               </TabPanel>
               <TabPanel id="details">
                 <DetailsTab workflow={workflow} />
