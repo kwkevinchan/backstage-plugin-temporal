@@ -86,6 +86,14 @@ export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
 ];
 
 /**
+ * Close events read during `describe()`, keyed by the returned `WorkflowDetail`.
+ * Module-scoped so a detail described by `temporalAccessServiceRef`'s
+ * `WorkflowQueries` instance can be reused by the plugin's own instance when
+ * building a truncated graph, without adding internal fields to `WorkflowDetail`.
+ */
+const describedCloseEvents = new WeakMap<WorkflowDetail, unknown>();
+
+/**
  * The read use cases of the plugin for one workflow: details, membership of
  * an entity, history, steps, graph, run position, queries and message definitions. Callers check permissions first (see
  * `access/`); this class checks that namespaces are allowed and reads
@@ -171,10 +179,14 @@ export class WorkflowQueries {
         ...ref,
         runId: detail.runId,
       });
-      return toWorkflowDetail(json, {
+      const described = toWorkflowDetail(json, {
         ...this.convertOptions(ref.namespace),
         closeEvent,
       });
+      if (closeEvent !== undefined) {
+        describedCloseEvents.set(described, closeEvent);
+      }
+      return described;
     }
     return detail;
   }
@@ -318,10 +330,12 @@ export class WorkflowQueries {
     );
     // A cut history misses the close event, whose failure tells the step
     // the run failed at.
-    const closeEvent =
-      truncated && CLOSED_WITH_FAILURE.includes(workflow.status)
-        ? await this.closeEventOrUndefined(ref)
-        : undefined;
+    let closeEvent: unknown;
+    if (truncated && CLOSED_WITH_FAILURE.includes(workflow.status)) {
+      closeEvent = describedCloseEvents.has(workflow)
+        ? describedCloseEvents.get(workflow)
+        : await this.closeEventOrUndefined(ref);
+    }
     const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,

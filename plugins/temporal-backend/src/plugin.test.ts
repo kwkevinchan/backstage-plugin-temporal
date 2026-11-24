@@ -830,6 +830,88 @@ describe('temporal backend plugin', () => {
       .expect(403);
   });
 
+  it('reuses the close event from describe when a truncated failed run builds its graph', async () => {
+    const workflowService = createFakeWorkflowService();
+    workflowService.describeWorkflowExecution.mockResolvedValue({
+      workflowExecutionInfo: executionInfo({
+        workflowId: 'wf-1',
+        status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
+      }),
+      pendingActivities: [],
+    });
+    workflowService.getWorkflowExecutionHistoryReverse.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '9000',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
+            workflowExecutionFailedEventAttributes: {
+              failure: {
+                message: 'Activity task failed',
+                activityFailureInfo: {
+                  activityType: { name: 'chargeCard' },
+                  scheduledEventId: '8000',
+                },
+                cause: { message: 'Declined', applicationFailureInfo: {} },
+              },
+            },
+          },
+        ],
+      },
+    } as any);
+    workflowService.getWorkflowExecutionHistory.mockImplementation(
+      async (req: any) => {
+        const filter = req?.historyEventFilterType;
+        const isCloseFilter =
+          filter === HISTORY_EVENT_FILTER_CLOSE ||
+          filter === 2 ||
+          filter === 'HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT';
+        if (isCloseFilter) {
+          throw new Error('Unexpected duplicate close-event history read');
+        }
+        return {
+          history: {
+            events: Array.from({ length: 5000 }, (_, i) => ({
+              eventId: String(i + 1),
+              eventType:
+                i === 0
+                  ? 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED'
+                  : 'EVENT_TYPE_WORKFLOW_TASK_SCHEDULED',
+              ...(i === 0
+                ? { workflowExecutionStartedEventAttributes: {} }
+                : { workflowTaskScheduledEventAttributes: {} }),
+            })),
+          },
+          nextPageToken: new Uint8Array([1]),
+        } as any;
+      },
+    );
+
+    const { server } = await start({ workflowService });
+    const res = await request(server).get(
+      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.truncated).toBe(true);
+    expect(res.body.current).toBe('Failed at chargeCard');
+    expect(
+      workflowService.getWorkflowExecutionHistoryReverse,
+    ).toHaveBeenCalledTimes(1);
+    const closeFilterCalls =
+      workflowService.getWorkflowExecutionHistory.mock.calls.filter(
+        ([callReq]: any[]) => {
+          const filter = callReq?.historyEventFilterType;
+          return (
+            filter === HISTORY_EVENT_FILTER_CLOSE ||
+            filter === 2 ||
+            filter === 'HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT'
+          );
+        },
+      );
+    expect(closeFilterCalls).toHaveLength(0);
+  });
+
   it('places a continued run among the runs of its workflow ID', async () => {
     const workflowService = createFakeWorkflowService();
     workflowService.getWorkflowExecutionHistory.mockResolvedValue({
@@ -958,29 +1040,30 @@ describe('temporal backend plugin', () => {
 
   it('reads the failure of a cut history from the close event', async () => {
     const workflowService = createFakeWorkflowService();
+    workflowService.getWorkflowExecutionHistoryReverse.mockResolvedValue({
+      history: {
+        events: [
+          {
+            eventId: '9000',
+            eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
+            workflowExecutionFailedEventAttributes: {
+              failure: {
+                message: 'Activity task failed',
+                activityFailureInfo: {
+                  scheduledEventId: '8000',
+                  activityType: { name: 'publish' },
+                },
+                cause: { message: 'boom', applicationFailureInfo: {} },
+              },
+            },
+          },
+        ],
+      },
+    } as any);
     workflowService.getWorkflowExecutionHistory.mockImplementation(
       async (req: any) => {
         if (req.historyEventFilterType) {
-          return {
-            history: {
-              events: [
-                {
-                  eventId: '9000',
-                  eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_FAILED',
-                  workflowExecutionFailedEventAttributes: {
-                    failure: {
-                      message: 'Activity task failed',
-                      activityFailureInfo: {
-                        scheduledEventId: '8000',
-                        activityType: { name: 'publish' },
-                      },
-                      cause: { message: 'boom', applicationFailureInfo: {} },
-                    },
-                  },
-                },
-              ],
-            },
-          };
+          throw new Error('Unexpected duplicate close-event read');
         }
         // Full pages that never reach the end of the history.
         return {
@@ -1005,6 +1088,14 @@ describe('temporal backend plugin', () => {
       truncated: true,
       current: 'Failed at publish',
     });
+    expect(
+      workflowService.getWorkflowExecutionHistoryReverse,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      workflowService.getWorkflowExecutionHistory.mock.calls.filter(
+        ([callReq]: any[]) => Boolean(callReq?.historyEventFilterType),
+      ),
+    ).toHaveLength(0);
   });
 
   it('lists workflows for entities of any kind', async () => {

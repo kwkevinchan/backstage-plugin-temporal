@@ -256,5 +256,14 @@ false` removes the routes that change workflows (404, not 403) and their
   (`test-fixtures/llm-integrations`, `test-fixtures/event-groups`); the backend
   reads them with its own code, and the frontend tests of those views read graph
   responses built from the same histories.
+- **Synchronous `llmCall` history reads stay well under 200 ms.**
+  Benchmarking `AiWorkflowQueries.llmCall` in-process on Node `v24.22.2` against
+  ~5,000-event synthetic agent histories (covering Vercel AI SDK `toolCallId`,
+  OpenAI Agents SDK inference, dense inferred calls, and 50-call multi-call
+  steps — including reversed scheduling — queried at the first, middle, and last
+  model-call step across 3 warmups + 15 timed iterations) measured medians of
+  `28.21–41.02 ms` (max single run `52.76 ms`), well inside the `200 ms`
+  per-request target, so `llmCall` keeps its simple full-prefix read alongside
+  `MAX_STEP_EVENTS` (`5000`).
 
 Back to [the documentation index](README.md).
