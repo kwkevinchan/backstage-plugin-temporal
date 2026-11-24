@@ -117,5 +117,6 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 - **SDK 的 major 就是外掛的 major。** 後端用 `@temporalio/client` 1.x；它出新的 major，外掛的套件就出新的 major（[Compatibility](../../README.md#compatibility)）。
 - **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器。官方 Temporal AI 整合的 LLM 畫面放在 `components/llm/` 和 `services/llm/`，不需要設定；Event Groups 也是從事件紀錄直接讀。
 - **Worker 寫入的格式，兩邊都有測試。** 官方 Temporal AI 整合的 payload 和 Event Groups 以 history 錄在 `test-fixtures/llm-integrations` 與 `test-fixtures/event-groups`；後端用自己的程式碼讀回，前端畫面測試讀同一批 history 建出的 graph。
+- **同步查詢 `llmCall` 耗時遠低於 200 ms 門檻。** 在 Node `v24.22.2` 以約 5,000 筆事件的合成 agent history（涵蓋 Vercel AI SDK `toolCallId`、OpenAI Agents SDK 推斷、密集推斷與單步 50 次含反序呼叫等情境，分別對第一、中間與最後一個模型呼叫步驟做 3 次預熱與 15 次計時）實測 `AiWorkflowQueries.llmCall`：各情境中位數皆落在 `28.21–41.02 ms`（單次最高 `52.76 ms`），遠低於 `200 ms` 單次請求門檻，因此維持既有搭配 `MAX_STEP_EVENTS`（`5000`）的實作而不額外複雜化。
 
 回到[文件索引](README.md)。
