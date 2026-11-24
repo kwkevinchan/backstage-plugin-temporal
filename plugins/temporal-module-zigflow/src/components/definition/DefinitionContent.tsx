@@ -73,9 +73,9 @@ function locationUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
   try {
     const location = parseLocationRef(value);
-    return location.type === 'url' ? location.target : undefined;
+    return location.type === 'url' ? httpUrl(location.target) : undefined;
   } catch {
-    return /^https?:\/\//.test(value) ? value : undefined;
+    return httpUrl(value);
   }
 }
 
