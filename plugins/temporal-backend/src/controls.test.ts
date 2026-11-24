@@ -463,9 +463,10 @@ describe('workflow controls', () => {
   });
 
   it('operates update, cancel and terminate across the chain from a continued-as-new run using run A permissions only', async () => {
-    const { server, workflowService, permissions, auditor } = await start({
-      status: 'CONTINUED_AS_NEW',
-    });
+    const { server, workflowService, permissions, auditor, auditEvent } =
+      await start({
+        status: 'CONTINUED_AS_NEW',
+      });
     const runAPath =
       '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run-2';
     workflowService.describeWorkflowExecution.mockResolvedValue({
@@ -546,11 +547,17 @@ describe('workflow controls', () => {
           meta: expect.objectContaining({
             workflowId: 'wf-1',
             runId: 'wf-1-run-2',
-            firstRunId: 'wf-1-run-1',
-            scope: 'chain',
           }),
         }),
       );
+      expect(auditEvent.success).toHaveBeenCalledWith({
+        meta: expect.objectContaining({
+          workflowId: 'wf-1',
+          runId: 'wf-1-run-2',
+          firstRunId: 'wf-1-run-1',
+          scope: 'chain',
+        }),
+      });
     }
   });
 
@@ -668,12 +675,15 @@ describe('workflow controls', () => {
   });
 
   it('answers 409 for a rerun of a run that is still running', async () => {
-    const { server, workflowService, auditor } = await start();
+    const { server, workflowService, auditor, auditEvent } = await start();
     const res = await request(server).post(`${wf}/rerun${withEntity}`).send({});
     expect(res.status).toBe(409);
     expect(res.body.error.message).toContain('still running');
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
-    expect(auditor.createEvent).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'workflow-rerun' }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
   });
 
   it('reruns a closed run with its input and search attributes under a new ID', async () => {
@@ -801,7 +811,7 @@ describe('workflow controls', () => {
   });
 
   it('does not start from the Workflows page with a conditional decision', async () => {
-    const { server, workflowService } = await start({
+    const { server, workflowService, auditor, auditEvent } = await start({
       conditional: ['temporal.workflow.start'],
     });
     const res = await request(server)
@@ -809,6 +819,18 @@ describe('workflow controls', () => {
       .send({ workflowType: 'anyWorkflow', taskQueue: 'jobs' });
     expect(res.status).toBe(403);
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-start',
+        meta: expect.objectContaining({
+          workflowType: 'anyWorkflow',
+          taskQueue: 'jobs',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
   });
 
   it('checks the entity from the search attribute without an entityRef', async () => {
@@ -869,13 +891,13 @@ describe('workflow controls', () => {
   });
 
   it.each(controlRoutes)(
-    'answers 403 for %s when the permission is denied',
+    'answers 403 for %s when the permission is denied, and records an audit failure',
     async (operation, path, payload) => {
       const permission =
         operation === 'start'
           ? 'temporal.workflow.start'
           : `temporal.workflow.${operation}`;
-      const { server, workflowService, auditor } = await start({
+      const { server, workflowService, auditor, auditEvent } = await start({
         deny: [permission],
         status: operation === 'rerun' ? 'COMPLETED' : 'RUNNING',
       });
@@ -890,7 +912,16 @@ describe('workflow controls', () => {
       ).not.toHaveBeenCalled();
       expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
       expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
-      expect(auditor.createEvent).not.toHaveBeenCalled();
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: `workflow-${operation}`,
+          severityLevel: operation === 'terminate' ? 'high' : 'medium',
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotAllowedError' }),
+      });
+      expect(auditEvent.success).not.toHaveBeenCalled();
     },
   );
 
@@ -985,7 +1016,7 @@ describe('workflow controls', () => {
     });
 
     it('answers 403 when the action permission is denied', async () => {
-      const { server } = await start({
+      const { server, auditor, auditEvent } = await start({
         action,
         deny: ['temporal.workflow.update'],
       });
@@ -994,6 +1025,15 @@ describe('workflow controls', () => {
         .send({});
       expect(res.status).toBe(403);
       expect(handle).not.toHaveBeenCalled();
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-action',
+          meta: expect.objectContaining({ actionId: 'escalate' }),
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotAllowedError' }),
+      });
     });
 
     it.each([
@@ -1182,13 +1222,26 @@ describe('schedule controls', () => {
   });
 
   it('needs temporal.workflow.start', async () => {
-    const { server, workflowService } = await start({
+    const { server, workflowService, auditor, auditEvent } = await start({
       schedules,
       deny: ['temporal.workflow.start'],
     });
     await request(server).post(path('nightly', 'trigger')).send({}).expect(403);
     // Refused before the schedule is read.
     expect(workflowService.describeSchedule).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'schedule-trigger',
+        meta: expect.objectContaining({
+          scheduleId: 'nightly',
+          operation: 'trigger',
+          entityRef: 'component:default/orders',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
     // Without an entity, the permission must be allowed without conditions.
     const conditional = await start({
       schedules,
@@ -1198,6 +1251,9 @@ describe('schedule controls', () => {
       .post(path('nightly', 'trigger', false))
       .send({})
       .expect(403);
+    expect(conditional.auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
   });
 
   it('answers 404 for an unknown schedule or operation, 400 for a bad note', async () => {

@@ -209,7 +209,7 @@ describe('query routes of the core plugin', () => {
   });
 
   it('answers 403 for a query without temporal.workflow.query', async () => {
-    const { server, workflowService } = await start({
+    const { server, workflowService, auditor, auditEvent } = await start({
       deny: ['temporal.workflow.query'],
     });
     const res = await request(server)
@@ -217,6 +217,17 @@ describe('query routes of the core plugin', () => {
       .send({ name: 'state' });
     expect(res.status).toBe(403);
     expect(workflowService.queryWorkflow).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-query',
+        severityLevel: 'medium',
+        meta: expect.objectContaining({ name: 'state' }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
+    expect(auditEvent.success).not.toHaveBeenCalled();
   });
 
   it('treats an entity search attribute that is not a reference as no entity for a query', async () => {
