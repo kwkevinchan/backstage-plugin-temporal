@@ -1558,7 +1558,20 @@ warning; it does not fail the lint.
     `FetchUrlReader` validates up to 5 redirects against
     `backend.reading.allow`, `HarnessUrlReader` allows same-origin redirects
     or `backend.reading.allow`, and SCM integration readers such as GitHub,
-    GitLab, Bitbucket, Azure and Gitea follow redirects with `fetch`).
+    GitLab, Bitbucket, Azure and Gitea follow redirects with `fetch`). For relative targets, URL parsing treats only the first path
+    segment after the ref marker (`/blob/`, `/tree/`, `/raw/`, `/edit/`,
+    `/src/branch/`, or `/<owner>/<repo>/` on `raw.githubusercontent.com`) as
+    the ref, matching `@backstage/integration`. If an entity lives on a branch
+    whose name contains `/` (such as `feature/x`), `feature` is treated as
+    the ref and `x` as a folder: relative targets still cannot leave the same
+    repository (`repoKey` must match), authenticated GitHub/GitLab/Gitea API
+    reads query `?ref=feature` and return 404, while unauthenticated or raw
+    endpoints that resolve slash-containing refs server-side (such as
+    `raw.githubusercontent.com` or a tokenless GitHub integration falling back
+    to `rawBaseUrl`) can follow `../y/wf.yaml` onto a sibling `feature/y`
+    branch in the same repository. Avoid registering catalog entities on branch
+    names containing `/` when branch-level isolation within the same
+    repository is required.
   - **External Storage link templates (`externalStorage.objectUrl`).** Putting
     `{bucket}` in the path (`https://console.example.com/s3/{bucket}?prefix={key}`)
     or as a subdomain under a fixed domain (`https://{bucket}.s3.example.com/{key}`)

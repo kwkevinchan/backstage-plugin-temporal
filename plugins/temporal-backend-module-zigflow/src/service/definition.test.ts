@@ -715,6 +715,173 @@ describe('DefinitionReader', () => {
     ).toBeUndefined();
   });
 
+  it('characterizes relative targets when the entity branch name contains a slash', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const integrations = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: {
+          github: [{ host: 'github.com' }],
+          gitlab: [{ host: 'gitlab.com' }],
+          gitea: [{ host: 'gitea.example.com' }],
+        },
+      }),
+    );
+    const reader = readerOf(readUrl, { integrations });
+
+    // parseRepoUrl takes only the first segment after the ref marker as `ref`,
+    // so for branch `feature/x`, `feature` is treated as the ref and `x` as
+    // a folder. Keep repo boundaries intact while locking in exact resolution
+    // across hosts.
+    const allowedCases: Array<{
+      host: string;
+      location: string;
+      target: string;
+      expectedUrl: string;
+    }> = [
+      {
+        host: 'github',
+        location:
+          'url:https://github.com/my-org/my-repo/blob/feature/x/catalog-info.yaml',
+        target: '../y/wf.yaml',
+        expectedUrl: 'https://github.com/my-org/my-repo/tree/feature/y/wf.yaml',
+      },
+      {
+        host: 'github',
+        location:
+          'url:https://github.com/my-org/my-repo/blob/feature/x/catalog-info.yaml',
+        target: './wf.yaml',
+        expectedUrl: 'https://github.com/my-org/my-repo/tree/feature/x/wf.yaml',
+      },
+      {
+        host: 'github',
+        location:
+          'url:https://github.com/my-org/my-repo/blob/feature/x/catalog-info.yaml',
+        target: '/wf.yaml',
+        expectedUrl: 'https://github.com/my-org/my-repo/tree/feature/wf.yaml',
+      },
+      {
+        host: 'gitlab',
+        location:
+          'url:https://gitlab.com/my-org/my-repo/-/blob/feature/x/catalog-info.yaml',
+        target: '../y/wf.yaml',
+        expectedUrl:
+          'https://gitlab.com/my-org/my-repo/-/blob/feature/y/wf.yaml',
+      },
+      {
+        host: 'gitlab',
+        location:
+          'url:https://gitlab.com/my-org/my-repo/-/blob/feature/x/catalog-info.yaml',
+        target: './wf.yaml',
+        expectedUrl:
+          'https://gitlab.com/my-org/my-repo/-/blob/feature/x/wf.yaml',
+      },
+      {
+        host: 'gitlab',
+        location:
+          'url:https://gitlab.com/my-org/my-repo/-/blob/feature/x/catalog-info.yaml',
+        target: '/wf.yaml',
+        expectedUrl: 'https://gitlab.com/my-org/my-repo/-/blob/feature/wf.yaml',
+      },
+      {
+        host: 'gitea',
+        location:
+          'url:https://gitea.example.com/my-org/my-repo/src/branch/feature/x/catalog-info.yaml',
+        target: '../y/wf.yaml',
+        expectedUrl:
+          'https://gitea.example.com/my-org/my-repo/src/branch/feature/y/wf.yaml',
+      },
+      {
+        host: 'gitea',
+        location:
+          'url:https://gitea.example.com/my-org/my-repo/src/branch/feature/x/catalog-info.yaml',
+        target: './wf.yaml',
+        expectedUrl:
+          'https://gitea.example.com/my-org/my-repo/src/branch/feature/x/wf.yaml',
+      },
+      {
+        host: 'raw.githubusercontent.com',
+        location:
+          'url:https://raw.githubusercontent.com/my-org/my-repo/feature/x/catalog-info.yaml',
+        target: '../y/wf.yaml',
+        expectedUrl:
+          'https://raw.githubusercontent.com/my-org/my-repo/feature/y/wf.yaml',
+      },
+      {
+        host: 'raw.githubusercontent.com',
+        location:
+          'url:https://raw.githubusercontent.com/my-org/my-repo/feature/x/catalog-info.yaml',
+        target: './wf.yaml',
+        expectedUrl:
+          'https://raw.githubusercontent.com/my-org/my-repo/feature/x/wf.yaml',
+      },
+      {
+        host: 'raw.githubusercontent.com',
+        location:
+          'url:https://raw.githubusercontent.com/my-org/my-repo/feature/x/catalog-info.yaml',
+        target: '/wf.yaml',
+        expectedUrl:
+          'https://raw.githubusercontent.com/my-org/my-repo/feature/x/catalog-info.yaml/wf.yaml',
+      },
+    ];
+
+    for (const c of allowedCases) {
+      readUrl.mockClear();
+      const result = await reader.read(entity(c.location), spec(c.target));
+      expect(result.error).toBeUndefined();
+      expect(readUrl).toHaveBeenCalledTimes(1);
+      expect(readUrl).toHaveBeenCalledWith(c.expectedUrl);
+    }
+
+    const rejectedCases: Array<{
+      host: string;
+      location: string;
+      target: string;
+    }> = [
+      // Gitea /wf.yaml resolves to .../src/branch/wf.yaml without a filepath segment after ref.
+      {
+        host: 'gitea',
+        location:
+          'url:https://gitea.example.com/my-org/my-repo/src/branch/feature/x/catalog-info.yaml',
+        target: '/wf.yaml',
+      },
+      // Climbing past `feature/` still fails the repository boundary on every host.
+      {
+        host: 'github',
+        location:
+          'url:https://github.com/my-org/my-repo/blob/feature/x/catalog-info.yaml',
+        target: '../../outside/wf.yaml',
+      },
+      {
+        host: 'gitlab',
+        location:
+          'url:https://gitlab.com/my-org/my-repo/-/blob/feature/x/catalog-info.yaml',
+        target: '../../outside/wf.yaml',
+      },
+      {
+        host: 'gitea',
+        location:
+          'url:https://gitea.example.com/my-org/my-repo/src/branch/feature/x/catalog-info.yaml',
+        target: '../../outside/wf.yaml',
+      },
+      {
+        host: 'raw.githubusercontent.com',
+        location:
+          'url:https://raw.githubusercontent.com/my-org/my-repo/feature/x/catalog-info.yaml',
+        target: '../../outside/wf.yaml',
+      },
+    ];
+
+    for (const c of rejectedCases) {
+      readUrl.mockClear();
+      const result = await reader.read(entity(c.location), spec(c.target));
+      expect(result.error?.kind).toBe('read');
+      expect(result.error?.message).toContain('stay in the repository');
+      expect(readUrl).not.toHaveBeenCalled();
+    }
+  });
+
   it('rejects relative targets that climb out of the repository or resolve elsewhere', async () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
