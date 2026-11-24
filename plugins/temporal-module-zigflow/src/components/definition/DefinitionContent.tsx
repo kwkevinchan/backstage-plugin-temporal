@@ -103,11 +103,25 @@ function SourceLinks(props: { entity: Entity }) {
   );
 }
 
+/** Only `http:` and `https:` URLs (parsed with `URL`), else undefined. */
+function httpUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? trimmed
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The source-location and view-url links of an entity, as buttons. */
 function SourceLinkButtons(props: { entity: Entity; empty?: ReactNode }) {
   const annotations = props.entity.metadata.annotations ?? {};
   const source = locationUrl(annotations[ANNOTATION_SOURCE_LOCATION]);
-  const view = annotations[ANNOTATION_VIEW_URL];
+  const view = httpUrl(annotations[ANNOTATION_VIEW_URL]);
   const links = [
     ...(source ? [{ label: 'Source code', href: source }] : []),
     ...(view && view !== source
