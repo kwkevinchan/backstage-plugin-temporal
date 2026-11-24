@@ -16,7 +16,12 @@
 
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import { parseEntityRef } from '@backstage/catalog-model';
-import { InputError, NotFoundError, ResponseError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotFoundError,
+  ResponseError,
+} from '@backstage/errors';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import type { JsonValue } from '@backstage/types';
@@ -208,7 +213,7 @@ export function createTemporalWorkflowStartAction(
             .string()
             .optional()
             .describe(
-              'Workflow ID; one is made from the workflow type when left out',
+              'Workflow ID; when left out, one is made from the workflow/entity, task ID, and step ID and started with REJECT_DUPLICATE so it cannot run more than once',
             ),
         args: z =>
           z
@@ -233,6 +238,8 @@ export function createTemporalWorkflowStartAction(
         throw new InputError('Give entityRef, or workflowType and taskQueue');
       }
       const args = exampleArgs(ctx.input.args as JsonValue | undefined);
+      const explicitId = workflowId?.trim() || undefined;
+      const usingDefaultId = !explicitId;
       if (ctx.isDryRun) {
         ctx.logger.info(
           `Dry run: would start ${workflowType ?? entityRef} with ${
@@ -241,7 +248,7 @@ export function createTemporalWorkflowStartAction(
         );
         const ref = {
           namespace: namespace ?? options.defaultNamespace,
-          workflowId: workflowId ?? 'dry-run',
+          workflowId: explicitId ?? 'dry-run',
           runId: 'dry-run',
         };
         for (const [k, v] of Object.entries(ref)) ctx.output(k as any, v);
@@ -249,11 +256,12 @@ export function createTemporalWorkflowStartAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      // Without a workflow ID, one from the task and the step: a retry that
-      // runs again after the start (before the checkpoint was kept) is
-      // refused by Temporal instead of starting a second workflow.
+      // Without a workflow ID, build one from the task and the step and send
+      // REJECT_DUPLICATE: a retry that runs again after the start (even if
+      // that first workflow has already closed) is refused by Temporal instead
+      // of starting a second workflow.
       const id =
-        workflowId ??
+        explicitId ??
         `${workflowType ?? parseEntityRef(entityRef!).name}-${ctx.task.id}${
           ctx.step?.id ? `-${ctx.step.id}` : ''
         }`;
@@ -261,18 +269,34 @@ export function createTemporalWorkflowStartAction(
       const started = await ctx.checkpoint({
         key: `temporal.start.${ctx.step?.id ?? 'start'}`,
         fn: async () => {
-          const response = await options.client.start(
-            {
-              entityRef,
-              workflowType,
-              taskQueue,
-              namespace: entityRef ? undefined : namespace,
-              workflowId: id,
-              args,
-            },
-            credentials,
-          );
-          return { ...response };
+          try {
+            const response = await options.client.start(
+              {
+                entityRef,
+                workflowType,
+                taskQueue,
+                namespace: entityRef ? undefined : namespace,
+                workflowId: id,
+                args,
+                ...(usingDefaultId
+                  ? { workflowIdReusePolicy: 'REJECT_DUPLICATE' as const }
+                  : {}),
+              },
+              credentials,
+            );
+            return { ...response };
+          } catch (error) {
+            if (
+              usingDefaultId &&
+              error instanceof ResponseError &&
+              error.response.status === 409
+            ) {
+              throw new ConflictError(
+                `Workflow ID "${id}" has already been run by this task; the default workflow ID cannot be started more than once. Give an explicit workflowId to start another run, or start a new task`,
+              );
+            }
+            throw error;
+          }
         },
       });
       ctx.logger.info(

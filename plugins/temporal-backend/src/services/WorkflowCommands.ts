@@ -31,6 +31,7 @@ import type {
 import type {
   TemporalScheduleOperation,
   WorkflowDetail,
+  WorkflowIdReusePolicy,
   WorkflowRef,
   WorkflowStartResponse,
 } from '../common';
@@ -100,12 +101,19 @@ function newWorkflowId(prefix: string): string {
 const MAX_UPDATE_POLLS = 5;
 const UPDATE_STAGE_COMPLETED = 3;
 
+const WORKFLOW_ID_REUSE_POLICY: Record<WorkflowIdReusePolicy, number> = {
+  ALLOW_DUPLICATE: 1,
+  ALLOW_DUPLICATE_FAILED_ONLY: 2,
+  REJECT_DUPLICATE: 3,
+};
+
 export interface StartOptions {
   namespace: string;
   workflowType: string;
   taskQueue: string;
   args?: JsonValue[];
   workflowId?: string;
+  workflowIdReusePolicy?: WorkflowIdReusePolicy;
   /** Keyword search attributes to set, by name. */
   searchAttributes: Record<string, string>;
   identity: string;
@@ -406,6 +414,12 @@ export class WorkflowCommands {
           input: encodeJsonPayloads(options.args),
           identity: options.identity,
           requestId: randomUUID(),
+          ...(options.workflowIdReusePolicy
+            ? {
+                workflowIdReusePolicy:
+                  WORKFLOW_ID_REUSE_POLICY[options.workflowIdReusePolicy],
+              }
+            : {}),
           searchAttributes: {
             indexedFields: keywordAttributes(options.searchAttributes),
           },

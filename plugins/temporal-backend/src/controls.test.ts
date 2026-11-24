@@ -824,6 +824,110 @@ describe('workflow controls', () => {
     );
   });
 
+  it('forwards allowed workflowIdReusePolicy on start and omits it when unset', async () => {
+    const { server, workflowService } = await start();
+
+    const entityRes = await request(server)
+      .post(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .send({
+        workflowId: 'id-1',
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      });
+    expect(entityRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-1',
+        workflowIdReusePolicy: 3,
+      }),
+    );
+
+    const directRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-2',
+        workflowIdReusePolicy: 'ALLOW_DUPLICATE_FAILED_ONLY',
+      });
+    expect(directRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-2',
+        workflowIdReusePolicy: 2,
+      }),
+    );
+
+    const allowRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-3',
+        workflowIdReusePolicy: 'ALLOW_DUPLICATE',
+      });
+    expect(allowRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[2][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-3',
+        workflowIdReusePolicy: 1,
+      }),
+    );
+
+    const plainRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-4',
+      });
+    expect(plainRes.status).toBe(201);
+    expect(
+      workflowService.startWorkflowExecution.mock.calls[3][0],
+    ).not.toHaveProperty('workflowIdReusePolicy');
+  });
+
+  it('rejects unsupported or invalid workflowIdReusePolicy values with 400', async () => {
+    const { backend, workflowService } = await start();
+    for (const bad of ['TERMINATE_IF_RUNNING', 'UNKNOWN', null]) {
+      const entityRes = await request(backend)
+        .post(
+          '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+        )
+        .send({ workflowId: 'id-bad', workflowIdReusePolicy: bad });
+      expect(entityRes.status).toBe(400);
+
+      const directRes = await request(backend)
+        .post('/api/temporal/workflows')
+        .send({
+          workflowType: 'anyWorkflow',
+          taskQueue: 'jobs',
+          workflowId: 'id-bad',
+          workflowIdReusePolicy: bad,
+        });
+      expect(directRes.status).toBe(400);
+    }
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 when startWorkflowExecution rejects a duplicate workflow ID', async () => {
+    const { server, workflowService } = await start();
+    workflowService.startWorkflowExecution.mockRejectedValueOnce(
+      grpcError(6, 'Workflow execution already finished'),
+    );
+    const res = await request(server)
+      .post(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .send({
+        workflowId: 'dup-id',
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.error.name).toBe('ConflictError');
+  });
+
   it('does not start from the Workflows page with a conditional decision', async () => {
     const { server, workflowService, auditor, auditEvent } = await start({
       conditional: ['temporal.workflow.start'],
