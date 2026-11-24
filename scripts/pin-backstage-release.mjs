@@ -47,16 +47,46 @@ if (releaseIdx !== -1) {
 }
 const release = backstageJson.version;
 
-const res = await fetch(
-  `https://versions.backstage.io/v1/releases/${release}/manifest.json`,
-);
+const manifestUrl = `https://versions.backstage.io/v1/releases/${release}/manifest.json`;
+
+function warnOrFail(message) {
+  if (check) {
+    console.warn(`${message}; skipping check`);
+    process.exit(0);
+  }
+  console.error(message);
+  process.exit(1);
+}
+
+let res;
+try {
+  res = await fetch(manifestUrl, { signal: AbortSignal.timeout(15_000) });
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  warnOrFail(
+    `Could not reach ${manifestUrl} for release ${release}: ${detail}`,
+  );
+}
+
 if (!res.ok) {
+  if (res.status !== 404) {
+    warnOrFail(
+      `Could not fetch manifest for release ${release}: HTTP ${res.status}`,
+    );
+  }
   console.error(
     `Could not fetch manifest for release ${release}: ${res.status}`,
   );
   process.exit(1);
 }
-const manifest = await res.json();
+
+let manifest;
+try {
+  manifest = await res.json();
+} catch (error) {
+  const detail = error instanceof Error ? error.message : String(error);
+  warnOrFail(`Could not parse manifest for release ${release}: ${detail}`);
+}
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const others = Object.fromEntries(

@@ -315,8 +315,14 @@ describe('temporal backend plugin', () => {
         `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}`,
       )
       .expect(403);
+    await request(server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`,
+      )
+      .expect(403);
     expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.getWorkflowExecutionHistory).not.toHaveBeenCalled();
   });
 
   it('requires a user', async () => {
@@ -926,6 +932,28 @@ describe('temporal backend plugin', () => {
     expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledTimes(
       1,
     );
+  });
+
+  it('denies /progress without read permission (403 with entityRef, 404 without entityRef)', async () => {
+    const withEntity = await start({ deny: ['temporal.workflow.read'] });
+    await request(withEntity.server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`,
+      )
+      .expect(403);
+    expect(
+      withEntity.workflowService.getWorkflowExecutionHistory,
+    ).not.toHaveBeenCalled();
+
+    const withoutEntity = await start({ deny: ['temporal.workflow.list'] });
+    await request(withoutEntity.server)
+      .get(
+        '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress',
+      )
+      .expect(404);
+    expect(
+      withoutEntity.workflowService.getWorkflowExecutionHistory,
+    ).not.toHaveBeenCalled();
   });
 
   it('reads the failure of a cut history from the close event', async () => {

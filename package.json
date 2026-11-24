@@ -67,7 +67,6 @@
     "husky": "^9.1.0",
     "jest": "~30.2.0",
     "jsdom": "^27.1.0",
-    "lint-staged": "^15.2.0",
     "node-gyp": "^10.0.0",
     "prettier": "^2.3.2",
     "protobufjs": "^8.8.1",
@@ -300,14 +299,5 @@
     "@backstage/ui": "0.19.0",
     "@backstage/version-bridge": "1.0.12"
   },
-  "prettier": "@backstage/cli/config/prettier",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,mjs,cjs}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
-  }
+  "prettier": "@backstage/cli/config/prettier"
 }
