@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes, useParams } from 'react-router-dom';
 import { configApiRef, identityApiRef } from '@backstage/core-plugin-api';
@@ -951,6 +958,51 @@ describe('ScheduleControls', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Run now' })).toBeDisabled(),
     );
+  });
+
+  it('clears the delayed reload timer when unmounted', async () => {
+    const reload = jest.fn();
+    function Harness() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setShown(false)}>
+            Unmount controls
+          </button>
+          {shown && (
+            <ScheduleControls
+              schedule={schedule}
+              entity={entity}
+              reload={reload}
+            />
+          )}
+        </>
+      );
+    }
+
+    render(<Harness />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Pause' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Pause',
+    });
+
+    jest.useFakeTimers();
+    try {
+      fireEvent.click(confirm);
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(reload).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Unmount controls' }));
+      act(() => {
+        jest.advanceTimersByTime(2000);
+      });
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
 

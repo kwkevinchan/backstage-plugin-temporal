@@ -26,24 +26,49 @@ import { tp } from './styles';
 /** Most progress requests in flight at once, for all lists on the page. */
 export const MAX_PROGRESS_REQUESTS = 4;
 
-let active = 0;
-const queue: (() => void)[] = [];
+type QueuedTask = {
+  run: () => void;
+};
 
-/** Runs `task` when fewer than {@link MAX_PROGRESS_REQUESTS} are running. */
-function limited<T>(task: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
+let active = 0;
+const queue: QueuedTask[] = [];
+
+/**
+ * Runs `task` when fewer than {@link MAX_PROGRESS_REQUESTS} are running and
+ * returns a `cancel` handle that drops it from the queue before it starts.
+ */
+function enqueueLimited<T>(task: () => Promise<T>): {
+  promise: Promise<T>;
+  cancel: () => void;
+} {
+  let entry: QueuedTask | undefined;
+  const promise = new Promise<T>((resolve, reject) => {
     const run = () => {
+      entry = undefined;
       active += 1;
       task()
         .then(resolve, reject)
         .finally(() => {
           active -= 1;
-          queue.shift()?.();
+          queue.shift()?.run();
         });
     };
-    if (active < MAX_PROGRESS_REQUESTS) run();
-    else queue.push(run);
+    if (active < MAX_PROGRESS_REQUESTS) {
+      run();
+    } else {
+      entry = { run };
+      queue.push(entry);
+    }
   });
+  return {
+    promise,
+    cancel: () => {
+      if (!entry) return;
+      const index = queue.indexOf(entry);
+      if (index !== -1) queue.splice(index, 1);
+      entry = undefined;
+    },
+  };
 }
 
 /** True once the element has been on screen. */
@@ -112,7 +137,7 @@ export function WorkflowProgress(props: {
   useEffect(() => {
     if (!seen) return undefined;
     let cancelled = false;
-    limited(() =>
+    const { promise, cancel } = enqueueLimited(() =>
       temporalApi.getWorkflowProgress(
         {
           namespace: workflow.namespace,
@@ -121,12 +146,14 @@ export function WorkflowProgress(props: {
         },
         { entityRef },
       ),
-    ).then(
+    );
+    promise.then(
       value => !cancelled && setProgress(value),
       () => !cancelled && setFailed(true),
     );
     return () => {
       cancelled = true;
+      cancel();
     };
   }, [
     seen,

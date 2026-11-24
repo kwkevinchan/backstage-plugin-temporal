@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { screen } from '@testing-library/react';
+import { useState } from 'react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import type { WorkflowProgressResponse, WorkflowSummary } from '../common';
 import { temporalApiRef } from '../extensions';
@@ -254,5 +255,78 @@ describe('WorkflowProgress', () => {
     );
     expect(await screen.findByText('—')).toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it('drops queued progress requests when a row unmounts before starting', async () => {
+    const deferred = new Map<
+      string,
+      { resolve: (value: WorkflowProgressResponse) => void }
+    >();
+    const requested: string[] = [];
+    const api = {
+      getWorkflowProgress: jest.fn((ref: { workflowId: string }) => {
+        requested.push(ref.workflowId);
+        return new Promise<WorkflowProgressResponse>(resolve => {
+          deferred.set(ref.workflowId, { resolve });
+        });
+      }),
+    };
+
+    function QueueList() {
+      const [ids, setIds] = useState(['w1', 'w2', 'w3', 'w4', 'w5', 'w6']);
+      return (
+        <TestApiProvider apis={[[temporalApiRef, api]]}>
+          <button
+            type="button"
+            onClick={() => setIds(current => current.filter(id => id !== 'w5'))}
+          >
+            Unmount w5
+          </button>
+          {ids.map(id => (
+            <WorkflowProgress
+              key={id}
+              workflow={{
+                ...baseWorkflow,
+                workflowId: id,
+                runId: `run-${id}`,
+              }}
+            />
+          ))}
+        </TestApiProvider>
+      );
+    }
+
+    await renderInTestApp(<QueueList />);
+    await waitFor(() => expect(requested).toEqual(['w1', 'w2', 'w3', 'w4']));
+
+    // Unmount w5 while queued behind the 4 active requests.
+    fireEvent.click(screen.getByRole('button', { name: 'Unmount w5' }));
+
+    // Draining the active batch should run w6 without ever requesting w5.
+    await act(async () => {
+      for (const id of ['w1', 'w2', 'w3', 'w4']) {
+        deferred.get(id)!.resolve({
+          status: 'Running',
+          completedSteps: 1,
+          totalSteps: 1,
+          truncated: false,
+        });
+      }
+    });
+    await waitFor(() =>
+      expect(requested).toEqual(['w1', 'w2', 'w3', 'w4', 'w6']),
+    );
+    expect(requested).not.toContain('w5');
+
+    // Finish w6 so module-level concurrency state returns to idle.
+    await act(async () => {
+      deferred.get('w6')!.resolve({
+        status: 'Running',
+        completedSteps: 6,
+        totalSteps: 6,
+        truncated: false,
+      });
+    });
+    expect(await screen.findByText('6 steps done')).toBeInTheDocument();
   });
 });
