@@ -228,6 +228,66 @@ describe('Definition tab', () => {
     ).toHaveAttribute('href', viewUrl);
   });
 
+  it.each([
+    'url:javascript:alert(1)',
+    'url:data:text/html,x',
+    'url:file:///tmp/x',
+    'url:ftp://git.example.com/x',
+  ])('hides Source code when backstage.io/source-location is %s', async loc => {
+    const api = mockTemporalApi();
+    await render(
+      {
+        ...codeEntity,
+        metadata: {
+          ...codeEntity.metadata,
+          annotations: {
+            'backstage.io/source-location': loc,
+            'backstage.io/view-url':
+              'https://git.example.com/org/repo/blob/main/src/workflows.ts',
+          },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source-links');
+    expect(
+      within(card).getByRole('link', { name: /View the file/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('link', { name: /Source code/ }),
+    ).toBeNull();
+  });
+
+  it.each([
+    [
+      'url:https://git.example.com/org/repo/tree/main/src/',
+      'https://git.example.com/org/repo/tree/main/src/',
+    ],
+    [
+      'url:http://git.example.com/org/repo/tree/main/src/',
+      'http://git.example.com/org/repo/tree/main/src/',
+    ],
+  ])(
+    'shows Source code when backstage.io/source-location is %s',
+    async (loc, expectedHref) => {
+      const api = mockTemporalApi();
+      await render(
+        {
+          ...codeEntity,
+          metadata: {
+            ...codeEntity.metadata,
+            annotations: { 'backstage.io/source-location': loc },
+          },
+        },
+        api,
+      );
+      const card = await screen.findByTestId('definition-source-links');
+      expect(
+        within(card).getByRole('link', { name: /Source code/ }),
+      ).toHaveAttribute('href', expectedHref);
+    },
+  );
+
   it('shows the source of a workflow written in code, with its function marked', async () => {
     const api = mockTemporalApi();
     const source = [
