@@ -81,6 +81,12 @@ export async function createRouter(
     async (req, res) => {
       const credentials = await httpAuth.credentials(req);
       const entityRef = entityRefFromParams(req);
+      // Intentionally calls access.authorizeOn + catalog.getEntityByRef
+      // instead of access.loadEntity. The permission check and order match
+      // loadEntity (authorize first, then read the entity with the caller's
+      // credentials), but a definition file is catalog metadata rather than
+      // Temporal data, so this route does not load related TemporalWorkflow
+      // entities or enforce the temporal.connection.namespaces allowlist.
       await authorize(entityRef, credentials);
       const entity = await catalog.getEntityByRef(entityRef, { credentials });
       if (!entity || !isTemporalWorkflowEntity(entity)) {
