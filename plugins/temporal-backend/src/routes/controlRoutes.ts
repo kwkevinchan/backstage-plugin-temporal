@@ -486,7 +486,6 @@ export function createControlRouter(
       const credentials = await httpAuth.credentials(req);
       const { namespace, scheduleId } = req.params;
       const operation = req.params.operation as TemporalScheduleOperation;
-      checkNamespace(namespace);
       if (!scheduleId || scheduleId.length > 1000) {
         throw new InputError('Invalid schedule ID');
       }
@@ -495,8 +494,9 @@ export function createControlRouter(
         throw new InputError('A note is only kept by pause and unpause');
       }
       const entityRef = parseEntityRefParam(req.query.entityRef);
-      // The permission first: the schedule is only read for callers that
-      // may start workflows, so its existence is not told to others.
+      // The permission first: the namespace and schedule are only checked for
+      // callers that may start workflows, so neither is told to others.
+      let entityNamespace: string | undefined;
       let entitySources:
         | { taskQueue?: string; workflowTypes: string[] }[]
         | undefined;
@@ -506,11 +506,7 @@ export function createControlRouter(
           temporalWorkflowStartPermission,
           credentials,
         );
-        if (context.namespace !== namespace) {
-          throw new NotFoundError(
-            `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
-          );
-        }
+        entityNamespace = context.namespace;
         // The sources of the entity and of its related entities, the same
         // list as the entity's schedule list; the schedule must belong to one
         // of them (scheduleBelongsToSources).
@@ -520,6 +516,12 @@ export function createControlRouter(
           temporalWorkflowStartPermission,
           undefined,
           credentials,
+        );
+      }
+      checkNamespace(namespace);
+      if (entityNamespace && entityNamespace !== namespace) {
+        throw new NotFoundError(
+          `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
         );
       }
       const schedule = await commands.describeSchedule(namespace, scheduleId);
