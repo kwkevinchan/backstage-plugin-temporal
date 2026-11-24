@@ -1209,4 +1209,67 @@ describe('DefinitionReader', () => {
       ).toThrow('temporal.definitions.allow');
     }
   });
+
+  it('warns on allow rules without paths for Backstage integration hosts and skips warning otherwise', () => {
+    const urlReader = mockServices.urlReader.mock();
+    const warnFor = (data: ConstructorParameters<typeof ConfigReader>[0]) => {
+      const logger = mockServices.logger.mock();
+      logger.child.mockReturnValue(logger);
+      const reader = DefinitionReader.fromConfig(
+        new ConfigReader(data),
+        urlReader,
+        logger,
+      );
+      return { logger, reader };
+    };
+
+    const exactIntegration = warnFor({
+      integrations: { github: [{ host: 'git.example.com' }] },
+      temporal: { definitions: { allow: [{ host: 'git.example.com' }] } },
+    });
+    expect(exactIntegration.reader).toBeInstanceOf(DefinitionReader);
+    expect(exactIntegration.logger.child).toHaveBeenCalledWith({
+      host: 'git.example.com',
+    });
+    expect(exactIntegration.logger.warn).toHaveBeenCalledTimes(1);
+    expect(exactIntegration.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('paths'),
+    );
+
+    const builtInIntegration = warnFor({
+      temporal: { definitions: { allow: [{ host: 'github.com' }] } },
+    });
+    expect(builtInIntegration.logger.warn).toHaveBeenCalledTimes(1);
+
+    const wildcardIntegration = warnFor({
+      integrations: { github: [{ host: 'git.example.com' }] },
+      temporal: { definitions: { allow: [{ host: '*.example.com' }] } },
+    });
+    expect(wildcardIntegration.logger.child).toHaveBeenCalledWith({
+      host: '*.example.com',
+    });
+    expect(wildcardIntegration.logger.warn).toHaveBeenCalledTimes(1);
+
+    const withPaths = warnFor({
+      integrations: { github: [{ host: 'git.example.com' }] },
+      temporal: {
+        definitions: {
+          allow: [{ host: 'git.example.com', paths: ['/my-org/'] }],
+        },
+      },
+    });
+    expect(withPaths.logger.warn).not.toHaveBeenCalled();
+
+    const nonIntegration = warnFor({
+      temporal: {
+        definitions: {
+          allow: [
+            { host: 'docs.internal.example.test' },
+            { host: '*.unconfigured.test' },
+          ],
+        },
+      },
+    });
+    expect(nonIntegration.logger.warn).not.toHaveBeenCalled();
+  });
 });
