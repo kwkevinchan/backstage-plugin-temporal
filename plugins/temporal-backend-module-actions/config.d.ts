@@ -23,9 +23,9 @@ export interface Config {
        * `backend.auth.externalAccess`) to call workflow-changing actions
        * (`start-workflow`, `signal-workflow`, `update-workflow`). Defaults to
        * false so service callers cannot start, signal or update workflows
-       * without user-level permission checks or user confirmation. Read actions
-       * (`list-workflows`, `get-workflow`) are always available to service
-       * callers.
+       * through these actions. This key does not restrict the HTTP routes of
+       * the Temporal backend plugin. Read actions (`list-workflows`,
+       * `get-workflow`) are always available to service callers.
        */
       allowServiceWrites?: boolean;
     };
