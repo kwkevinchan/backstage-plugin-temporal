@@ -49,8 +49,12 @@ export const temporalActionsModule = createBackendModule({
       async init({ actionsRegistry, discovery, auth, config, catalog }) {
         registerTemporalActions(actionsRegistry, {
           client: new TemporalPluginClient(discovery, auth),
+          auth,
           catalog,
           appBaseUrl: config.getString('app.baseUrl'),
+          allowServiceWrites:
+            config.getOptionalBoolean('temporal.actions.allowServiceWrites') ??
+            false,
           // As the Temporal backend plugin reads it.
           defaultNamespace:
             config.getOptionalString('temporal.connection.defaultNamespace') ??

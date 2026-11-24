@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-import { mockCredentials } from '@backstage/backend-test-utils';
+import type { BackstageCredentials } from '@backstage/backend-plugin-api';
+import { mockCredentials, mockServices } from '@backstage/backend-test-utils';
 import { actionsRegistryServiceMock } from '@backstage/backend-test-utils/alpha';
 import { ResponseError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
@@ -41,6 +42,7 @@ const summary = (over: object = {}) => ({
 function setup(
   entities: any[] = [],
   clientOverrides: Record<string, jest.Mock> = {},
+  options: { allowServiceWrites?: boolean } = {},
 ) {
   const client = {
     listEntityWorkflows: jest.fn(),
@@ -54,12 +56,17 @@ function setup(
   const registry = actionsRegistryServiceMock();
   registerTemporalActions(registry, {
     client: client as unknown as TemporalPluginClient,
+    auth: mockServices.auth(),
     catalog: catalogServiceMock({ entities }),
     appBaseUrl: 'http://backstage/',
     defaultNamespace: 'default',
+    ...options,
   });
-  const invoke = (name: string, input: object) =>
-    registry.invoke({ id: `test:${name}`, input, credentials: user });
+  const invoke = (
+    name: string,
+    input: object,
+    credentials: BackstageCredentials = user,
+  ) => registry.invoke({ id: `test:${name}`, input, credentials });
   return { client, registry, invoke };
 }
 
@@ -727,5 +734,109 @@ describe('errors of the plugin', () => {
         entityRef: 'component:default/orders',
       }),
     ).rejects.toThrow(/^(?!.*gave no entityRef).*Do not retry/);
+  });
+
+  it('rejects service principals on write actions by default, keeps read actions open, and allows writes when allowServiceWrites is true', async () => {
+    const service = mockCredentials.service('plugin:mcp-actions');
+    const restricted = setup([], {
+      listEntityWorkflows: jest.fn().mockResolvedValue({ items: [] }),
+      describe: jest.fn().mockResolvedValue({
+        ...summary(),
+        searchAttributes: {},
+      }),
+      graph: jest.fn().mockResolvedValue({
+        status: 'Running',
+        nodes: [],
+        edges: [],
+        completedSteps: 0,
+        totalSteps: 0,
+        truncated: false,
+      }),
+    });
+
+    // Read actions still work for service principals by default.
+    await expect(
+      restricted.invoke(
+        'list-workflows',
+        { entityRef: 'component:default/orders' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { items: [], hasMore: false } });
+    await expect(
+      restricted.invoke(
+        'get-workflow',
+        { workflowId: 'order-1', runId: 'run-1', namespace: 'default' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { workflowId: 'order-1' } });
+
+    // All three write actions fail closed before touching Temporal or catalog.
+    for (const [name, input] of [
+      ['start-workflow', { workflowType: 'wf', taskQueue: 'q' }],
+      ['signal-workflow', { workflowId: 'w', name: 'approve' }],
+      ['update-workflow', { workflowId: 'w', name: 'setPriority' }],
+    ] as const) {
+      await expect(
+        restricted.invoke(name, { ...input }, service),
+      ).rejects.toMatchObject({
+        name: 'NotAllowedError',
+        message: expect.stringMatching(
+          /Service principals cannot call .* by default.*signed-in user token.*temporal.actions.allowServiceWrites/,
+        ),
+      });
+    }
+    expect(restricted.client.latestRunId).not.toHaveBeenCalled();
+    expect(restricted.client.start).not.toHaveBeenCalled();
+    expect(restricted.client.send).not.toHaveBeenCalled();
+
+    // User principals are unchanged when allowServiceWrites is false.
+    restricted.client.start.mockResolvedValue({
+      namespace: 'default',
+      workflowId: 'wf-1',
+      runId: 'r-1',
+    });
+    await expect(
+      restricted.invoke('start-workflow', {
+        workflowType: 'wf',
+        taskQueue: 'q',
+      }),
+    ).resolves.toMatchObject({ output: { runId: 'r-1' } });
+
+    // Opt-in enables service writes.
+    const optedIn = setup(
+      [],
+      {
+        start: jest.fn().mockResolvedValue({
+          namespace: 'default',
+          workflowId: 'wf-2',
+          runId: 'r-2',
+        }),
+        send: jest.fn().mockResolvedValue({ result: { ok: true } }),
+      },
+      { allowServiceWrites: true },
+    );
+    await expect(
+      optedIn.invoke(
+        'start-workflow',
+        { workflowType: 'wf', taskQueue: 'q' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { runId: 'r-2' } });
+    await expect(
+      optedIn.invoke(
+        'signal-workflow',
+        { workflowId: 'wf-2', runId: 'r-2', name: 'approve' },
+        service,
+      ),
+    ).resolves.toMatchObject({ output: { runId: 'r-2' } });
+    await expect(
+      optedIn.invoke(
+        'update-workflow',
+        { workflowId: 'wf-2', runId: 'r-2', name: 'setPriority' },
+        service,
+      ),
+    ).resolves.toMatchObject({
+      output: { runId: 'r-2', result: { ok: true } },
+    });
   });
 });

@@ -409,7 +409,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 ## 設定鍵
 
-所有鍵都在 `temporal` 底下。schema 是三個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表除了 `definitions` 的全部）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）和 [`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)。預設值和意思見 [README](../../README.md#configuration)。
+所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
 
 | 鍵                                                                           | 誰讀                                   | 瀏覽器看得到 |
 | ---------------------------------------------------------------------------- | -------------------------------------- | ------------ |
@@ -423,6 +423,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 | `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）         | 是           |
 | `externalStorage.objectUrl`                                                  | 前端                                   | 是           |
 | `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                       |              |
+| `actions.allowServiceWrites`                                                 | Actions registry 後端模組              |              |
 
 Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
 
@@ -499,7 +500,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Actions registry
 
-`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` 在 Backstage 的 actions registry 註冊五個 action：`temporal:list-workflows`、`temporal:get-workflow`、`temporal:start-workflow`、`temporal:signal-workflow`、`temporal:update-workflow`。AI 助理或 MCP client（經 `@backstage/plugin-mcp-actions-backend`）以呼叫方的身分呼叫它們（登入的使用者；呼叫方以服務身分驗證時，則換為服務主體），走和頁面、Scaffolder action 同樣的 HTTP 路由，對使用者呼叫方的權限檢查和稽核紀錄都一樣。當呼叫方是服務主體（例如 `backend.auth.externalAccess` 的靜態 token）時，`auth.getPluginRequestToken` 會換發 `plugin:temporal` 憑證送往外掛後端，後端收到的請求主體、稽核 `actorId` 與 `initiator` search attribute 均為 `plugin:temporal`（而非靜態 token 的主體）；權限政策不套用在服務身分上，且帶 `permission` 或 `permissionAttribute` 限制的 `externalAccess` token 會在換發時因無法委派而遭拒絕（所有 action 皆失敗），只限 `plugin: temporal` 的 token 則五個 action 皆可使用。要逐人檢查權限並記錄實際使用者，MCP client 需使用該使用者的 token。`list-workflows` 與 `get-workflow` 回傳的流程類型、步驟名稱、失敗訊息與 search attribute 皆為不可信資料（由 worker 或啟動流程者寫入，不應視為對代理程式的指示）；這兩個 action 為 `readOnly`，另外三個則標記為 `destructive`，client 應先向使用者確認再執行，不需寫入時也可用 `backend.actions.filter.exclude` 排除 `attributes: { destructive: true }`。取消、終止、重跑不是 action。action、屬性和 MCP 設定見[模組 README](../../plugins/temporal-backend-module-actions/README.md)。
+`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` 在 Backstage 的 actions registry 註冊五個 action：`temporal:list-workflows`、`temporal:get-workflow`、`temporal:start-workflow`、`temporal:signal-workflow`、`temporal:update-workflow`。AI 助理或 MCP client（經 `@backstage/plugin-mcp-actions-backend`）以呼叫方的身分呼叫它們（登入的使用者；呼叫方以服務身分驗證時，則換為服務主體），走和頁面、Scaffolder action 同樣的 HTTP 路由，對使用者呼叫方的權限檢查和稽核紀錄都一樣。當呼叫方是服務主體（例如 `backend.auth.externalAccess` 的靜態 token）時，`auth.getPluginRequestToken` 會換發 `plugin:temporal` 憑證送往外掛後端，後端收到的請求主體、稽核 `actorId` 與 `initiator` search attribute 均為 `plugin:temporal`（而非靜態 token 的主體）；權限政策不套用在服務身分上，且帶 `permission` 或 `permissionAttribute` 限制的 `externalAccess` token 會在換發時因無法委派而遭拒絕（所有 action 皆失敗），只限 `plugin: temporal` 的 token 則可通過委派。此外，預設會以 `NotAllowedError` 拒絕服務主體呼叫會改動流程的三個寫入 action（`start-workflow`、`signal-workflow`、`update-workflow`），讀取 action（`list-workflows`、`get-workflow`）照舊可用；只有明確設定 `temporal.actions.allowServiceWrites: true` 時才開放服務主體寫入。要逐人檢查權限並記錄實際使用者，MCP client 需使用該使用者的 token。`list-workflows` 與 `get-workflow` 回傳的流程類型、步驟名稱、失敗訊息與 search attribute 皆為不可信資料（由 worker 或啟動流程者寫入，不應視為對代理程式的指示）；這兩個 action 為 `readOnly`，另外三個則標記為 `destructive`，client 應先向使用者確認再執行，不需寫入時也可用 `backend.actions.filter.exclude` 排除 `attributes: { destructive: true }`。取消、終止、重跑不是 action。action、屬性和 MCP 設定見[模組 README](../../plugins/temporal-backend-module-actions/README.md)。
 
 ## Zigflow
 

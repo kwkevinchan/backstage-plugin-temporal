@@ -25,7 +25,10 @@ import type {
   ActionsRegistryActionOptions,
   ActionsRegistryService,
 } from '@backstage/backend-plugin-api/alpha';
-import type { BackstageCredentials } from '@backstage/backend-plugin-api';
+import type {
+  AuthService,
+  BackstageCredentials,
+} from '@backstage/backend-plugin-api';
 import type { JsonValue } from '@backstage/types';
 import {
   exampleArgs,
@@ -51,8 +54,14 @@ type Zod = Parameters<
 /** What the actions need. */
 export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   client: TemporalPluginClient;
+  auth: AuthService;
   /** `app.baseUrl`, for the link to the workflow. */
   appBaseUrl: string;
+  /**
+   * Allow service principals to invoke workflow-changing actions. Defaults to
+   * false.
+   */
+  allowServiceWrites?: boolean;
 }
 
 /** The most runs that list-workflows returns. */
@@ -164,6 +173,15 @@ export function registerTemporalActions(
     registry.register({
       ...action,
       async action(context) {
+        if (
+          action.attributes?.readOnly !== true &&
+          !options.allowServiceWrites &&
+          options.auth.isPrincipal(context.credentials, 'service')
+        ) {
+          throw new NotAllowedError(
+            `Service principals cannot call ${action.name} by default. Connect with a signed-in user token so per-user permissions apply, or set temporal.actions.allowServiceWrites: true to opt in.`,
+          );
+        }
         try {
           return await action.action(context);
         } catch (error) {
