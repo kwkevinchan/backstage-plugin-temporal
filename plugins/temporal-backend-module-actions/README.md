@@ -98,6 +98,14 @@ starts a new run (Temporal's default workflow ID reuse policy).
 permission of that user for each call, but a permission to start or signal is
 not a decision to do it now.
 
+Treat workflow types, step names, failure messages and search attributes
+returned by `list-workflows` and `get-workflow` as untrusted data rather than
+instructions for an agent: they are produced by workers and by callers that
+start workflows. Configure clients to require user confirmation before calling
+any `destructive` action (`start-workflow`, `signal-workflow`,
+`update-workflow`), and if an assistant only needs read access, exclude write
+actions with `backend.actions.filter.exclude` (`attributes: { destructive: true }`).
+
 `get-workflow` returns the status, type, start and close time, the initiator
 (when the plugin records it in the `temporal.searchAttributes.initiator`
 search attribute), the number of steps that are completed, running and failed
@@ -136,14 +144,24 @@ never calls Temporal itself.
 
 The registry gives the credentials of the caller. When the caller
 authenticates as a service (for example an MCP client with a static token from
-`backend.auth.externalAccess`), the action runs as that service:
+`backend.auth.externalAccess`), `auth.getPluginRequestToken` exchanges those
+credentials for a plugin token for `temporal` (`plugin:temporal`), not a token
+carrying the caller's own subject:
 
-- Backstage permission policies are not applied to service principals; only
-  the access restrictions of the token apply.
-- The `initiator` search attribute does not name a user.
+- The Temporal backend sees the service principal `plugin:temporal`. Backstage
+  permission policies are not applied to service principals.
+- Audit logs record `actorId: "plugin:temporal"`, Temporal requests carry
+  `identity: "backstage:plugin:temporal"`, and the `initiator` search attribute
+  records `"plugin:temporal"` rather than a user or the static token's subject.
+- Token `accessRestrictions` in `backend.auth.externalAccess` cannot narrow a
+  service token to read-only Temporal actions: tokens with `permission` or
+  `permissionAttribute` restrictions fail with `NotAllowedError` ("cannot be
+  delegated") on every action (including `list-workflows` and `get-workflow`),
+  a token restricted to `plugin: temporal` only allows all five actions, and a
+  token restricted to other plugins is rejected before any action runs.
 
-To check the permission of each person, connect the MCP client with the
-token of that user.
+To check the permission policy for each person and record their user identity
+in audit logs and `initiator`, connect the MCP client with that user's token.
 
 - A refusal (403) comes back as an error that says who refused and that the
   user lacks the permission. Do not retry it.
