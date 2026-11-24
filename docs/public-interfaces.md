@@ -72,7 +72,7 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 110, of which 96 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 110, ./ui 25 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 110, of which 96 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 110, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
@@ -87,7 +87,7 @@ the tables below say what each name is for.
 | `temporal-frontend`                  | `.`        |    25 | `@public`                 | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |     6 | `@alpha`                  | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
 |                                      | `./common` |   110 | `@public` 96, `@alpha` 14 | The same definitions, for frontend code               | [`report-common.api.md`](../plugins/temporal-frontend/report-common.api.md)        |
-|                                      | `./ui`     |    25 | `@alpha`                  | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal-frontend/report-ui.api.md)                |
+|                                      | `./ui`     |    26 | `@alpha`                  | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal-frontend/report-ui.api.md)                |
 | `temporal-backend-module-zigflow`    | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |     1 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/temporal-module-zigflow/report-alpha.api.md)    |
@@ -161,7 +161,7 @@ The 112 names in groups. Every name is in the
 | `createTemporalControlActionDef`, `TemporalControlActionButtonOptions`                                                                                                            | `.`       | A legacy action whose button runs a custom backend action                                  | Legacy `workflowActions`                                    |
 | `temporalApiRef`, `TemporalApi`, `TemporalClient`                                                                                                                                 | `.`       | The client of the backend: ref, interface and default implementation                       | Another plugin calls the backend, or you replace the client |
 
-`./ui` (graph canvas, status helpers, panels, class names) exists for
+`./ui` (graph canvas, status helpers, panels, class names, `entityContentRouteRef`) exists for
 `temporal-module-zigflow`, which is released with the same version. Its
 names are `@alpha`, with no compatibility promise: other packages should
 not use it.

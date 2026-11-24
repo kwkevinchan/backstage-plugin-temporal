@@ -17,8 +17,9 @@
 /**
  * Building blocks of the Temporal plugin pages for companion packages of
  * this plugin, such as `@kwkevinchan/backstage-plugin-temporal-module-zigflow`:
- * the workflow graph canvas and its layout, node status helpers, panels and
- * the class names of the plugin styles. An app does not need them.
+ * the workflow graph canvas and its layout, node status helpers, panels,
+ * the class names of the plugin styles and the entity tab route ref. An app does
+ * not need them.
  *
  * Alpha: there is no compatibility promise between versions. The companion
  * packages are released with the same version as this plugin and use the
@@ -42,6 +43,7 @@ export {
   statusLabel,
   statusTone,
 } from './components/WorkflowStatusLabel';
+export { entityContentRouteRef } from './routes';
 export { workflowLink } from './components/WorkflowRunsTable';
 export { graphHeight, layoutSteps } from './components/graph/layout';
 export {
