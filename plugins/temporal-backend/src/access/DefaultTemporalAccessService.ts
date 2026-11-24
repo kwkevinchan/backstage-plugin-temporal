@@ -257,9 +257,10 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         })
         .warn(
           'A permission condition cannot be applied, so the list shows nothing',
+          error instanceof Error ? error : undefined,
         );
       throw new NotAllowedError(
-        `The workflow list conditions cannot be applied: ${error}`,
+        'The workflow list conditions cannot be applied',
       );
     }
     if (visibilityQuery === false) {
@@ -362,7 +363,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     },
   ): Promise<TemporalAccessibleWorkflow> {
     const { level, credentials } = options;
-    this.sources.checkNamespace(ref.namespace);
     const permission =
       level === 'history'
         ? temporalWorkflowHistoryReadPermission
@@ -375,6 +375,9 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       permission,
       credentials,
     );
+    // After the permission, so a denied caller cannot probe which
+    // namespaces are configured.
+    this.sources.checkNamespace(ref.namespace);
     try {
       const workflow = await this.queries.describe(ref);
       const matchedEntityRef = await this.queries.assertBelongs(
@@ -424,6 +427,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     );
     const entityMayAllow = entityDecision?.result !== AuthorizeResult.DENY;
     if (!listMayAllow && !entityMayAllow) throw new NotAllowedError();
+    this.sources.checkNamespace(ref.namespace);
     if (listDecisions.every(d => d.result === AuthorizeResult.ALLOW)) {
       return { workflow: await this.queries.describe(ref) };
     }

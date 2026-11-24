@@ -169,12 +169,12 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `./alpha`，`@alpha`。`temporal` 外掛的 **plugin** scope 服務：外掛每條路由都會跑的檢查。外掛的模組（也就是 `createBackendModule({ pluginId: 'temporal' })`）在自己的路由裡用它，讓「誰能看這個流程」只有一個定義。
 
-| 方法                                                                             | 做什麼                                                                                                                                                                                                              |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | 讀流程並做完所有檢查：先查 namespace；有 `entityRef` 時檢查那個實體上的 `read` 或 `history` 權限；沒有時先用 list 權限判斷流程本身，不允許才改看流程 search attribute 指的實體（[順序](#流程在哪個實體上檢查權限)） |
-| `authorizeOn(permission, entityRef, credentials)`                                | 在實體上檢查一個 `catalog-entity` 權限；沒有實體時要求無條件 ALLOW                                                                                                                                                  |
-| `loadEntity(entityRef, permission, credentials)`                                 | 先檢查權限，再讀實體和它依賴的 `TemporalWorkflow` 實體                                                                                                                                                              |
-| `canListAll`、`authorizeWorkflowList`、`canReadPayloads`、`linkWorkflowEntities` | list 權限、它的 visibility 查詢、history 權限、連到流程實體                                                                                                                                                         |
+| 方法                                                                             | 做什麼                                                                                                                                                                                                                                                                                                                 |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | 讀流程並做完所有檢查：先查 namespace；有 `entityRef` 時檢查那個實體上的 `read` 或 `history` 權限；沒有時先用 list 權限判斷流程本身，不允許才改看流程 search attribute 指的實體（[順序](#流程在哪個實體上檢查權限)）。流程是透過依賴的 `TemporalWorkflow` 實體對到時，回傳 `matchedEntityRef`：那個實體上的權限也要檢查 |
+| `authorizeOn(permission, entityRef, credentials)`                                | 在實體上檢查一個 `catalog-entity` 權限；沒有實體時要求無條件 ALLOW                                                                                                                                                                                                                                                     |
+| `loadEntity(entityRef, permission, credentials)`                                 | 先檢查權限，再讀實體和它依賴的 `TemporalWorkflow` 實體                                                                                                                                                                                                                                                                 |
+| `canListAll`、`authorizeWorkflowList`、`canReadPayloads`、`linkWorkflowEntities` | list 權限、它的 visibility 查詢、history 權限、連到流程實體                                                                                                                                                                                                                                                            |
 
 套件的預設匯出會裝上預設 factory（`temporalAccessServiceFactory`）。要用別的方式決定存取，就為這個 ref 加上你自己的 factory，預設的會被略過。這個 ref 是 plugin scope，其他外掛用不到：從其他外掛請改以使用者身分呼叫 [HTTP API](#http-api)。
 
@@ -304,7 +304,7 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 
 #### 流程在哪個實體上檢查權限
 
-- 有 `entityRef`：檢查那個實體上的讀取（`temporal.workflow.read`）或歷史（`temporal.workflow.history.read`）權限，而且流程必須是它的流程（否則 `404`）。當流程是透過開啟實體依賴的 `TemporalWorkflow` 實體對到時（含其子流程透過祖先對到時），權限檢查兩個實體：開啟的實體和實際對到的 `TemporalWorkflow` 實體都必須允許 `temporal.workflow.read`、`temporal.workflow.history.read`（含 `GET /:wf` 的失敗細節、流程圖的輸入和結果，以及 history 層級路由），以及所有操作權限。
+- 有 `entityRef`：檢查那個實體上的讀取（`temporal.workflow.read`）或歷史（`temporal.workflow.history.read`）權限，而且流程必須是它的流程（否則 `404`）。當流程是透過開啟實體依賴的 `TemporalWorkflow` 實體對到時（含其子流程透過祖先對到時），權限檢查兩個實體：開啟的實體和實際對到的 `TemporalWorkflow` 實體都必須允許 `temporal.workflow.read`、`temporal.workflow.history.read`（含 `GET /:wf` 的失敗細節、流程圖的輸入和結果，以及 history 層級路由），以及所有操作權限。開啟實體自己的 annotation 或 search attribute 就對得到流程時，只檢查開啟的實體。
 - 沒有：先用 list 權限判斷流程本身（`temporal.workflow.list`；history 層級還要 `temporal.workflow.history.list`），條件也會套用。不允許時，改對流程 `searchAttributes.entityRef` 屬性指的實體做上面的檢查。list 權限和實體上的讀取權限都不可能允許的呼叫者，在讀流程之前就回 `403`。其他人，除非 list 權限允許所有流程，打不開的流程（沒有這個屬性，或透過他讀不到的實體）回的 `404` 和流程不存在時一樣。
 - 操作接著檢查自己的權限：在讀取時用的實體上（若透過依賴的 `TemporalWorkflow` 實體對到，也必須同時在對到的實體上允許），否則在 search attribute 指的實體上；兩者都沒有時，這個權限必須無條件允許。
 

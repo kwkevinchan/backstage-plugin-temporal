@@ -1695,4 +1695,39 @@ describe('temporal backend plugin', () => {
       expect(graph.body.nodes[0].input).toBeUndefined();
     });
   });
+
+  describe('permission before namespace checks', () => {
+    const unconfiguredPath =
+      '/api/temporal/namespaces/forbidden-ns/workflows/wf-1/runs/wf-1-run';
+
+    it('checks permissions before rejecting an unconfigured namespace when entityRef is given', async () => {
+      const denied = await start({ deny: ['temporal.workflow.read'] });
+      await request(denied.server)
+        .get(`${unconfiguredPath}?entityRef=${ref}`)
+        .expect(403);
+
+      const allowed = await start();
+      const res = await request(allowed.server).get(
+        `${unconfiguredPath}?entityRef=${ref}`,
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain(
+        'Temporal namespace is not allowed',
+      );
+    });
+
+    it('checks permissions before rejecting an unconfigured namespace without entityRef', async () => {
+      const denied = await start({
+        deny: ['temporal.workflow.list', 'temporal.workflow.read'],
+      });
+      await request(denied.server).get(unconfiguredPath).expect(403);
+
+      const allowed = await start();
+      const res = await request(allowed.server).get(unconfiguredPath);
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain(
+        'Temporal namespace is not allowed',
+      );
+    });
+  });
 });
