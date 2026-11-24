@@ -883,13 +883,22 @@ actions in the Backstage actions registry: `temporal:list-workflows`,
 and `temporal:update-workflow`. An AI assistant or an MCP client (through
 `@backstage/plugin-mcp-actions-backend`) calls them as the caller (a signed-in
 user, or a service when it authenticates as one), over the same HTTP routes as
-the pages and the Scaffolder actions, so the permission checks and audit
-records are the same. Permission policies are not applied to a service
-caller; to check each person, the MCP client uses the token of that user. `list-workflows` and
-`get-workflow` are `readOnly`; the other three are not, so a caller asks a
-person first. Cancel, terminate and rerun are not actions. The actions, their
-attributes and the MCP config are in the
-[module README](../plugins/temporal-backend-module-actions/README.md).
+the pages and the Scaffolder actions, so user permission checks and audit
+records are the same. For a service caller (such as a static token in
+`backend.auth.externalAccess`), `auth.getPluginRequestToken` exchanges the
+credentials for `plugin:temporal` (seen by the Temporal backend in the request
+principal, audit `actorId` and `initiator` search attribute); permission policies
+do not apply to service principals, and `externalAccess` tokens with
+`permission` or `permissionAttribute` restrictions fail token delegation on all
+actions (while `plugin: temporal` allows all five). To check each person, the
+MCP client uses the token of that user. Workflow types, step names, failure
+messages and search attributes returned by `list-workflows` and `get-workflow`
+are untrusted data (not instructions); `list-workflows` and `get-workflow` are
+`readOnly`, while the other three are `destructive` so clients should ask a
+person first (or exclude `{ destructive: true }` via
+`backend.actions.filter.exclude` when writes are not needed). Cancel, terminate
+and rerun are not actions. The actions, their attributes and the MCP config are
+in the [module README](../plugins/temporal-backend-module-actions/README.md).
 
 ## Zigflow
 
