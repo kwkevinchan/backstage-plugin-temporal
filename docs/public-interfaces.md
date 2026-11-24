@@ -739,7 +739,9 @@ The kind: `apiVersion: temporal.io/v1alpha1`, `kind: TemporalWorkflow`
 | `definition`   |          | `format` (`serverless-workflow` or `source`), `target`, `symbol` (Definition tab)             |
 
 Other entities link to a workflow entity with the standard `spec.dependsOn`
-(`temporalworkflow:default/order-workflow`). The
+(`temporalworkflow:default/order-workflow`). These mappings (annotations, `spec`,
+and `spec.dependsOn`) are declared by catalog entity authors; restrict catalog
+write/registration access to control who defines them. The
 [README](../README.md#workflow-entities) has the details and examples.
 
 ## What the plugin writes
@@ -756,9 +758,10 @@ Other systems can read these, so they are interfaces too:
   The plugin reads both attributes on **every** workflow, whoever set them:
   the entity reference adds the workflow to that entity's list and decides
   on which entity its permissions are checked, and the initiator is what the
-  `IS_INITIATOR` rule compares. Code outside Backstage that starts workflows
-  with these attributes gets the same effect, so set them only to the entity
-  and user the workflow belongs to.
+  `IS_INITIATOR` rule compares. Trust in both attributes matches trust in
+  whoever can start workflows or write search attributes in the configured
+  Temporal namespaces, so restrict namespace write access or omit these keys if
+  external writers must not influence entity matching or `IS_INITIATOR`.
 
 - **Identity.** Operations pass `backstage:<user entity ref>` (or
   `backstage:<service subject>`) as the Temporal identity, shown in the
@@ -826,7 +829,10 @@ Other systems can read these, so they are interfaces too:
 The plugin shows a workflow's memo on the details page. It also reads the
 references of Temporal External Storage, written by the SDK's S3 driver in
 its own format, to show where a stored payload is (the plugin does not read
-the stored data).
+the stored data). When setting `externalStorage.objectUrl`, keep `{bucket}` in
+the path or as a subdomain under a fixed trusted domain rather than using
+`{bucket}` as the entire host, so a workflow history value cannot direct links
+to arbitrary HTTPS hosts.
 
 ## Scaffolder
 
@@ -841,7 +847,10 @@ runs the template (they may run in another backend than the plugin):
 | `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                            | `result` (of an update), `runId`                  |
 
 `start` and `signal` need the operations; `wait` only reads (the workflow,
-and `/result` for its result). Without `runId`, `wait` and `signal` look up
+and `/result` for its result). Because `wait` writes `searchAttributes` and
+(when `includeResult: true`) `result` to Scaffolder task outputs, visibility
+of those persisted outputs is governed by Scaffolder task permissions rather than
+`temporal.workflow.history.read`. Without `runId`, `wait` and `signal` look up
 the latest run in the run list of the workflow ID (which can lag behind a
 start; pass `runId: ${{ steps.start.output.runId }}` after a start). `wait`
 follows a run that continued as new to the run it continued as; `signal`
@@ -868,7 +877,13 @@ and
 `temporal-module-zigflow` shows it on a **Definition** tab
 (`EntityTemporalDefinitionContent` in the legacy system, mount it on
 `/definition` of the workflow entity page;
-`entity-content:temporal/definition` in the new one). The response of the
+`entity-content:temporal/definition` in the new one). Always configure `paths`
+under `temporal.definitions.allow` on hosts with a Backstage integration so
+entity authors cannot reach arbitrary repositories readable by that integration;
+`format: source` returns any file in the allowed scope, `file:` checks use
+`path.resolve` without resolving symlinks, and HTTP redirects follow
+Backstage's `UrlReader` rules rather than re-checking `temporal.definitions.allow`.
+The response of the
 route (`WorkflowDefinitionResponse`) is not exported: the two modules are
 released together and the route is for the tab only.
 

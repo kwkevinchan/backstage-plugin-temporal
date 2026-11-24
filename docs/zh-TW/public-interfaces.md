@@ -446,7 +446,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 | `messages`     |      | `signals`、`updates`、`queries`：`name`、`description`、`inputSchema`、`example`、`userField` |
 | `definition`   |      | `format`（`serverless-workflow` 或 `source`）、`target`、`symbol`（Definition 分頁）          |
 
-其他實體用標準的 `spec.dependsOn` 連到流程實體（`temporalworkflow:default/order-workflow`）。細節和範例見 [README](../../README.md#workflow-entities)。
+其他實體用標準的 `spec.dependsOn` 連到流程實體（`temporalworkflow:default/order-workflow`）。這些對應關係（標註、`spec` 與 `spec.dependsOn`）由 catalog 實體的作者宣告，管理員應透過限制 catalog 的新增與編輯權限來控管邊界。細節和範例見 [README](../../README.md#workflow-entities)。
 
 ## 外掛寫出的資料
 
@@ -454,7 +454,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 - **Search attribute。** 從 Backstage（頁面、API、Scaffolder）啟動或重跑的流程，在設定了對應鍵時，`temporal.searchAttributes.entityRef` 會寫入實體 reference（從實體啟動時），`temporal.searchAttributes.initiator` 會寫入使用者。兩者都必須是 Temporal 裡註冊好的 `Keyword` 屬性。重跑保留原本那次執行的屬性，並設定 initiator。
 
-  外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。在 Backstage 以外啟動流程的程式設了這兩個屬性，效果相同，所以只設成流程真正所屬的實體和使用者。
+  外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。這兩個屬性的可信度等同於能在對應 Temporal namespace 啟動流程或寫入 search attribute 的呼叫端，請限制 namespace 的寫入權限，或在外部寫入者不應影響歸屬與 `IS_INITIATOR` 時不要設定這兩個鍵。
 
 - **Identity。** 操作以 `backstage:<使用者實體 reference>`（或 `backstage:<服務 subject>`）作為 Temporal identity，會顯示在歷史裡。
 - **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體；`workflow-update`、`workflow-cancel`、`workflow-terminate` 還會附上打開的 `runId`、`firstRunId` 和 `scope: 'chain'`。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。事件在檢查權限和請求之前就建立，所以被拒絕或不合法的嘗試也會記成失敗，附上請求的目標（namespace、流程、run、`entityRef`）。
@@ -477,7 +477,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
   **不會**進 log 的：payload、signal／update／query 的參數和結果、token、請求和回應的 body。欄位只放 ID、名稱、狀態碼和耗時。
 
-外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。
+外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。設定 `externalStorage.objectUrl` 時，請將 `{bucket}` 放在路徑或固定受信任網域的子網域底下，不要把 `{bucket}` 當成整個 host（`https://{bucket}/…`），以免歷史紀錄裡的 bucket 值把連結導向任意 HTTPS 主機。
 
 ## Scaffolder
 
@@ -489,12 +489,12 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 | `temporal:workflow:wait`   | `workflowId`、`runId`、`namespace`、`entityRef`；`untilSearchAttribute`、`timeoutSeconds`、`intervalSeconds`、`maxIntervalSeconds`、`failIfNotCompleted`、`includeResult` | `status`、`runId`、`result`、`searchAttributes`   |
 | `temporal:workflow:signal` | `workflowId`、`runId`、`namespace`、`entityRef`；`kind`（`signal` 或 `update`）、`name`、`args`                                                                           | `result`（update 的結果）、`runId`                |
 
-`start` 和 `signal` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/result`）。沒給 `runId` 時，`wait` 和 `signal` 從 workflow ID 的 run 清單查出最新的 run（剛啟動的流程可能還不在清單裡；接在 start 後面時請傳 `runId: ${{ steps.start.output.runId }}`）。`wait` 遇到已接續的 run 會換到接續的 run；`signal` 會輸出實際送到的 run，而且當它查到的 run 在這期間被接續時，會改送到接續的 run 一次。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
+`start` 和 `signal` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/result`）。由於 `wait` 會把 `searchAttributes` 與（在 `includeResult: true` 時的）`result` 寫入 Scaffolder task 輸出，誰看得到這些輸出由 Scaffolder 的 task 權限決定，與 Temporal 的 `temporal.workflow.history.read` 權限無關。沒給 `runId` 時，`wait` 和 `signal` 從 workflow ID 的 run 清單查出最新的 run（剛啟動的流程可能還不在清單裡；接在 start 後面時請傳 `runId: ${{ steps.start.output.runId }}`）。`wait` 遇到已接續的 run 會換到接續的 run；`signal` 會輸出實際送到的 run，而且當它查到的 run 在這期間被接續時，會改送到接續的 run 一次。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
 `temporal:workflow:wait` 結束後，下一個步驟可以用官方的 `notification:send` 通知相關的人，並把 `link` 設成 `steps.start.output.workflowUrl`。這個做法的限制、較長簽核的替代作法，以及完整範本，見 [Notify when a decision is needed](../../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)（英文）和 [`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml)。
 
 ## Zigflow
 
-`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
+`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`，否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；`format: source` 會回傳允許範圍內的任何檔案，`file:` 檢查使用 `path.resolve`（不解析 symlink），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
 
 ## 實驗性：模型呼叫和 Event Groups
 
