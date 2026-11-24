@@ -1188,7 +1188,9 @@ user may not use is disabled with the reason as tooltip. **By default every
 operation is allowed**: with the allow-all policy (or the permission framework
 off), every signed-in user can use them. The permissions are resource
 permissions on the workflow's entity: the entity the page is shown for, else
-the entity in the `searchAttributes.entityRef` attribute. A workflow without
+the entity in the `searchAttributes.entityRef` attribute. When the workflow
+belongs to the page's entity through a `TemporalWorkflow` entity it depends on,
+that entity must allow the permission too. A workflow without
 an entity (opened from the Workflows page) is only controlled when the policy
 allows the permission without conditions. Starting from the Workflows page
 also needs `temporal.workflow.list`. The operations on one workflow, and
@@ -1393,7 +1395,9 @@ action that signals, starts or changes other workflows must check the
 permissions for those itself, with `temporalAccessServiceRef` from
 `@kwkevinchan/backstage-plugin-temporal-backend/alpha`: `loadWorkflow()` reads
 the other workflow and its entity, then `authorizeOn()` checks the
-permission on that entity.
+permission on that entity (`context.entityRef`), and on `matchedEntityRef`
+too when it is set and differs: the `TemporalWorkflow` entity the workflow
+belongs to through a `dependsOn` relation.
 
 ```ts
 temporal.addControlAction({

@@ -30,6 +30,7 @@ import { TemporalService, temporalServiceRef } from './node';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './alpha';
 import {
+  checkoutEntity,
   createFakeConnection,
   createFakeWorkflowService,
   deadlineExceeded,
@@ -133,8 +134,8 @@ function createControlWorkflowService(
 }
 
 async function start(options?: {
-  /** Permission names denied. */
-  deny?: string[];
+  /** Permission names or `{ permission, resourceRef }` rules denied. */
+  deny?: Array<string | { permission: string; resourceRef: string }>;
   /** Permission names that get a conditional decision. */
   conditional?: string[];
   control?: object;
@@ -161,17 +162,25 @@ async function start(options?: {
   for (const [method, error] of Object.entries(options?.scheduleErrors ?? {})) {
     (workflowService as any)[method].mockRejectedValue(error);
   }
+  const isDenied = (r: any, includeResourceRef: boolean) =>
+    options?.deny?.some(rule =>
+      typeof rule === 'string'
+        ? rule === r.permission.name
+        : includeResourceRef &&
+          rule.permission === r.permission.name &&
+          rule.resourceRef === r.resourceRef,
+    );
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
       requests.map((r: any) => ({
-        result: options?.deny?.includes(r.permission.name)
+        result: isDenied(r, true)
           ? AuthorizeResult.DENY
           : AuthorizeResult.ALLOW,
       })),
     ) as any,
     authorizeConditional: jest.fn(async requests =>
       requests.map((r: any) => {
-        if (options?.deny?.includes(r.permission.name)) {
+        if (isDenied(r, false)) {
           return { result: AuthorizeResult.DENY };
         }
         if (options?.conditional?.includes(r.permission.name)) {
@@ -219,7 +228,12 @@ async function start(options?: {
     temporalAccessServiceFactory,
     temporalPlugin,
     catalogServiceMock.factory({
-      entities: [ordersEntity, otherEntity, orderWorkflowEntity],
+      entities: [
+        ordersEntity,
+        otherEntity,
+        orderWorkflowEntity,
+        checkoutEntity,
+      ],
     }),
     createServiceFactory({
       service: temporalServiceRef,
@@ -1797,5 +1811,177 @@ describe('logs', () => {
     );
     expect(recorder.records.some(r => r.level === 'warn')).toBe(true);
     expect(JSON.stringify(recorder.records)).not.toContain(marker);
+  });
+
+  describe('permissions on dependsOn TemporalWorkflow entities', () => {
+    const checkoutRef = 'component:default/checkout';
+    const orderWfRef = 'temporalworkflow:default/order-workflow';
+
+    it.each([
+      [
+        'terminate',
+        'temporal.workflow.terminate',
+        `${wf}/terminate?entityRef=${checkoutRef}`,
+        { reason: 'stop' },
+        'RUNNING',
+        'terminateWorkflowExecution',
+      ],
+      [
+        'query',
+        'temporal.workflow.query',
+        `${wf}/query?entityRef=${checkoutRef}`,
+        { name: 'state' },
+        'RUNNING',
+        'queryWorkflow',
+      ],
+      [
+        'signal',
+        'temporal.workflow.signal',
+        `${wf}/signal?entityRef=${checkoutRef}`,
+        { name: 'addNote', args: ['hi'] },
+        'RUNNING',
+        'signalWorkflowExecution',
+      ],
+      [
+        'update',
+        'temporal.workflow.update',
+        `${wf}/update?entityRef=${checkoutRef}`,
+        { name: 'setPriority', args: ['high'] },
+        'RUNNING',
+        'updateWorkflowExecution',
+      ],
+      [
+        'cancel',
+        'temporal.workflow.cancel',
+        `${wf}/cancel?entityRef=${checkoutRef}`,
+        {},
+        'RUNNING',
+        'requestCancelWorkflowExecution',
+      ],
+      [
+        'rerun',
+        'temporal.workflow.rerun',
+        `${wf}/rerun?entityRef=${checkoutRef}`,
+        {},
+        'COMPLETED',
+        'startWorkflowExecution',
+      ],
+    ] as const)(
+      'answers 403 for %s without %s on the matched TemporalWorkflow entity',
+      async (_name, permission, path, body, status, rpc) => {
+        const { server, workflowService } = await start({
+          status,
+          entityAttribute: null,
+          deny: [{ permission, resourceRef: orderWfRef }],
+        });
+        const res = await request(server).post(path).send(body);
+        expect(res.status).toBe(403);
+        expect((workflowService as any)[rpc]).not.toHaveBeenCalled();
+      },
+    );
+
+    it('answers 403 for a custom action without its permission on the matched TemporalWorkflow entity', async () => {
+      const handle = jest.fn(async () => ({ ok: true }));
+      const { server } = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: temporalWorkflowUpdatePermission.name,
+            resourceRef: orderWfRef,
+          },
+        ],
+        action: {
+          id: 'escalate',
+          permission: temporalWorkflowUpdatePermission,
+          handle,
+        },
+      });
+      const res = await request(server)
+        .post(`${wf}/actions/escalate?entityRef=${checkoutRef}`)
+        .send({});
+      expect(res.status).toBe(403);
+      expect(handle).not.toHaveBeenCalled();
+    });
+
+    it('answers 403 when terminate is denied on the opened entity and allows when permitted on both', async () => {
+      const deniedOpened = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: checkoutRef,
+          },
+        ],
+      });
+      const deniedRes = await request(deniedOpened.server)
+        .post(`${wf}/terminate?entityRef=${checkoutRef}`)
+        .send({ reason: 'stop' });
+      expect(deniedRes.status).toBe(403);
+      expect(
+        deniedOpened.workflowService.terminateWorkflowExecution,
+      ).not.toHaveBeenCalled();
+
+      const allowedBoth = await start({ entityAttribute: null });
+      const allowedRes = await request(allowedBoth.server)
+        .post(`${wf}/terminate?entityRef=${checkoutRef}`)
+        .send({ reason: 'stop' });
+      expect(allowedRes.status).toBe(200);
+      expect(
+        allowedBoth.workflowService.terminateWorkflowExecution,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('checks terminate on the ancestor matched TemporalWorkflow entity for child workflows', async () => {
+      const { server, workflowService } = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: orderWfRef,
+          },
+        ],
+      });
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          if (req.execution.workflowId === 'child-0') {
+            return {
+              workflowExecutionInfo: {
+                ...executionInfo({
+                  workflowId: 'child-0',
+                  type: 'childWorkflow',
+                  taskQueue: 'child-queue',
+                  status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+                }),
+                searchAttributes: { indexedFields: {} },
+                parentExecution: {
+                  workflowId: 'parent-1',
+                  runId: 'parent-1-run',
+                },
+              } as any,
+              pendingActivities: [],
+            };
+          }
+          return {
+            workflowExecutionInfo: {
+              ...executionInfo({
+                workflowId: 'parent-1',
+                type: 'orderWorkflow',
+                taskQueue: 'orders',
+                status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+              }),
+              searchAttributes: { indexedFields: {} },
+            } as any,
+            pendingActivities: [],
+          };
+        },
+      );
+      const res = await request(server)
+        .post(
+          `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run/terminate?entityRef=${checkoutRef}`,
+        )
+        .send({ reason: 'stop' });
+      expect(res.status).toBe(403);
+      expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
+    });
   });
 });

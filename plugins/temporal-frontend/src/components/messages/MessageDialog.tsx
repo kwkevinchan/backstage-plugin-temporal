@@ -321,18 +321,20 @@ export function MessageDialog(props: {
 /**
  * A secondary button for an operation on a workflow. It is disabled, with
  * the reason as a tooltip, when the user does not have `permission` on the
- * entity `resourceRef`.
+ * entity `resourceRef` (or `additionalResourceRef`, when set).
  */
 export function PermissionButton(props: {
   label: string;
   permission: ResourcePermission<'catalog-entity'>;
   resourceRef?: string;
+  additionalResourceRef?: string;
   onPress(): void;
   destructive?: boolean;
 }) {
   const { allowed, loading } = useControlPermission(
     props.permission,
     props.resourceRef,
+    props.additionalResourceRef,
   );
   const reason =
     !allowed && !loading

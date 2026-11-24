@@ -45,7 +45,7 @@ import {
   isResourcePermission,
 } from '@backstage/plugin-permission-common';
 import { policyExtensionPoint } from '@backstage/plugin-permission-node/alpha';
-import { temporalPermissions } from './common';
+import { temporalPermissions, temporalWorkflowReadPermission } from './common';
 import catalogBackend from '@backstage/plugin-catalog-backend';
 import permissionBackend from '@backstage/plugin-permission-backend';
 import request from 'supertest';
@@ -54,9 +54,11 @@ import {
   createTemporalWorkflowConditionalDecision,
   temporalWorkflowConditions,
 } from './alpha';
+import { catalogModuleTemporalWorkflowKind } from './catalog';
 import { temporalPlugin } from './plugin';
 import {
   createFakeWorkflowService,
+  executionInfo,
   fakeTemporalServiceFactory,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
@@ -338,5 +340,230 @@ describe('conditional temporal-workflow decisions from a policy', () => {
         ),
       }),
     );
+  });
+});
+
+describe('conditional catalog-entity decisions across dependsOn entities', () => {
+  const dependsOnEntities: Entity[] = [
+    {
+      apiVersion: 'backstage.io/v1alpha1',
+      kind: 'Component',
+      metadata: {
+        name: 'checkout',
+        namespace: 'default',
+        annotations: {
+          'backstage.io/managed-by-location': 'url:http://example.com/checkout',
+          'backstage.io/managed-by-origin-location':
+            'url:http://example.com/checkout',
+          'temporal.io/workflow-type': 'deploymentWorkflow',
+        },
+      },
+      spec: {
+        type: 'service',
+        lifecycle: 'production',
+        owner: 'user:default/alice',
+        dependsOn: ['temporalworkflow:default/order-workflow'],
+      },
+    },
+    {
+      apiVersion: 'temporal.io/v1alpha1',
+      kind: 'TemporalWorkflow',
+      metadata: {
+        name: 'order-workflow',
+        namespace: 'default',
+        annotations: {
+          'backstage.io/managed-by-location':
+            'url:http://example.com/order-workflow',
+          'backstage.io/managed-by-origin-location':
+            'url:http://example.com/order-workflow',
+        },
+      },
+      spec: {
+        owner: 'user:default/bob',
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+      },
+    },
+  ];
+
+  const dependsOnEntityProvider = createBackendModule({
+    pluginId: 'catalog',
+    moduleId: 'test-depends-on-entities',
+    register(reg) {
+      reg.registerInit({
+        deps: { catalog: catalogProcessingExtensionPoint },
+        async init({ catalog }) {
+          catalog.addEntityProvider({
+            getProviderName: () => 'test-depends-on-entities',
+            async connect(connection) {
+              await connection.applyMutation({
+                type: 'full',
+                entities: dependsOnEntities.map(entity => ({
+                  entity,
+                  locationKey: 'test-depends-on-entities',
+                })),
+              });
+            },
+          });
+        },
+      });
+    },
+  });
+
+  const readAllowOtherOwnerPolicy = createBackendModule({
+    pluginId: 'permission',
+    moduleId: 'test-depends-on-owner-policy',
+    register(reg) {
+      reg.registerInit({
+        deps: { policy: policyExtensionPoint },
+        async init({ policy }) {
+          policy.setPolicy({
+            async handle(req, user) {
+              if (req.permission.name === temporalWorkflowReadPermission.name) {
+                return { result: AuthorizeResult.ALLOW };
+              }
+              if (
+                temporalPermissionNames.has(req.permission.name) &&
+                isResourcePermission(req.permission, 'catalog-entity')
+              ) {
+                return createCatalogConditionalDecision(
+                  req.permission,
+                  catalogConditions.isEntityOwner({
+                    claims: user?.info.ownershipEntityRefs ?? [],
+                  }),
+                );
+              }
+              return { result: AuthorizeResult.ALLOW };
+            },
+          });
+        },
+      });
+    },
+  });
+
+  it('requires history and terminate permissions on both the opened entity and matched TemporalWorkflow entity', async () => {
+    const knex = await databases.init('SQLITE_3');
+    const base = createFakeWorkflowService();
+    const workflowService = {
+      ...base,
+      describeWorkflowExecution: jest.fn(async (req: any) => ({
+        workflowExecutionInfo: executionInfo({
+          workflowId: req.execution.workflowId,
+          status:
+            req.execution.workflowId === 'wf-running'
+              ? 'WORKFLOW_EXECUTION_STATUS_RUNNING'
+              : 'WORKFLOW_EXECUTION_STATUS_FAILED',
+        }),
+        pendingActivities: [],
+      })),
+      terminateWorkflowExecution: jest.fn(async () => ({})),
+    };
+    const backend = await startTestBackend({
+      features: [
+        temporalPlugin,
+        temporalAccessServiceFactory,
+        mockServices.database.factory({ knex }),
+        catalogBackend,
+        catalogModuleTemporalWorkflowKind,
+        dependsOnEntityProvider,
+        permissionBackend,
+        readAllowOtherOwnerPolicy,
+        fakeTemporalServiceFactory(workflowService),
+        httpAuthWithActor,
+        mockServices.rootConfig.factory({
+          data: {
+            permission: { enabled: true },
+            catalog: { processingInterval: { seconds: 1 } },
+          },
+        }),
+      ],
+    });
+    const { server } = backend;
+    backends.push(backend);
+
+    let lastResponse = '';
+    const catalogReady = async () => {
+      const [comp, wfEntity] = await Promise.all([
+        request(server)
+          .get('/api/catalog/entities/by-name/component/default/checkout')
+          .set('Authorization', mockCredentials.service.header()),
+        request(server)
+          .get(
+            '/api/catalog/entities/by-name/temporalworkflow/default/order-workflow',
+          )
+          .set('Authorization', mockCredentials.service.header()),
+      ]);
+      lastResponse = `${comp.status}/${wfEntity.status}`;
+      return (
+        comp.status === 200 &&
+        wfEntity.status === 200 &&
+        (comp.body.relations ?? []).length > 0 &&
+        (wfEntity.body.relations ?? []).length > 0
+      );
+    };
+    for (let i = 0; i < 20 && !(await catalogReady()); i++) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+    expect({ ready: await catalogReady(), lastResponse }).toEqual({
+      ready: true,
+      lastResponse: '200/200',
+    });
+
+    const api = await withOpenApiValidation(server);
+    const checkoutRef = 'component:default/checkout';
+    const orderWfRef = 'temporalworkflow:default/order-workflow';
+    const failedRun =
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
+    const runningRun =
+      '/api/temporal/namespaces/default/workflows/wf-running/runs/wf-running-run';
+
+    // Alice owns checkout (A) but not order-workflow (W).
+    const aliceDetail = await request(api)
+      .get(`${failedRun}?entityRef=${checkoutRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/alice'));
+    expect(aliceDetail.status).toBe(200);
+    expect(aliceDetail.body.workflowEntityRef).toBe(orderWfRef);
+    expect(aliceDetail.body.failureDetailsHidden).toBe(true);
+    expect(aliceDetail.body.failure.cause).toBeUndefined();
+
+    const aliceGraph = await request(api)
+      .get(`${failedRun}/graph?entityRef=${checkoutRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/alice'));
+    expect(aliceGraph.status).toBe(200);
+    expect(aliceGraph.body.payloadsHidden).toBe(true);
+
+    const aliceTerminate = await request(api)
+      .post(`${runningRun}/terminate?entityRef=${checkoutRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/alice'))
+      .send({ reason: 'stop' });
+    expect(aliceTerminate.status).toBe(403);
+    expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
+
+    // Bob owns order-workflow (W) but not checkout (A): blocked via checkout, allowed directly via order-workflow.
+    const bobViaCheckoutGraph = await request(api)
+      .get(`${failedRun}/graph?entityRef=${checkoutRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/bob'));
+    expect(bobViaCheckoutGraph.status).toBe(200);
+    expect(bobViaCheckoutGraph.body.payloadsHidden).toBe(true);
+
+    const bobViaCheckoutTerminate = await request(api)
+      .post(`${runningRun}/terminate?entityRef=${checkoutRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/bob'))
+      .send({ reason: 'stop' });
+    expect(bobViaCheckoutTerminate.status).toBe(403);
+    expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
+
+    const bobDirectGraph = await request(api)
+      .get(`${failedRun}/graph?entityRef=${orderWfRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/bob'));
+    expect(bobDirectGraph.status).toBe(200);
+    expect(bobDirectGraph.body.payloadsHidden).toBe(false);
+
+    const bobDirectTerminate = await request(api)
+      .post(`${runningRun}/terminate?entityRef=${orderWfRef}`)
+      .set('Authorization', mockCredentials.user.header('user:default/bob'))
+      .send({ reason: 'stop' });
+    expect(bobDirectTerminate.status).toBe(200);
+    expect(workflowService.terminateWorkflowExecution).toHaveBeenCalledTimes(1);
   });
 });

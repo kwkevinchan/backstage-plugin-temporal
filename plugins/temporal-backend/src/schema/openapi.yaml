@@ -449,7 +449,7 @@ components:
           description: Entity reference of the user who started the workflow, from the search attribute `temporal.searchAttributes.initiator`, when configured.
         workflowEntityRef:
           type: string
-          description: The `TemporalWorkflow` entity this run matches, when it is listed for an entity that depends on one.
+          description: The `TemporalWorkflow` entity this run matches, when it is listed for or opened through an entity that depends on one.
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
@@ -497,7 +497,7 @@ components:
           description: Entity reference of the user who started the workflow, from the search attribute `temporal.searchAttributes.initiator`, when configured.
         workflowEntityRef:
           type: string
-          description: The `TemporalWorkflow` entity this run matches, when it is listed for an entity that depends on one.
+          description: The `TemporalWorkflow` entity this run matches, when it is listed for or opened through an entity that depends on one.
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.

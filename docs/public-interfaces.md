@@ -208,12 +208,12 @@ the checks every route of the plugin runs. Modules of the plugin (that is,
 `createBackendModule({ pluginId: 'temporal' })`) use it in their own routes
 so that "who may see this workflow" has one definition.
 
-| Method                                                                           | Does                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check: the namespace, then, with `entityRef`, the `read` or `history` permission on that entity; without it, first the list permissions on the workflow itself, else the permission on the entity in its entity search attribute ([order](#which-entity-a-workflow-is-checked-on)) |
-| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                                                                                                                                                                                                                |
-| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                                                                                                                                                                                                                 |
-| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                                                                                                                                                                                                                  |
+| Method                                                                           | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check: the namespace, then, with `entityRef`, the `read` or `history` permission on that entity; without it, first the list permissions on the workflow itself, else the permission on the entity in its entity search attribute ([order](#which-entity-a-workflow-is-checked-on)). Returns `matchedEntityRef` when the workflow belongs to the entity through a `TemporalWorkflow` entity it depends on: check your permissions on that entity too |
+| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                                                                                                                                                                                                                                                                                                                                                                                 |
+| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                                                                                                                                                                                                                                                                                                                                                                                  |
+| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                                                                                                                                                                                                                                                                                                                                                                                   |
 
 The package's default export installs the default factory
 (`temporalAccessServiceFactory`). To decide access in another way, add a
@@ -483,7 +483,15 @@ for.
 
 - With `entityRef`: the read (`temporal.workflow.read`) or history
   (`temporal.workflow.history.read`) permission on that entity, and the
-  workflow must be one of its workflows (`404` otherwise).
+  workflow must be one of its workflows (`404` otherwise). When a workflow
+  matches through a `TemporalWorkflow` entity that the opened entity depends on
+  (directly, or via an ancestor for a child workflow), permissions check both
+  entities: both the opened entity and the matched `TemporalWorkflow` entity must
+  allow `temporal.workflow.read`, `temporal.workflow.history.read` (the
+  inputs and results of the step graph, failure details on `GET /:wf`, and
+  the history-level routes), and any operation permission. When the opened
+  entity's own annotations or search attribute match the workflow, only the
+  opened entity is checked.
 - Without it: first the list permissions on the workflow itself
   (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
   history level), with their conditions. If they do not allow it, the
@@ -494,8 +502,9 @@ for.
   workflow they may not open (without that attribute, or through an entity
   they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
-  through, else on the entity of its search attribute; a workflow with
-  neither needs the permission allowed without conditions.
+  through (and on the matched `TemporalWorkflow` entity when matched through
+  one), else on the entity of its search attribute; a workflow with neither
+  needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a

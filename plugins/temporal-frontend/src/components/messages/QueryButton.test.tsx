@@ -22,12 +22,22 @@ import { temporalApiRef } from '../../extensions';
 import { failedWorkflow, mockTemporalApi } from '../../testData';
 import { QueryButton } from './QueryButton';
 
+type DenyRule = string | { permission: string; resourceRef: string };
+
 // usePermission caches results across tests; this one answers from `denied`.
-let denied: string[] = [];
+let denied: DenyRule[] = [];
 jest.mock('@backstage/plugin-permission-react', () => ({
-  usePermission: (input: { permission: { name: string } }) => ({
+  usePermission: (input: {
+    permission: { name: string };
+    resourceRef?: string;
+  }) => ({
     loading: false,
-    allowed: !denied.includes(input.permission.name),
+    allowed: !denied.some(rule =>
+      typeof rule === 'string'
+        ? rule === input.permission.name
+        : rule.permission === input.permission.name &&
+          rule.resourceRef === input.resourceRef,
+    ),
   }),
 }));
 
@@ -39,7 +49,7 @@ const ref = {
 };
 const entityRef = 'component:default/orders';
 
-function render(deny: string[] = [], queries?: WorkflowMessageDefinition[]) {
+function render(deny: DenyRule[] = [], queries?: WorkflowMessageDefinition[]) {
   const api = mockTemporalApi();
   if (queries) {
     api.getWorkflowMessageDefinitions.mockResolvedValue({
@@ -150,5 +160,29 @@ describe('QueryButton', () => {
     expect(
       screen.getByTitle(/You do not have permission to query/),
     ).toBeInTheDocument();
+  });
+
+  it('is disabled when query permission is denied on workflowEntityRef', async () => {
+    const api = mockTemporalApi();
+    denied = [
+      {
+        permission: 'temporal.workflow.query',
+        resourceRef: 'temporalworkflow:default/order-workflow',
+      },
+    ];
+    renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <QueryButton
+          workflow={{
+            ...running,
+            workflowEntityRef: 'temporalworkflow:default/order-workflow',
+          }}
+          entityRef={entityRef}
+        />
+      </TestApiProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Query…' })).toBeDisabled(),
+    );
   });
 });

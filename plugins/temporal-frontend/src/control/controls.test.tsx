@@ -24,7 +24,10 @@ import {
   TestApiProvider,
 } from '@backstage/test-utils';
 import { temporalApiRef } from '../extensions';
-import type { WorkflowDetail } from '../common';
+import {
+  temporalWorkflowUpdatePermission,
+  type WorkflowDetail,
+} from '../common';
 import {
   entity,
   failedWorkflow,
@@ -37,12 +40,22 @@ import { WorkflowControls } from './WorkflowControls';
 import { ScheduleControls } from './ScheduleControls';
 import { createTemporalControlActionDef } from './index';
 
+type DenyRule = string | { permission: string; resourceRef: string };
+
 // usePermission caches results across tests; this one answers from `denied`.
-let denied: string[] = [];
+let denied: DenyRule[] = [];
 jest.mock('@backstage/plugin-permission-react', () => ({
-  usePermission: (input: { permission: { name: string } }) => ({
+  usePermission: (input: {
+    permission: { name: string };
+    resourceRef?: string;
+  }) => ({
     loading: false,
-    allowed: !denied.includes(input.permission.name),
+    allowed: !denied.some(rule =>
+      typeof rule === 'string'
+        ? rule === input.permission.name
+        : rule.permission === input.permission.name &&
+          rule.resourceRef === input.resourceRef,
+    ),
   }),
 }));
 
@@ -60,7 +73,11 @@ function Opened() {
 
 function render(
   element: JSX.Element,
-  options?: { deny?: string[]; control?: object; messageDefinitions?: object },
+  options?: {
+    deny?: DenyRule[];
+    control?: object;
+    messageDefinitions?: object;
+  },
 ) {
   const api = {
     ...mockTemporalApi(),
@@ -150,6 +167,70 @@ describe('WorkflowControls', () => {
       await screen.findByTitle(/You do not have permission to terminate/),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
+  const relatedWf: WorkflowDetail = {
+    ...running,
+    workflowEntityRef: 'temporalworkflow:default/order-workflow',
+  };
+
+  it('disables an operation when denied on the matched workflowEntityRef', async () => {
+    render(
+      <WorkflowControls
+        workflow={relatedWf}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: 'temporalworkflow:default/order-workflow',
+          },
+        ],
+      },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Terminate' })).toBeDisabled(),
+    );
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+  });
+
+  it('disables an operation when denied on the opened entity even when workflowEntityRef is allowed', async () => {
+    render(
+      <WorkflowControls
+        workflow={relatedWf}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: entityRef,
+          },
+        ],
+      },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Terminate' })).toBeDisabled(),
+    );
+  });
+
+  it('enables an operation when allowed on both the opened entity and workflowEntityRef', async () => {
+    render(
+      <WorkflowControls
+        workflow={relatedWf}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Terminate' }),
+    ).toBeEnabled();
   });
 
   it('sends a signal with JSON arguments', async () => {
@@ -769,6 +850,37 @@ describe('ControlActionButton', () => {
     );
     expect(reload).toHaveBeenCalled();
     expect(def.id).toBe('escalate');
+  });
+
+  it('is disabled when the action permission is denied on workflowEntityRef', async () => {
+    const def = createTemporalControlActionDef({
+      actionId: 'escalate',
+      label: 'Escalate',
+      permission: temporalWorkflowUpdatePermission,
+    });
+    const Action = def.component;
+    render(
+      <Action
+        workflow={{
+          ...running,
+          workflowEntityRef: 'temporalworkflow:default/order-workflow',
+        }}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        deny: [
+          {
+            permission: 'temporal.workflow.update',
+            resourceRef: 'temporalworkflow:default/order-workflow',
+          },
+        ],
+      },
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Escalate' })).toBeDisabled(),
+    );
   });
 });
 
