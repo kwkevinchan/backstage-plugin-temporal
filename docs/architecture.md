@@ -267,5 +267,35 @@ false` removes the routes that change workflows (404, not 403) and their
   `28.21–41.02 ms` (max single run `52.76 ms`), well inside the `200 ms`
   per-request target, so `llmCall` keeps its simple full-prefix read alongside
   `MAX_STEP_EVENTS` (`5000`).
+- **Large-payload `buildWorkflowGraph` timings stay unguarded (decoded eagerly without a size cap).**
+  Temporal defaults enforce a 2 MB single-payload limit (warning at 512 KB) and
+  a 50 MB / 51,200-event history limit (warnings at 10 MB / 10,240 events).
+  Benchmarking compiled `plugins/temporal-backend/dist/services/graph.cjs.js`
+  in-process on Node `v24.22.2` (3 warmups + 10 timed iterations; uninstrumented
+  `buildWorkflowGraph` + `JSON.stringify`, plus an instrumented pass wrapping
+  `convert.decodePayloads` with zero `toDisplayJson` calls) against synthetic
+  histories from
+  `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts` measured:
+
+  | Scenario                                                     | `includePayloads` | `buildWorkflowGraph` med / max | `decodePayloads` med | Other med  | `JSON.stringify` med / max | Response JSON               |
+  | ------------------------------------------------------------ | ----------------- | ------------------------------ | -------------------- | ---------- | -------------------------- | --------------------------- |
+  | 24 × ~2 MB result, structured (149 events, 48.00 MB raw)     | `true`            | `196.55 / 214.09 ms`           | `168.49 ms`          | `4.21 ms`  | `176.25 / 194.17 ms`       | `48.03 MB` (`48,030,510 B`) |
+  | 24 × ~2 MB result, structured (149 events, 48.00 MB raw)     | `false`           | `142.04 / 159.18 ms`           | `139.94 ms`          | `3.95 ms`  | `0.12 / 0.20 ms`           | `0.03 MB` (`28,881 B`)      |
+  | 24 × ~2 MB result, string (149 events, 48.00 MB raw)         | `true`            | `66.40 / 91.28 ms`             | `59.06 ms`           | `2.58 ms`  | `138.16 / 157.56 ms`       | `48.03 MB` (`48,031,390 B`) |
+  | 24 × ~2 MB result, string (149 events, 48.00 MB raw)         | `false`           | `63.28 / 83.43 ms`             | `57.79 ms`           | `2.47 ms`  | `0.11 / 0.23 ms`           | `0.03 MB` (`28,881 B`)      |
+  | 4,985 events, 830 × 10 KiB in+out, structured (16.95 MB raw) | `true`            | `85.45 / 101.83 ms`            | `63.50 ms`           | `19.62 ms` | `58.98 / 70.67 ms`         | `18.00 MB` (`17,997,747 B`) |
+  | 4,985 events, 830 × 10 KiB in+out, structured (16.95 MB raw) | `false`           | `83.15 / 95.75 ms`             | `62.70 ms`           | `17.93 ms` | `3.99 / 7.40 ms`           | `0.97 MB` (`974,181 B`)     |
+  | 4,985 events, 830 × 10 KiB in+out, string (17.00 MB raw)     | `true`            | `32.98 / 59.36 ms`             | `15.64 ms`           | `16.26 ms` | `39.78 / 51.24 ms`         | `18.04 MB` (`18,044,937 B`) |
+  | 4,985 events, 830 × 10 KiB in+out, string (17.00 MB raw)     | `false`           | `38.62 / 44.00 ms`             | `16.08 ms`           | `17.53 ms` | `4.69 / 12.16 ms`          | `0.97 MB` (`974,181 B`)     |
+
+  Decode (`Buffer.from(..., 'base64')` + `JSON.parse`) dominates
+  `buildWorkflowGraph`, while response serialization matches decode time near the
+  50 MB history limit (~373 ms combined for structured 24 × 2 MB). Setting
+  `includePayloads: false` omits payloads from the response and drops
+  `JSON.stringify` below 5 ms, although `buildWorkflowGraph` still evaluates
+  `decodePayloads` eagerly before discarding the decoded value. Large-payload
+  history generators live in
+  `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts`
+  (`largePayloadFewStepsHistory`, `largePayloadManyEventsHistory`).
 
 Back to [the documentation index](README.md).

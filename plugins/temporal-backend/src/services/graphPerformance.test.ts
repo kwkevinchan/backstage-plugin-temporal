@@ -20,6 +20,8 @@ import {
   agentInferredToolsHistory,
   agentMultiCallReversedHistory,
   agentToolCallIdHistory,
+  largePayloadFewStepsHistory,
+  largePayloadManyEventsHistory,
   localActivitiesHistory,
   plainParallelBatchHistory,
   syntheticMultiCallAdapter,
@@ -282,5 +284,82 @@ describe('graph building performance and edge/linking equivalence', () => {
     expect(elapsed).toBeLessThan(CI_BUDGET_MS);
     expect(graph.nodes.filter(n => !n.internal)).toHaveLength(4402);
     expect(graph.edges).toHaveLength(4401);
+  });
+
+  it('builds large-payload synthetic histories with expected event counts and payload visibility', () => {
+    const fewStructured = largePayloadFewStepsHistory({
+      activities: 2,
+      payloadBytes: 2048,
+      shape: 'structured',
+    });
+    expect(fewStructured).toHaveLength(17);
+    const fewGraphWith = buildWorkflowGraph(fewStructured, {
+      namespace: 'default',
+      workflowId: 'perf-few-with',
+      status: 'Completed',
+      truncated: false,
+      includePayloads: true,
+    });
+    const fewActivitiesWith = fewGraphWith.nodes.filter(
+      n => n.kind === 'activity',
+    );
+    expect(fewActivitiesWith).toHaveLength(2);
+    const resultSize = Buffer.byteLength(
+      JSON.stringify((fewActivitiesWith[0].result as { value: unknown }).value),
+      'utf8',
+    );
+    expect(resultSize).toBeGreaterThan(1800);
+    expect(resultSize).toBeLessThanOrEqual(2048);
+
+    const fewString = largePayloadFewStepsHistory({
+      activities: 2,
+      payloadBytes: 2048,
+      shape: 'string',
+    });
+    const fewStringGraph = buildWorkflowGraph(fewString, {
+      namespace: 'default',
+      workflowId: 'perf-few-str',
+      status: 'Completed',
+      truncated: false,
+      includePayloads: true,
+    });
+    const strAct = fewStringGraph.nodes.find(n => n.kind === 'activity')!;
+    expect(
+      Buffer.byteLength(
+        JSON.stringify((strAct.result as { value: unknown }).value),
+        'utf8',
+      ),
+    ).toBe(2048);
+
+    const fewGraphWithout = buildWorkflowGraph(fewStructured, {
+      namespace: 'default',
+      workflowId: 'perf-few-without',
+      status: 'Completed',
+      truncated: false,
+      includePayloads: false,
+    });
+    expect(
+      fewGraphWithout.nodes.find(n => n.kind === 'activity')!.result,
+    ).toBeUndefined();
+
+    const many = largePayloadManyEventsHistory({
+      activities: 3,
+      payloadBytes: 1024,
+    });
+    expect(many).toHaveLength(23);
+    const manyGraph = buildWorkflowGraph(many, {
+      namespace: 'default',
+      workflowId: 'perf-many',
+      status: 'Completed',
+      truncated: false,
+      includePayloads: true,
+    });
+    const manyAct = manyGraph.nodes.find(n => n.kind === 'activity')!;
+    const inputSize = Buffer.byteLength(
+      JSON.stringify((manyAct.input as { value: unknown }).value),
+      'utf8',
+    );
+    expect(inputSize).toBeGreaterThan(800);
+    expect(inputSize).toBeLessThanOrEqual(1024);
   });
 });
