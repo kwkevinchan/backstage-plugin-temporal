@@ -161,7 +161,11 @@ describe('temporalActionsModule against the Temporal backend', () => {
           nextPageToken: new Uint8Array(),
         };
       }),
+      startWorkflowExecution: jest.fn(async () => ({ runId: 'started-run-1' })),
       signalWorkflowExecution: jest.fn(async () => ({})),
+      updateWorkflowExecution: jest.fn(async () => ({
+        outcome: { success: { payloads: [] } },
+      })),
       listWorkflowExecutions: jest.fn(async () => ({
         executions: [],
         nextPageToken: new Uint8Array(),
@@ -355,5 +359,208 @@ describe('temporalActionsModule against the Temporal backend', () => {
     );
     expect(auditEvent.fail).toHaveBeenCalled();
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('refuses start-workflow when temporal.workflow.start is denied and audits the failure', async () => {
+    const { invoke, workflowService, auditor, auditEvent } = await setup({
+      deny: ['temporal.workflow.start'],
+    });
+
+    await expect(
+      invoke('start-workflow', {
+        entityRef: 'component:default/orders',
+        workflowId: 'order-new-1',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*Do not retry.*lack the permission/,
+      ),
+    });
+
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-start',
+        meta: expect.objectContaining({
+          entityRef: 'component:default/orders',
+          workflowId: 'order-new-1',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
+  });
+
+  it('refuses update-workflow when temporal.workflow.update is denied and audits the failure', async () => {
+    const { invoke, workflowService, auditor, auditEvent } = await setup({
+      deny: ['temporal.workflow.update'],
+    });
+
+    await expect(
+      invoke('update-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+        entityRef: 'component:default/orders',
+        name: 'setPriority',
+        args: ['high'],
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*Do not retry.*lack the permission/,
+      ),
+    });
+
+    expect(workflowService.updateWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-update',
+        meta: expect.objectContaining({
+          namespace: 'default',
+          workflowId: 'order-1',
+          runId: 'run-1',
+          entityRef: 'component:default/orders',
+          name: 'setPriority',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
+  });
+
+  it('refuses list-workflows and get-workflow when entity temporal.workflow.read is denied', async () => {
+    const { invoke, workflowService } = await setup({
+      deny: [
+        {
+          permission: 'temporal.workflow.read',
+          resourceRef: 'component:default/orders',
+        },
+      ],
+    });
+
+    await expect(
+      invoke('list-workflows', { entityRef: 'component:default/orders' }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*Do not retry.*lack the permission/,
+      ),
+    });
+    expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
+
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+        entityRef: 'component:default/orders',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*Do not retry.*lack the permission/,
+      ),
+    });
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.getWorkflowExecutionHistory).not.toHaveBeenCalled();
+    expect(
+      workflowService.getWorkflowExecutionHistoryReverse,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('masks get-workflow and signal-workflow as not found with entityRef hint when temporal.workflow.list is denied without entityRef', async () => {
+    const { invoke, workflowService, auditor, auditEvent } = await setup({
+      deny: ['temporal.workflow.list'],
+    });
+
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotFoundError',
+      message: expect.stringMatching(
+        /Workflow order-1 was not found.*You gave no entityRef/,
+      ),
+    });
+
+    await expect(
+      invoke('signal-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+        name: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotFoundError',
+      message: expect.stringMatching(
+        /Workflow order-1 was not found.*You gave no entityRef/,
+      ),
+    });
+
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-signal',
+        meta: expect.objectContaining({
+          namespace: 'default',
+          workflowId: 'order-1',
+          runId: 'run-1',
+          name: 'approve',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
+  });
+
+  it('refuses get-workflow and signal-workflow with entityRef hint before reading Temporal when both list and read are denied without entityRef', async () => {
+    const { invoke, workflowService, auditor, auditEvent } = await setup({
+      deny: ['temporal.workflow.list', 'temporal.workflow.read'],
+    });
+
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*You gave no entityRef.*do not retry/,
+      ),
+    });
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+
+    await expect(
+      invoke('signal-workflow', {
+        workflowId: 'order-1',
+        runId: 'run-1',
+        namespace: 'default',
+        name: 'approve',
+      }),
+    ).rejects.toMatchObject({
+      name: 'NotAllowedError',
+      message: expect.stringMatching(
+        /refused this for the signed-in user.*You gave no entityRef.*do not retry/,
+      ),
+    });
+
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-signal',
+        meta: expect.objectContaining({
+          namespace: 'default',
+          workflowId: 'order-1',
+          runId: 'run-1',
+          name: 'approve',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
   });
 });
