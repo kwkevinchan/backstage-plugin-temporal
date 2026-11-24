@@ -72,4 +72,42 @@ describe('externalObjectUrl', () => {
   ])('makes no link for the template %j', value => {
     expect(externalObjectUrl(value, { bucket: 'b', key: 'k' })).toBeUndefined();
   });
+
+  it('rejects templates whose hostname does not keep at least two fixed domain labels and warns once per template', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        externalObjectUrl('https://{bucket}/{key}', {
+          bucket: 'payloads',
+          key: 'v0/a',
+        }),
+      ).toBeUndefined();
+      expect(
+        externalObjectUrl('https://{bucket}/{key}', {
+          bucket: 'other',
+          key: 'v0/b',
+        }),
+      ).toBeUndefined();
+      expect(
+        externalObjectUrl('https://{bucket}.com/{key}', {
+          bucket: 'payloads',
+          key: 'v0/a',
+        }),
+      ).toBeUndefined();
+      expect(warn).toHaveBeenCalledTimes(2);
+
+      expect(
+        externalObjectUrl(template, { bucket: 'payloads', key: 'v0/a' }),
+      ).toBe('https://console.example.com/s3/payloads?prefix=v0%2Fa');
+      expect(
+        externalObjectUrl('https://{bucket}.s3.example.com/{key}', {
+          bucket: 'payloads',
+          key: 'v0/a',
+        }),
+      ).toBe('https://payloads.s3.example.com/v0%2Fa');
+      expect(warn).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

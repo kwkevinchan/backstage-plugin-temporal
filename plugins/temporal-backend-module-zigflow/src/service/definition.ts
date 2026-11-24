@@ -83,6 +83,11 @@ export interface DefinitionReaderOptions {
 }
 
 interface CompiledAllowRule {
+  rawHost: string;
+  domain: string;
+  isWildcard: boolean;
+  hasPaths: boolean;
+  matchesHostname(url: URL): boolean;
   matchesHost(url: URL): boolean;
   matchesPath(normalizedPath: string): boolean;
 }
@@ -234,9 +239,36 @@ function compileAllowRule(rule: DefinitionAllowRule): CompiledAllowRule {
   }
 
   return {
+    rawHost: rule.host,
+    domain: normalizedDomain,
+    isWildcard,
+    hasPaths: rule.paths !== undefined,
+    matchesHostname,
     matchesHost: url => matchesHostname(url) && matchesPort(url),
     matchesPath,
   };
+}
+
+function matchesAnyIntegration(
+  rule: CompiledAllowRule,
+  integrations: ScmIntegrations,
+): boolean {
+  if (!rule.isWildcard && integrations.byHost(rule.domain)) {
+    return true;
+  }
+  for (const integration of integrations.list()) {
+    const host =
+      (integration as { config?: { host?: unknown } }).config?.host ??
+      integration.title;
+    if (typeof host !== 'string' || !host) continue;
+    try {
+      const url = new URL(`https://${host}`);
+      if (rule.matchesHostname(url)) return true;
+    } catch {
+      // Ignore malformed integration host entries when matching warnings.
+    }
+  }
+  return false;
 }
 
 interface ParsedRepoUrl {
@@ -638,9 +670,10 @@ export class DefinitionReader {
         host: entry.getString('host'),
         paths: entry.getOptionalStringArray('paths'),
       }));
-    return new DefinitionReader({
+    const integrations = ScmIntegrations.fromConfig(config);
+    const definitionReader = new DefinitionReader({
       reader,
-      integrations: ScmIntegrations.fromConfig(config),
+      integrations,
       logger,
       maxBytes,
       readFileLocations:
@@ -648,6 +681,16 @@ export class DefinitionReader {
         false,
       allow,
     });
+    for (const rule of definitionReader.allow) {
+      if (!rule.hasPaths && matchesAnyIntegration(rule, integrations)) {
+        logger
+          ?.child({ host: rule.rawHost })
+          .warn(
+            'temporal.definitions.allow allows every path on an integration-backed host; set paths for this entry (see the Security / Zigflow definition reading section in the README)',
+          );
+      }
+    }
+    return definitionReader;
   }
 
   constructor(options: DefinitionReaderOptions) {
