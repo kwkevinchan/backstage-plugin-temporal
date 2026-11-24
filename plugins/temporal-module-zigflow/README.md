@@ -229,7 +229,8 @@ has no name), `raise`, the boxes of `do`, `for` and `try`, and tasks that
 run inside a child workflow (fork branches, switch targets). A name that two
 tasks share (two `call: activity` of the same activity) is not marked
 either, since the history cannot tell them apart. Steps of the run that
-match no task are counted under the legend.
+match no task are counted under the legend; if no step matches any task, the
+tab warns and marks identifiable tasks `Unknown` instead of `Not reached`.
 
 ## Configuration
 

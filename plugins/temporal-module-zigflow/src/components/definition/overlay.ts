@@ -82,6 +82,8 @@ export interface DefinitionOverlay {
   unmatched: number;
   /** True when the run's history was truncated before its end. */
   truncated: boolean;
+  /** True when the run had countable steps but none matched any task. */
+  noMatch: boolean;
 }
 
 type Obj = Record<string, unknown>;
@@ -320,9 +322,18 @@ export function overlayRun(
   const countable = steps.filter(s =>
     ['activity', 'childWorkflow', 'signal', 'update'].includes(s.kind),
   );
+  const unmatched = countable.filter(s => !claimed.has(s.id)).length;
+  const matchedAny = [...marks.values()].some(mark => mark.stepIds.length > 0);
+  const noMatch = !matchedAny && unmatched > 0;
+  if (noMatch) {
+    for (const mark of marks.values()) {
+      mark.status = 'Unknown';
+    }
+  }
   return {
     marks,
-    unmatched: countable.filter(s => !claimed.has(s.id)).length,
+    unmatched,
     truncated,
+    noMatch,
   };
 }

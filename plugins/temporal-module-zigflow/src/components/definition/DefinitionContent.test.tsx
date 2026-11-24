@@ -439,6 +439,7 @@ describe('Definition tab', () => {
     expect(screen.getByTestId('definition-legend')).toHaveTextContent(
       'Not reached',
     );
+    expect(screen.queryByTestId('definition-overlay-no-match')).toBeNull();
     expect(screen.getByRole('link', { name: 'Open the run' })).toHaveAttribute(
       'href',
       '/temporal/namespaces/default/workflows/order-1/runs/run-1',
@@ -503,6 +504,93 @@ describe('Definition tab', () => {
     expect(unknownNode).toHaveAttribute('data-dashed', 'true');
     expect(unknownNode).toHaveAttribute('data-dimmed', 'false');
     expect(unknownNode).toHaveTextContent('Unknown');
+
+    const legend = screen.getByTestId('definition-legend');
+    expect(legend).toHaveTextContent('Unknown');
+    expect(legend).not.toHaveTextContent('Not reached');
+  });
+
+  it('warns and marks tasks Unknown instead of Not reached when no task matches the run', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue({
+      ...runGraph,
+      nodes: [
+        {
+          id: 'activity-5',
+          kind: 'activity',
+          name: 'customWorkerStepA',
+          status: 'Completed',
+          startTime: '2026-11-01T10:00:01Z',
+          events: [],
+        },
+        {
+          id: 'activity-9',
+          kind: 'activity',
+          name: 'customWorkerStepB',
+          status: 'Failed',
+          startTime: '2026-11-01T10:00:02Z',
+          events: [],
+        },
+      ],
+      truncated: false,
+    });
+    await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1');
+
+    const banner = await screen.findByTestId('definition-overlay-no-match');
+    expect(banner).toHaveTextContent('No tasks matched this run');
+    expect(banner).toHaveTextContent(/activity names or workflow type/);
+    expect(screen.queryByTestId('definition-overlay-truncated')).toBeNull();
+
+    const validateNode = screen.getByTestId('definition-node-/do/0/validate');
+    expect(validateNode).toHaveAttribute('data-mark', 'Unknown');
+    expect(validateNode).toHaveAttribute('data-dashed', 'true');
+    expect(validateNode).toHaveAttribute('data-dimmed', 'false');
+    expect(
+      screen.getByTestId('definition-node-/do/2/packItems/do/0/pack'),
+    ).toHaveAttribute('data-mark', 'Unknown');
+    expect(document.querySelectorAll('[data-mark="NotReached"]')).toHaveLength(
+      0,
+    );
+
+    const legend = screen.getByTestId('definition-legend');
+    expect(legend).toHaveTextContent('Unknown');
+    expect(legend).not.toHaveTextContent('Not reached');
+    expect(legend).toHaveTextContent('2 steps of the run match no task.');
+  });
+
+  it('shows a single combined warning when a truncated run matches no task', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue({
+      ...runGraph,
+      nodes: [
+        {
+          id: 'activity-5',
+          kind: 'activity',
+          name: 'unrecognizedActivity',
+          status: 'Completed',
+          startTime: '2026-11-01T10:00:01Z',
+          events: [],
+        },
+      ],
+      truncated: true,
+    });
+    await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1');
+
+    const banner = await screen.findByTestId('definition-overlay-no-match');
+    expect(banner).toHaveTextContent(
+      'No tasks matched this run (history truncated)',
+    );
+    expect(banner).toHaveTextContent(/unread part of the history/);
+    expect(screen.queryByTestId('definition-overlay-truncated')).toBeNull();
+
+    expect(
+      screen.getByTestId('definition-node-/do/0/validate'),
+    ).toHaveAttribute('data-mark', 'Unknown');
+    expect(document.querySelectorAll('[data-mark="NotReached"]')).toHaveLength(
+      0,
+    );
 
     const legend = screen.getByTestId('definition-legend');
     expect(legend).toHaveTextContent('Unknown');
