@@ -24,9 +24,10 @@ discuss larger changes before sending a pull request.
 
 Releases are cut by the maintainer from `main`, with
 [changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`: the six packages
+takes every published package from `0.0.0` to `0.1.0`: the seven packages
 `@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal-frontend`,
 `-temporal-backend-module-zigflow`, `-temporal-module-zigflow`,
+`-temporal-backend-module-actions`,
 `-scaffolder-backend-module-temporal` and `-scaffolder-module-temporal`
 (all under `@kwkevinchan/backstage-plugin-`).
 
@@ -57,7 +58,7 @@ are private.
 
 ## Package layers
 
-The plugin is one backend and one frontend package; the other four are
+The plugin is one backend and one frontend package; the other five are
 modules that build on the package of their side:
 
 | Package                              | Depends on (of this repository) |
@@ -65,6 +66,7 @@ modules that build on the package of their side:
 | `temporal-backend`                   | nothing                         |
 | `temporal-frontend`                  | nothing                         |
 | `temporal-backend-module-zigflow`    | `temporal-backend`              |
+| `temporal-backend-module-actions`    | `temporal-backend`              |
 | `scaffolder-backend-module-temporal` | `temporal-backend`              |
 | `temporal-module-zigflow`            | `temporal-frontend`             |
 | `scaffolder-module-temporal`         | `temporal-frontend`             |
@@ -121,7 +123,7 @@ order, and three for the other parts of the package:
 | `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                                           | Use cases                   |
 | `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references | Gateways                    |
 | `common/`       | The shared definitions (`./common`)                                                                                                       | Model                       |
-| `node/`         | `temporalServiceRef`, the extension points and the access service interface (`./node`, `./alpha`)                                         | Ports for modules           |
+| `node/`         | `temporalServiceRef`, the client of the plugin's routes, the extension points and the access service interface (`./node`, `./alpha`)      | Ports for modules           |
 | `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                                       |                             |
 
 The query classes in `services/` each cover one kind of read:

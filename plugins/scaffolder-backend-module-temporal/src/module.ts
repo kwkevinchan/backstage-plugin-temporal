@@ -20,12 +20,12 @@ import {
 } from '@backstage/backend-plugin-api';
 import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { scaffolderActionsExtensionPoint } from '@backstage/plugin-scaffolder-node';
+import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import {
   createTemporalWorkflowSignalAction,
   createTemporalWorkflowStartAction,
   createTemporalWorkflowWaitAction,
 } from './actions';
-import { TemporalPluginClient } from './client';
 
 /**
  * Scaffolder module with the Temporal template actions:

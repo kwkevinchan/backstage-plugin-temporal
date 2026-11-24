@@ -15,7 +15,12 @@
  */
 
 import { mockCredentials, mockServices } from '@backstage/backend-test-utils';
-import { TemporalPluginClient } from './client';
+import { ResponseError } from '@backstage/errors';
+import {
+  buildWorkflowUrl,
+  continuedAsNewRunIdOf,
+  TemporalPluginClient,
+} from './client';
 
 describe('TemporalPluginClient', () => {
   const fetchMock = jest.fn();
@@ -77,6 +82,66 @@ describe('TemporalPluginClient', () => {
     expect(fetchMock.mock.calls[0][0]).toBe(
       'http://backend/api/temporal/namespaces/default/workflows/w%201/runs/r%201/update?entityRef=component%3Adefault%2Forders',
     );
+  });
+
+  it('lists the runs of an entity with the status and the page size', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ namespace: 'default', items: [] })),
+    );
+    const { c } = client();
+    await c.listEntityWorkflows(
+      'Component:default/Orders',
+      { status: 'Failed', pageSize: 5 },
+      mockCredentials.user(),
+    );
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      'http://backend/api/temporal/entities/component/default/orders/workflows?status=Failed&pageSize=5',
+    );
+    expect(init.method).toBe('GET');
+    expect(init.headers.Authorization).toBe('Bearer obo-token');
+  });
+
+  it('reads the graph of a run with the entity as a query parameter', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ nodes: [] })));
+    const { c } = client();
+    await c.graph(
+      { namespace: 'default', workflowId: 'w', runId: 'r' },
+      'component:default/orders',
+      mockCredentials.user(),
+    );
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'http://backend/api/temporal/namespaces/default/workflows/w/runs/r/graph?entityRef=component%3Adefault%2Forders',
+    );
+  });
+
+  it('builds the link to a run without a double slash', () => {
+    expect(
+      buildWorkflowUrl('http://backstage/', {
+        namespace: 'default',
+        workflowId: 'w 1',
+        runId: 'r',
+      }),
+    ).toBe(
+      'http://backstage/temporal/namespaces/default/workflows/w%201/runs/r',
+    );
+  });
+
+  it('reads the run that a refused operation continued as', async () => {
+    const response = new Response(
+      JSON.stringify({
+        error: {
+          name: 'ConflictError',
+          message: 'm',
+          continuedAsNewRunId: 'r2',
+        },
+        response: { statusCode: 409 },
+      }),
+      { status: 409, headers: { 'content-type': 'application/json' } },
+    );
+    const error = await ResponseError.fromResponse(response);
+    expect(continuedAsNewRunIdOf(error)).toBe('r2');
+    expect(continuedAsNewRunIdOf(new Error('x'))).toBeUndefined();
   });
 
   it('starts any workflow type without an entity', async () => {

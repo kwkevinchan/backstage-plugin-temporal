@@ -16,7 +16,7 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its two modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
+![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its three modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
 
 All names carry the prefix `@kwkevinchan/backstage-plugin-`. Teal is the
 core, purple the optional modules. The [README](../README.md#packages) has
@@ -33,6 +33,8 @@ the table with the role of each package and
   systems. It needs the backend.
 - **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
   Definition tab. Each one needs the core of its side.
+- **Actions registry** (`temporal-backend-module-actions`): five actions
+  that AI assistants and MCP clients call as the user.
 - **Scaffolder** (`scaffolder-backend-module-temporal`,
   `scaffolder-module-temporal`): template actions and the workflow picker field.
 - **Development only** (never published): `packages/app`, `packages/app-next`,

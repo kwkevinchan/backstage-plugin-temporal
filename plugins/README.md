@@ -6,9 +6,10 @@
 | [`temporal-frontend`](temporal-frontend)                                   | `@kwkevinchan/backstage-plugin-temporal-frontend`                  | Backstage app     |
 | [`temporal-backend-module-zigflow`](temporal-backend-module-zigflow)       | `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`    | Backstage backend |
 | [`temporal-module-zigflow`](temporal-module-zigflow)                       | `@kwkevinchan/backstage-plugin-temporal-module-zigflow`            | Backstage app     |
+| [`temporal-backend-module-actions`](temporal-backend-module-actions)       | `@kwkevinchan/backstage-plugin-temporal-backend-module-actions`    | Backstage backend |
 | [`scaffolder-backend-module-temporal`](scaffolder-backend-module-temporal) | `@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` | Backstage backend |
 | [`scaffolder-module-temporal`](scaffolder-module-temporal)                 | `@kwkevinchan/backstage-plugin-scaffolder-module-temporal`         | Backstage app     |
 
-The backend and the frontend package are the plugin; the four modules build
+The backend and the frontend package are the plugin; the five modules build
 on the package of their side. See the [repository README](../README.md#packages)
 for which ones to install.

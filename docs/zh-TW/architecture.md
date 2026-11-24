@@ -11,13 +11,14 @@
 
 ## 套件
 
-![套件分成兩邊：Backstage app 裡是 temporal-frontend 和它的兩個模組；Backstage 後端裡是 temporal-backend 和它的兩個模組。每個模組只依賴它那一邊的核心；前端透過 HTTP 呼叫後端，並帶著一份共用定義的副本。](images/package-map.svg)
+![套件分成兩邊：Backstage app 裡是 temporal-frontend 和它的兩個模組；Backstage 後端裡是 temporal-backend 和它的三個模組。每個模組只依賴它那一邊的核心；前端透過 HTTP 呼叫後端，並帶著一份共用定義的副本。](images/package-map.svg)
 
 所有套件名稱都有 `@kwkevinchan/backstage-plugin-` 前綴。青綠色是核心，紫色是選用模組。每個套件的角色表在 [README](../../README.md#packages)，裡面也有[該裝哪些](../../README.md#packages)。
 
 - **核心，後端**（`temporal-backend`）：提供 `/api/temporal`，讀取和操作流程、檢查存取權限、把 `TemporalWorkflow` kind 加進 catalog，並給其他後端程式共用的 Temporal client（`./node`）、擴充點（`./alpha`）和共用定義（`./common`）。一行 `backend.add()` 就全部裝好。
 - **核心，前端**（`temporal-frontend`）：實體分頁、詳細頁、Workflows 頁和各操作的按鈕，兩套前端系統都支援。它需要後端。
 - **Zigflow**（`temporal-module-zigflow`、`temporal-backend-module-zigflow`）：Definition 分頁。各自需要它那一邊的核心。
+- **Actions registry**（`temporal-backend-module-actions`）：五個 action，讓 AI 助理和 MCP client 以使用者身分呼叫。
 - **Scaffolder**（`scaffolder-backend-module-temporal`、`scaffolder-module-temporal`）：範本 action 和選擇流程的表單欄位。
 - **只供開發**（不發佈）：`packages/app`、`packages/app-next`、`packages/backend`、`packages/example-worker`。
 

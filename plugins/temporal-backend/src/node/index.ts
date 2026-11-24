@@ -16,8 +16,9 @@
 
 /**
  * For backend modules and other backend plugins: the shared Temporal
- * connection service (`temporalServiceRef`). This entry point does not load the plugin
- * itself.
+ * connection service (`temporalServiceRef`), and the client that calls the
+ * routes of this plugin on behalf of a user. This entry point does not load
+ * the plugin itself.
  *
  * @packageDocumentation
  */
@@ -27,3 +28,12 @@ export {
   type TemporalSearchAttributeNames,
   type TemporalService,
 } from './TemporalService';
+export {
+  buildWorkflowUrl,
+  continuedAsNewRunIdOf,
+  TemporalPluginClient,
+} from './client';
+export {
+  resolveWorkflowNamespace,
+  type WorkflowNamespaceOptions,
+} from './workflowNamespace';

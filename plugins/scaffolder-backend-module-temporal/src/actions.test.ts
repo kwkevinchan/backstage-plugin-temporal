@@ -18,12 +18,12 @@ import { mockCredentials } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { ConflictError, InputError, ResponseError } from '@backstage/errors';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
+import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import {
   createTemporalWorkflowSignalAction,
   createTemporalWorkflowStartAction,
   createTemporalWorkflowWaitAction,
 } from './actions';
-import { TemporalPluginClient } from './client';
 
 const user = mockCredentials.user('user:default/alice');
 

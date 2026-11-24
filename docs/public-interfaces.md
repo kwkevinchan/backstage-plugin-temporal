@@ -51,13 +51,13 @@ experimental routes and key.
 
 ## Where the interfaces are
 
-![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal-frontend (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins and the Scaffolder module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind, and the plugin reads that kind and the annotations of entities (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
+![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal-frontend (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins, the Scaffolder module and the actions module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind, and the plugin reads that kind and the annotations of entities (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
 
 Each number is one kind of interface; the sections below follow them.
 Teal is what the frontend uses, orange what backend code uses, purple
 what crosses a process boundary (HTTP, Temporal).
 
-1. **npm entry points** of the six packages ([npm entry points](#npm-entry-points)).
+1. **npm entry points** of the seven packages ([npm entry points](#npm-entry-points)).
 2. **Frontend extension**: blueprints, legacy props and `temporalApiRef`
    ([Frontend extension](#frontend-extension)).
 3. **HTTP API** under `/api/temporal` ([HTTP API](#http-api)).
@@ -72,7 +72,7 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The six published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 3 public (report-node.api.md), ./common 110, of which 96 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 110, ./ui 25 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 110, of which 96 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 110, ./ui 25 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
@@ -81,7 +81,7 @@ the tables below say what each name is for.
 | Package                              | Entry      | Names | Tag                       | For                                                   | API report                                                                         |
 | ------------------------------------ | ---------- | ----: | ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |     3 | `@public`                 | Installing the backend                                | [`report.api.md`](../plugins/temporal-backend/report.api.md)                       |
-|                                      | `./node`   |     3 | `@public`                 | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
+|                                      | `./node`   |     8 | `@public`                 | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
 |                                      | `./alpha`  |    26 | `@alpha`                  | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |   110 | `@public` 96, `@alpha` 14 | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |    25 | `@public`                 | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
@@ -91,6 +91,7 @@ the tables below say what each name is for.
 | `temporal-backend-module-zigflow`    | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |     1 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/temporal-module-zigflow/report-alpha.api.md)    |
+| `temporal-backend-module-actions`    | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-actions/report.api.md)        |
 | `scaffolder-backend-module-temporal` | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/scaffolder-backend-module-temporal/report.api.md)     |
 | `scaffolder-module-temporal`         | `.`        |     2 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/scaffolder-module-temporal/report.api.md)             |
 |                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/scaffolder-module-temporal/report-alpha.api.md) |
@@ -110,6 +111,9 @@ it from the package of your side. The entry points for modules (`./node`,
 | `temporalServiceRef`                                                                                                                                                                      | `./node`  | Root service ref of the shared Temporal connection (`temporal.client`)                                   | Other backend code calls Temporal, or you replace the connection              |
 | `TemporalService`                                                                                                                                                                         | `./node`  | Its interface: `getClient()`, `getConnection()`, the namespaces, search attribute names, Web UI links    | You use or implement the service                                              |
 | `TemporalSearchAttributeNames`                                                                                                                                                            | `./node`  | `{ entityRef?, initiator? }`, the configured attribute names                                             | You read `getSearchAttributeNames()`                                          |
+| `TemporalPluginClient`                                                                                                                                                                    | `./node`  | Client of the routes of the plugin, as a user (used by the Scaffolder and actions registry modules)      |
+| `buildWorkflowUrl`, `continuedAsNewRunIdOf`                                                                                                                                               | `./node`  | The link to a run in Backstage; the run a refused operation continued as                                 |
+| `resolveWorkflowNamespace`, `WorkflowNamespaceOptions`                                                                                                                                    | `./node`  | The namespace of a workflow: given, of the entity, or the default                                        |
 | `temporalAccessServiceRef`                                                                                                                                                                | `./alpha` | Plugin-scoped service ref of the access checks (`temporal.access`)                                       | Your module serves routes and needs the same checks, or decides access itself |
 | `temporalAccessServiceFactory`                                                                                                                                                            | `./alpha` | The default factory of that ref                                                                          | You add `temporalPlugin` alone                                                |
 | `TemporalAccessService` and its types `TemporalAccessibleWorkflow`, `TemporalEntityContext`, `TemporalWorkflowAccessLevel`                                                                | `./alpha` | The access interface ([below](#temporalaccessserviceref))                                                | As above                                                                      |
@@ -169,6 +173,7 @@ not use it.
 | `temporal-backend-module-zigflow`    | `default`                                                                 | `.`       | Backend module `temporal` / `zigflow`: the definition route                                      |
 | `temporal-module-zigflow`            | `EntityTemporalDefinitionContent`                                         | `.`       | Legacy Definition tab                                                                            |
 |                                      | `default`, `temporalDefinitionContent`                                    | `./alpha` | Frontend module of `temporal` with `entity-content:temporal/definition`                          |
+| `temporal-backend-module-actions`    | `default`                                                                 | `.`       | Backend module `temporal` / `actions`: five actions of the actions registry                      |
 | `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | Backend module `scaffolder` / `temporal`: the three template actions                             |
 | `scaffolder-module-temporal`         | `TemporalWorkflowPickerFieldExtension`, `TemporalWorkflowPickerUiOptions` | `.`       | Legacy form field and its `ui:options`                                                           |
 |                                      | `default`, `temporalWorkflowPickerFormField`                              | `./alpha` | Frontend module of `scaffolder` with `scaffolder-form-field:scaffolder/temporal-workflow-picker` |
@@ -869,6 +874,22 @@ template are in
 [Notify when a decision is needed](../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)
 and
 [`examples/templates/release-with-notification.yaml`](../examples/templates/release-with-notification.yaml).
+
+## Actions registry
+
+`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` registers five
+actions in the Backstage actions registry: `temporal:list-workflows`,
+`temporal:get-workflow`, `temporal:start-workflow`, `temporal:signal-workflow`
+and `temporal:update-workflow`. An AI assistant or an MCP client (through
+`@backstage/plugin-mcp-actions-backend`) calls them as the caller (a signed-in
+user, or a service when it authenticates as one), over the same HTTP routes as
+the pages and the Scaffolder actions, so the permission checks and audit
+records are the same. Permission policies are not applied to a service
+caller; to check each person, the MCP client uses the token of that user. `list-workflows` and
+`get-workflow` are `readOnly`; the other three are not, so a caller asks a
+person first. Cancel, terminate and rerun are not actions. The actions, their
+attributes and the MCP config are in the
+[module README](../plugins/temporal-backend-module-actions/README.md).
 
 ## Zigflow
 

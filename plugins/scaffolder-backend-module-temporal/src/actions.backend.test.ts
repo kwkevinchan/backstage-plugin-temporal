@@ -24,12 +24,12 @@ import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import temporalBackend from '@kwkevinchan/backstage-plugin-temporal-backend';
 import {
+  TemporalPluginClient,
   TemporalService,
   temporalServiceRef,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import { AddressInfo } from 'node:net';
 import { createTemporalWorkflowWaitAction } from './actions';
-import { TemporalPluginClient } from './client';
 
 const user = mockCredentials.user('user:default/alice');
 
