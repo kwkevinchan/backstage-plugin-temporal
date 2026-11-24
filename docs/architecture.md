@@ -230,6 +230,19 @@ false` removes the routes that change workflows (404, not 403) and their
   larger bundle and an asynchronous/worker layout model). Whether ELK was
   formally benchmarked or prototyped against these requirements beforehand is
   unconfirmed (no evaluation record exists in the repository).
+- **Synchronous layout within bounds (`CHAIN_LAYOUT_LIMIT` and `COMPOUND_LIMIT`).**
+  Synthetic 1,000-step benchmarks on Chromium V8 (and Node 24) measured pure
+  layout at `171.8 ms` (`286.4 ms` in Node) for a mixed 1,000-step / 1,776-edge
+  graph (`edgeKindTint` over all 1,776 edges took `0.7 ms`), `80.1 ms`
+  (`169.4 ms` in Node) for 1,000 steps in 100 groups, and `124.7 ms`
+  (`208.0 ms` in Node) for a 1,000-step chain, with standalone production
+  `WorkflowGraph` first paint at `326–840 ms`. Because 1,000-step layouts stay
+  well under 1 second, the synchronous layout model, node rendering (no
+  `onlyRenderVisibleElements`), and existing lookup helpers are kept as-is.
+  Dagre's recursive DFS overflows the V8 call stack on ungrouped chains at
+  `1,755` steps in Node (`1,772` steps in Chromium), so `CHAIN_LAYOUT_LIMIT`
+  (`1200`) rejects deeper chains before entering dagre and directs users to
+  the Steps tab alongside `COMPOUND_LIMIT` (`1000`).
 - **The SDK's major is the plugin's major.** The backend uses `@temporalio/client`
   1.x; a new major of it is a new major of the plugin packages
   ([Compatibility](../README.md#compatibility)).

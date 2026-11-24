@@ -186,6 +186,59 @@ export function hideSteps<N extends { id: string }>(
 const RANK_GAP_TB = 40;
 
 /**
+ * Longest chain length allowed before invoking dagre's recursive DFS, which
+ * otherwise overflows V8's call stack around ~1,755–1,772 steps.
+ */
+export const CHAIN_LAYOUT_LIMIT = 1200;
+
+function longestChainLength(
+  nodes: readonly { id: string }[],
+  edges: readonly { source: string; target: string }[],
+): number {
+  if (nodes.length <= CHAIN_LAYOUT_LIMIT) return nodes.length;
+  const inDegree = new Map<string, number>();
+  const outgoing = new Map<string, string[]>();
+  const depth = new Map<string, number>();
+  for (const node of nodes) {
+    inDegree.set(node.id, 0);
+    outgoing.set(node.id, []);
+    depth.set(node.id, 1);
+  }
+  for (const edge of edges) {
+    if (
+      edge.source === edge.target ||
+      !inDegree.has(edge.source) ||
+      !inDegree.has(edge.target)
+    ) {
+      continue;
+    }
+    outgoing.get(edge.source)!.push(edge.target);
+    inDegree.set(edge.target, inDegree.get(edge.target)! + 1);
+  }
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree) {
+    if (deg === 0) queue.push(id);
+  }
+  let visited = 0;
+  let maxDepth = nodes.length > 0 ? 1 : 0;
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    visited += 1;
+    const nextDepth = depth.get(id)! + 1;
+    for (const target of outgoing.get(id)!) {
+      if (nextDepth > depth.get(target)!) {
+        depth.set(target, nextDepth);
+        if (nextDepth > maxDepth) maxDepth = nextDepth;
+      }
+      const remaining = inDegree.get(target)! - 1;
+      inDegree.set(target, remaining);
+      if (remaining === 0) queue.push(target);
+    }
+  }
+  return Math.max(maxDepth, nodes.length - visited);
+}
+
+/**
  * Positions of the steps, left to right, laid out with dagre (layered
  * graph drawing). Parallel steps end up in the same column.
  *
@@ -261,6 +314,14 @@ function layoutBlocks(
   // dagre gives a graph without boxes a size of -Infinity.
   if (nodes.length === 0) {
     return { positions: new Map(), width: 0, height: 0, wrapped: false };
+  }
+  if (
+    nodes.length > CHAIN_LAYOUT_LIMIT &&
+    longestChainLength(nodes, edges) > CHAIN_LAYOUT_LIMIT
+  ) {
+    throw new RangeError(
+      `Chain length exceeds layout limit (${CHAIN_LAYOUT_LIMIT})`,
+    );
   }
   const topDown = options.direction === 'TB';
   const frames = options.frames ?? [];
