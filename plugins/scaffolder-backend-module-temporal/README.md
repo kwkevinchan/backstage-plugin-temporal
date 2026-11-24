@@ -80,7 +80,12 @@ is currently running.
 `wait` and `signal` read the entity from the catalog as the user who runs the
 template; an entity that cannot be read is an error, not the default
 namespace. Pass the `namespace` output of `start` to `wait` and `signal`: it
-saves that read and cannot differ from where the workflow runs. Starting,
+saves that read and cannot differ from where the workflow runs. Because
+`temporal:workflow:wait` writes `searchAttributes` and (when `includeResult` is
+true) `result` to Scaffolder task outputs, access to those outputs depends on
+Scaffolder task permissions rather than Temporal's
+`temporal.workflow.history.read` permission (see the
+[Security section](../../README.md#security)). Starting,
 signals and updates are kept in a checkpoint, so a retried task does not start
 or send them again. Dry runs start and send nothing.
 

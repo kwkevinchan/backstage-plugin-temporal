@@ -152,13 +152,21 @@ also show above the source.
   path of any other host. To narrow it, give the host `paths` in
   `backend.reading.allow`. S3 path-style hosts, where the first path segment
   is the bucket, are excluded. Paths climbing out with `..` or resolving to
-  another repository are rejected.
+  another repository are rejected. `format: source` renders any file within
+  that allowed scope (the entity's repository or folder for relative targets, or
+  the allowed `host` and `paths` for absolute URLs) up to `maxBytes`.
 - An absolute `http(s)` URL is rejected by default and read only when its host
-  (and optional `paths` prefix) matches `temporal.definitions.allow`. Other URL
-  schemes are rejected.
-- The backend still reads remote URLs through Backstage's URL reader, so the
+  and `paths` prefix match `temporal.definitions.allow`. When `paths` is omitted
+  on a host with a configured Backstage integration, entity authors can read
+  any repository accessible to that integration's credentials, so `paths` must
+  be configured on integration-backed hosts. Other URL schemes are rejected.
+- The backend reads remote URLs through Backstage's URL reader, so the
   host must also be allowed by a configured integration (or
-  `backend.reading.allow`).
+  `backend.reading.allow`). `temporal.definitions.allow` checks only the initial
+  URL; redirects are governed by the `UrlReader` implementation
+  (`FetchUrlReader` validates redirects against `backend.reading.allow`,
+  `HarnessUrlReader` allows same-origin or `backend.reading.allow`, and SCM
+  integration readers follow default `fetch` redirects).
 - Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
   are not read; the backend stops reading at the limit.
 - The YAML is parsed without running anything: YAML 1.2 core schema, no
@@ -166,8 +174,9 @@ also show above the source.
   "billion laughs" files fail instead of filling the memory. A file that is
   not valid YAML is still shown, with the line of the error.
 - Entities from `file:` locations (a development catalog) are read only with
-  `temporal.definitions.readFileLocations: true`, and only files in the
-  folder of the entity file or below it.
+  `temporal.definitions.readFileLocations: true`, and checked with `path.resolve`
+  to stay in the folder of the entity file or below it (symlinks are not
+  resolved, so keep `readFileLocations` off outside local development).
 - The route is `GET /entities/:kind/:namespace/:name/definition` and needs
   `temporal.workflow.read` on the entity, like the workflow list: a
   definition describes the workflow, without inputs or results.
@@ -237,8 +246,8 @@ temporal:
     #       - /my-org/my-workflows/
 ```
 
-| Key                             | Default   | Description                                                                                                                                                    |
-| ------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and optional `paths` prefixes allowed for absolute `http(s)` `target` URLs. |
-| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                                        |
-| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                                               |
+| Key                             | Default   | Description                                                                                                                                                                                                           |
+| ------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` `target` URLs; `paths` must be set on hosts backed by a Backstage integration. |
+| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                               |
+| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                      |
