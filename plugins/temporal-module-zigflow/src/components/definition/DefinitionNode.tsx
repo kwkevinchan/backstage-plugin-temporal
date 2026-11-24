@@ -104,6 +104,7 @@ function KindIcon(props: { kind: DefinitionNodeKind; run?: string }) {
 export function markLabel(mark: TaskRunMark): string {
   if (mark.status === 'NotReached') return 'Not reached';
   if (mark.status === 'Pending') return 'Not yet';
+  if (mark.status === 'Unknown') return 'Unknown';
   const label = statusLabel(mark.status);
   return mark.count > 1 ? `${label} · ${mark.count} times` : label;
 }
@@ -115,7 +116,10 @@ export const DefinitionNode = memo(function DefinitionNodeView(
   const { node, mark, selected, onSelect } = props.data;
   const unsupported = node.kind === 'unsupported';
   const status =
-    mark && mark.status !== 'NotReached' && mark.status !== 'Pending'
+    mark &&
+    mark.status !== 'NotReached' &&
+    mark.status !== 'Pending' &&
+    mark.status !== 'Unknown'
       ? mark.status
       : undefined;
   const tone = status ? statusTone(status) : 'neutral';
@@ -136,7 +140,8 @@ export const DefinitionNode = memo(function DefinitionNodeView(
         data-dashed={
           unsupported ||
           mark?.status === 'Pending' ||
-          mark?.status === 'Waiting'
+          mark?.status === 'Waiting' ||
+          mark?.status === 'Unknown'
         }
         data-active={status ? isActiveStatus(status) : false}
         data-kind={node.kind}
