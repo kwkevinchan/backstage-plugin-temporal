@@ -360,10 +360,11 @@ export function readLlmSteps(
     (tool ? tools : plain).push(step);
   }
   linkByToolCallId(models, tools);
-  linkByInference(models, [
-    ...tools.filter(t => !t.toolCallId && !t.entry.node.tool),
-    ...plain.filter(p => p.entry.step.kind === 'activity'),
-  ]);
+  linkByInference(
+    models,
+    tools.filter(t => !t.toolCallId && !t.entry.node.tool),
+    plain.filter(p => p.entry.step.kind === 'activity'),
+  );
   return { calls };
 }
 
@@ -390,21 +391,100 @@ function link(
   if (inferred) ref.inferred = true;
 }
 
+function pushBucket<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const bucket = map.get(key);
+  if (bucket) bucket.push(value);
+  else map.set(key, [value]);
+}
+
+function lastIndexBefore<T extends { entry: { node: { first: number } } }>(
+  items: T[],
+  beforeFirst: number,
+): number {
+  let lo = 0;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (items[mid].entry.node.first < beforeFirst) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo - 1;
+}
+
+function firstIndexAfter<T extends { entry: { node: { first: number } } }>(
+  items: T[],
+  afterFirst: number,
+  minIndex = 0,
+): number {
+  let lo = minIndex;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (items[mid].entry.node.first <= afterFirst) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function firstNumberAfter(
+  items: number[],
+  afterValue: number,
+): number | undefined {
+  let lo = 0;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (items[mid] <= afterValue) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo < items.length ? items[lo] : undefined;
+}
+
 /** Steps that record a tool call ID: the model call that asked for it. */
 function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
+  const byToolCallId = new Map<string, ModelStep[]>();
+  const byCallName = new Map<string, ModelStep[]>();
+  for (const model of models) {
+    const seenIds = new Set<string>();
+    for (const callRef of model.entry.node.llm!.toolCalls) {
+      if (callRef.id !== undefined && !seenIds.has(callRef.id)) {
+        seenIds.add(callRef.id);
+        pushBucket(byToolCallId, callRef.id, model);
+      }
+    }
+    const callName = model.entry.node.llm?.call;
+    if (callName !== undefined) {
+      pushBucket(byCallName, callName, model);
+    }
+  }
+
   for (const tool of tools) {
-    const before = models
-      .filter(m => m.entry.node.first < tool.entry.node.first)
-      .reverse();
+    const toolFirst = tool.entry.node.first;
     const id = tool.toolCallId;
     const refOf = (m: ModelStep | undefined) =>
       m?.entry.node.llm!.toolCalls.find(c => c.id === id && !c.nodeId);
-    let owner =
-      id === undefined ? undefined : before.find(m => refOf(m) !== undefined);
+
+    let owner: ModelStep | undefined;
+    if (id !== undefined) {
+      const candidates = byToolCallId.get(id);
+      if (candidates) {
+        for (let i = lastIndexBefore(candidates, toolFirst); i >= 0; i--) {
+          if (refOf(candidates[i]) !== undefined) {
+            owner = candidates[i];
+            break;
+          }
+        }
+      }
+    }
+
     let ref = refOf(owner);
     if (!owner && tool.modelCall !== undefined) {
       // The model call by its name, when its record is not readable.
-      owner = before.find(m => m.entry.node.llm?.call === tool.modelCall);
+      const candidates = byCallName.get(tool.modelCall);
+      if (candidates) {
+        const idx = lastIndexBefore(candidates, toolFirst);
+        if (idx >= 0) owner = candidates[idx];
+      }
       if (owner && id !== undefined) {
         ref = refOf(owner);
         if (!ref) {
@@ -417,47 +497,90 @@ function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
   }
 }
 
+function indexByNameKey(steps: ToolStep[]): Map<string, ToolStep[]> {
+  const byKey = new Map<string, ToolStep[]>();
+  for (const step of steps) {
+    const { summary, activityType } = step.entry.step;
+    const keys = new Set<string>();
+    for (const raw of [step.toolName, activityType, summary]) {
+      if (raw !== undefined) keys.add(nameKey(raw));
+    }
+    for (const key of keys) {
+      pushBucket(byKey, key, step);
+    }
+  }
+  return byKey;
+}
+
 /** Tool calls without an ID on their step: by name, arguments and order. */
-function linkByInference(models: ModelStep[], candidates: ToolStep[]) {
+function linkByInference(
+  models: ModelStep[],
+  toolCandidates: ToolStep[],
+  plainCandidates: ToolStep[],
+) {
   const used = new Set<ToolStep>();
+  const toolsByKey = indexByNameKey(toolCandidates);
+  const plainByKey = indexByNameKey(plainCandidates);
+  const answeredById = new Map<string, number[]>();
+  for (let i = 0; i < models.length; i++) {
+    for (const id of models[i].answered) {
+      pushBucket(answeredById, id, i);
+    }
+  }
+  const canonicalInputCache = new Map<ToolStep, string | undefined>();
+  const canonicalInputOf = (candidate: ToolStep): string | undefined => {
+    if (canonicalInputCache.has(candidate)) {
+      return canonicalInputCache.get(candidate);
+    }
+    const input = candidate.payloads.input;
+    const value = input?.length === 1 ? canonicalJson(input[0]) : undefined;
+    canonicalInputCache.set(candidate, value);
+    return value;
+  };
+
   models.forEach((model, i) => {
     const start = model.entry.node.last;
     if (start === undefined) return;
+    const nextStartedIdx = firstIndexAfter(models, start, i + 1);
+    const defaultNext =
+      nextStartedIdx < models.length ? models[nextStartedIdx] : undefined;
+
     for (const request of model.requests) {
       const { ref } = request;
       if (ref.nodeId || ref.inActivity) continue;
-      const next =
-        (ref.id !== undefined
-          ? models.slice(i + 1).find(m => m.answered.has(ref.id!))
-          : undefined) ??
-        models.slice(i + 1).find(m => m.entry.node.first > start);
+      let next: ModelStep | undefined;
+      if (ref.id !== undefined) {
+        const idxList = answeredById.get(ref.id);
+        const answeredIdx = idxList ? firstNumberAfter(idxList, i) : undefined;
+        if (answeredIdx !== undefined) next = models[answeredIdx];
+      }
+      next = next ?? defaultNext;
       const end = next?.entry.node.first ?? Infinity;
       const key = nameKey(ref.name);
-      const matching = candidates.filter(c => {
-        const { node, step } = c.entry;
-        return (
-          !used.has(c) &&
-          node.first > start &&
-          node.first < end &&
-          [c.toolName, step.activityType, step.summary].some(
-            n => n !== undefined && nameKey(n) === key,
-          )
-        );
-      });
+
+      const matching: ToolStep[] = [];
+      for (const bucketMap of [toolsByKey, plainByKey]) {
+        const bucket = bucketMap.get(key);
+        if (!bucket) continue;
+        for (
+          let k = firstIndexAfter(bucket, start);
+          k < bucket.length && bucket[k].entry.node.first < end;
+          k++
+        ) {
+          const candidate = bucket[k];
+          if (!used.has(candidate)) matching.push(candidate);
+        }
+      }
+      if (matching.length === 0) continue;
+
       const args =
         request.arguments === undefined
           ? undefined
           : canonicalJson(request.arguments);
       const found =
-        matching.find(c => {
-          const input = c.payloads.input;
-          return (
-            args !== undefined &&
-            input?.length === 1 &&
-            canonicalJson(input[0]) === args
-          );
-        }) ?? matching[0];
-      if (!found) continue;
+        (args === undefined
+          ? undefined
+          : matching.find(c => canonicalInputOf(c) === args)) ?? matching[0];
       used.add(found);
       link(found, model, ref, true);
     }
