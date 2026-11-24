@@ -119,9 +119,9 @@ export interface WorkflowGraphProps {
 
 type Structure = ReturnType<typeof useStructure>;
 
-/** Shown in place of the engine's own message when the call stack ran out. */
+/** Shown in place of the engine's own message when the call stack would run out. */
 const TOO_MANY_STEPS =
-  'The run has too many steps in a row to lay out as a graph.';
+  'The run has too many steps in a row to lay out as a graph. Use the Steps tab to inspect them.';
 
 /** Used when layout throws, so the rest of the page can still render. */
 const EMPTY_LAYOUT: StepLayout = {

@@ -19,7 +19,7 @@ import { renderInTestApp } from '@backstage/test-utils';
 import type { WorkflowGraphResponse } from '../../common';
 import { graphResponse } from '../../testData';
 import { loopGraph } from '../../testGraphs/loopGraph';
-import { layoutSteps } from './layout';
+import { layoutSteps, CHAIN_LAYOUT_LIMIT } from './layout';
 import { layoutGroupedSteps } from './eventGroups';
 import { WorkflowGraph } from './WorkflowGraph';
 
@@ -90,7 +90,7 @@ describe('WorkflowGraph layout errors', () => {
     const alert = within(graph).getByTestId('temporal-error');
     expect(alert).toHaveTextContent('The graph could not be laid out');
     expect(alert).toHaveTextContent(
-      'The run has too many steps in a row to lay out as a graph.',
+      'The run has too many steps in a row to lay out as a graph. Use the Steps tab to inspect them.',
     );
     expect(alert).not.toHaveTextContent('Maximum call stack size exceeded');
     expect(screen.getByTestId('step-list')).toHaveTextContent('Start');
@@ -128,6 +128,44 @@ describe('WorkflowGraph layout errors', () => {
     expect(screen.getByTestId('step-list')).toHaveTextContent('Start');
     expect(screen.getByTestId('step-details')).toHaveTextContent(
       'Details of Start',
+    );
+  });
+
+  it('fails fast above CHAIN_LAYOUT_LIMIT without relying on a mock throw', async () => {
+    const count = CHAIN_LAYOUT_LIMIT + 1;
+    const nodes = Array.from({ length: count }, (_, i) => ({
+      id: `s-${i}`,
+      kind: 'activity' as const,
+      name: `step-${i}`,
+      status: 'Completed' as const,
+      events: [],
+    }));
+    const edges = Array.from({ length: count - 1 }, (_, i) => ({
+      id: `s-${i}->s-${i + 1}`,
+      source: `s-${i}`,
+      target: `s-${i + 1}`,
+    }));
+
+    await renderInTestApp(
+      <Page
+        graph={{
+          ...graphResponse,
+          nodes,
+          edges,
+          completedSteps: count,
+          totalSteps: count,
+        }}
+      />,
+    );
+
+    const alert = within(screen.getByTestId('workflow-graph')).getByTestId(
+      'temporal-error',
+    );
+    expect(alert).toHaveTextContent('The graph could not be laid out');
+    expect(alert).toHaveTextContent('Use the Steps tab to inspect them.');
+    expect(screen.getByTestId('step-list')).toHaveTextContent('step-0');
+    expect(screen.getByTestId('step-details')).toHaveTextContent(
+      'Details of step-0',
     );
   });
 });

@@ -933,8 +933,8 @@ export function layoutGroupedSteps(
     if (notice) result.notice = notice;
     return result;
   };
+  let notice: GroupNotice | undefined;
   try {
-    let notice: GroupNotice | undefined;
     let current = plan();
     let graph = groupGraph(nodes, edges, current);
     if (
@@ -956,7 +956,10 @@ export function layoutGroupedSteps(
     }
     // Frames still cover other boxes: no frames at all.
     return layOut(plan(true), notice);
-  } catch {
+  } catch (err) {
+    if (notice === 'tooLarge' && err instanceof RangeError) {
+      throw err;
+    }
     // A compound layout that fails (too deep for dagre, or anything else)
     // must not break the page: the groups become labels on their steps.
     const tagged = planGroups(ids, groups, views, new Set(byKey.keys()));
