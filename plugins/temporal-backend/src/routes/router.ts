@@ -274,16 +274,20 @@ export async function createRouter(
 
   router.get(workflowRunPath, async (req, res) => {
     const loaded = await loadWorkflow(req, 'read');
-    const { credentials, context, workflow } = loaded;
+    const { credentials, context, matchedEntityRef, workflow } = loaded;
     // The stack trace and the causes of failures need the history
     // permission; without it the failures keep their message and type.
     const includeFailureDetails = await access.canReadPayloads(
       loaded,
       credentials,
     );
+    const workflowWithEntity =
+      matchedEntityRef && matchedEntityRef !== context?.entityRef
+        ? { ...workflow, workflowEntityRef: matchedEntityRef }
+        : workflow;
     const detail = context
-      ? await queries.enrichDetail(workflow, context, credentials)
-      : workflow;
+      ? await queries.enrichDetail(workflowWithEntity, context, credentials)
+      : workflowWithEntity;
     res.json(includeFailureDetails ? detail : withoutFailureDetails(detail));
   });
 

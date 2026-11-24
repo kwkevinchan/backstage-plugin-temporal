@@ -113,6 +113,13 @@ export interface TemporalAccessibleWorkflow {
    * without one (the Workflows page) under the list permissions.
    */
   context?: TemporalEntityContext;
+  /**
+   * The entity that matched the workflow when it was opened through an
+   * entity: `context.entityRef` when the entity's own filter matched, or
+   * the `TemporalWorkflow` entity it depends on when matched through one
+   * (for child workflows, the entity matched by the ancestor).
+   */
+  matchedEntityRef?: string;
   workflow: WorkflowDetail;
 }
 

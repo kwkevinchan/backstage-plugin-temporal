@@ -50,10 +50,7 @@ import {
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
-import {
-  workflowBelongsToEntity,
-  workflowIdCondition,
-} from './visibilityQuery';
+import { matchedWorkflowEntity, workflowIdCondition } from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
@@ -186,20 +183,20 @@ export class WorkflowQueries {
    * Checks that a workflow is one of the entity's, or a child workflow (up
    * to MAX_PARENT_DEPTH levels) of one of them: a child is part of its
    * parent's work, so it is opened, and operated, with the parent's entity
-   * and its permissions. Throws NotFoundError otherwise.
+   * and its permissions. Returns the entity reference that matched
+   * (`context.entityRef` or the related `TemporalWorkflow` entity matched
+   * directly or by the ancestor). Throws NotFoundError otherwise.
    */
   async assertBelongs(
     workflow: WorkflowDetail,
     context: TemporalEntityContext,
-  ): Promise<void> {
+  ): Promise<string> {
     const filter = this.sources.filterOf(context);
     let current: WorkflowDetail = workflow;
     for (let depth = 0; ; depth += 1) {
-      if (
-        current.namespace === context.namespace &&
-        workflowBelongsToEntity(current, filter)
-      ) {
-        return;
+      if (current.namespace === context.namespace) {
+        const matched = matchedWorkflowEntity(current, filter);
+        if (matched) return matched;
       }
       // A parent without a run ID could be another workflow with the same
       // ID (another namespace, a later run): the walk stops there.

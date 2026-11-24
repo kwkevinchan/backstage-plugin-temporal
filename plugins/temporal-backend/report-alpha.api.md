@@ -28,6 +28,7 @@ export const createTemporalWorkflowConditionalDecision: (
 // @alpha
 export interface TemporalAccessibleWorkflow {
   context?: TemporalEntityContext;
+  matchedEntityRef?: string;
   // Warning: (ae-forgotten-export) The symbol "WorkflowDetail" needs to be exported by the entry point alpha.d.ts
   //
   // (undocumented)

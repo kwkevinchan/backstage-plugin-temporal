@@ -72,11 +72,13 @@ type Outcome = { result?: JsonValue } | { error: ControlError };
 function PermissionGate(props: {
   permission: ResourcePermission<'catalog-entity'>;
   resourceRef?: string;
+  additionalResourceRef?: string;
   children(allowed: boolean): JSX.Element;
 }) {
   const { allowed, loading } = useControlPermission(
     props.permission,
     props.resourceRef,
+    props.additionalResourceRef,
   );
   return (
     <WithReason
@@ -147,6 +149,7 @@ function ControlActionButtonContent(
         <PermissionGate
           permission={action.permission}
           resourceRef={entityRef ?? workflow.entityRef}
+          additionalResourceRef={workflow.workflowEntityRef}
         >
           {button}
         </PermissionGate>

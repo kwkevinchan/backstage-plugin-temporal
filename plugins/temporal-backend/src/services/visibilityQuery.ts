@@ -331,6 +331,26 @@ export function buildNamespaceVisibilityQuery(
 }
 
 /**
+ * The entity reference a workflow matches (`filter.entityRef` when the
+ * entity's own annotations or search attribute match, else the related
+ * `TemporalWorkflow` entity it matches), or undefined when it belongs to none
+ * of them.
+ */
+export function matchedWorkflowEntity(
+  workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType' | 'entityRef'>,
+  filter: EntityWorkflowFilter,
+): string | undefined {
+  const { annotations, entityRef, entityRefAttribute } = filter;
+  if (
+    (entityRefAttribute && workflow.entityRef === entityRef) ||
+    matchesSource(workflow, annotations)
+  ) {
+    return entityRef;
+  }
+  return matchingWorkflowEntity(workflow, filter);
+}
+
+/**
  * True when a workflow belongs to the entity by the same rules as
  * {@link buildEntityVisibilityQuery}. Used before showing a single workflow.
  */
@@ -338,12 +358,5 @@ export function workflowBelongsToEntity(
   workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType' | 'entityRef'>,
   filter: EntityWorkflowFilter,
 ): boolean {
-  const { annotations, entityRef, entityRefAttribute } = filter;
-  if (entityRefAttribute && workflow.entityRef === entityRef) {
-    return true;
-  }
-  return (
-    matchesSource(workflow, annotations) ||
-    matchingWorkflowEntity(workflow, filter) !== undefined
-  );
+  return matchedWorkflowEntity(workflow, filter) !== undefined;
 }

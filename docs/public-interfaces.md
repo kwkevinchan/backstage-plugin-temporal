@@ -483,7 +483,13 @@ for.
 
 - With `entityRef`: the read (`temporal.workflow.read`) or history
   (`temporal.workflow.history.read`) permission on that entity, and the
-  workflow must be one of its workflows (`404` otherwise).
+  workflow must be one of its workflows (`404` otherwise). When a workflow
+  matches through a `TemporalWorkflow` entity that the opened entity depends on
+  (directly, or via an ancestor for a child workflow), permissions check both
+  entities: both the opened entity and the matched `TemporalWorkflow` entity must
+  allow `temporal.workflow.read`, `temporal.workflow.history.read` (including
+  step graph payloads and failure details on `GET /:wf`), and any operation
+  permission.
 - Without it: first the list permissions on the workflow itself
   (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
   history level), with their conditions. If they do not allow it, the
@@ -494,8 +500,9 @@ for.
   workflow they may not open (without that attribute, or through an entity
   they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
-  through, else on the entity of its search attribute; a workflow with
-  neither needs the permission allowed without conditions.
+  through (and on the matched `TemporalWorkflow` entity when matched through
+  one), else on the entity of its search attribute; a workflow with neither
+  needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a

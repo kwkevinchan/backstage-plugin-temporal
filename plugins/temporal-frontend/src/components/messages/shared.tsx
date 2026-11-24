@@ -24,17 +24,31 @@ import { ErrorAlert } from '../feedback';
 import { tp } from '../styles';
 
 /**
- * Whether the user may use a control permission on the entity. Without an
- * entity (a workflow from the Workflows page that is not linked to one) the
- * frontend cannot ask, so the control is enabled and the backend decides.
+ * Whether the user may use a control permission on the entity (and on
+ * `additionalResourceRef`, when different). Without an entity (a workflow
+ * from the Workflows page that is not linked to one) the frontend cannot
+ * ask, so the control is enabled and the backend decides.
  */
 export function useControlPermission(
   permission: ResourcePermission<'catalog-entity'>,
   resourceRef: string | undefined,
+  additionalResourceRef?: string,
 ): { allowed: boolean; loading: boolean } {
-  const result = usePermission({ permission, resourceRef });
-  if (!resourceRef) return { allowed: true, loading: false };
-  return { allowed: result.allowed, loading: result.loading };
+  const secondRef =
+    additionalResourceRef && additionalResourceRef !== resourceRef
+      ? additionalResourceRef
+      : undefined;
+  const first = usePermission({ permission, resourceRef });
+  const second = usePermission({ permission, resourceRef: secondRef });
+  if (!resourceRef && !secondRef) return { allowed: true, loading: false };
+  const firstAllowed = resourceRef ? first.allowed : true;
+  const firstLoading = resourceRef ? first.loading : false;
+  const secondAllowed = secondRef ? second.allowed : true;
+  const secondLoading = secondRef ? second.loading : false;
+  return {
+    allowed: firstAllowed && secondAllowed,
+    loading: firstLoading || secondLoading,
+  };
 }
 
 /**

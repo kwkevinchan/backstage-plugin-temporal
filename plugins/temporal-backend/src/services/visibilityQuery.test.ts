@@ -22,6 +22,7 @@ import {
 import {
   buildEntityVisibilityQuery,
   buildNamespaceVisibilityQuery,
+  matchedWorkflowEntity,
   matchingWorkflowEntity,
   parseStatus,
   scheduleBelongsToSources,
@@ -298,6 +299,44 @@ describe('related TemporalWorkflow entities', () => {
       matchingWorkflowEntity(
         { taskQueue: 'other', workflowType: 'orderWorkflow' },
         filter,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('returns the matched entity ref (opened entity vs related entity)', () => {
+    const withOwnAnnotations = {
+      ...filter,
+      annotations: parseTemporalAnnotations(
+        entity({ 'temporal.io/workflow-type': 'deploymentWorkflow' }),
+      ),
+      entityRefAttribute: 'BackstageEntityRef',
+    };
+    expect(
+      matchedWorkflowEntity(
+        { taskQueue: 'deploy', workflowType: 'deploymentWorkflow' },
+        withOwnAnnotations,
+      ),
+    ).toBe(ref);
+    expect(
+      matchedWorkflowEntity(
+        {
+          taskQueue: 'other',
+          workflowType: 'otherWorkflow',
+          entityRef: ref,
+        },
+        withOwnAnnotations,
+      ),
+    ).toBe(ref);
+    expect(
+      matchedWorkflowEntity(
+        { taskQueue: 'orders', workflowType: 'orderWorkflow' },
+        withOwnAnnotations,
+      ),
+    ).toBe('temporalworkflow:default/order');
+    expect(
+      matchedWorkflowEntity(
+        { taskQueue: 'other', workflowType: 'orderWorkflow' },
+        withOwnAnnotations,
       ),
     ).toBeUndefined();
   });

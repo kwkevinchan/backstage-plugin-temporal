@@ -51,6 +51,7 @@ export interface LoadedWorkflow {
   credentials: BackstageCredentials;
   ref: WorkflowRunRef;
   context?: TemporalEntityContext;
+  matchedEntityRef?: string;
   workflow: WorkflowDetail;
 }
 
@@ -72,16 +73,20 @@ export async function loadRequestWorkflow(
 
 /**
  * Checks a permission on the workflow's entity: the entity it was loaded
- * with, else the entity in its search attribute. A workflow without an
- * entity, or whose search attribute is not an entity reference, is only
- * allowed when the policy allows the permission for every entity (an
+ * with (and on the related `TemporalWorkflow` entity it matched through,
+ * when different), else the entity in its search attribute. A workflow
+ * without an entity, or whose search attribute is not an entity reference,
+ * is only allowed when the policy allows the permission for every entity (an
  * unconditional ALLOW). Returns the entity reference the permission was
  * checked on.
  */
 export async function authorizeOnWorkflow(
   access: TemporalAccessService,
   permission: ResourcePermission<'catalog-entity'>,
-  loaded: Pick<LoadedWorkflow, 'credentials' | 'context' | 'workflow'>,
+  loaded: Pick<
+    LoadedWorkflow,
+    'credentials' | 'context' | 'matchedEntityRef' | 'workflow'
+  >,
 ): Promise<string | undefined> {
   const entityRef =
     loaded.context?.entityRef ??
@@ -89,6 +94,13 @@ export async function authorizeOnWorkflow(
       ? canonicalEntityRef(loaded.workflow.entityRef)
       : undefined);
   await access.authorizeOn(permission, entityRef, loaded.credentials);
+  if (loaded.matchedEntityRef && loaded.matchedEntityRef !== entityRef) {
+    await access.authorizeOn(
+      permission,
+      loaded.matchedEntityRef,
+      loaded.credentials,
+    );
+  }
   return entityRef;
 }
 
