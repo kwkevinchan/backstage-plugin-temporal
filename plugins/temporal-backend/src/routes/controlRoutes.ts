@@ -50,7 +50,6 @@ import {
 } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
-import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import {
   WorkflowChainRef,
   WorkflowCommands,
@@ -72,8 +71,12 @@ import {
   requestBody,
 } from './params';
 import {
+  auditEntityRef,
   audited,
+  auditNamespace,
+  auditPathId,
   authorizeOnWorkflow,
+  INVALID_AUDIT_VALUE,
   LoadedWorkflow,
   loadRequestWorkflow,
   optionalBodyString,
@@ -504,7 +507,7 @@ export function createControlRouter(
       const initialMeta = initialBodyFields(
         req,
         ['workflowType', 'taskQueue', 'workflowId'],
-        { entityRef: canonicalEntityRef(rawEntityRef) ?? rawEntityRef },
+        { entityRef: auditEntityRef(rawEntityRef) ?? INVALID_AUDIT_VALUE },
       );
       const started = await audited(
         auditor,
@@ -566,16 +569,13 @@ export function createControlRouter(
     async (req, res) => {
       const { namespace, scheduleId } = req.params;
       const operation = req.params.operation as TemporalScheduleOperation;
-      const rawEntityRef =
-        typeof req.query.entityRef === 'string' && req.query.entityRef
-          ? canonicalEntityRef(req.query.entityRef) ?? req.query.entityRef
-          : undefined;
+      const initialEntityRef = auditEntityRef(req.query.entityRef);
       const initialNote = optionalBodyString(req, 'note', 1000);
       const initialMeta: JsonObject = {
-        namespace,
-        scheduleId,
+        namespace: auditNamespace(namespace),
+        scheduleId: auditPathId(scheduleId),
         operation,
-        ...(rawEntityRef ? { entityRef: rawEntityRef } : {}),
+        ...(initialEntityRef ? { entityRef: initialEntityRef } : {}),
         ...(initialNote ? { note: initialNote } : {}),
       };
       await audited(

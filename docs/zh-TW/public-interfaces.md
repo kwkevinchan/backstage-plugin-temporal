@@ -462,7 +462,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
   外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。這兩個屬性的可信度等同於能在對應 Temporal namespace 啟動流程或寫入 search attribute 的呼叫端，請限制 namespace 的寫入權限，或在外部寫入者不應影響歸屬與 `IS_INITIATOR` 時不要設定這兩個鍵。
 
 - **Identity。** 操作以 `backstage:<使用者實體 reference>`（或 `backstage:<服務 subject>`）作為 Temporal identity，會顯示在歷史裡。
-- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體；`workflow-update`、`workflow-cancel`、`workflow-terminate` 還會附上打開的 `runId`、`firstRunId` 和 `scope: 'chain'`。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。事件在檢查權限和請求之前就建立，所以被拒絕或不合法的嘗試也會記成失敗，附上請求的目標（namespace、流程、run、`entityRef`）。
+- **稽核事件**（auditor 服務，外掛 `temporal`）：`workflow-start`、`workflow-signal`、`workflow-update`、`workflow-query`、`workflow-cancel`、`workflow-terminate`、`workflow-rerun`、`workflow-action`、`schedule-pause`、`schedule-unpause`、`schedule-trigger`，metadata 裡有 namespace、流程和實體；`workflow-update`、`workflow-cancel`、`workflow-terminate` 還會附上打開的 `runId`、`firstRunId` 和 `scope: 'chain'`。severity 是 `medium`，只有 `workflow-terminate` 是 `high`，因為終止無法復原。事件在檢查權限和請求之前就建立，所以被拒絕或不合法的嘗試也會記成失敗，附上請求的目標（namespace、流程、run、`entityRef`）；網址上的值格式不合或過長時，初始稽核內容會寫成固定佔位值 `'<invalid>'`，不記錄原值。
 
   Backstage 預設的對應是 `low` 送到 `debug`，`medium`、`high`、`critical` 送到 `info`。後端預設只輸出 `info` 以上，所以 `low` 的事件不會出現在 log 裡。若要看到 `low` 的事件，可以把 `backend.auditor.severityLogLevelMappings.low` 設成 `info`（這是全域設定，會連 catalog 的讀取事件一起打開），或只用 logger override 提高這個外掛的稽核事件：
 

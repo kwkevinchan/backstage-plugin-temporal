@@ -2144,4 +2144,128 @@ describe('logs', () => {
       expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
     });
   });
+
+  describe('initial audit metadata sanitization', () => {
+    it('records a placeholder for overlong path IDs, invalid namespaces, and invalid entityRefs', async () => {
+      const { backend, workflowService, auditor, auditEvent } = await start();
+      const longWorkflowId = 'w'.repeat(1001);
+      const longRunId = 'r'.repeat(1001);
+
+      const badWorkflowRes = await request(backend)
+        .post(
+          `/api/temporal/namespaces/default/workflows/${longWorkflowId}/runs/${longRunId}/signal${withEntity}`,
+        )
+        .send({ name: 'addNote' });
+      expect(badWorkflowRes.status).toBe(400);
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({
+            namespace: 'default',
+            workflowId: '<invalid>',
+            runId: '<invalid>',
+            entityRef: 'component:default/orders',
+            name: 'addNote',
+          }),
+        }),
+      );
+      const badWorkflowMeta = JSON.stringify(
+        auditor.createEvent.mock.calls.at(-1)?.[0]?.meta,
+      );
+      expect(badWorkflowMeta).not.toContain(longWorkflowId);
+      expect(badWorkflowMeta).not.toContain(longRunId);
+
+      const badNsRes = await request(backend)
+        .post(
+          '/api/temporal/namespaces/bad%20ns!/workflows/wf-1/runs/wf-1-run/signal',
+        )
+        .send({ name: 'addNote' });
+      expect(badNsRes.status).toBe(400);
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({
+            namespace: '<invalid>',
+            workflowId: 'wf-1',
+            runId: 'wf-1-run',
+            name: 'addNote',
+          }),
+        }),
+      );
+
+      const badEntityRes = await request(backend)
+        .post(`${wf}/signal?entityRef=not%20a%20valid%20ref`)
+        .send({ name: 'addNote' });
+      expect(badEntityRes.status).toBe(400);
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({
+            namespace: 'default',
+            workflowId: 'wf-1',
+            runId: 'wf-1-run',
+            entityRef: '<invalid>',
+            name: 'addNote',
+          }),
+        }),
+      );
+
+      const longEntityRef = `component:default/${'e'.repeat(1001)}`;
+      await request(backend)
+        .post(`${wf}/signal?entityRef=${encodeURIComponent(longEntityRef)}`)
+        .send({ name: 'addNote' });
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({ entityRef: '<invalid>' }),
+        }),
+      );
+
+      const badScheduleRes = await request(backend)
+        .post(
+          `/api/temporal/namespaces/bad%20ns!/schedules/${'s'.repeat(
+            1001,
+          )}/pause?entityRef=bad%20ref`,
+        )
+        .send({});
+      expect(badScheduleRes.status).toBe(400);
+      expect(auditor.createEvent).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          eventId: 'schedule-pause',
+          meta: expect.objectContaining({
+            namespace: '<invalid>',
+            scheduleId: '<invalid>',
+            entityRef: '<invalid>',
+          }),
+        }),
+      );
+
+      expect(auditEvent.fail).toHaveBeenCalledTimes(5);
+      expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
+    });
+
+    it('keeps valid and canonical URL values in initial audit metadata', async () => {
+      const { backend, auditor, auditEvent } = await start({
+        deny: ['temporal.workflow.signal'],
+      });
+
+      const res = await request(backend)
+        .post(`${wf}/signal?entityRef=Component:default/orders`)
+        .send({ name: 'addNote' });
+      expect(res.status).toBe(403);
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-signal',
+          meta: expect.objectContaining({
+            namespace: 'default',
+            workflowId: 'wf-1',
+            runId: 'wf-1-run',
+            entityRef: 'component:default/orders',
+            name: 'addNote',
+          }),
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalled();
+    });
+  });
 });

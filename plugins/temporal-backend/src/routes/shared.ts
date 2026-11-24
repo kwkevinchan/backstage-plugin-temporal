@@ -21,7 +21,11 @@ import {
 } from '@backstage/backend-plugin-api';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject } from '@backstage/types';
-import { WorkflowDetail, WorkflowRunRef } from '../common';
+import {
+  isValidNamespaceName,
+  WorkflowDetail,
+  WorkflowRunRef,
+} from '../common';
 import {
   TemporalAccessService,
   TemporalEntityContext,
@@ -29,7 +33,12 @@ import {
 } from '../node/alpha';
 import { Request } from 'express';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
-import { parseEntityRefParam, workflowRunRefFromParams } from './params';
+import {
+  isValidPathId,
+  MAX_PATH_ID_LENGTH,
+  parseEntityRefParam,
+  workflowRunRefFromParams,
+} from './params';
 
 // What the read routes and the routes that change workflows share: the
 // paths of one run, loading it with the access checks, the permission
@@ -120,20 +129,44 @@ export function optionalBodyString(
   return trimmed && trimmed.length <= max ? trimmed : undefined;
 }
 
+/** Placeholder recorded in initial audit metadata when a URL parameter is invalid or overlong. */
+export const INVALID_AUDIT_VALUE = '<invalid>';
+
+/** Validates a URL namespace for initial audit metadata before route validation. */
+export function auditNamespace(value: unknown): string {
+  return typeof value === 'string' && isValidNamespaceName(value)
+    ? value
+    : INVALID_AUDIT_VALUE;
+}
+
+/** Validates a URL workflow ID, run ID, or schedule ID for initial audit metadata. */
+export function auditPathId(value: unknown): string {
+  return isValidPathId(value) ? value : INVALID_AUDIT_VALUE;
+}
+
+/**
+ * Canonicalizes a catalog entity reference for initial audit metadata, or
+ * returns {@link INVALID_AUDIT_VALUE} when present and malformed or overlong.
+ */
+export function auditEntityRef(value: unknown): string | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string' || value.length > MAX_PATH_ID_LENGTH) {
+    return INVALID_AUDIT_VALUE;
+  }
+  return canonicalEntityRef(value) ?? INVALID_AUDIT_VALUE;
+}
+
 /** Safe initial audit metadata of a request targeting one workflow run. */
 export function requestWorkflowMeta(
   req: Request,
   extra: JsonObject = {},
 ): JsonObject {
-  const rawEntityRef =
-    typeof req.query.entityRef === 'string' && req.query.entityRef
-      ? canonicalEntityRef(req.query.entityRef) ?? req.query.entityRef
-      : undefined;
+  const entityRef = auditEntityRef(req.query.entityRef);
   return {
-    namespace: req.params.namespace,
-    workflowId: req.params.workflowId,
-    runId: req.params.runId,
-    ...(rawEntityRef ? { entityRef: rawEntityRef } : {}),
+    namespace: auditNamespace(req.params.namespace),
+    workflowId: auditPathId(req.params.workflowId),
+    runId: auditPathId(req.params.runId),
+    ...(entityRef ? { entityRef } : {}),
     ...extra,
   };
 }
