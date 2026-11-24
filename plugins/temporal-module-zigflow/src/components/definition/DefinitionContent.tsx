@@ -252,7 +252,7 @@ function Legend(props: { overlay: DefinitionOverlay }) {
     ['success', 'Done'],
     ['info', 'Running'],
     ['danger', 'Failed'],
-    props.overlay.truncated
+    props.overlay.truncated || props.overlay.noMatch
       ? ['unknown', 'Unknown']
       : ['dimmed', 'Not reached'],
   ];
@@ -474,14 +474,32 @@ function DefinitionView(props: {
       {run.error && (
         <ErrorAlert title="The run could not be loaded" error={run.error} />
       )}
-      {overlay?.truncated && (
+      {overlay?.noMatch ? (
         <Alert
           status="warning"
           icon
-          title="History truncated — only the start was matched"
-          description="The history is too long to read in full, so only the first events were matched against the definition. Tasks marked Unknown may have run later."
-          data-testid="definition-overlay-truncated"
+          title={
+            overlay.truncated
+              ? 'No tasks matched this run (history truncated)'
+              : 'No tasks matched this run'
+          }
+          description={
+            overlay.truncated
+              ? "None of the first events read from this truncated history matched a task in the definition. The worker's activity names or workflow type may differ from the definition, or matching tasks may have run later in the unread part of the history."
+              : "None of the events in this run matched a task in the definition. The worker's activity names or workflow type may differ from the definition."
+          }
+          data-testid="definition-overlay-no-match"
         />
+      ) : (
+        overlay?.truncated && (
+          <Alert
+            status="warning"
+            icon
+            title="History truncated — only the start was matched"
+            description="The history is too long to read in full, so only the first events were matched against the definition. Tasks marked Unknown may have run later."
+            data-testid="definition-overlay-truncated"
+          />
+        )
       )}
       {overlay && <Legend overlay={overlay} />}
       <GraphFullscreenContext.Provider value={fullscreen}>

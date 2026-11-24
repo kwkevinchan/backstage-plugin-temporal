@@ -389,16 +389,34 @@ describe('run overlay', () => {
         { one: { call: 'activity', with: { name: 'same' } } },
         { two: { call: 'activity', with: { name: 'same' } } },
         { three: { call: 'activity', with: { name: 'other' } } },
+        { four: { call: 'activity', with: { name: 'unique' } } },
       ],
     };
-    expect([...taskIdentities(doc).keys()]).toEqual(['/do/2/three']);
-    const overlay = overlayRun(
+    expect([...taskIdentities(doc).keys()]).toEqual([
+      '/do/2/three',
+      '/do/3/four',
+    ]);
+    const partial = overlayRun(
+      doc,
+      run('Completed', [
+        step('activity', 'same', 'Completed', 1),
+        step('activity', 'unique', 'Completed', 2),
+      ]),
+    );
+    expect(partial.marks.has('/do/0/one')).toBe(false);
+    expect(partial.marks.has('/do/1/two')).toBe(false);
+    expect(partial.marks.get('/do/2/three')?.status).toBe('NotReached');
+    expect(partial.marks.get('/do/3/four')?.status).toBe('Completed');
+    expect(partial.noMatch).toBe(false);
+    expect(partial.truncated).toBe(false);
+
+    const zeroMatched = overlayRun(
       doc,
       run('Completed', [step('activity', 'same', 'Completed', 1)]),
     );
-    expect(overlay.marks.has('/do/0/one')).toBe(false);
-    expect(overlay.marks.get('/do/2/three')?.status).toBe('NotReached');
-    expect(overlay.truncated).toBe(false);
+    expect(zeroMatched.marks.has('/do/0/one')).toBe(false);
+    expect(zeroMatched.noMatch).toBe(true);
+    expect(zeroMatched.marks.get('/do/2/three')?.status).toBe('Unknown');
   });
 
   it('marks unfound tasks Unknown instead of NotReached or Pending when history is truncated', () => {
@@ -443,5 +461,52 @@ describe('run overlay', () => {
     expect(runningTruncated.truncated).toBe(true);
     expect(runningTruncated.marks.get('/do/0/first')?.status).toBe('Completed');
     expect(runningTruncated.marks.get('/do/2/later')?.status).toBe('Unknown');
+  });
+
+  it('marks all identifiable tasks Unknown and flags noMatch when events match zero tasks', () => {
+    const doc = {
+      document: { dsl: '1.0.0', workflowType: 'w' },
+      do: [
+        { first: { call: 'http', with: { method: 'get', endpoint: 'x' } } },
+        { second: { call: 'activity', with: { name: 'expectedActivity' } } },
+      ],
+    };
+
+    const closed = overlayRun(
+      doc,
+      run('Completed', [
+        step('activity', 'otherWorkerActivity', 'Completed', 1),
+      ]),
+    );
+    expect(closed.noMatch).toBe(true);
+    expect(closed.unmatched).toBe(1);
+    expect(closed.truncated).toBe(false);
+    expect(closed.marks.get('/do/0/first')?.status).toBe('Unknown');
+    expect(closed.marks.get('/do/1/second')?.status).toBe('Unknown');
+
+    const running = overlayRun(
+      doc,
+      run('Running', [step('activity', 'otherWorkerActivity', 'Running', 1)]),
+    );
+    expect(running.noMatch).toBe(true);
+    expect(running.unmatched).toBe(1);
+    expect(running.marks.get('/do/0/first')?.status).toBe('Unknown');
+    expect(running.marks.get('/do/1/second')?.status).toBe('Unknown');
+
+    const truncated = overlayRun(doc, {
+      ...run('Completed', [
+        step('activity', 'otherWorkerActivity', 'Completed', 1),
+      ]),
+      truncated: true,
+    });
+    expect(truncated.noMatch).toBe(true);
+    expect(truncated.truncated).toBe(true);
+    expect(truncated.marks.get('/do/0/first')?.status).toBe('Unknown');
+    expect(truncated.marks.get('/do/1/second')?.status).toBe('Unknown');
+
+    const empty = overlayRun(doc, run('Completed', []));
+    expect(empty.noMatch).toBe(false);
+    expect(empty.unmatched).toBe(0);
+    expect(empty.marks.get('/do/0/first')?.status).toBe('NotReached');
   });
 });
