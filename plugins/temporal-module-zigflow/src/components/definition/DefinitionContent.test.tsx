@@ -176,6 +176,58 @@ describe('Definition tab', () => {
     expect(api.getEntityDefinition).not.toHaveBeenCalled();
   });
 
+  it.each([
+    // eslint-disable-next-line no-script-url
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    '/relative/path',
+    './src/workflows.ts',
+  ])('hides View the file when backstage.io/view-url is %s', async viewUrl => {
+    const api = mockTemporalApi();
+    await render(
+      {
+        ...codeEntity,
+        metadata: {
+          ...codeEntity.metadata,
+          annotations: {
+            'backstage.io/source-location':
+              'url:https://git.example.com/org/repo/tree/main/src/',
+            'backstage.io/view-url': viewUrl,
+          },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source-links');
+    expect(
+      within(card).getByRole('link', { name: /Source code/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('link', { name: /View the file/ }),
+    ).toBeNull();
+  });
+
+  it.each([
+    'https://git.example.com/org/repo/blob/main/src/workflows.ts',
+    'http://git.example.com/org/repo/blob/main/src/workflows.ts',
+  ])('shows View the file when backstage.io/view-url is %s', async viewUrl => {
+    const api = mockTemporalApi();
+    await render(
+      {
+        ...codeEntity,
+        metadata: {
+          ...codeEntity.metadata,
+          annotations: { 'backstage.io/view-url': viewUrl },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source-links');
+    expect(
+      within(card).getByRole('link', { name: /View the file/ }),
+    ).toHaveAttribute('href', viewUrl);
+  });
+
   it('shows the source of a workflow written in code, with its function marked', async () => {
     const api = mockTemporalApi();
     const source = [
