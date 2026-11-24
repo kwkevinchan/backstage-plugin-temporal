@@ -119,5 +119,20 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 - **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器。官方 Temporal AI 整合的 LLM 畫面放在 `components/llm/` 和 `services/llm/`，不需要設定；Event Groups 也是從事件紀錄直接讀。
 - **Worker 寫入的格式，兩邊都有測試。** 官方 Temporal AI 整合的 payload 和 Event Groups 以 history 錄在 `test-fixtures/llm-integrations` 與 `test-fixtures/event-groups`；後端用自己的程式碼讀回，前端畫面測試讀同一批 history 建出的 graph。
 - **同步查詢 `llmCall` 耗時遠低於 200 ms 門檻。** 在 Node `v24.22.2` 以約 5,000 筆事件的合成 agent history（涵蓋 Vercel AI SDK `toolCallId`、OpenAI Agents SDK 推斷、密集推斷與單步 50 次含反序呼叫等情境，分別對第一、中間與最後一個模型呼叫步驟做 3 次預熱與 15 次計時）實測 `AiWorkflowQueries.llmCall`：各情境中位數皆落在 `28.21–41.02 ms`（單次最高 `52.76 ms`），遠低於 `200 ms` 單次請求門檻，因此維持既有搭配 `MAX_STEP_EVENTS`（`5000`）的實作而不額外複雜化。
+- **大 Payload 建圖維持不截斷、同步解碼（尚無大小上限）。**
+  Temporal 預設單一 payload 上限為 2 MB（512 KB 警告）、單次執行事件紀錄上限為 50 MB 或 51,200 筆事件（10 MB / 10,240 筆警告）。於 Node `v24.22.2` 直接對編譯後的 `plugins/temporal-backend/dist/services/graph.cjs.js` 執行程序內基準測試（使用 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts` 的合成紀錄，3 次預熱與 10 次計時；無插樁量測 `buildWorkflowGraph` 與 `JSON.stringify`，另包裹 `convert.decodePayloads` 量測解碼佔比，期間 `toDisplayJson` 呼叫次數為 0），實測數字如下：
+
+  | 情境                                                             | `includePayloads` | `buildWorkflowGraph` 中位 / 最高 | `decodePayloads` 中位 | 其他部分中位 | `JSON.stringify` 中位 / 最高 | 回應 JSON 大小               |
+  | ---------------------------------------------------------------- | ----------------- | -------------------------------- | --------------------- | ------------ | ---------------------------- | ---------------------------- |
+  | 24 步 × ~2 MB 結果，巢狀物件（149 事件，原始 payload 48.00 MB）  | `true`            | `196.55 / 214.09 ms`             | `168.49 ms`           | `4.21 ms`    | `176.25 / 194.17 ms`         | `48.03 MB`（`48,030,510 B`） |
+  | 24 步 × ~2 MB 結果，巢狀物件（149 事件，原始 payload 48.00 MB）  | `false`           | `142.04 / 159.18 ms`             | `139.94 ms`           | `3.95 ms`    | `0.12 / 0.20 ms`             | `0.03 MB`（`28,881 B`）      |
+  | 24 步 × ~2 MB 結果，字串 blob（149 事件，原始 payload 48.00 MB） | `true`            | `66.40 / 91.28 ms`               | `59.06 ms`            | `2.58 ms`    | `138.16 / 157.56 ms`         | `48.03 MB`（`48,031,390 B`） |
+  | 24 步 × ~2 MB 結果，字串 blob（149 事件，原始 payload 48.00 MB） | `false`           | `63.28 / 83.43 ms`               | `57.79 ms`            | `2.47 ms`    | `0.11 / 0.23 ms`             | `0.03 MB`（`28,881 B`）      |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，巢狀物件（原始 16.95 MB）   | `true`            | `85.45 / 101.83 ms`              | `63.50 ms`            | `19.62 ms`   | `58.98 / 70.67 ms`           | `18.00 MB`（`17,997,747 B`） |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，巢狀物件（原始 16.95 MB）   | `false`           | `83.15 / 95.75 ms`               | `62.70 ms`            | `17.93 ms`   | `3.99 / 7.40 ms`             | `0.97 MB`（`974,181 B`）     |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，字串 blob（原始 17.00 MB）  | `true`            | `32.98 / 59.36 ms`               | `15.64 ms`            | `16.26 ms`   | `39.78 / 51.24 ms`           | `18.04 MB`（`18,044,937 B`） |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，字串 blob（原始 17.00 MB）  | `false`           | `38.62 / 44.00 ms`               | `16.08 ms`            | `17.53 ms`   | `4.69 / 12.16 ms`            | `0.97 MB`（`974,181 B`）     |
+
+  量測顯示 `buildWorkflowGraph` 耗時主要來自 `decodePayloads` 的 base64 解碼與 `JSON.parse`，逼近 50 MB 紀錄上限且含結構化大物件時，`buildWorkflowGraph` 與 `JSON.stringify` 合計達 ~373 ms；`includePayloads: false` 可消除回應大小與 `JSON.stringify` 開銷（降到 5 ms 以下），但因目前實作仍會先呼叫 `decodePayloads` 再依參數捨棄，因此仍需承擔解碼耗時。重測用的大 payload 產生器（`largePayloadFewStepsHistory`、`largePayloadManyEventsHistory`）收錄於 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts`。
 
 回到[文件索引](README.md)。

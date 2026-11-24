@@ -515,3 +515,104 @@ export function localActivitiesHistory(count = 4400): any[] {
   b.completeWorkflow({ count });
   return b.events;
 }
+
+/** Shape of generated payloads for {@link LargePayloadHistoryOptions}. */
+export type SyntheticPayloadShape = 'structured' | 'string';
+
+/** Options for large-payload synthetic history generators. */
+export interface LargePayloadHistoryOptions {
+  /** Number of sequential activity steps to emit. */
+  activities?: number;
+  /** Approximate UTF-8 JSON size of each large payload, in bytes. */
+  payloadBytes?: number;
+  /** Payload JSON shape: realistic nested objects/arrays or a single string. */
+  shape?: SyntheticPayloadShape;
+}
+
+function largePayloadValue(
+  targetBytes: number,
+  seed: number,
+  shape: SyntheticPayloadShape = 'structured',
+): Record<string, unknown> {
+  if (shape === 'string') {
+    const overhead = Buffer.byteLength(
+      JSON.stringify({ seed, blob: '' }),
+      'utf8',
+    );
+    return {
+      seed,
+      blob: 'a'.repeat(Math.max(0, targetBytes - overhead)),
+    };
+  }
+  const items: Array<Record<string, unknown>> = [];
+  let bytes = Buffer.byteLength(
+    JSON.stringify({ seed, count: 999999, items: [] }),
+    'utf8',
+  );
+  let i = 0;
+  while (bytes < targetBytes) {
+    const rec = {
+      id: `rec-${seed}-${i}`,
+      status: i % 2 === 0 ? 'ok' : 'pending',
+      score: (i * 17) % 100,
+      tags: ['alpha', 'beta', `g${i % 9}`],
+      summary: `Record payload item number ${i} for batch ${seed}`,
+    };
+    const itemBytes = Buffer.byteLength(JSON.stringify(rec), 'utf8') + 1;
+    if (items.length > 0 && bytes + itemBytes > targetBytes) {
+      break;
+    }
+    items.push(rec);
+    bytes += itemBytes;
+    i += 1;
+  }
+  return { seed, count: items.length, items };
+}
+
+/**
+ * Few-step workflow near Temporal's payload/history limits: by default 24
+ * sequential activities (149 events) each returning ~2 MB (~48 MB total).
+ */
+export function largePayloadFewStepsHistory(
+  options: LargePayloadHistoryOptions = {},
+): any[] {
+  const activities = options.activities ?? 24;
+  const payloadBytes = options.payloadBytes ?? 2_000_000;
+  const shape = options.shape ?? 'structured';
+  const b = new HistoryBuilder();
+  b.startWorkflow('largePayloadFewStepsWorkflow', 'pipelines');
+  for (let i = 0; i < activities; i++) {
+    b.workflowTaskTurn();
+    const scheduled = b.scheduleActivity(`act-${i}`, 'processLargeChunk', [
+      { chunk: i },
+    ]);
+    b.finishActivity(scheduled, [largePayloadValue(payloadBytes, i, shape)]);
+  }
+  b.completeWorkflow({ activities });
+  return b.events;
+}
+
+/**
+ * Large-history workflow with medium payloads: by default 830 sequential
+ * activities (4,985 events) where each input and result is ~10 KiB.
+ */
+export function largePayloadManyEventsHistory(
+  options: LargePayloadHistoryOptions = {},
+): any[] {
+  const activities = options.activities ?? 830;
+  const payloadBytes = options.payloadBytes ?? 10_240;
+  const shape = options.shape ?? 'structured';
+  const b = new HistoryBuilder();
+  b.startWorkflow('largePayloadManyEventsWorkflow', 'pipelines');
+  for (let i = 0; i < activities; i++) {
+    b.workflowTaskTurn();
+    const scheduled = b.scheduleActivity(`act-${i}`, 'processMediumChunk', [
+      largePayloadValue(payloadBytes, i * 2, shape),
+    ]);
+    b.finishActivity(scheduled, [
+      largePayloadValue(payloadBytes, i * 2 + 1, shape),
+    ]);
+  }
+  b.completeWorkflow({ activities });
+  return b.events;
+}
