@@ -25,6 +25,7 @@ import {
   ToggleButtonGroup,
 } from '@backstage/ui';
 import { formatTime } from './format';
+import { ErrorAlert, Loading } from './feedback';
 import { isMarkerStep, kindLabel } from './steps';
 import { WorkflowHistory } from './WorkflowHistory';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
@@ -93,18 +94,47 @@ export function GroupedEvents(props: {
  * every attribute.
  */
 export function WorkflowEvents(props: {
-  steps: WorkflowGraphNode[];
+  steps?: WorkflowGraphNode[];
+  graphError?: Error;
   workflowRef: WorkflowRunRef;
   entityRef?: string;
   /** Changing it loads the raw events again, from the first page. */
   reloadKey?: number;
-  payloadsHidden: boolean;
+  payloadsHidden?: boolean;
   onSelect(id: string): void;
 }) {
   const [view, setView] = useState<'grouped' | 'raw'>('grouped');
   const [showInternal, setShowInternal] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
-  const hasMarkers = props.steps.some(isMarkerStep);
+  const activeView = props.payloadsHidden ? 'grouped' : view;
+  const hasMarkers = props.steps?.some(isMarkerStep) ?? false;
+
+  const eventsContent = () => {
+    if (activeView === 'raw') {
+      return (
+        <WorkflowHistory
+          key={props.reloadKey}
+          workflowRef={props.workflowRef}
+          entityRef={props.entityRef}
+        />
+      );
+    }
+    if (props.steps) {
+      return (
+        <GroupedEvents
+          steps={props.steps}
+          showInternal={showInternal}
+          showMarkers={showMarkers}
+          onSelect={props.onSelect}
+        />
+      );
+    }
+    if (props.graphError) {
+      return <ErrorAlert error={props.graphError} />;
+    }
+    return <Loading />;
+  };
+
   return (
     <div>
       <Flex align="center" gap="4" mb="3">
@@ -112,7 +142,7 @@ export function WorkflowEvents(props: {
           aria-label="Event view"
           selectionMode="single"
           disallowEmptySelection
-          selectedKeys={[view]}
+          selectedKeys={[activeView]}
           onSelectionChange={keys => {
             const [key] = [...keys];
             if (key === 'grouped' || key === 'raw') setView(key);
@@ -121,18 +151,22 @@ export function WorkflowEvents(props: {
           <ToggleButton id="grouped" size="small">
             Grouped
           </ToggleButton>
-          <ToggleButton id="raw" size="small" isDisabled={props.payloadsHidden}>
+          <ToggleButton
+            id="raw"
+            size="small"
+            isDisabled={Boolean(props.payloadsHidden)}
+          >
             Raw
           </ToggleButton>
         </ToggleButtonGroup>
-        {view === 'grouped' && (
+        {activeView === 'grouped' && props.steps && (
           <Switch
             label="Show workflow tasks"
             isSelected={showInternal}
             onChange={setShowInternal}
           />
         )}
-        {view === 'grouped' && hasMarkers && (
+        {activeView === 'grouped' && props.steps && hasMarkers && (
           <Switch
             label="Show markers"
             isSelected={showMarkers}
@@ -140,20 +174,7 @@ export function WorkflowEvents(props: {
           />
         )}
       </Flex>
-      {view === 'grouped' ? (
-        <GroupedEvents
-          steps={props.steps}
-          showInternal={showInternal}
-          showMarkers={showMarkers}
-          onSelect={props.onSelect}
-        />
-      ) : (
-        <WorkflowHistory
-          key={props.reloadKey}
-          workflowRef={props.workflowRef}
-          entityRef={props.entityRef}
-        />
-      )}
+      {eventsContent()}
     </div>
   );
 }
