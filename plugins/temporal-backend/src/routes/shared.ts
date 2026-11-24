@@ -51,6 +51,7 @@ export interface LoadedWorkflow {
   credentials: BackstageCredentials;
   ref: WorkflowRunRef;
   context?: TemporalEntityContext;
+  matchedEntityRef?: string;
   workflow: WorkflowDetail;
 }
 
@@ -72,16 +73,20 @@ export async function loadRequestWorkflow(
 
 /**
  * Checks a permission on the workflow's entity: the entity it was loaded
- * with, else the entity in its search attribute. A workflow without an
- * entity, or whose search attribute is not an entity reference, is only
- * allowed when the policy allows the permission for every entity (an
+ * with (and on the related `TemporalWorkflow` entity it matched through,
+ * when different), else the entity in its search attribute. A workflow
+ * without an entity, or whose search attribute is not an entity reference,
+ * is only allowed when the policy allows the permission for every entity (an
  * unconditional ALLOW). Returns the entity reference the permission was
  * checked on.
  */
 export async function authorizeOnWorkflow(
   access: TemporalAccessService,
   permission: ResourcePermission<'catalog-entity'>,
-  loaded: Pick<LoadedWorkflow, 'credentials' | 'context' | 'workflow'>,
+  loaded: Pick<
+    LoadedWorkflow,
+    'credentials' | 'context' | 'matchedEntityRef' | 'workflow'
+  >,
 ): Promise<string | undefined> {
   const entityRef =
     loaded.context?.entityRef ??
@@ -89,7 +94,48 @@ export async function authorizeOnWorkflow(
       ? canonicalEntityRef(loaded.workflow.entityRef)
       : undefined);
   await access.authorizeOn(permission, entityRef, loaded.credentials);
+  if (loaded.matchedEntityRef && loaded.matchedEntityRef !== entityRef) {
+    await access.authorizeOn(
+      permission,
+      loaded.matchedEntityRef,
+      loaded.credentials,
+    );
+  }
   return entityRef;
+}
+
+/** Safe string field from a JSON object body for initial audit metadata. */
+export function optionalBodyString(
+  req: Request,
+  field: string,
+  max = 200,
+): string | undefined {
+  const body = req.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return undefined;
+  }
+  const value = (body as Record<string, unknown>)[field];
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed && trimmed.length <= max ? trimmed : undefined;
+}
+
+/** Safe initial audit metadata of a request targeting one workflow run. */
+export function requestWorkflowMeta(
+  req: Request,
+  extra: JsonObject = {},
+): JsonObject {
+  const rawEntityRef =
+    typeof req.query.entityRef === 'string' && req.query.entityRef
+      ? canonicalEntityRef(req.query.entityRef) ?? req.query.entityRef
+      : undefined;
+  return {
+    namespace: req.params.namespace,
+    workflowId: req.params.workflowId,
+    runId: req.params.runId,
+    ...(rawEntityRef ? { entityRef: rawEntityRef } : {}),
+    ...extra,
+  };
 }
 
 /** Records an operation with the auditor and runs it. */
@@ -99,7 +145,7 @@ export async function audited<T>(
   eventId: string,
   meta: JsonObject,
   severityLevel: 'low' | 'medium' | 'high',
-  run: () => Promise<T>,
+  run: (setMeta: (extra: JsonObject) => void) => Promise<T>,
 ): Promise<T> {
   const event = await auditor.createEvent({
     eventId,
@@ -107,12 +153,19 @@ export async function audited<T>(
     request: req,
     meta,
   });
+  let resolvedMeta: JsonObject | undefined;
+  const setMeta = (extra: JsonObject) => {
+    resolvedMeta = resolvedMeta ? { ...resolvedMeta, ...extra } : { ...extra };
+  };
   try {
-    const result = await run();
-    await event.success();
+    const result = await run(setMeta);
+    await event.success(resolvedMeta ? { meta: resolvedMeta } : undefined);
     return result;
   } catch (error) {
-    await event.fail({ error: error as Error });
+    await event.fail({
+      error: error as Error,
+      ...(resolvedMeta ? { meta: resolvedMeta } : {}),
+    });
     throw error;
   }
 }

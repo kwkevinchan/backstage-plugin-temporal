@@ -740,24 +740,24 @@ temporal:
     #       - /my-org/my-workflows/
 ```
 
-| Key                             | Default              | Meaning                                                                                                                                                                                              |
-| ------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connection.address`            | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                              |
-| `connection.namespaces`         | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                    |
-| `connection.defaultNamespace`   | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                           |
-| `connection.tls`                | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).            |
-| `connection.auth.type`          | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                         |
-| `connection.auth.token`         |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                  |
-| `webUi.baseUrl`                 |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                   |
-| `searchAttributes.entityRef`    |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                    |
-| `searchAttributes.initiator`    |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                             |
-| `control.enabled`               | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).              |
-| `control.allowedSignals`        | (all)                | Signal names that may be sent.                                                                                                                                                                       |
-| `control.allowedUpdates`        | (all)                | Update names that may be sent.                                                                                                                                                                       |
-| `externalStorage.objectUrl`     |                      | Template of the link to a stored payload; `{bucket}` and `{key}` are replaced with the URL-encoded values. Only `https:` templates are used. See [Large payloads](#large-payloads-external-storage). |
-| `definitions.allow`             | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and optional `paths` prefixes allowed for absolute `http(s)` definition URLs.                     |
-| `definitions.maxBytes`          | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                              |
-| `definitions.readFileLocations` | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                     |
+| Key                             | Default              | Meaning                                                                                                                                                                                                                                                                                         |
+| ------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.address`            | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                                                                                                                         |
+| `connection.namespaces`         | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                                                                                                               |
+| `connection.defaultNamespace`   | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                                                                                                                      |
+| `connection.tls`                | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).                                                                                                       |
+| `connection.auth.type`          | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                                                                                                                    |
+| `connection.auth.token`         |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                                                                                                             |
+| `webUi.baseUrl`                 |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                                                                                                              |
+| `searchAttributes.entityRef`    |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                                                                                                               |
+| `searchAttributes.initiator`    |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                                                                                                                        |
+| `control.enabled`               | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).                                                                                                         |
+| `control.allowedSignals`        | (all)                | Signal names that may be sent.                                                                                                                                                                                                                                                                  |
+| `control.allowedUpdates`        | (all)                | Update names that may be sent.                                                                                                                                                                                                                                                                  |
+| `externalStorage.objectUrl`     |                      | Template of the link to a stored payload; `{bucket}` and `{key}` are replaced with the URL-encoded values. Only `https:` templates are used. Keep a fixed trusted domain or host suffix instead of using `{bucket}` as the entire host. See [Large payloads](#large-payloads-external-storage). |
+| `definitions.allow`             | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration.                                                         |
+| `definitions.maxBytes`          | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                         |
+| `definitions.readFileLocations` | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi`, `control` and `externalStorage.objectUrl`; the token stays in the
@@ -1192,7 +1192,9 @@ user may not use is disabled with the reason as tooltip. **By default every
 operation is allowed**: with the allow-all policy (or the permission framework
 off), every signed-in user can use them. The permissions are resource
 permissions on the workflow's entity: the entity the page is shown for, else
-the entity in the `searchAttributes.entityRef` attribute. A workflow without
+the entity in the `searchAttributes.entityRef` attribute. When the workflow
+belongs to the page's entity through a `TemporalWorkflow` entity it depends on,
+that entity must allow the permission too. A workflow without
 an entity (opened from the Workflows page) is only controlled when the policy
 allows the permission without conditions. Starting from the Workflows page
 also needs `temporal.workflow.list`. The operations on one workflow, and
@@ -1397,7 +1399,9 @@ action that signals, starts or changes other workflows must check the
 permissions for those itself, with `temporalAccessServiceRef` from
 `@kwkevinchan/backstage-plugin-temporal-backend/alpha`: `loadWorkflow()` reads
 the other workflow and its entity, then `authorizeOn()` checks the
-permission on that entity.
+permission on that entity (`context.entityRef`), and on `matchedEntityRef`
+too when it is set and differs: the `TemporalWorkflow` entity the workflow
+belongs to through a `dependsOn` relation.
 
 ```ts
 temporal.addControlAction({
@@ -1515,6 +1519,53 @@ warning; it does not fail the lint.
   history shows the user as the identity. Limit signal and update names
   with `control.allowedSignals` and `control.allowedUpdates`, or turn the
   operations off with `control.enabled: false`.
+- **Trust boundaries.** The plugin relies on clear boundaries across the
+  catalog, Temporal, URL readers, external storage links and Scaffolder:
+  - **Entity-to-workflow mappings are declared by catalog authors.** Workflow
+    type, task queue and namespace annotations (`temporal.io/*`),
+    `TemporalWorkflow` `spec` fields, and `spec.dependsOn` references are
+    declared in catalog YAML files. Permissions are checked against those
+    declared entities (and matched `TemporalWorkflow` entities for
+    `dependsOn`), so restrict who can register or edit catalog entities.
+  - **Search attributes trust anyone who can write to Temporal.**
+    `temporal.searchAttributes.entityRef` and `temporal.searchAttributes.initiator`
+    are trusted by entity ownership matching and the `IS_INITIATOR` permission
+    rule to the same extent as callers that can start workflows or set search
+    attributes in the configured Temporal namespaces. Restrict write access to
+    Temporal namespaces accordingly, or omit those keys if external writers
+    should not determine ownership or `IS_INITIATOR`.
+  - **Zigflow definition reading (`temporal.definitions.*`).** If a
+    `temporal.definitions.allow` entry specifies a `host` without `paths`,
+    every path on that host is allowed; on hosts with a configured Backstage
+    integration, entity authors can read any repository accessible to that
+    integration's credentials, so **`paths` must be set on integration-backed
+    hosts**. `format: source` displays any readable file within the allowed
+    scope (the entity's repository/folder for relative targets, or the allowed
+    `host` and `paths` for absolute URLs) up to `maxBytes`. `file:` targets
+    (`definitions.readFileLocations: true`) are resolved with `path.resolve`
+    without resolving symlinks; keep `readFileLocations: false` outside local
+    development and avoid symlinks pointing outside catalog folders. HTTP
+    redirects are governed by Backstage's `UrlReader` rather than
+    re-checking `temporal.definitions.allow` (`@backstage/backend-defaults@0.18.1`:
+    `FetchUrlReader` validates up to 5 redirects against
+    `backend.reading.allow`, `HarnessUrlReader` allows same-origin redirects
+    or `backend.reading.allow`, and SCM integration readers such as GitHub,
+    GitLab, Bitbucket, Azure and Gitea follow redirects with `fetch`).
+  - **External Storage link templates (`externalStorage.objectUrl`).** Putting
+    `{bucket}` in the path (`https://console.example.com/s3/{bucket}?prefix={key}`)
+    or as a subdomain under a fixed domain (`https://{bucket}.s3.example.com/{key}`)
+    keeps links on that domain; using `{bucket}` as the entire host
+    (`https://{bucket}/...`) lets the workflow history value select any
+    `https:` host. Keep a fixed trusted host or domain suffix in
+    `objectUrl`.
+  - **Scaffolder `temporal:workflow:wait` outputs.** `temporal:workflow:wait`
+    writes `searchAttributes` and (when `includeResult: true`) `result` to
+    Scaffolder task outputs. While the action reads Temporal as the caller who
+    runs the template, once stored in task outputs, who can view them is
+    decided by Scaffolder task permissions rather than
+    `temporal.workflow.history.read`. Restrict Scaffolder task visibility or
+    avoid `includeResult: true` and sensitive search attributes in shared
+    templates.
 
 Please report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 

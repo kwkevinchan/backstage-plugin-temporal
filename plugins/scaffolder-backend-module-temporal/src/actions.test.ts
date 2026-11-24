@@ -16,7 +16,7 @@
 
 import { mockCredentials } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
-import { InputError, ResponseError } from '@backstage/errors';
+import { ConflictError, InputError, ResponseError } from '@backstage/errors';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import {
@@ -111,6 +111,7 @@ describe('temporal:workflow:start', () => {
         namespace: undefined,
         // From the task and the step, so a retry cannot start a second one.
         workflowId: `release-${ctx.task.id}-${ctx.step!.id}`,
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
       }),
       user,
     );
@@ -211,6 +212,53 @@ describe('temporal:workflow:start', () => {
     await createTemporalWorkflowStartAction(options).handler(dryCtx);
     expect(dryCtx.output).toHaveBeenCalledWith('namespace', 'billing');
     expect(dryCtx.output).toHaveBeenCalledWith('workflowId', 'custom-dry');
+  });
+
+  const duplicateConflict = async () =>
+    ResponseError.fromResponse(
+      new Response(
+        JSON.stringify({
+          error: {
+            name: 'ConflictError',
+            message: 'Workflow execution already finished',
+          },
+          request: { method: 'POST', url: '/' },
+          response: { statusCode: 409 },
+        }),
+        { status: 409, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+  it('rejects a duplicate default workflow ID with a clear ConflictError', async () => {
+    const { client, options } = setup();
+    client.start.mockRejectedValueOnce(await duplicateConflict());
+    const ctx = context({
+      entityRef: 'temporalworkflow:default/release',
+    });
+    const defaultId = `release-${ctx.task.id}-${ctx.step!.id}`;
+    const err = await createTemporalWorkflowStartAction(options)
+      .handler(ctx)
+      .catch(e => e);
+    expect(err).toBeInstanceOf(ConflictError);
+    expect(err.message).toContain(defaultId);
+    expect(err.message).toContain('has already been run');
+  });
+
+  it('rethrows 409 unchanged when an explicit workflowId is given', async () => {
+    const { client, options } = setup();
+    const original = await duplicateConflict();
+    client.start.mockRejectedValueOnce(original);
+    const err = await createTemporalWorkflowStartAction(options)
+      .handler(
+        context({
+          workflowType: 'orderWorkflow',
+          taskQueue: 'orders',
+          workflowId: 'custom-dup-1',
+        }),
+      )
+      .catch(e => e);
+    expect(err).toBe(original);
+    expect(err).toBeInstanceOf(ResponseError);
   });
 });
 

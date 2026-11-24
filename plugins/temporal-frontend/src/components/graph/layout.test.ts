@@ -18,6 +18,7 @@ import type { WorkflowGraphNode } from '../../common';
 import { graphResponse } from '../../testData';
 import { routeRowGaps } from './frameEdge';
 import {
+  CHAIN_LAYOUT_LIMIT,
   clearArrowsThrough,
   FramedGraph,
   graphHeight,
@@ -418,5 +419,36 @@ describe('clearArrowsThrough', () => {
       x: 300,
       y: 132.5 - NODE_HEIGHT,
     });
+  });
+});
+
+describe('CHAIN_LAYOUT_LIMIT', () => {
+  it('rejects chains longer than CHAIN_LAYOUT_LIMIT before dagre recurses', () => {
+    const count = CHAIN_LAYOUT_LIMIT + 1;
+    const nodes = Array.from({ length: count }, (_, i) => ({ id: `a${i}` }));
+    const edges = Array.from({ length: count - 1 }, (_, i) => ({
+      source: `a${i}`,
+      target: `a${i + 1}`,
+    }));
+    expect(() => layoutSteps(nodes, edges, 1400)).toThrow(RangeError);
+  });
+
+  it('lays out wide shallow graphs with more than CHAIN_LAYOUT_LIMIT nodes', () => {
+    const nodes = [{ id: 'start' }];
+    const edges: { source: string; target: string }[] = [];
+    let prev = 'start';
+    for (let wave = 0; wave < 50; wave++) {
+      const join = `join-${wave}`;
+      nodes.push({ id: join });
+      for (let branch = 0; branch < 24; branch++) {
+        const id = `n-${wave}-${branch}`;
+        nodes.push({ id });
+        edges.push({ source: prev, target: id }, { source: id, target: join });
+      }
+      prev = join;
+    }
+    expect(nodes.length).toBe(1251);
+    const result = layoutSteps(nodes, edges, 1400);
+    expect(result.positions.size).toBe(1251);
   });
 });

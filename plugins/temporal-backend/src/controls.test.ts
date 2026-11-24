@@ -30,6 +30,7 @@ import { TemporalService, temporalServiceRef } from './node';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './alpha';
 import {
+  checkoutEntity,
   createFakeConnection,
   createFakeWorkflowService,
   deadlineExceeded,
@@ -133,8 +134,8 @@ function createControlWorkflowService(
 }
 
 async function start(options?: {
-  /** Permission names denied. */
-  deny?: string[];
+  /** Permission names or `{ permission, resourceRef }` rules denied. */
+  deny?: Array<string | { permission: string; resourceRef: string }>;
   /** Permission names that get a conditional decision. */
   conditional?: string[];
   control?: object;
@@ -161,17 +162,25 @@ async function start(options?: {
   for (const [method, error] of Object.entries(options?.scheduleErrors ?? {})) {
     (workflowService as any)[method].mockRejectedValue(error);
   }
+  const isDenied = (r: any, includeResourceRef: boolean) =>
+    options?.deny?.some(rule =>
+      typeof rule === 'string'
+        ? rule === r.permission.name
+        : includeResourceRef &&
+          rule.permission === r.permission.name &&
+          rule.resourceRef === r.resourceRef,
+    );
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
       requests.map((r: any) => ({
-        result: options?.deny?.includes(r.permission.name)
+        result: isDenied(r, true)
           ? AuthorizeResult.DENY
           : AuthorizeResult.ALLOW,
       })),
     ) as any,
     authorizeConditional: jest.fn(async requests =>
       requests.map((r: any) => {
-        if (options?.deny?.includes(r.permission.name)) {
+        if (isDenied(r, false)) {
           return { result: AuthorizeResult.DENY };
         }
         if (options?.conditional?.includes(r.permission.name)) {
@@ -219,7 +228,12 @@ async function start(options?: {
     temporalAccessServiceFactory,
     temporalPlugin,
     catalogServiceMock.factory({
-      entities: [ordersEntity, otherEntity, orderWorkflowEntity],
+      entities: [
+        ordersEntity,
+        otherEntity,
+        orderWorkflowEntity,
+        checkoutEntity,
+      ],
     }),
     createServiceFactory({
       service: temporalServiceRef,
@@ -463,9 +477,10 @@ describe('workflow controls', () => {
   });
 
   it('operates update, cancel and terminate across the chain from a continued-as-new run using run A permissions only', async () => {
-    const { server, workflowService, permissions, auditor } = await start({
-      status: 'CONTINUED_AS_NEW',
-    });
+    const { server, workflowService, permissions, auditor, auditEvent } =
+      await start({
+        status: 'CONTINUED_AS_NEW',
+      });
     const runAPath =
       '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run-2';
     workflowService.describeWorkflowExecution.mockResolvedValue({
@@ -546,11 +561,17 @@ describe('workflow controls', () => {
           meta: expect.objectContaining({
             workflowId: 'wf-1',
             runId: 'wf-1-run-2',
-            firstRunId: 'wf-1-run-1',
-            scope: 'chain',
           }),
         }),
       );
+      expect(auditEvent.success).toHaveBeenCalledWith({
+        meta: expect.objectContaining({
+          workflowId: 'wf-1',
+          runId: 'wf-1-run-2',
+          firstRunId: 'wf-1-run-1',
+          scope: 'chain',
+        }),
+      });
     }
   });
 
@@ -668,12 +689,15 @@ describe('workflow controls', () => {
   });
 
   it('answers 409 for a rerun of a run that is still running', async () => {
-    const { server, workflowService, auditor } = await start();
+    const { server, workflowService, auditor, auditEvent } = await start();
     const res = await request(server).post(`${wf}/rerun${withEntity}`).send({});
     expect(res.status).toBe(409);
     expect(res.body.error.message).toContain('still running');
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
-    expect(auditor.createEvent).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: 'workflow-rerun' }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalled();
   });
 
   it('reruns a closed run with its input and search attributes under a new ID', async () => {
@@ -800,8 +824,112 @@ describe('workflow controls', () => {
     );
   });
 
+  it('forwards allowed workflowIdReusePolicy on start and omits it when unset', async () => {
+    const { server, workflowService } = await start();
+
+    const entityRes = await request(server)
+      .post(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .send({
+        workflowId: 'id-1',
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      });
+    expect(entityRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-1',
+        workflowIdReusePolicy: 3,
+      }),
+    );
+
+    const directRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-2',
+        workflowIdReusePolicy: 'ALLOW_DUPLICATE_FAILED_ONLY',
+      });
+    expect(directRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-2',
+        workflowIdReusePolicy: 2,
+      }),
+    );
+
+    const allowRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-3',
+        workflowIdReusePolicy: 'ALLOW_DUPLICATE',
+      });
+    expect(allowRes.status).toBe(201);
+    expect(workflowService.startWorkflowExecution.mock.calls[2][0]).toEqual(
+      expect.objectContaining({
+        workflowId: 'id-3',
+        workflowIdReusePolicy: 1,
+      }),
+    );
+
+    const plainRes = await request(server)
+      .post('/api/temporal/workflows')
+      .send({
+        workflowType: 'anyWorkflow',
+        taskQueue: 'jobs',
+        workflowId: 'id-4',
+      });
+    expect(plainRes.status).toBe(201);
+    expect(
+      workflowService.startWorkflowExecution.mock.calls[3][0],
+    ).not.toHaveProperty('workflowIdReusePolicy');
+  });
+
+  it('rejects unsupported or invalid workflowIdReusePolicy values with 400', async () => {
+    const { backend, workflowService } = await start();
+    for (const bad of ['TERMINATE_IF_RUNNING', 'UNKNOWN', null]) {
+      const entityRes = await request(backend)
+        .post(
+          '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+        )
+        .send({ workflowId: 'id-bad', workflowIdReusePolicy: bad });
+      expect(entityRes.status).toBe(400);
+
+      const directRes = await request(backend)
+        .post('/api/temporal/workflows')
+        .send({
+          workflowType: 'anyWorkflow',
+          taskQueue: 'jobs',
+          workflowId: 'id-bad',
+          workflowIdReusePolicy: bad,
+        });
+      expect(directRes.status).toBe(400);
+    }
+    expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+  });
+
+  it('answers 409 when startWorkflowExecution rejects a duplicate workflow ID', async () => {
+    const { server, workflowService } = await start();
+    workflowService.startWorkflowExecution.mockRejectedValueOnce(
+      grpcError(6, 'Workflow execution already finished'),
+    );
+    const res = await request(server)
+      .post(
+        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflows',
+      )
+      .send({
+        workflowId: 'dup-id',
+        workflowIdReusePolicy: 'REJECT_DUPLICATE',
+      });
+    expect(res.status).toBe(409);
+    expect(res.body.error.name).toBe('ConflictError');
+  });
+
   it('does not start from the Workflows page with a conditional decision', async () => {
-    const { server, workflowService } = await start({
+    const { server, workflowService, auditor, auditEvent } = await start({
       conditional: ['temporal.workflow.start'],
     });
     const res = await request(server)
@@ -809,6 +937,18 @@ describe('workflow controls', () => {
       .send({ workflowType: 'anyWorkflow', taskQueue: 'jobs' });
     expect(res.status).toBe(403);
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'workflow-start',
+        meta: expect.objectContaining({
+          workflowType: 'anyWorkflow',
+          taskQueue: 'jobs',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
   });
 
   it('checks the entity from the search attribute without an entityRef', async () => {
@@ -869,13 +1009,13 @@ describe('workflow controls', () => {
   });
 
   it.each(controlRoutes)(
-    'answers 403 for %s when the permission is denied',
+    'answers 403 for %s when the permission is denied, and records an audit failure',
     async (operation, path, payload) => {
       const permission =
         operation === 'start'
           ? 'temporal.workflow.start'
           : `temporal.workflow.${operation}`;
-      const { server, workflowService, auditor } = await start({
+      const { server, workflowService, auditor, auditEvent } = await start({
         deny: [permission],
         status: operation === 'rerun' ? 'COMPLETED' : 'RUNNING',
       });
@@ -890,7 +1030,16 @@ describe('workflow controls', () => {
       ).not.toHaveBeenCalled();
       expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
       expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
-      expect(auditor.createEvent).not.toHaveBeenCalled();
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: `workflow-${operation}`,
+          severityLevel: operation === 'terminate' ? 'high' : 'medium',
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotAllowedError' }),
+      });
+      expect(auditEvent.success).not.toHaveBeenCalled();
     },
   );
 
@@ -985,7 +1134,7 @@ describe('workflow controls', () => {
     });
 
     it('answers 403 when the action permission is denied', async () => {
-      const { server } = await start({
+      const { server, auditor, auditEvent } = await start({
         action,
         deny: ['temporal.workflow.update'],
       });
@@ -994,6 +1143,15 @@ describe('workflow controls', () => {
         .send({});
       expect(res.status).toBe(403);
       expect(handle).not.toHaveBeenCalled();
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-action',
+          meta: expect.objectContaining({ actionId: 'escalate' }),
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotAllowedError' }),
+      });
     });
 
     it.each([
@@ -1182,13 +1340,26 @@ describe('schedule controls', () => {
   });
 
   it('needs temporal.workflow.start', async () => {
-    const { server, workflowService } = await start({
+    const { server, workflowService, auditor, auditEvent } = await start({
       schedules,
       deny: ['temporal.workflow.start'],
     });
     await request(server).post(path('nightly', 'trigger')).send({}).expect(403);
     // Refused before the schedule is read.
     expect(workflowService.describeSchedule).not.toHaveBeenCalled();
+    expect(auditor.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'schedule-trigger',
+        meta: expect.objectContaining({
+          scheduleId: 'nightly',
+          operation: 'trigger',
+          entityRef: 'component:default/orders',
+        }),
+      }),
+    );
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
     // Without an entity, the permission must be allowed without conditions.
     const conditional = await start({
       schedules,
@@ -1198,6 +1369,9 @@ describe('schedule controls', () => {
       .post(path('nightly', 'trigger', false))
       .send({})
       .expect(403);
+    expect(conditional.auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
   });
 
   it('answers 404 for an unknown schedule or operation, 400 for a bad note', async () => {
@@ -1281,6 +1455,36 @@ describe('schedule controls', () => {
     await request(server)
       .post('/api/temporal/namespaces/secret/schedules/nightly/pause')
       .expect(400);
+  });
+
+  it('checks permissions before rejecting an unconfigured namespace on schedule operations', async () => {
+    const forbiddenPath =
+      '/api/temporal/namespaces/forbidden-ns/schedules/nightly/pause';
+    const denied = await start({
+      schedules,
+      deny: ['temporal.workflow.start'],
+    });
+    await request(denied.server)
+      .post(`${forbiddenPath}?entityRef=component:default/orders`)
+      .send({})
+      .expect(403);
+    await request(denied.server).post(forbiddenPath).send({}).expect(403);
+
+    const allowed = await start({ schedules });
+    const withEntityRes = await request(allowed.server)
+      .post(`${forbiddenPath}?entityRef=component:default/orders`)
+      .send({});
+    expect(withEntityRes.status).toBe(400);
+    expect(withEntityRes.body.error.message).toContain(
+      'Temporal namespace is not allowed',
+    );
+    const noEntityRes = await request(allowed.server)
+      .post(forbiddenPath)
+      .send({});
+    expect(noEntityRes.status).toBe(400);
+    expect(noEntityRes.body.error.message).toContain(
+      'Temporal namespace is not allowed',
+    );
   });
 });
 
@@ -1658,11 +1862,17 @@ describe('logs', () => {
       '/api/temporal/workflows?namespace=default',
     );
     expect(list.status).toBe(403);
+    expect(list.body.error.message).toBe(
+      'The workflow list conditions cannot be applied',
+    );
+    expect(list.body.error.message).not.toContain('IS_ENTITY_OWNER');
+    expect(list.body.error.message).not.toContain('Error');
     expect(recorder.records).toContainEqual({
       level: 'warn',
       message:
         'A permission condition cannot be applied, so the list shows nothing',
       meta: { permission: 'temporal.workflow.list', errorName: 'Error' },
+      error: expect.any(Error),
     });
   });
 
@@ -1761,5 +1971,177 @@ describe('logs', () => {
     );
     expect(recorder.records.some(r => r.level === 'warn')).toBe(true);
     expect(JSON.stringify(recorder.records)).not.toContain(marker);
+  });
+
+  describe('permissions on dependsOn TemporalWorkflow entities', () => {
+    const checkoutRef = 'component:default/checkout';
+    const orderWfRef = 'temporalworkflow:default/order-workflow';
+
+    it.each([
+      [
+        'terminate',
+        'temporal.workflow.terminate',
+        `${wf}/terminate?entityRef=${checkoutRef}`,
+        { reason: 'stop' },
+        'RUNNING',
+        'terminateWorkflowExecution',
+      ],
+      [
+        'query',
+        'temporal.workflow.query',
+        `${wf}/query?entityRef=${checkoutRef}`,
+        { name: 'state' },
+        'RUNNING',
+        'queryWorkflow',
+      ],
+      [
+        'signal',
+        'temporal.workflow.signal',
+        `${wf}/signal?entityRef=${checkoutRef}`,
+        { name: 'addNote', args: ['hi'] },
+        'RUNNING',
+        'signalWorkflowExecution',
+      ],
+      [
+        'update',
+        'temporal.workflow.update',
+        `${wf}/update?entityRef=${checkoutRef}`,
+        { name: 'setPriority', args: ['high'] },
+        'RUNNING',
+        'updateWorkflowExecution',
+      ],
+      [
+        'cancel',
+        'temporal.workflow.cancel',
+        `${wf}/cancel?entityRef=${checkoutRef}`,
+        {},
+        'RUNNING',
+        'requestCancelWorkflowExecution',
+      ],
+      [
+        'rerun',
+        'temporal.workflow.rerun',
+        `${wf}/rerun?entityRef=${checkoutRef}`,
+        {},
+        'COMPLETED',
+        'startWorkflowExecution',
+      ],
+    ] as const)(
+      'answers 403 for %s without %s on the matched TemporalWorkflow entity',
+      async (_name, permission, path, body, status, rpc) => {
+        const { server, workflowService } = await start({
+          status,
+          entityAttribute: null,
+          deny: [{ permission, resourceRef: orderWfRef }],
+        });
+        const res = await request(server).post(path).send(body);
+        expect(res.status).toBe(403);
+        expect((workflowService as any)[rpc]).not.toHaveBeenCalled();
+      },
+    );
+
+    it('answers 403 for a custom action without its permission on the matched TemporalWorkflow entity', async () => {
+      const handle = jest.fn(async () => ({ ok: true }));
+      const { server } = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: temporalWorkflowUpdatePermission.name,
+            resourceRef: orderWfRef,
+          },
+        ],
+        action: {
+          id: 'escalate',
+          permission: temporalWorkflowUpdatePermission,
+          handle,
+        },
+      });
+      const res = await request(server)
+        .post(`${wf}/actions/escalate?entityRef=${checkoutRef}`)
+        .send({});
+      expect(res.status).toBe(403);
+      expect(handle).not.toHaveBeenCalled();
+    });
+
+    it('answers 403 when terminate is denied on the opened entity and allows when permitted on both', async () => {
+      const deniedOpened = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: checkoutRef,
+          },
+        ],
+      });
+      const deniedRes = await request(deniedOpened.server)
+        .post(`${wf}/terminate?entityRef=${checkoutRef}`)
+        .send({ reason: 'stop' });
+      expect(deniedRes.status).toBe(403);
+      expect(
+        deniedOpened.workflowService.terminateWorkflowExecution,
+      ).not.toHaveBeenCalled();
+
+      const allowedBoth = await start({ entityAttribute: null });
+      const allowedRes = await request(allowedBoth.server)
+        .post(`${wf}/terminate?entityRef=${checkoutRef}`)
+        .send({ reason: 'stop' });
+      expect(allowedRes.status).toBe(200);
+      expect(
+        allowedBoth.workflowService.terminateWorkflowExecution,
+      ).toHaveBeenCalledTimes(1);
+    });
+
+    it('checks terminate on the ancestor matched TemporalWorkflow entity for child workflows', async () => {
+      const { server, workflowService } = await start({
+        entityAttribute: null,
+        deny: [
+          {
+            permission: 'temporal.workflow.terminate',
+            resourceRef: orderWfRef,
+          },
+        ],
+      });
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          if (req.execution.workflowId === 'child-0') {
+            return {
+              workflowExecutionInfo: {
+                ...executionInfo({
+                  workflowId: 'child-0',
+                  type: 'childWorkflow',
+                  taskQueue: 'child-queue',
+                  status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+                }),
+                searchAttributes: { indexedFields: {} },
+                parentExecution: {
+                  workflowId: 'parent-1',
+                  runId: 'parent-1-run',
+                },
+              } as any,
+              pendingActivities: [],
+            };
+          }
+          return {
+            workflowExecutionInfo: {
+              ...executionInfo({
+                workflowId: 'parent-1',
+                type: 'orderWorkflow',
+                taskQueue: 'orders',
+                status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+              }),
+              searchAttributes: { indexedFields: {} },
+            } as any,
+            pendingActivities: [],
+          };
+        },
+      );
+      const res = await request(server)
+        .post(
+          `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run/terminate?entityRef=${checkoutRef}`,
+        )
+        .send({ reason: 'stop' });
+      expect(res.status).toBe(403);
+      expect(workflowService.terminateWorkflowExecution).not.toHaveBeenCalled();
+    });
   });
 });

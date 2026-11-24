@@ -160,13 +160,13 @@ export function useWorkflowData(
           graph && key !== undefined
             ? { key, graph, at: fetchedAt }
             : undefined;
-        setState({
+        setState(s => ({
           workflow,
-          graph,
+          graph: graph ?? s.graph,
           graphError,
           loading: false,
           refreshing: false,
-        });
+        }));
       } catch (e) {
         if (current !== generation.current) return;
         setState(s => ({

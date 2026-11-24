@@ -93,8 +93,8 @@ export interface WorkflowSummary {
    */
   initiator?: string;
   /**
-   * The `TemporalWorkflow` entity this run matches, when it is listed for an
-   * entity that depends on one.
+   * The `TemporalWorkflow` entity this run matches, when it is listed for or
+   * opened through an entity that depends on one.
    */
   workflowEntityRef?: string;
   /** Link to the execution in the Temporal Web UI, when configured. */

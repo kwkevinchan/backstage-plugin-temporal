@@ -257,9 +257,10 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         })
         .warn(
           'A permission condition cannot be applied, so the list shows nothing',
+          error instanceof Error ? error : undefined,
         );
       throw new NotAllowedError(
-        `The workflow list conditions cannot be applied: ${error}`,
+        'The workflow list conditions cannot be applied',
       );
     }
     if (visibilityQuery === false) {
@@ -272,24 +273,33 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
 
   /**
    * True when the caller may see the inputs and results of a workflow: the
-   * history permission on its entity, or the history list permission for a
-   * workflow opened without one.
+   * history permission on its entity (and on the related `TemporalWorkflow`
+   * entity it matched through, when different), or the history list
+   * permission for a workflow opened without one.
    */
   async canReadPayloads(
     access: TemporalAccessibleWorkflow,
     credentials: BackstageCredentials,
   ): Promise<boolean> {
-    return access.context
-      ? this.isAllowedOn(
-          temporalWorkflowHistoryReadPermission,
-          access.context.entityRef,
-          credentials,
-        )
-      : this.allowsWorkflow(
-          temporalWorkflowHistoryListPermission,
-          access.workflow,
-          credentials,
-        );
+    if (!access.context) {
+      return this.allowsWorkflow(
+        temporalWorkflowHistoryListPermission,
+        access.workflow,
+        credentials,
+      );
+    }
+    const refs = entityRefsToCheck(
+      access.context.entityRef,
+      access.matchedEntityRef,
+    );
+    const decisions = await this.permissions.authorize(
+      refs.map(resourceRef => ({
+        permission: temporalWorkflowHistoryReadPermission,
+        resourceRef,
+      })),
+      { credentials },
+    );
+    return refs.every((_, i) => decisions[i]?.result === AuthorizeResult.ALLOW);
   }
 
   /**
@@ -353,7 +363,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     },
   ): Promise<TemporalAccessibleWorkflow> {
     const { level, credentials } = options;
-    this.sources.checkNamespace(ref.namespace);
     const permission =
       level === 'history'
         ? temporalWorkflowHistoryReadPermission
@@ -366,10 +375,16 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       permission,
       credentials,
     );
+    // After the permission, so a denied caller cannot probe which
+    // namespaces are configured.
+    this.sources.checkNamespace(ref.namespace);
     try {
       const workflow = await this.queries.describe(ref);
-      await this.queries.assertBelongs(workflow, context);
-      return { context, workflow };
+      const matchedEntityRef = await this.queries.assertBelongs(
+        workflow,
+        context,
+      );
+      return { context, matchedEntityRef, workflow };
     } catch (error) {
       // A workflow of another entity gets the answer of one that does not
       // exist.
@@ -412,6 +427,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     );
     const entityMayAllow = entityDecision?.result !== AuthorizeResult.DENY;
     if (!listMayAllow && !entityMayAllow) throw new NotAllowedError();
+    this.sources.checkNamespace(ref.namespace);
     if (listDecisions.every(d => d.result === AuthorizeResult.ALLOW)) {
       return { workflow: await this.queries.describe(ref) };
     }
@@ -445,8 +461,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
         if (error instanceof InputError) throw notFound();
         throw error;
       }
-      await this.queries.assertBelongs(workflow, context);
-      return { context, workflow };
+      const matchedEntityRef = await this.queries.assertBelongs(
+        workflow,
+        context,
+      );
+      return { context, matchedEntityRef, workflow };
     } catch (error) {
       if (error instanceof NotFoundError || error instanceof NotAllowedError) {
         throw notFound();
@@ -543,6 +562,15 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       relatedWorkflows,
     };
   }
+}
+
+function entityRefsToCheck(
+  entityRef: string,
+  matchedEntityRef?: string,
+): string[] {
+  return matchedEntityRef && matchedEntityRef !== entityRef
+    ? [entityRef, matchedEntityRef]
+    : [entityRef];
 }
 
 /** An entity reference in its canonical form, or undefined for a bad one. */

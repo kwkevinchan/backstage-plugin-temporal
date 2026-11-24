@@ -140,10 +140,12 @@ describe('useWorkflowData', () => {
 
   it('loads the graph again after it failed', async () => {
     const { api, result } = await setup(running);
+    const previousGraph = result.current.graph;
     api.getWorkflow.mockResolvedValue({ ...running, historyLength: 15 });
     api.getWorkflowGraph.mockRejectedValueOnce(new Error('no graph'));
     await tick();
     expect(result.current.graphError).toBeDefined();
+    expect(result.current.graph).toBe(previousGraph);
     await tick();
     expect(api.getWorkflowGraph).toHaveBeenCalledTimes(3);
     expect(result.current.graphError).toBeUndefined();

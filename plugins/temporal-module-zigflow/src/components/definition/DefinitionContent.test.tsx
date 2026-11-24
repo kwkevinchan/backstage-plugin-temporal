@@ -176,6 +176,58 @@ describe('Definition tab', () => {
     expect(api.getEntityDefinition).not.toHaveBeenCalled();
   });
 
+  it.each([
+    // eslint-disable-next-line no-script-url
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    '/relative/path',
+    './src/workflows.ts',
+  ])('hides View the file when backstage.io/view-url is %s', async viewUrl => {
+    const api = mockTemporalApi();
+    await render(
+      {
+        ...codeEntity,
+        metadata: {
+          ...codeEntity.metadata,
+          annotations: {
+            'backstage.io/source-location':
+              'url:https://git.example.com/org/repo/tree/main/src/',
+            'backstage.io/view-url': viewUrl,
+          },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source-links');
+    expect(
+      within(card).getByRole('link', { name: /Source code/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(card).queryByRole('link', { name: /View the file/ }),
+    ).toBeNull();
+  });
+
+  it.each([
+    'https://git.example.com/org/repo/blob/main/src/workflows.ts',
+    'http://git.example.com/org/repo/blob/main/src/workflows.ts',
+  ])('shows View the file when backstage.io/view-url is %s', async viewUrl => {
+    const api = mockTemporalApi();
+    await render(
+      {
+        ...codeEntity,
+        metadata: {
+          ...codeEntity.metadata,
+          annotations: { 'backstage.io/view-url': viewUrl },
+        },
+      },
+      api,
+    );
+    const card = await screen.findByTestId('definition-source-links');
+    expect(
+      within(card).getByRole('link', { name: /View the file/ }),
+    ).toHaveAttribute('href', viewUrl);
+  });
+
   it('shows the source of a workflow written in code, with its function marked', async () => {
     const api = mockTemporalApi();
     const source = [
@@ -367,6 +419,116 @@ describe('Definition tab', () => {
       ),
     );
     expect(api.listWorkflowRuns).not.toHaveBeenCalled();
+  });
+
+  it('marks unfound tasks Unknown and warns when the run graph is truncated', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue({ ...runGraph, truncated: true });
+    await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1');
+
+    const banner = await screen.findByTestId('definition-overlay-truncated');
+    expect(banner).toHaveTextContent(
+      'History truncated — only the start was matched',
+    );
+    expect(
+      screen.getByTestId('definition-node-/do/0/validate'),
+    ).toHaveAttribute('data-mark', 'Completed');
+    expect(
+      screen.getByTestId('definition-node-/do/2/packItems/do/0/pack'),
+    ).toHaveAttribute('data-mark', 'Failed');
+
+    const unknownNode = screen.getByTestId('definition-node-/do/7/notify');
+    expect(unknownNode).toHaveAttribute('data-mark', 'Unknown');
+    expect(unknownNode).toHaveAttribute('data-dashed', 'true');
+    expect(unknownNode).toHaveAttribute('data-dimmed', 'false');
+    expect(unknownNode).toHaveTextContent('Unknown');
+
+    const legend = screen.getByTestId('definition-legend');
+    expect(legend).toHaveTextContent('Unknown');
+    expect(legend).not.toHaveTextContent('Not reached');
+  });
+
+  it('falls back to spec.namespace before default even when runs are empty or fail', async () => {
+    const entityInBilling: Entity = {
+      ...yamlEntity,
+      spec: { ...yamlEntity.spec, namespace: 'billing' },
+    };
+
+    const emptyApi = mockTemporalApi();
+    emptyApi.getEntityDefinition.mockResolvedValue(definition);
+    emptyApi.listEntityWorkflows.mockResolvedValue({ items: [] });
+    emptyApi.getWorkflowGraph.mockResolvedValue(runGraph);
+    const emptyView = await render(
+      entityInBilling,
+      emptyApi,
+      '/?workflowId=order-1&runId=run-1',
+    );
+    await waitFor(() =>
+      expect(emptyApi.getWorkflowGraph).toHaveBeenCalledWith(
+        { namespace: 'billing', workflowId: 'order-1', runId: 'run-1' },
+        { entityRef: 'temporalworkflow:default/order-flow' },
+      ),
+    );
+    emptyView.unmount();
+
+    const failedApi = mockTemporalApi();
+    failedApi.getEntityDefinition.mockResolvedValue(definition);
+    failedApi.listEntityWorkflows.mockRejectedValue(new Error('list down'));
+    failedApi.getWorkflowGraph.mockResolvedValue(runGraph);
+    await render(
+      entityInBilling,
+      failedApi,
+      '/?workflowId=order-1&runId=run-1',
+    );
+    await waitFor(() =>
+      expect(failedApi.getWorkflowGraph).toHaveBeenCalledWith(
+        { namespace: 'billing', workflowId: 'order-1', runId: 'run-1' },
+        { entityRef: 'temporalworkflow:default/order-flow' },
+      ),
+    );
+    expect(failedApi.getWorkflowGraph).not.toHaveBeenCalledWith(
+      expect.objectContaining({ namespace: 'default' }),
+      expect.anything(),
+    );
+  });
+
+  it('waits to determine namespace before fetching run graph when URL has runId', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    let resolveRuns!: (value: { items: any[] }) => void;
+    api.listEntityWorkflows.mockReturnValue(
+      new Promise(resolve => {
+        resolveRuns = resolve;
+      }),
+    );
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+
+    await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1');
+    await screen.findByTestId('definition-layout');
+    // Must not fire a speculative request against 'default' before listEntityWorkflows settles.
+    expect(api.getWorkflowGraph).not.toHaveBeenCalled();
+
+    resolveRuns({
+      items: [
+        {
+          ...listResponse.items[0],
+          namespace: 'orders',
+          workflowId: 'order-1',
+          runId: 'run-1',
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(api.getWorkflowGraph).toHaveBeenCalledWith(
+        { namespace: 'orders', workflowId: 'order-1', runId: 'run-1' },
+        { entityRef: 'temporalworkflow:default/order-flow' },
+      ),
+    );
+    expect(api.getWorkflowGraph).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByText('The run could not be loaded'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the file and the error of a definition that cannot be parsed', async () => {

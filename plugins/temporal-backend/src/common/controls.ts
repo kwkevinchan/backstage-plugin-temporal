@@ -55,6 +55,18 @@ export interface WorkflowMessageResponse {
 }
 
 /**
+ * Controls whether a workflow ID of a closed execution may be reused on start.
+ * `TERMINATE_IF_RUNNING` is intentionally omitted because start routes only
+ * check `temporal.workflow.start`, not `temporal.workflow.terminate`.
+ *
+ * @public
+ */
+export type WorkflowIdReusePolicy =
+  | 'ALLOW_DUPLICATE'
+  | 'ALLOW_DUPLICATE_FAILED_ONLY'
+  | 'REJECT_DUPLICATE';
+
+/**
  * Body of `POST /entities/:kind/:namespace/:name/workflows` (start a workflow
  * of an entity) and `POST /workflows` (start a workflow from the Workflows
  * page). For an entity, the workflow type and task queue default to the
@@ -69,6 +81,8 @@ export interface WorkflowStartRequest {
   namespace?: string;
   args?: JsonValue[];
   workflowId?: string;
+  /** Policy for reusing the workflow ID of an earlier closed run. */
+  workflowIdReusePolicy?: WorkflowIdReusePolicy;
 }
 
 /**

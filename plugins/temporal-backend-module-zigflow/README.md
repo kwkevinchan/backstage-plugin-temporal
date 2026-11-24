@@ -35,4 +35,9 @@ workflow definitions.
 
 The entity, the reading rules and the configuration
 (`temporal.definitions`) are described in the
-[README of the frontend package](../temporal-module-zigflow/README.md).
+[README of the frontend package](../temporal-module-zigflow/README.md). On any
+host backed by a Backstage integration, `temporal.definitions.allow` entries
+must specify `paths` so reading is limited to intended repositories, noting that
+`format: source` reads any allowed file in scope, `file:` checks use
+`path.resolve` without resolving symlinks, and HTTP redirects follow Backstage's
+`UrlReader` rules (see the [Security section](../../README.md#security)).

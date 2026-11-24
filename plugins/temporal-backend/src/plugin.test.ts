@@ -71,8 +71,8 @@ const ref = 'component:default/orders';
 
 async function start(options?: {
   permission?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
-  /** Entity references or permission names denied regardless of `permission`. */
-  deny?: string[];
+  /** Entity references, permission names, or `{ permission, resourceRef }` rules denied regardless of `permission`. */
+  deny?: Array<string | { permission: string; resourceRef: string }>;
   enricher?: TemporalWorkflowEnricher;
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
@@ -86,12 +86,17 @@ async function start(options?: {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
   const connection = createFakeConnection(workflowService);
+  const isDenied = (r: any) =>
+    options?.deny?.some(rule =>
+      typeof rule === 'string'
+        ? r.resourceRef === rule || r.permission.name === rule
+        : r.permission.name === rule.permission &&
+          r.resourceRef === rule.resourceRef,
+    );
   const decide = (r: any) => ({
-    result:
-      options?.deny?.includes(r.resourceRef) ||
-      options?.deny?.includes(r.permission.name)
-        ? AuthorizeResult.DENY
-        : options?.permission ?? AuthorizeResult.ALLOW,
+    result: isDenied(r)
+      ? AuthorizeResult.DENY
+      : options?.permission ?? AuthorizeResult.ALLOW,
   });
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests => requests.map(decide)) as any,
@@ -310,8 +315,14 @@ describe('temporal backend plugin', () => {
         `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}`,
       )
       .expect(403);
+    await request(server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`,
+      )
+      .expect(403);
     expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
     expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+    expect(workflowService.getWorkflowExecutionHistory).not.toHaveBeenCalled();
   });
 
   it('requires a user', async () => {
@@ -921,6 +932,28 @@ describe('temporal backend plugin', () => {
     expect(workflowService.getWorkflowExecutionHistory).toHaveBeenCalledTimes(
       1,
     );
+  });
+
+  it('denies /progress without read permission (403 with entityRef, 404 without entityRef)', async () => {
+    const withEntity = await start({ deny: ['temporal.workflow.read'] });
+    await request(withEntity.server)
+      .get(
+        `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress?entityRef=${ref}`,
+      )
+      .expect(403);
+    expect(
+      withEntity.workflowService.getWorkflowExecutionHistory,
+    ).not.toHaveBeenCalled();
+
+    const withoutEntity = await start({ deny: ['temporal.workflow.list'] });
+    await request(withoutEntity.server)
+      .get(
+        '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/progress',
+      )
+      .expect(404);
+    expect(
+      withoutEntity.workflowService.getWorkflowExecutionHistory,
+    ).not.toHaveBeenCalled();
   });
 
   it('reads the failure of a cut history from the close event', async () => {
@@ -1545,6 +1578,184 @@ describe('temporal backend plugin', () => {
       message: 'Failed to describe a permission resource',
       meta: { resourceRef },
       error,
+    });
+  });
+
+  describe('permissions on dependsOn TemporalWorkflow entities', () => {
+    const checkoutRef = 'component:default/checkout';
+    const orderWfRef = 'temporalworkflow:default/order-workflow';
+    const baseRun =
+      '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
+
+    it('hides payloads and failure details when history is denied on the matched TemporalWorkflow entity', async () => {
+      const { server } = await start({
+        deny: [
+          {
+            permission: 'temporal.workflow.history.read',
+            resourceRef: orderWfRef,
+          },
+        ],
+      });
+      const detail = await request(server).get(
+        `${baseRun}?entityRef=${checkoutRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
+      expect(detail.body.failureDetailsHidden).toBe(true);
+      expect(detail.body.failure).toMatchObject({ message: 'outer' });
+      expect(detail.body.failure.cause).toBeUndefined();
+
+      const graph = await request(server).get(
+        `${baseRun}/graph?entityRef=${checkoutRef}`,
+      );
+      expect(graph.status).toBe(200);
+      expect(graph.body.payloadsHidden).toBe(true);
+      expect(graph.body.nodes[0].input).toBeUndefined();
+    });
+
+    it('hides payloads and failure details when history is denied on the opened entity even if allowed on the matched entity', async () => {
+      const { server } = await start({
+        deny: [
+          {
+            permission: 'temporal.workflow.history.read',
+            resourceRef: checkoutRef,
+          },
+        ],
+      });
+      const detail = await request(server).get(
+        `${baseRun}?entityRef=${checkoutRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
+      expect(detail.body.failureDetailsHidden).toBe(true);
+      expect(detail.body.failure.cause).toBeUndefined();
+
+      const graph = await request(server).get(
+        `${baseRun}/graph?entityRef=${checkoutRef}`,
+      );
+      expect(graph.status).toBe(200);
+      expect(graph.body.payloadsHidden).toBe(true);
+      expect(graph.body.nodes[0].input).toBeUndefined();
+    });
+
+    it('shows payloads and failure details when history is allowed on both entities', async () => {
+      const { server } = await start();
+      const detail = await request(server).get(
+        `${baseRun}?entityRef=${checkoutRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
+      expect(detail.body.failureDetailsHidden).toBeUndefined();
+      expect(detail.body.failure?.cause).toMatchObject({ message: 'inner' });
+
+      const graph = await request(server).get(
+        `${baseRun}/graph?entityRef=${checkoutRef}`,
+      );
+      expect(graph.status).toBe(200);
+      expect(graph.body.payloadsHidden).toBe(false);
+      expect(graph.body.nodes[0].input).toEqual({
+        encoding: 'json/plain',
+        value: 42,
+      });
+    });
+
+    it('does not set workflowEntityRef when matched by the opened entity own annotations', async () => {
+      const { server } = await start();
+      const detail = await request(server).get(`${baseRun}?entityRef=${ref}`);
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBeUndefined();
+    });
+
+    it('checks history on the ancestor matched TemporalWorkflow entity for child workflows', async () => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          if (req.execution.workflowId === 'child-0') {
+            return {
+              workflowExecutionInfo: {
+                ...executionInfo({
+                  workflowId: 'child-0',
+                  type: 'childWorkflow',
+                  taskQueue: 'child-queue',
+                  status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
+                }),
+                parentExecution: {
+                  workflowId: 'parent-1',
+                  runId: 'parent-1-run',
+                },
+              } as any,
+              pendingActivities: [],
+            };
+          }
+          return {
+            workflowExecutionInfo: executionInfo({
+              workflowId: 'parent-1',
+              type: 'orderWorkflow',
+              taskQueue: 'orders',
+              status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
+            }),
+            pendingActivities: [],
+          };
+        },
+      );
+      const { server } = await start({
+        workflowService,
+        deny: [
+          {
+            permission: 'temporal.workflow.history.read',
+            resourceRef: orderWfRef,
+          },
+        ],
+      });
+      const detail = await request(server).get(
+        `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run?entityRef=${checkoutRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
+      expect(detail.body.failureDetailsHidden).toBe(true);
+      expect(detail.body.failure.cause).toBeUndefined();
+
+      const graph = await request(server).get(
+        `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run/graph?entityRef=${checkoutRef}`,
+      );
+      expect(graph.status).toBe(200);
+      expect(graph.body.payloadsHidden).toBe(true);
+      expect(graph.body.nodes[0].input).toBeUndefined();
+    });
+  });
+
+  describe('permission before namespace checks', () => {
+    const unconfiguredPath =
+      '/api/temporal/namespaces/forbidden-ns/workflows/wf-1/runs/wf-1-run';
+
+    it('checks permissions before rejecting an unconfigured namespace when entityRef is given', async () => {
+      const denied = await start({ deny: ['temporal.workflow.read'] });
+      await request(denied.server)
+        .get(`${unconfiguredPath}?entityRef=${ref}`)
+        .expect(403);
+
+      const allowed = await start();
+      const res = await request(allowed.server).get(
+        `${unconfiguredPath}?entityRef=${ref}`,
+      );
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain(
+        'Temporal namespace is not allowed',
+      );
+    });
+
+    it('checks permissions before rejecting an unconfigured namespace without entityRef', async () => {
+      const denied = await start({
+        deny: ['temporal.workflow.list', 'temporal.workflow.read'],
+      });
+      await request(denied.server).get(unconfiguredPath).expect(403);
+
+      const allowed = await start();
+      const res = await request(allowed.server).get(unconfiguredPath);
+      expect(res.status).toBe(400);
+      expect(res.body.error.message).toContain(
+        'Temporal namespace is not allowed',
+      );
     });
   });
 });

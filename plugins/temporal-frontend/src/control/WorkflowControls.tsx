@@ -206,6 +206,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           label="Signal…"
           permission={temporalWorkflowSignalPermission}
           resourceRef={resourceRef}
+          additionalResourceRef={workflow.workflowEntityRef}
           onPress={() => setOpen('signal')}
         />
       )}
@@ -215,12 +216,14 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
             label="Update…"
             permission={temporalWorkflowUpdatePermission}
             resourceRef={resourceRef}
+            additionalResourceRef={workflow.workflowEntityRef}
             onPress={() => setOpen('update')}
           />
           <PermissionButton
             label="Cancel"
             permission={temporalWorkflowCancelPermission}
             resourceRef={resourceRef}
+            additionalResourceRef={workflow.workflowEntityRef}
             onPress={() => setOpen('cancel')}
           />
           <PermissionButton
@@ -228,6 +231,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
             destructive
             permission={temporalWorkflowTerminatePermission}
             resourceRef={resourceRef}
+            additionalResourceRef={workflow.workflowEntityRef}
             onPress={() => setOpen('terminate')}
           />
         </>
@@ -237,6 +241,7 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           label="Rerun"
           permission={temporalWorkflowRerunPermission}
           resourceRef={resourceRef}
+          additionalResourceRef={workflow.workflowEntityRef}
           onPress={() => setOpen('rerun')}
         />
       )}

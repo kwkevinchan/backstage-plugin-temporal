@@ -52,6 +52,7 @@ export function QueryButton(props: {
         label="Query…"
         permission={temporalWorkflowQueryPermission}
         resourceRef={entityRef ?? workflow.entityRef}
+        additionalResourceRef={workflow.workflowEntityRef}
         onPress={() => setOpen(true)}
       />
       {open && (

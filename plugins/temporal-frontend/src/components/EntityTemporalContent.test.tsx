@@ -16,6 +16,7 @@
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ResponseError } from '@backstage/errors';
 import {
   renderInTestApp,
   TestApiProvider,
@@ -447,5 +448,144 @@ describe('EntityTemporalContent', () => {
     expect(
       (await screen.findAllByText(/Temporal is down/)).length,
     ).toBeGreaterThan(0);
+  });
+
+  it('shows the graph error in detail tabs and lets raw events load independently', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowGraph.mockRejectedValue(new Error('History too large'));
+    api.getWorkflowHistory.mockResolvedValue({
+      events: [
+        {
+          eventId: '1',
+          eventTime: '2026-01-01T11:00:00.000Z',
+          eventType: 'WorkflowExecutionStarted',
+        },
+      ],
+    });
+
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+
+    const stepsPanel = await screen.findByRole('tabpanel');
+    await waitFor(() =>
+      expect(
+        within(stepsPanel).getByTestId('temporal-error'),
+      ).toHaveTextContent('History too large'),
+    );
+    expect(
+      within(stepsPanel).queryByRole('progressbar'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }));
+    const timelinePanel = screen.getByRole('tabpanel');
+    expect(
+      within(timelinePanel).getByTestId('temporal-error'),
+    ).toHaveTextContent('History too large');
+    expect(
+      within(timelinePanel).queryByRole('progressbar'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Events' }));
+    const eventsPanel = screen.getByRole('tabpanel');
+    expect(within(eventsPanel).getByTestId('temporal-error')).toHaveTextContent(
+      'History too large',
+    );
+    expect(
+      within(eventsPanel).queryByRole('progressbar'),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Raw' }));
+    expect(
+      await screen.findByText('WorkflowExecutionStarted'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the loaded graph on screen when a graph reload fails', async () => {
+    const api = mockTemporalApi();
+    const running = {
+      ...failedWorkflow,
+      status: 'Running' as const,
+      historyLength: 10,
+    };
+    api.getWorkflow
+      .mockResolvedValueOnce(running)
+      .mockResolvedValueOnce({ ...running, historyLength: 11 });
+    api.getWorkflowGraph
+      .mockResolvedValueOnce(graphResponse)
+      .mockRejectedValueOnce(new Error('Temporary read failure'));
+
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+
+    const graph = await screen.findByTestId('workflow-graph');
+    expect(
+      within(graph).getByRole('button', { name: 'reserveStock, Completed' }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    const error = await screen.findByTestId('temporal-error');
+    expect(error).toHaveTextContent('Could not refresh graph');
+    expect(error).toHaveTextContent('Temporary read failure');
+    expect(
+      within(screen.getByTestId('workflow-graph')).getByRole('button', {
+        name: 'reserveStock, Completed',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('prefers ResponseError backend cause messages and falls back to HTTP status when missing', async () => {
+    const api = mockTemporalApi();
+    const backendError = await ResponseError.fromResponse(
+      new Response(
+        JSON.stringify({
+          error: {
+            name: 'NotAllowedError',
+            message: 'Namespace prod is not allowed',
+          },
+          response: { statusCode: 403 },
+        }),
+        {
+          status: 403,
+          statusText: 'Forbidden',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      ),
+    );
+    api.getWorkflow.mockRejectedValueOnce(backendError);
+
+    const first = await render(
+      api,
+      '/namespaces/default/workflows/payment-1/runs/run-2',
+    );
+    const alert = await screen.findByTestId('temporal-error');
+    expect(alert).toHaveTextContent('Namespace prod is not allowed');
+    expect(alert).not.toHaveTextContent('Request failed with 403');
+    first.unmount();
+
+    const gatewayError = await ResponseError.fromResponse(
+      new Response('', { status: 502, statusText: 'Bad Gateway' }),
+    );
+    api.getWorkflow.mockRejectedValueOnce(gatewayError);
+
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    expect(await screen.findByTestId('temporal-error')).toHaveTextContent(
+      'Request failed with 502 Bad Gateway',
+    );
+  });
+
+  it('offers a Refresh button on initial workflow load failure and retries', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflow
+      .mockRejectedValueOnce(new Error('Temporal timed out'))
+      .mockResolvedValueOnce(failedWorkflow);
+
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+
+    expect(await screen.findByTestId('temporal-error')).toHaveTextContent(
+      'Temporal timed out',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(await screen.findByTestId('workflow-summary')).toHaveTextContent(
+      'paymentWorkflow',
+    );
+    expect(api.getWorkflow).toHaveBeenCalledTimes(2);
   });
 });

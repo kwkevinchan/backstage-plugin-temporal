@@ -217,6 +217,9 @@
   border-style: dashed;
   opacity: 0.5;
 }
+.tp-def-swatch-unknown {
+  border-style: dashed;
+}
 /* Badges of the definition graph stay at least 12px at the readable zoom. */
 .tp-node[data-kind] .tp-badge {
   font-size: 13px;

@@ -449,7 +449,7 @@ components:
           description: Entity reference of the user who started the workflow, from the search attribute `temporal.searchAttributes.initiator`, when configured.
         workflowEntityRef:
           type: string
-          description: The `TemporalWorkflow` entity this run matches, when it is listed for an entity that depends on one.
+          description: The `TemporalWorkflow` entity this run matches, when it is listed for or opened through an entity that depends on one.
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
@@ -497,7 +497,7 @@ components:
           description: Entity reference of the user who started the workflow, from the search attribute `temporal.searchAttributes.initiator`, when configured.
         workflowEntityRef:
           type: string
-          description: The `TemporalWorkflow` entity this run matches, when it is listed for an entity that depends on one.
+          description: The `TemporalWorkflow` entity this run matches, when it is listed for or opened through an entity that depends on one.
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
@@ -1021,6 +1021,13 @@ components:
         result:
           description: 'The result; absent when there is none. A result the backend cannot decode is `{ encoding, size, undecodable: true }`.'
       additionalProperties: false
+    WorkflowIdReusePolicy:
+      type: string
+      description: Controls whether the workflow ID of an earlier closed execution may be reused. `TERMINATE_IF_RUNNING` is intentionally not accepted on start routes.
+      enum:
+        - ALLOW_DUPLICATE
+        - ALLOW_DUPLICATE_FAILED_ONLY
+        - REJECT_DUPLICATE
     WorkflowStartRequest:
       type: object
       properties:
@@ -1057,6 +1064,9 @@ components:
             - 'null'
           maxLength: 1000
           description: Without it, one is made from the workflow type. `null` is treated as if the field was omitted.
+        workflowIdReusePolicy:
+          $ref: '#/components/schemas/WorkflowIdReusePolicy'
+          description: Optional policy controlling whether an earlier closed execution with the same workflow ID prevents starting a new run.
     WorkflowStartResponse:
       type: object
       required:

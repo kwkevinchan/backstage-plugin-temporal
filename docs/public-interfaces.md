@@ -126,14 +126,14 @@ it from the package of your side. The entry points for modules (`./node`,
 
 ### `./common` (both core packages)
 
-The 111 names in groups. Every name is in the
+The 112 names in groups. Every name is in the
 [report](../plugins/temporal-backend/report-common.api.md).
 
 | Group (source file)                               | Names                                                                                                                                                                                                                                                                                                                                                                                | Used by                                                                                               |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | Workflows (`types.ts`, 16)                        | `WorkflowRef`, `WorkflowRunRef`, `WorkflowSummary`, `WorkflowDetail`, `WorkflowStatus`, `WORKFLOW_STATUSES`, `WorkflowFailure`, `PendingActivity`, `RelatedWorkflows`, `WorkflowListResponse`, `WorkflowStatsResponse`, `WorkflowHistoryEvent`, `WorkflowHistoryResponse`, `WorkflowResultResponse`, `DecodedPayload`, `ExternalPayload`                                             | Clients of the HTTP API, enrichers, actions                                                           |
 | Graph and progress (`graph.ts`, 10)               | `WorkflowGraphResponse`, `WorkflowGraphNode`, `WorkflowGraphEdge`, `WorkflowNodeKind`, `WorkflowNodeStatus`, `WorkflowNodeAttempt`, `WorkflowNodeEvent`, `WorkflowDeadline`, `WorkflowRunChain`, `WorkflowProgressResponse`                                                                                                                                                          | Clients of `…/graph` and `…/progress`                                                                 |
-| Operations (`controls.ts`, 10)                    | `WorkflowControlOperation`, `WorkflowMessageRequest`, `WorkflowMessageResponse`, `WorkflowStartRequest`, `WorkflowStartResponse`, `WorkflowMessageDefinition`, `WorkflowMessageDefinitionsResponse`, `buildWorkflowOperationPath`, `buildWorkflowActionPath`, `buildWorkflowMessageDefinitionsPath`                                                                                  | Clients that operate workflows                                                                        |
+| Operations (`controls.ts`, 11)                    | `WorkflowControlOperation`, `WorkflowMessageRequest`, `WorkflowMessageResponse`, `WorkflowIdReusePolicy`, `WorkflowStartRequest`, `WorkflowStartResponse`, `WorkflowMessageDefinition`, `WorkflowMessageDefinitionsResponse`, `buildWorkflowOperationPath`, `buildWorkflowActionPath`, `buildWorkflowMessageDefinitionsPath`                                                         | Clients that operate workflows                                                                        |
 | Schedules (`schedules.ts`, 8)                     | `TemporalSchedule`, `TemporalScheduleAction`, `TemporalScheduleListResponse`, `TemporalScheduleNoteRequest`, `TemporalScheduleOperation`, `SCHEDULES_PATH`, `buildEntitySchedulesPath`, `buildScheduleOperationPath`                                                                                                                                                                 | Clients of the schedule routes                                                                        |
 | Paths (`paths.ts`, 5)                             | `buildWorkflowPath`, `buildWorkflowRunPath`, `buildEntityWorkflowsPath`, `buildEntityWorkflowStatsPath`, `WORKFLOWS_PATH`                                                                                                                                                                                                                                                            | Building HTTP API paths                                                                               |
 | Permissions (`permissions.ts`, 16)                | The 11 permissions (`temporalWorkflowReadPermission` … `temporalWorkflowRerunPermission`, see [Permissions](#permissions)), `temporalPermissions`, `temporalControlPermissions`, `RESOURCE_TYPE_TEMPORAL_WORKFLOW`, `parseTemporalWorkflowResourceRef`, `stringifyTemporalWorkflowResourceRef`                                                                                       | Permission policies, actions, buttons                                                                 |
@@ -213,12 +213,12 @@ the checks every route of the plugin runs. Modules of the plugin (that is,
 `createBackendModule({ pluginId: 'temporal' })`) use it in their own routes
 so that "who may see this workflow" has one definition.
 
-| Method                                                                           | Does                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check: the namespace, then, with `entityRef`, the `read` or `history` permission on that entity; without it, first the list permissions on the workflow itself, else the permission on the entity in its entity search attribute ([order](#which-entity-a-workflow-is-checked-on)) |
-| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                                                                                                                                                                                                                |
-| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                                                                                                                                                                                                                 |
-| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                                                                                                                                                                                                                  |
+| Method                                                                           | Does                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loadWorkflow(ref, { entityRef?, level, credentials })`                          | Reads a workflow with every check: the namespace, then, with `entityRef`, the `read` or `history` permission on that entity; without it, first the list permissions on the workflow itself, else the permission on the entity in its entity search attribute ([order](#which-entity-a-workflow-is-checked-on)). Returns `matchedEntityRef` when the workflow belongs to the entity through a `TemporalWorkflow` entity it depends on: check your permissions on that entity too |
+| `authorizeOn(permission, entityRef, credentials)`                                | Checks a `catalog-entity` permission on an entity; without one, requires an unconditional ALLOW                                                                                                                                                                                                                                                                                                                                                                                 |
+| `loadEntity(entityRef, permission, credentials)`                                 | Checks the permission, then reads the entity and the `TemporalWorkflow` entities it depends on                                                                                                                                                                                                                                                                                                                                                                                  |
+| `canListAll`, `authorizeWorkflowList`, `canReadPayloads`, `linkWorkflowEntities` | The list permission, its visibility query, the history permission, links to workflow entities                                                                                                                                                                                                                                                                                                                                                                                   |
 
 The package's default export installs the default factory
 (`temporalAccessServiceFactory`). To decide access in another way, add a
@@ -488,7 +488,15 @@ for.
 
 - With `entityRef`: the read (`temporal.workflow.read`) or history
   (`temporal.workflow.history.read`) permission on that entity, and the
-  workflow must be one of its workflows (`404` otherwise).
+  workflow must be one of its workflows (`404` otherwise). When a workflow
+  matches through a `TemporalWorkflow` entity that the opened entity depends on
+  (directly, or via an ancestor for a child workflow), permissions check both
+  entities: both the opened entity and the matched `TemporalWorkflow` entity must
+  allow `temporal.workflow.read`, `temporal.workflow.history.read` (the
+  inputs and results of the step graph, failure details on `GET /:wf`, and
+  the history-level routes), and any operation permission. When the opened
+  entity's own annotations or search attribute match the workflow, only the
+  opened entity is checked.
 - Without it: first the list permissions on the workflow itself
   (`temporal.workflow.list`, and `temporal.workflow.history.list` too for the
   history level), with their conditions. If they do not allow it, the
@@ -499,8 +507,9 @@ for.
   workflow they may not open (without that attribute, or through an entity
   they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
-  through, else on the entity of its search attribute; a workflow with
-  neither needs the permission allowed without conditions.
+  through (and on the matched `TemporalWorkflow` entity when matched through
+  one), else on the entity of its search attribute; a workflow with neither
+  needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a
@@ -735,7 +744,9 @@ The kind: `apiVersion: temporal.io/v1alpha1`, `kind: TemporalWorkflow`
 | `definition`   |          | `format` (`serverless-workflow` or `source`), `target`, `symbol` (Definition tab)             |
 
 Other entities link to a workflow entity with the standard `spec.dependsOn`
-(`temporalworkflow:default/order-workflow`). The
+(`temporalworkflow:default/order-workflow`). These mappings (annotations, `spec`,
+and `spec.dependsOn`) are declared by catalog entity authors; restrict catalog
+write/registration access to control who defines them. The
 [README](../README.md#workflow-entities) has the details and examples.
 
 ## What the plugin writes
@@ -752,9 +763,10 @@ Other systems can read these, so they are interfaces too:
   The plugin reads both attributes on **every** workflow, whoever set them:
   the entity reference adds the workflow to that entity's list and decides
   on which entity its permissions are checked, and the initiator is what the
-  `IS_INITIATOR` rule compares. Code outside Backstage that starts workflows
-  with these attributes gets the same effect, so set them only to the entity
-  and user the workflow belongs to.
+  `IS_INITIATOR` rule compares. Trust in both attributes matches trust in
+  whoever can start workflows or write search attributes in the configured
+  Temporal namespaces, so restrict namespace write access or omit these keys if
+  external writers must not influence entity matching or `IS_INITIATOR`.
 
 - **Identity.** Operations pass `backstage:<user entity ref>` (or
   `backstage:<service subject>`) as the Temporal identity, shown in the
@@ -768,7 +780,7 @@ Other systems can read these, so they are interfaces too:
   `scope: 'chain'` (`scope: 'run'` without `firstRunId` when the Temporal server
   does not report the chain ID). Their severity is
   `medium`, except `workflow-terminate`, which is `high` because a
-  terminate cannot be undone.
+  terminate cannot be undone. An event is created before the permission and the request are checked, so a refused or invalid attempt is recorded too, as a failure with the target of the request (namespace, workflow, run, `entityRef`).
 
   Backstage's default mapping sends `low` to `debug`, and `medium`, `high`
   and `critical` to `info`. The backend logs `info` and above by default, so
@@ -822,7 +834,10 @@ Other systems can read these, so they are interfaces too:
 The plugin shows a workflow's memo on the details page. It also reads the
 references of Temporal External Storage, written by the SDK's S3 driver in
 its own format, to show where a stored payload is (the plugin does not read
-the stored data).
+the stored data). When setting `externalStorage.objectUrl`, keep `{bucket}` in
+the path or as a subdomain under a fixed trusted domain rather than using
+`{bucket}` as the entire host, so a workflow history value cannot direct links
+to arbitrary HTTPS hosts.
 
 ## Scaffolder
 
@@ -837,7 +852,10 @@ runs the template (they may run in another backend than the plugin):
 | `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                            | `result` (of an update), `runId`                  |
 
 `start` and `signal` need the operations; `wait` only reads (the workflow,
-and `/result` for its result). Without `runId`, `wait` and `signal` look up
+and `/result` for its result). Because `wait` writes `searchAttributes` and
+(when `includeResult: true`) `result` to Scaffolder task outputs, visibility
+of those persisted outputs is governed by Scaffolder task permissions rather than
+`temporal.workflow.history.read`. Without `runId`, `wait` and `signal` look up
 the latest run in the run list of the workflow ID (which can lag behind a
 start; pass `runId: ${{ steps.start.output.runId }}` after a start). `wait`
 follows a run that continued as new to the run it continued as; `signal`
@@ -878,7 +896,13 @@ attributes and the MCP config are in the
 `temporal-module-zigflow` shows it on a **Definition** tab
 (`EntityTemporalDefinitionContent` in the legacy system, mount it on
 `/definition` of the workflow entity page;
-`entity-content:temporal/definition` in the new one). The response of the
+`entity-content:temporal/definition` in the new one). Always configure `paths`
+under `temporal.definitions.allow` on hosts with a Backstage integration so
+entity authors cannot reach arbitrary repositories readable by that integration;
+`format: source` returns any file in the allowed scope, `file:` checks use
+`path.resolve` without resolving symlinks, and HTTP redirects follow
+Backstage's `UrlReader` rules rather than re-checking `temporal.definitions.allow`.
+The response of the
 route (`WorkflowDefinitionResponse`) is not exported: the two modules are
 released together and the route is for the tab only.
 

@@ -26,7 +26,7 @@ import {
   NotFoundError,
 } from '@backstage/errors';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
-import type { JsonValue } from '@backstage/types';
+import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   TemporalScheduleOperation,
   isValidNamespaceName,
@@ -39,6 +39,7 @@ import {
   temporalWorkflowTerminatePermission,
   temporalWorkflowUpdatePermission,
   WorkflowDetail,
+  WorkflowIdReusePolicy,
   WorkflowRunRef,
 } from '../common';
 import { TemporalService } from '../node';
@@ -49,6 +50,7 @@ import {
 } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
+import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import {
   WorkflowChainRef,
   WorkflowCommands,
@@ -74,6 +76,8 @@ import {
   authorizeOnWorkflow,
   LoadedWorkflow,
   loadRequestWorkflow,
+  optionalBodyString,
+  requestWorkflowMeta,
   workflowMeta,
   workflowRunSubpath,
 } from './shared';
@@ -107,6 +111,25 @@ function optionalText(
 
 function parseWorkflowId(value: unknown): string | undefined {
   return optionalText(value, 'workflowId', MAX_WORKFLOW_ID_LENGTH);
+}
+
+const WORKFLOW_ID_REUSE_POLICIES = new Set<WorkflowIdReusePolicy>([
+  'ALLOW_DUPLICATE',
+  'ALLOW_DUPLICATE_FAILED_ONLY',
+  'REJECT_DUPLICATE',
+]);
+
+function parseWorkflowIdReusePolicy(
+  value: unknown,
+): WorkflowIdReusePolicy | undefined {
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== 'string' ||
+    !WORKFLOW_ID_REUSE_POLICIES.has(value as WorkflowIdReusePolicy)
+  ) {
+    throw new InputError('Invalid workflowIdReusePolicy');
+  }
+  return value as WorkflowIdReusePolicy;
 }
 
 /** The user (or service) a request comes from, as Temporal identity. */
@@ -240,119 +263,150 @@ export function createControlRouter(
   }
 
   router.post(workflowRunSubpath('signal'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(
-      temporalWorkflowSignalPermission,
-      loaded,
-    );
-    const { name, args } = parseMessageBody(req);
-    commands.checkSignal(name);
-    assertRunning(loaded.workflow);
+    const initialName = optionalBodyString(req, 'name');
     await audited(
       auditor,
       req,
       'workflow-signal',
-      workflowMeta(loaded.workflow, entityRef, { name }),
+      requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
-      () =>
-        commands.signal(
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(
+          temporalWorkflowSignalPermission,
+          loaded,
+        );
+        const { name, args } = parseMessageBody(req);
+        setMeta(workflowMeta(loaded.workflow, entityRef, { name }));
+        commands.checkSignal(name);
+        assertRunning(loaded.workflow);
+        await commands.signal(
           runRef(loaded.workflow),
           name,
           args,
           identityOf(loaded.credentials),
-        ),
+        );
+      },
     );
     res.status(202).json({});
   });
 
   router.post(workflowRunSubpath('update'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(
-      temporalWorkflowUpdatePermission,
-      loaded,
-    );
-    const { name, args } = parseMessageBody(req);
-    commands.checkUpdate(name);
-    const chain = chainRef(loaded.workflow);
+    const initialName = optionalBodyString(req, 'name');
     const result = await audited(
       auditor,
       req,
       'workflow-update',
-      workflowMeta(loaded.workflow, entityRef, {
-        ...chainMeta(chain),
-        name,
-      }),
+      requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
-      () => commands.update(chain, name, args, identityOf(loaded.credentials)),
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(
+          temporalWorkflowUpdatePermission,
+          loaded,
+        );
+        const { name, args } = parseMessageBody(req);
+        const chain = chainRef(loaded.workflow);
+        setMeta(
+          workflowMeta(loaded.workflow, entityRef, {
+            ...chainMeta(chain),
+            name,
+          }),
+        );
+        commands.checkUpdate(name);
+        return commands.update(
+          chain,
+          name,
+          args,
+          identityOf(loaded.credentials),
+        );
+      },
     );
     res.json({ result });
   });
 
   router.post(workflowRunSubpath('cancel'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(
-      temporalWorkflowCancelPermission,
-      loaded,
-    );
-    const chain = chainRef(loaded.workflow);
     await audited(
       auditor,
       req,
       'workflow-cancel',
-      workflowMeta(loaded.workflow, entityRef, {
-        ...chainMeta(chain),
-      }),
+      requestWorkflowMeta(req),
       'medium',
-      () => commands.cancel(chain, identityOf(loaded.credentials)),
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(
+          temporalWorkflowCancelPermission,
+          loaded,
+        );
+        const chain = chainRef(loaded.workflow);
+        setMeta(workflowMeta(loaded.workflow, entityRef, chainMeta(chain)));
+        await commands.cancel(chain, identityOf(loaded.credentials));
+      },
     );
     res.status(202).json({});
   });
 
   router.post(workflowRunSubpath('terminate'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(
-      temporalWorkflowTerminatePermission,
-      loaded,
-    );
-    const reason =
-      optionalText(requestBody(req).reason, 'reason', MAX_REASON_LENGTH) ??
-      'Terminated from Backstage';
-    const chain = chainRef(loaded.workflow);
+    const initialReason = optionalBodyString(req, 'reason', MAX_REASON_LENGTH);
     await audited(
       auditor,
       req,
       'workflow-terminate',
-      workflowMeta(loaded.workflow, entityRef, {
-        ...chainMeta(chain),
-        reason,
-      }),
+      requestWorkflowMeta(req, initialReason ? { reason: initialReason } : {}),
       'high',
-      () => commands.terminate(chain, reason, identityOf(loaded.credentials)),
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(
+          temporalWorkflowTerminatePermission,
+          loaded,
+        );
+        const reason =
+          optionalText(requestBody(req).reason, 'reason', MAX_REASON_LENGTH) ??
+          'Terminated from Backstage';
+        const chain = chainRef(loaded.workflow);
+        setMeta(
+          workflowMeta(loaded.workflow, entityRef, {
+            ...chainMeta(chain),
+            reason,
+          }),
+        );
+        await commands.terminate(chain, reason, identityOf(loaded.credentials));
+      },
     );
     res.json({});
   });
 
   router.post(workflowRunSubpath('rerun'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(
-      temporalWorkflowRerunPermission,
-      loaded,
+    const initialWorkflowId = optionalBodyString(
+      req,
+      'workflowId',
+      MAX_WORKFLOW_ID_LENGTH,
     );
-    const workflowId = parseWorkflowId(requestBody(req).workflowId);
-    assertClosed(loaded.workflow);
     const started = await audited(
       auditor,
       req,
       'workflow-rerun',
-      workflowMeta(loaded.workflow, entityRef),
+      requestWorkflowMeta(
+        req,
+        initialWorkflowId ? { newWorkflowId: initialWorkflowId } : {},
+      ),
       'medium',
-      () =>
-        commands.rerun(loaded.workflow, {
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(
+          temporalWorkflowRerunPermission,
+          loaded,
+        );
+        setMeta(workflowMeta(loaded.workflow, entityRef));
+        const workflowId = parseWorkflowId(requestBody(req).workflowId);
+        assertClosed(loaded.workflow);
+        return commands.rerun(loaded.workflow, {
           workflowId,
           identity: identityOf(loaded.credentials),
           // Keeps the entity of the run; the initiator is the caller.
           searchAttributes: startAttributes(undefined, loaded.credentials),
-        }),
+        });
+      },
     );
     res.status(201).json(started);
   });
@@ -365,35 +419,36 @@ export function createControlRouter(
     if (!action) {
       throw new NotFoundError(`No workflow action ${actionId}`);
     }
-    const loaded = await loadWorkflow(req, 'read');
-    const entityRef = await authorizeControl(action.permission, loaded);
-    if (action.filter && !action.filter(loaded.workflow)) {
-      throw new ConflictError(
-        `Action ${actionId} does not apply to workflow ${loaded.workflow.workflowId}`,
-      );
-    }
-    const entity =
-      loaded.context?.entity ??
-      (entityRef
-        ? (
-            await access
-              .loadEntity(entityRef, action.permission, loaded.credentials)
-              // The entity may be gone from the catalog; the permission on
-              // it was checked above.
-              .catch(error => {
-                if (error instanceof NotFoundError) return undefined;
-                throw error;
-              })
-          )?.entity
-        : undefined);
     const result = await audited(
       auditor,
       req,
       'workflow-action',
-      workflowMeta(loaded.workflow, entityRef, { actionId }),
+      requestWorkflowMeta(req, { actionId }),
       'medium',
-      () =>
-        commands.runAction(loaded.workflow.namespace, client =>
+      async setMeta => {
+        const loaded = await loadWorkflow(req, 'read');
+        const entityRef = await authorizeControl(action.permission, loaded);
+        setMeta(workflowMeta(loaded.workflow, entityRef, { actionId }));
+        if (action.filter && !action.filter(loaded.workflow)) {
+          throw new ConflictError(
+            `Action ${actionId} does not apply to workflow ${loaded.workflow.workflowId}`,
+          );
+        }
+        const entity =
+          loaded.context?.entity ??
+          (entityRef
+            ? (
+                await access
+                  .loadEntity(entityRef, action.permission, loaded.credentials)
+                  // The entity may be gone from the catalog; the permission on
+                  // it was checked above.
+                  .catch(error => {
+                    if (error instanceof NotFoundError) return undefined;
+                    throw error;
+                  })
+              )?.entity
+            : undefined);
+        return commands.runAction(loaded.workflow.namespace, client =>
           action.handle(runRef(loaded.workflow), req.body as JsonValue, {
             entity,
             workflow: loaded.workflow,
@@ -401,7 +456,8 @@ export function createControlRouter(
             credentials: loaded.credentials,
             client,
           }),
-        ),
+        );
+      },
     );
     res.json(result === undefined ? {} : { result });
   });
@@ -422,56 +478,81 @@ export function createControlRouter(
       namespace: optionalText(b.namespace, 'namespace', 1000),
       args: parseArgs(b.args),
       workflowId: parseWorkflowId(b.workflowId),
+      workflowIdReusePolicy: parseWorkflowIdReusePolicy(
+        b.workflowIdReusePolicy,
+      ),
     };
+  }
+
+  function initialBodyFields(
+    req: Request,
+    fields: readonly string[],
+    base: JsonObject = {},
+  ): JsonObject {
+    const meta: JsonObject = { ...base };
+    for (const field of fields) {
+      const value = optionalBodyString(req, field, MAX_WORKFLOW_ID_LENGTH);
+      if (value) meta[field] = value;
+    }
+    return meta;
   }
 
   router.post(
     '/entities/:kind/:namespace/:name/workflows',
     async (req, res) => {
-      const credentials = await httpAuth.credentials(req);
-      const context = await access.loadEntity(
-        entityRefFromParams(req),
-        temporalWorkflowStartPermission,
-        credentials,
+      const rawEntityRef = `${req.params.kind}:${req.params.namespace}/${req.params.name}`;
+      const initialMeta = initialBodyFields(
+        req,
+        ['workflowType', 'taskQueue', 'workflowId'],
+        { entityRef: canonicalEntityRef(rawEntityRef) ?? rawEntityRef },
       );
-      const start = parseStart(req);
-      const annotations = readEntityWorkflowFilter(context.entity);
-      const workflowType =
-        start.workflowType ??
-        (annotations.workflowTypes.length === 1
-          ? annotations.workflowTypes[0]
-          : undefined);
-      const taskQueue = start.taskQueue ?? annotations.taskQueue;
-      if (!workflowType) throw new InputError('workflowType is required');
-      if (!taskQueue) throw new InputError('taskQueue is required');
-      // Only the entity's own workflows: its workflow types and task queue.
-      if (!matchesSource({ workflowType, taskQueue }, annotations)) {
-        throw new InputError(
-          `${workflowType} on ${taskQueue} is not a workflow of ${context.entityRef}`,
-        );
-      }
       const started = await audited(
         auditor,
         req,
         'workflow-start',
-        {
-          namespace: context.namespace,
-          workflowType,
-          taskQueue,
-          entityRef: context.entityRef,
-          ...(start.workflowId ? { workflowId: start.workflowId } : {}),
-        },
+        initialMeta,
         'medium',
-        () =>
-          commands.start({
+        async setMeta => {
+          const credentials = await httpAuth.credentials(req);
+          const context = await access.loadEntity(
+            entityRefFromParams(req),
+            temporalWorkflowStartPermission,
+            credentials,
+          );
+          const start = parseStart(req);
+          const annotations = readEntityWorkflowFilter(context.entity);
+          const workflowType =
+            start.workflowType ??
+            (annotations.workflowTypes.length === 1
+              ? annotations.workflowTypes[0]
+              : undefined);
+          const taskQueue = start.taskQueue ?? annotations.taskQueue;
+          if (!workflowType) throw new InputError('workflowType is required');
+          if (!taskQueue) throw new InputError('taskQueue is required');
+          // Only the entity's own workflows: its workflow types and task queue.
+          if (!matchesSource({ workflowType, taskQueue }, annotations)) {
+            throw new InputError(
+              `${workflowType} on ${taskQueue} is not a workflow of ${context.entityRef}`,
+            );
+          }
+          setMeta({
+            namespace: context.namespace,
+            workflowType,
+            taskQueue,
+            entityRef: context.entityRef,
+            ...(start.workflowId ? { workflowId: start.workflowId } : {}),
+          });
+          return commands.start({
             namespace: context.namespace,
             workflowType,
             taskQueue,
             args: start.args,
             workflowId: start.workflowId,
+            workflowIdReusePolicy: start.workflowIdReusePolicy,
             identity: identityOf(credentials),
             searchAttributes: startAttributes(context.entityRef, credentials),
-          }),
+          });
+        },
       );
       res.status(201).json(started);
     },
@@ -483,111 +564,144 @@ export function createControlRouter(
   router.post(
     '/namespaces/:namespace/schedules/:scheduleId/:operation(pause|unpause|trigger)',
     async (req, res) => {
-      const credentials = await httpAuth.credentials(req);
       const { namespace, scheduleId } = req.params;
       const operation = req.params.operation as TemporalScheduleOperation;
-      checkNamespace(namespace);
-      if (!scheduleId || scheduleId.length > 1000) {
-        throw new InputError('Invalid schedule ID');
-      }
-      const note = optionalNote(req.body?.note);
-      if (note !== undefined && operation === 'trigger') {
-        throw new InputError('A note is only kept by pause and unpause');
-      }
-      const entityRef = parseEntityRefParam(req.query.entityRef);
-      // The permission first: the schedule is only read for callers that
-      // may start workflows, so its existence is not told to others.
-      let entitySources:
-        | { taskQueue?: string; workflowTypes: string[] }[]
-        | undefined;
-      if (entityRef) {
-        const context = await access.loadEntity(
-          entityRef,
-          temporalWorkflowStartPermission,
-          credentials,
-        );
-        if (context.namespace !== namespace) {
-          throw new NotFoundError(
-            `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
-          );
-        }
-        // The sources of the entity and of its related entities, the same
-        // list as the entity's schedule list; the schedule must belong to one
-        // of them (scheduleBelongsToSources).
-        entitySources = sources.workflowSourcesOf(context);
-      } else {
-        await access.authorizeOn(
-          temporalWorkflowStartPermission,
-          undefined,
-          credentials,
-        );
-      }
-      const schedule = await commands.describeSchedule(namespace, scheduleId);
-      if (entitySources && !scheduleBelongsToSources(schedule, entitySources)) {
-        throw new NotFoundError(
-          `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
-        );
-      }
+      const rawEntityRef =
+        typeof req.query.entityRef === 'string' && req.query.entityRef
+          ? canonicalEntityRef(req.query.entityRef) ?? req.query.entityRef
+          : undefined;
+      const initialNote = optionalBodyString(req, 'note', 1000);
+      const initialMeta: JsonObject = {
+        namespace,
+        scheduleId,
+        operation,
+        ...(rawEntityRef ? { entityRef: rawEntityRef } : {}),
+        ...(initialNote ? { note: initialNote } : {}),
+      };
       await audited(
         auditor,
         req,
         `schedule-${operation}`,
-        {
-          namespace,
-          scheduleId,
-          operation,
-          workflowType: schedule.workflowType,
-          entityRef,
-          ...(note ? { note } : {}),
-        },
+        initialMeta,
         'medium',
-        () =>
-          commands.operateSchedule(schedule, operation, {
+        async setMeta => {
+          const credentials = await httpAuth.credentials(req);
+          if (!scheduleId || scheduleId.length > 1000) {
+            throw new InputError('Invalid schedule ID');
+          }
+          const note = optionalNote(req.body?.note);
+          if (note !== undefined && operation === 'trigger') {
+            throw new InputError('A note is only kept by pause and unpause');
+          }
+          const entityRef = parseEntityRefParam(req.query.entityRef);
+          // The permission first: the namespace and schedule are only checked
+          // for callers that may start workflows, so neither is told to others.
+          let entityNamespace: string | undefined;
+          let entitySources:
+            | { taskQueue?: string; workflowTypes: string[] }[]
+            | undefined;
+          if (entityRef) {
+            const context = await access.loadEntity(
+              entityRef,
+              temporalWorkflowStartPermission,
+              credentials,
+            );
+            entityNamespace = context.namespace;
+            // The sources of the entity and of its related entities, the same
+            // list as the entity's schedule list; the schedule must belong to
+            // one of them (scheduleBelongsToSources).
+            entitySources = sources.workflowSourcesOf(context);
+          } else {
+            await access.authorizeOn(
+              temporalWorkflowStartPermission,
+              undefined,
+              credentials,
+            );
+          }
+          checkNamespace(namespace);
+          if (entityNamespace && entityNamespace !== namespace) {
+            throw new NotFoundError(
+              `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
+            );
+          }
+          const schedule = await commands.describeSchedule(
+            namespace,
+            scheduleId,
+          );
+          if (
+            entitySources &&
+            !scheduleBelongsToSources(schedule, entitySources)
+          ) {
+            throw new NotFoundError(
+              `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
+            );
+          }
+          setMeta({
+            namespace,
+            scheduleId,
+            operation,
+            workflowType: schedule.workflowType,
+            entityRef,
+            ...(note ? { note } : {}),
+          });
+          await commands.operateSchedule(schedule, operation, {
             note,
             requestedBy: principalRef(credentials) ?? 'Backstage',
-          }),
+          });
+        },
       );
       res.status(202).json({});
     },
   );
 
   router.post('/workflows', async (req, res) => {
-    const credentials = await httpAuth.credentials(req);
-    if (!(await access.canListAll(credentials))) {
-      throw new NotAllowedError();
-    }
-    await access.authorizeOn(
-      temporalWorkflowStartPermission,
-      undefined,
-      credentials,
-    );
-    const start = parseStart(req);
-    const namespace = start.namespace || sources.defaultNamespace();
-    checkNamespace(namespace);
-    if (!start.workflowType) throw new InputError('workflowType is required');
-    if (!start.taskQueue) throw new InputError('taskQueue is required');
-    const { workflowType, taskQueue } = start;
+    const initialMeta = initialBodyFields(req, [
+      'namespace',
+      'workflowType',
+      'taskQueue',
+      'workflowId',
+    ]);
     const started = await audited(
       auditor,
       req,
       'workflow-start',
-      {
-        namespace,
-        workflowType,
-        taskQueue,
-        ...(start.workflowId ? { workflowId: start.workflowId } : {}),
-      },
+      initialMeta,
       'medium',
-      () =>
-        commands.start({
+      async setMeta => {
+        const credentials = await httpAuth.credentials(req);
+        if (!(await access.canListAll(credentials))) {
+          throw new NotAllowedError();
+        }
+        await access.authorizeOn(
+          temporalWorkflowStartPermission,
+          undefined,
+          credentials,
+        );
+        const start = parseStart(req);
+        const namespace = start.namespace || sources.defaultNamespace();
+        checkNamespace(namespace);
+        if (!start.workflowType) {
+          throw new InputError('workflowType is required');
+        }
+        if (!start.taskQueue) throw new InputError('taskQueue is required');
+        const { workflowType, taskQueue } = start;
+        setMeta({
+          namespace,
+          workflowType,
+          taskQueue,
+          ...(start.workflowId ? { workflowId: start.workflowId } : {}),
+        });
+        return commands.start({
           namespace,
           workflowType,
           taskQueue,
           args: start.args,
           workflowId: start.workflowId,
+          workflowIdReusePolicy: start.workflowIdReusePolicy,
           identity: identityOf(credentials),
           searchAttributes: startAttributes(undefined, credentials),
-        }),
+        });
+      },
     );
     res.status(201).json(started);
   });

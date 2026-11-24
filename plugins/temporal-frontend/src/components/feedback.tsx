@@ -16,19 +16,34 @@
 
 import { Alert, Skeleton, Flex } from '@backstage/ui';
 
+function errorMessage(error: Error): string {
+  const cause = (error as { cause?: unknown }).cause;
+  const causeMessage =
+    cause &&
+    typeof cause === 'object' &&
+    'message' in cause &&
+    typeof cause.message === 'string'
+      ? cause.message
+      : undefined;
+  if (causeMessage && !causeMessage.startsWith('Request failed with status ')) {
+    return causeMessage;
+  }
+  return error.message;
+}
+
 /**
  * An error from the backend, with its message.
  *
  * @alpha
  */
 export function ErrorAlert(props: { error: Error; title?: string }) {
-  const { error } = props;
+  const message = errorMessage(props.error);
   return (
     <Alert
       status="danger"
       icon
-      title={props.title ?? error.message}
-      description={props.title ? error.message : undefined}
+      title={props.title ?? message}
+      description={props.title ? message : undefined}
       data-testid="temporal-error"
     />
   );

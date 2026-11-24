@@ -36,6 +36,7 @@ import { RiExternalLinkLine } from '@remixicon/react';
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import {
   getTemporalWorkflowDefinitionSpec,
+  getTemporalWorkflowSource,
   isTemporalWorkflowEntity,
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
@@ -103,11 +104,25 @@ function SourceLinks(props: { entity: Entity }) {
   );
 }
 
+/** Only `http:` and `https:` URLs (parsed with `URL`), else undefined. */
+function httpUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? trimmed
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** The source-location and view-url links of an entity, as buttons. */
 function SourceLinkButtons(props: { entity: Entity; empty?: ReactNode }) {
   const annotations = props.entity.metadata.annotations ?? {};
   const source = locationUrl(annotations[ANNOTATION_SOURCE_LOCATION]);
-  const view = annotations[ANNOTATION_VIEW_URL];
+  const view = httpUrl(annotations[ANNOTATION_VIEW_URL]);
   const links = [
     ...(source ? [{ label: 'Source code', href: source }] : []),
     ...(view && view !== source
@@ -237,7 +252,9 @@ function Legend(props: { overlay: DefinitionOverlay }) {
     ['success', 'Done'],
     ['info', 'Running'],
     ['danger', 'Failed'],
-    ['dimmed', 'Not reached'],
+    props.overlay.truncated
+      ? ['unknown', 'Unknown']
+      : ['dimmed', 'Not reached'],
   ];
   return (
     <Flex
@@ -283,9 +300,10 @@ function errorTitle(error: WorkflowDefinitionError): string {
 /** The definition, the graph and the selected run. */
 function DefinitionView(props: {
   entityRef: string;
+  entityNamespace?: string;
   definition: WorkflowDefinitionResponse;
 }) {
-  const { entityRef, definition } = props;
+  const { entityRef, entityNamespace, definition } = props;
   const api = useApi(temporalApiRef);
   const location = useLocation();
   const [search, setSearch] = useSearchParams();
@@ -315,20 +333,21 @@ function DefinitionView(props: {
       (await api.listEntityWorkflows(entityRef, { pageSize: 20 })).items,
     [api, entityRef],
   );
-  const namespace =
+  const listedNamespace =
     runs.value?.find(r => r.workflowId === workflowId)?.namespace ??
-    runs.value?.[0]?.namespace ??
-    'default';
+    runs.value?.[0]?.namespace;
+  const namespace = listedNamespace ?? entityNamespace ?? 'default';
   // Without a run ID, the latest run: from the list of the entity's runs,
   // else from the run list of the workflow ID.
   const listedRunId = runId
     ? undefined
     : runs.value?.find(r => r.workflowId === workflowId)?.runId;
   const runsLoading = runs.loading;
+  const ready =
+    Boolean(workflowId) &&
+    (!runsLoading || (Boolean(runId) && Boolean(entityNamespace)));
   const run = useAsyncRetry(async () => {
-    if (!workflowId) return undefined;
-    // Without a run ID, after the entity's runs, which may have it.
-    if (!runId && runsLoading) return undefined;
+    if (!workflowId || !ready) return undefined;
     const shown =
       runId ??
       listedRunId ??
@@ -343,7 +362,7 @@ function DefinitionView(props: {
       { namespace, workflowId, runId: shown },
       { entityRef },
     );
-  }, [api, entityRef, namespace, workflowId, runId, listedRunId, runsLoading]);
+  }, [api, entityRef, namespace, ready, workflowId, runId, listedRunId]);
   const running = run.value?.status === 'Running';
   const { retry } = run;
   useEffect(() => {
@@ -455,6 +474,15 @@ function DefinitionView(props: {
       {run.error && (
         <ErrorAlert title="The run could not be loaded" error={run.error} />
       )}
+      {overlay?.truncated && (
+        <Alert
+          status="warning"
+          icon
+          title="History truncated — only the start was matched"
+          description="The history is too long to read in full, so only the first events were matched against the definition. Tasks marked Unknown may have run later."
+          data-testid="definition-overlay-truncated"
+        />
+      )}
       {overlay && <Legend overlay={overlay} />}
       <GraphFullscreenContext.Provider value={fullscreen}>
         <div
@@ -544,7 +572,19 @@ function LoadedDefinition(props: { entity: Entity }) {
   if (state.value!.format === 'source') {
     return <SourceView entity={props.entity} definition={state.value!} />;
   }
-  return <DefinitionView entityRef={entityRef} definition={state.value!} />;
+  let entityNamespace: string | undefined;
+  try {
+    entityNamespace = getTemporalWorkflowSource(props.entity).namespace;
+  } catch {
+    entityNamespace = undefined;
+  }
+  return (
+    <DefinitionView
+      entityRef={entityRef}
+      entityNamespace={entityNamespace}
+      definition={state.value!}
+    />
+  );
 }
 
 /**
