@@ -90,14 +90,23 @@ export function entityRefFromParams(req: Request): string {
 }
 
 /** Longest workflow ID and run ID of a path. */
-const MAX_PATH_ID_LENGTH = 1000;
+export const MAX_PATH_ID_LENGTH = 1000;
+
+/** True for a non-empty path ID within {@link MAX_PATH_ID_LENGTH}. */
+export function isValidPathId(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAX_PATH_ID_LENGTH
+  );
+}
 
 /** The workflow ID of the path, without a run. */
 export function workflowIdFromParams(
   req: Request,
 ): Pick<WorkflowRef, 'namespace' | 'workflowId'> {
   const { namespace, workflowId } = req.params;
-  if (!workflowId || workflowId.length > MAX_PATH_ID_LENGTH) {
+  if (!isValidPathId(workflowId)) {
     throw new InputError('Invalid workflowId');
   }
   return { namespace, workflowId };
@@ -106,7 +115,7 @@ export function workflowIdFromParams(
 /** The run of the path: its workflow ID and run ID. */
 export function workflowRunRefFromParams(req: Request): WorkflowRunRef {
   const runId = req.params.runId;
-  if (!runId || runId.length > MAX_PATH_ID_LENGTH) {
+  if (!isValidPathId(runId)) {
     throw new InputError('Invalid runId');
   }
   return { ...workflowIdFromParams(req), runId };

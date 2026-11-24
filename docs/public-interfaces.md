@@ -780,7 +780,7 @@ Other systems can read these, so they are interfaces too:
   `scope: 'chain'` (`scope: 'run'` without `firstRunId` when the Temporal server
   does not report the chain ID). Their severity is
   `medium`, except `workflow-terminate`, which is `high` because a
-  terminate cannot be undone. An event is created before the permission and the request are checked, so a refused or invalid attempt is recorded too, as a failure with the target of the request (namespace, workflow, run, `entityRef`).
+  terminate cannot be undone. An event is created before the permission and the request are checked, so a refused or invalid attempt is recorded too, as a failure with the target of the request (namespace, workflow, run, `entityRef`). URL values that fail format validation or exceed the length limit are recorded as the placeholder `'<invalid>'` instead of the raw value.
 
   Backstage's default mapping sends `low` to `debug`, and `medium`, `high`
   and `critical` to `info`. The backend logs `info` and above by default, so
