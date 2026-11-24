@@ -499,7 +499,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Actions registry
 
-`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` 在 Backstage 的 actions registry 註冊五個 action：`temporal:list-workflows`、`temporal:get-workflow`、`temporal:start-workflow`、`temporal:signal-workflow`、`temporal:update-workflow`。AI 助理或 MCP client（經 `@backstage/plugin-mcp-actions-backend`）以登入的使用者身分呼叫它們，走和頁面、Scaffolder action 同樣的 HTTP 路由，所以權限檢查和稽核紀錄都一樣。`list-workflows` 和 `get-workflow` 是 `readOnly`；另外三個不是，呼叫方要先問人。取消、終止、重跑不是 action。action、屬性和 MCP 設定見[模組 README](../../plugins/temporal-backend-module-actions/README.md)。
+`@kwkevinchan/backstage-plugin-temporal-backend-module-actions` 在 Backstage 的 actions registry 註冊五個 action：`temporal:list-workflows`、`temporal:get-workflow`、`temporal:start-workflow`、`temporal:signal-workflow`、`temporal:update-workflow`。AI 助理或 MCP client（經 `@backstage/plugin-mcp-actions-backend`）以呼叫方的身分呼叫它們（登入的使用者；呼叫方以服務身分驗證時，就是那個服務），走和頁面、Scaffolder action 同樣的 HTTP 路由，所以權限檢查和稽核紀錄都一樣。權限政策不套用在服務身分上；要逐人檢查權限，MCP client 要用那個使用者的 token。`list-workflows` 和 `get-workflow` 是 `readOnly`；另外三個不是，呼叫方要先問人。取消、終止、重跑不是 action。action、屬性和 MCP 設定見[模組 README](../../plugins/temporal-backend-module-actions/README.md)。
 
 ## Zigflow
 

@@ -881,9 +881,11 @@ and
 actions in the Backstage actions registry: `temporal:list-workflows`,
 `temporal:get-workflow`, `temporal:start-workflow`, `temporal:signal-workflow`
 and `temporal:update-workflow`. An AI assistant or an MCP client (through
-`@backstage/plugin-mcp-actions-backend`) calls them as the signed-in user,
-over the same HTTP routes as the pages and the Scaffolder actions, so the
-permission checks and audit records are the same. `list-workflows` and
+`@backstage/plugin-mcp-actions-backend`) calls them as the caller (a signed-in
+user, or a service when it authenticates as one), over the same HTTP routes as
+the pages and the Scaffolder actions, so the permission checks and audit
+records are the same. Permission policies are not applied to a service
+caller; to check each person, the MCP client uses the token of that user. `list-workflows` and
 `get-workflow` are `readOnly`; the other three are not, so a caller asks a
 person first. Cancel, terminate and rerun are not actions. The actions, their
 attributes and the MCP config are in the

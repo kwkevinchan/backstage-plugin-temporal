@@ -3,7 +3,9 @@
 Actions of the unofficial [Backstage Temporal plugin](../../README.md) for the
 Backstage [actions registry](https://backstage.io/docs/backend-system/core-services/actions-registry).
 An AI assistant, an MCP client or another agent can list and read workflows,
-start them, and send them signals and updates, as the signed-in user.
+start them, and send them signals and updates, as the caller: a signed-in
+user, or a service when the caller authenticates as one (see
+[Permissions, audit and errors](#permissions-audit-and-errors)).
 
 The module only registers the actions and sets their attributes. It does not
 know about chat or approvals: the caller decides, from the attributes, when to
@@ -87,12 +89,14 @@ receives it; this is also the Backstage default for an action that is not
 in `backend.actions.filter.exclude`; a rule in `include` keeps only the
 actions that match it.
 `start-workflow` is not idempotent because a call without `workflowId` starts a
-new workflow each time; give a `workflowId` to make a repeated call fail
-instead of start a second workflow.
+new workflow each time. With a `workflowId`, a repeated call fails while a
+workflow with that ID is still running; once that run has closed, the same ID
+starts a new run (Temporal's default workflow ID reuse policy).
 
 **A caller must ask a person before it calls an action that is not
-`readOnly`.** The Temporal plugin still checks the permission of the user for
-each call, but a permission to start or signal is not a decision to do it now.
+`readOnly`.** For a caller that is a user, the Temporal plugin still checks the
+permission of that user for each call, but a permission to start or signal is
+not a decision to do it now.
 
 `get-workflow` returns the status, type, start and close time, the initiator
 (when the plugin records it in the `temporal.searchAttributes.initiator`
@@ -100,7 +104,8 @@ search attribute), the number of steps that are completed, running and failed
 with the names of those that run now, the failure of a failed run, and
 `workflowUrl`, the link to the run in Backstage. The failure always has
 the message, kind and type. Its causes are there only when the user has the
-history permission (`temporal.workflow.history.read`); stack traces and the
+history permission (`temporal.workflow.history.read` on the entity with
+`entityRef`, `temporal.workflow.history.list` without it); stack traces and the
 payloads of steps are never returned. The step counts use the step kinds that
 the workflow pages count: activities, timers, child workflows, updates and
 signals sent.
@@ -128,6 +133,17 @@ the user whose credentials the registry gives to the action
 The permission checks, audit records and search attributes (`entityRef`,
 `initiator`) are those of the pages and of the Scaffolder actions. The module
 never calls Temporal itself.
+
+The registry gives the credentials of the caller. When the caller
+authenticates as a service (for example an MCP client with a static token from
+`backend.auth.externalAccess`), the action runs as that service:
+
+- Backstage permission policies are not applied to service principals; only
+  the access restrictions of the token apply.
+- The `initiator` search attribute does not name a user.
+
+To check the permission of each person, connect the MCP client with the
+token of that user.
 
 - A refusal (403) comes back as an error that says who refused and that the
   user lacks the permission. Do not retry it.

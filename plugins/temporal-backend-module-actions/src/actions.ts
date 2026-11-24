@@ -462,7 +462,7 @@ export function registerTemporalActions(
             .string()
             .optional()
             .describe(
-              'Workflow ID; one is made from the workflow type when left out. Give one to make a repeated call safe',
+              'Workflow ID; one is made from the workflow type when left out. Starting again with the same ID fails while that workflow is still running',
             ),
           args: z
             .any()
