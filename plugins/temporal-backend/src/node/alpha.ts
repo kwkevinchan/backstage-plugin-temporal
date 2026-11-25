@@ -102,7 +102,7 @@ export interface TemporalEntityContext {
 export interface TemporalAccessibleWorkflow {
   /**
    * The entity the workflow is shown for. Undefined when it was opened
-   * without one (the Workflows page) under the list permissions.
+   * without one (the Workflows page) under the list permission.
    */
   context?: TemporalEntityContext;
   /**

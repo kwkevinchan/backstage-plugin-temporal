@@ -24,8 +24,8 @@ import { expect, Page, test } from '@playwright/test';
  * (standalone Workflows page) are denied while the catalog stays readable:
  * - the entity's Temporal tab shows an error instead of its runs;
  * - the Workflows page shows an error instead of the runs of the namespace;
- * - a run opened by its URL shows an error, without its steps, inputs or
- *   results.
+ * - the details page of a run opened by its URL shows an error, without its
+ *   steps, inputs or results.
  */
 
 const app = process.env.SMOKE_APP ?? 'app';
@@ -106,9 +106,11 @@ test('shows no workflows when the read and list permissions are denied', async (
   await expect(table(page, 'Workflow executions')).toHaveCount(0);
   await shot(page, 'no-read-02-workflows-page');
 
-  // 3. A run opened by its URL: refused before the workflow is read, so
-  // the answer does not depend on whether it exists.
-  await page.goto('/temporal/namespaces/default/workflows/example-payment-any');
+  // 3. The details page of a run opened by its URL: refused before the
+  // workflow is read, so the answer does not depend on whether it exists.
+  await page.goto(
+    '/temporal/namespaces/default/workflows/example-payment-any/runs/any-run',
+  );
   await expect(page.getByTestId('temporal-error').first()).toBeVisible();
   await expect(page.getByTestId('workflow-graph')).toHaveCount(0);
   await expect(page.getByTestId('step-input')).toHaveCount(0);

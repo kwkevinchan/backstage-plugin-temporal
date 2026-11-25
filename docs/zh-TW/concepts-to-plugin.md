@@ -138,7 +138,7 @@ export async function releaseWorkflow(input: ReleaseInput) {
 
 ### 權限與稽核
 
-每個請求都經過 Backstage 權限框架，每個操作都記進 auditor。大部分權限是掛在 catalog 實體上的資源權限，所以政策可以重用 catalog 的規則（「只有元件的 owner 能 Terminate」）；另外兩個 list 權限是針對流程本身，有自己的規則。Temporal 的事件紀錄會記下是誰操作的（`backstage:user:default/jane`）。權限表、政策範例和條件都在 [Permissions](../../README.md#permissions) 和 [Workflow controls](../../README.md#workflow-controls)。沒有政策、或用 allow-all 政策時，登入的人什麼都能看、什麼都能做；要給不該有這些權限的人使用前，請先寫政策。檢查怎麼分層，見[運作方式](how-it-works.md)。
+每個請求都經過 Backstage 權限框架，每個操作都記進 auditor。大部分權限是掛在 catalog 實體上的資源權限，所以政策可以重用 catalog 的規則（「只有元件的 owner 能 Terminate」）；另外 list 權限是針對流程本身，有自己的規則。Temporal 的事件紀錄會記下是誰操作的（`backstage:user:default/jane`）。權限表、政策範例和條件都在 [Permissions](../../README.md#permissions) 和 [Workflow controls](../../README.md#workflow-controls)。沒有政策、或用 allow-all 政策時，登入的人什麼都能看、什麼都能做；要給不該有這些權限的人使用前，請先寫政策。檢查怎麼分層，見[運作方式](how-it-works.md)。
 
 ### 操作、Schedule 與範本
 

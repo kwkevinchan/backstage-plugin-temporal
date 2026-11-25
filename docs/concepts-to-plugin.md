@@ -184,8 +184,8 @@ ends (`packages/example-worker/src/workflows.js`).
 Every request passes the Backstage permission framework, and every operation is
 recorded with the auditor. Most permissions are resource permissions on the
 catalog entity, so a policy can reuse catalog rules ("only the owners of the
-component may terminate"); two list permissions apply to workflows themselves,
-with rules of their own. The Temporal history records who acted
+component may terminate"); the list permission applies to workflows themselves,
+with rules of its own. The Temporal history records who acted
 (`backstage:user:default/jane`). The permission table, policy examples and
 conditions are in [Permissions](../README.md#permissions) and
 [Workflow controls](../README.md#workflow-controls). With no policy, or the

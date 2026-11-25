@@ -97,7 +97,7 @@ const workflowInput = {
       .string()
       .optional()
       .describe(
-        'Entity the workflow belongs to, whose permissions are checked; else the entity in its search attribute, or the list permissions',
+        'Entity the workflow belongs to, whose permissions are checked; else the entity in its search attribute, or the list permission',
       ),
 };
 

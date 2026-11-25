@@ -1661,6 +1661,77 @@ describe('temporal backend plugin', () => {
       });
     });
 
+    it('needs the read permission on the matched TemporalWorkflow entity too', async () => {
+      const { server } = await start({
+        deny: [
+          { permission: 'temporal.workflow.read', resourceRef: orderWfRef },
+        ],
+      });
+      for (const path of ['', '/graph', '/history', '/result']) {
+        const res = await request(server).get(
+          `${baseRun}${path}?entityRef=${checkoutRef}`,
+        );
+        expect(res.status).toBe(404);
+        expect(JSON.stringify(res.body)).not.toContain('inner');
+      }
+    });
+
+    it('needs the read permission on the TemporalWorkflow entity an ancestor matched through, for child workflows', async () => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) => {
+          if (req.execution.workflowId === 'child-0') {
+            return {
+              workflowExecutionInfo: {
+                ...executionInfo({
+                  workflowId: 'child-0',
+                  type: 'childWorkflow',
+                  taskQueue: 'child-queue',
+                  status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
+                }),
+                parentExecution: {
+                  workflowId: 'parent-1',
+                  runId: 'parent-1-run',
+                },
+              } as any,
+              pendingActivities: [],
+            };
+          }
+          return {
+            workflowExecutionInfo: executionInfo({
+              workflowId: 'parent-1',
+              type: 'orderWorkflow',
+              taskQueue: 'orders',
+              status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
+            }),
+            pendingActivities: [],
+          };
+        },
+      );
+      const childRun =
+        '/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run';
+      const allowed = await start({ workflowService });
+      const detail = await request(allowed.server).get(
+        `${childRun}?entityRef=${checkoutRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
+
+      const { server } = await start({
+        workflowService,
+        deny: [
+          { permission: 'temporal.workflow.read', resourceRef: orderWfRef },
+        ],
+      });
+      for (const path of ['', '/graph', '/history', '/result']) {
+        const res = await request(server).get(
+          `${childRun}${path}?entityRef=${checkoutRef}`,
+        );
+        expect(res.status).toBe(404);
+        expect(JSON.stringify(res.body)).not.toContain('inner');
+      }
+    });
+
     it('does not set workflowEntityRef when matched by the opened entity own annotations', async () => {
       const { server } = await start();
       const detail = await request(server).get(`${baseRun}?entityRef=${ref}`);

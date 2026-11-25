@@ -488,10 +488,11 @@ in parallel cannot be told apart; they are paired in the order the steps
 were scheduled.
 
 The graph and the timeline show names and numbers the backend reads from
-the payloads of a model call: the framework, the model, the token counts (input, output, reasoning, cached),
-the finish reason, the names and tool call IDs of the tools it asked for,
-and the type or message of an error. No setting turns this on: whoever may
-read a workflow sees it wherever the history has model calls. The
+the payloads of a model call: the framework, the model, the token counts
+(input, output, reasoning, cached), the finish reason, the names and tool
+call IDs of the tools it asked for, and the type of an error. No setting
+turns this on: whoever may read a workflow sees it wherever the history has
+model calls. The
 messages, the thinking and tool arguments and results come from the full
 record of the call, with the same permission
 (`GET .../llm-calls/:eventId`; `?index=` picks a later call of a step that
