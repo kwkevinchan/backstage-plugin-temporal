@@ -41,7 +41,7 @@ Backstage 其他外掛也這樣處理執行時的資料。Kubernetes 外掛用 c
 下面**任一種**比中，執行就屬於這個實體：
 
 1. **實體的標註或 spec。** 實體 `temporal.io/*` 標註的 Task Queue 和 workflow type 相符，各自有設定時才比。只設 Task Queue，就比中這個佇列上所有 workflow type。`TemporalWorkflow` 實體用它的 `spec.taskQueue` 和 `spec.workflowType`，規則相同。
-2. **`entityRef` Search Attribute。**執行的 Search Attribute（名稱設定在 `temporal.searchAttributes.entityRef`）裡是這個實體的 reference。這個值在流程啟動時設定，或由流程自己設定。沒有這個設定時，這種方式不啟用。
+2. **`entityRef` Search Attribute。** 執行的 Search Attribute（名稱設定在 `temporal.searchAttributes.entityRef`）裡是這個實體的 reference。這個值在流程啟動時設定，或由流程自己設定。沒有這個設定時，這種方式不啟用。
 3. **實體依賴的 `TemporalWorkflow` 實體。** 實體在 `spec.dependsOn` 裡列了 `temporalworkflow:default/order-workflow`，而執行符合那個實體的 spec，或 Search Attribute `entityRef` 裡是那個實體的 reference。只往下找一層，最多 20 個，而且只算同一個 namespace、使用者有讀取權限的。
 
 清單用 OR 把三種接成一個 visibility 查詢，所以沒有先後。單一流程（詳情頁和操作）時，後端對這個流程檢查同樣三條規則。先後只和權限有關，見下面兩節。
