@@ -54,8 +54,9 @@ do not put builds in the catalog.
 
 An execution belongs to an entity when **any one** of these matches:
 
-1. **Annotations or spec of the entity.** The task queue (when set) and one of
-   the workflow types of the entity's `temporal.io/*` annotations match. For a
+1. **Annotations or spec of the entity.** The task queue and the workflow
+   types of the entity's `temporal.io/*` annotations match, each when it is set.
+   A task queue alone matches every workflow type on that queue. For a
    `TemporalWorkflow` entity, its `spec.taskQueue` and `spec.workflowType` are
    used the same way.
 2. **The `entityRef` search attribute.** The execution carries the entity's
@@ -64,7 +65,8 @@ An execution belongs to an entity when **any one** of these matches:
    setting, this way is off.
 3. **A `TemporalWorkflow` entity that the entity depends on.** The entity lists
    `temporalworkflow:default/order-workflow` in `spec.dependsOn`, and the
-   execution matches that entity's spec. Only one level is followed, at most
+   execution matches that entity's spec, or carries that entity's reference in
+   the `entityRef` search attribute. Only one level is followed, at most
    20 such entities are included, and only those in the same namespace that the
    user may read.
 
@@ -73,8 +75,8 @@ order does not matter. For one workflow (the details page and the operations),
 the backend checks the same three rules on that workflow. The order only
 matters for permissions, in the next sections.
 
-The result is not stored. Change an annotation, and the next request uses the
-new value.
+The result is not stored. Change an annotation, and the first request after the
+catalog has processed the change uses the new value.
 
 ## Child workflows
 
@@ -98,25 +100,32 @@ entity:
   workflow or one of its ancestors), only that entity is checked.
 - When the match comes through a `TemporalWorkflow` entity that the opened
   entity depends on, **both** entities are checked: the opened entity and the
-  matched `TemporalWorkflow` entity. The owner of the workflow type keeps
-  control of its executions, also when they are shown on another team's
-  component.
+  matched `TemporalWorkflow` entity. So when another team's component shows
+  the executions through `dependsOn`, the policies on the workflow type's
+  entity still apply.
 
-So the owner of a workflow type is set once, on its `TemporalWorkflow` entity,
-and permission policies apply to all of its executions through it.
+The second check happens only for a match through `dependsOn`. When another
+entity matches the same executions by its own annotations or by the search
+attribute, only that entity is checked, and the policies on the
+`TemporalWorkflow` entity are not used. To make the owner's policies apply,
+limit who can declare such matches; see
+[the last section](#who-can-declare-that-a-workflow-belongs-to-an-entity).
 
 ## What a request costs
 
 The work of each request does not grow with the number of executions:
 
-| Request                   | What the backend does                                                                                                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An entity's workflow list | Reads the entity, checks the read permission on up to 20 `TemporalWorkflow` entities it depends on and reads the allowed ones, then sends **one** visibility query, one page |
-| One workflow              | Reads the entity and its related entities as above, describes the workflow, and describes up to 3 ancestors when the workflow does not match by itself                       |
-| The statistics of the tab | One visibility query with a fixed sample size                                                                                                                                |
+| Request                   | What the backend does                                                                                                                                                                                                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An entity's workflow list | Checks the read permission on the entity and reads it, checks the read permission on up to 20 `TemporalWorkflow` entities it depends on and reads the allowed ones, then sends **one** visibility query for one page                                                                                                |
+| One workflow              | Loads the entity and its related entities as above, describes the workflow (and reads its last event when it failed, timed out, was terminated or continued as new), and describes up to 3 ancestors when the workflow does not match by itself. The details also check whether the user may see inputs and results |
+| The statistics of the tab | Loads the entity and its related entities as above, then one visibility query for the latest `limit` runs (50 by default, at most 100)                                                                                                                                                                              |
 
-Temporal's visibility store answers the query, and it is indexed for this.
-The catalog does no work when executions start or end.
+Workflow enrichers registered by modules run on the returned items; their cost
+depends on the module.
+
+Temporal's visibility store answers the query. The catalog does no work when
+executions start or end.
 
 ## Alternatives that were not chosen
 
