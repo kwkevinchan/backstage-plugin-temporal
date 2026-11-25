@@ -15,7 +15,7 @@
  */
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import useAsync from 'react-use/esm/useAsync';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import {
@@ -29,6 +29,7 @@ import {
   discoveryApiRef,
   fetchApiRef,
   useApi,
+  useRouteRef,
 } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { Alert, ButtonLink, Flex, Link, Select, Text } from '@backstage/ui';
@@ -42,6 +43,7 @@ import {
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import {
   DefinitionList,
+  entityContentRouteRef,
   ErrorAlert,
   GraphFullscreenContext,
   Loading,
@@ -297,6 +299,18 @@ function errorTitle(error: WorkflowDefinitionError): string {
   }
 }
 
+/**
+ * Resolves the Temporal entity tab route in either the legacy or new frontend
+ * system, returning `undefined` when the tab is not mounted in the app.
+ */
+function useOptionalTemporalTabRoute() {
+  try {
+    return useRouteRef(entityContentRouteRef);
+  } catch {
+    return undefined;
+  }
+}
+
 /** The definition, the graph and the selected run. */
 function DefinitionView(props: {
   entityRef: string;
@@ -305,7 +319,7 @@ function DefinitionView(props: {
 }) {
   const { entityRef, entityNamespace, definition } = props;
   const api = useApi(temporalApiRef);
-  const location = useLocation();
+  const temporalTabRoute = useOptionalTemporalTabRoute();
   const [search, setSearch] = useSearchParams();
   const graph: Graph | undefined = useMemo(
     () =>
@@ -333,6 +347,12 @@ function DefinitionView(props: {
       (await api.listEntityWorkflows(entityRef, { pageSize: 20 })).items,
     [api, entityRef],
   );
+  // An entity's workflow list only ever contains runs from a single
+  // namespace (EntityWorkflowSources.entityContext rejects disallowed
+  // namespaces and skips related TemporalWorkflow entities in other
+  // namespaces). Keeping runs.value?.[0]?.namespace ahead of entityNamespace
+  // therefore cannot cross namespaces, and supplies the backend default
+  // namespace when the entity omits one.
   const listedNamespace =
     runs.value?.find(r => r.workflowId === workflowId)?.namespace ??
     runs.value?.[0]?.namespace;
@@ -401,10 +421,14 @@ function DefinitionView(props: {
     ? overlay?.marks.get(selectedPointer)
     : undefined;
   const node = graph?.nodes.find(n => n.id === selectedNode);
-  const temporalTab = location.pathname.replace(/\/[^/]*\/?$/, '/temporal');
+  const temporalTab = temporalTabRoute?.();
   const runLink =
-    workflowId && run.value
-      ? `${temporalTab}/${workflowLink({ namespace, workflowId, runId })}`
+    workflowId && run.value && temporalTab
+      ? `${temporalTab.replace(/\/+$/, '')}/${workflowLink({
+          namespace,
+          workflowId,
+          runId,
+        })}`
       : undefined;
 
   const error = definition.error;

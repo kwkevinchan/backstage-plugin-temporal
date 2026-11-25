@@ -9,6 +9,7 @@ import { JSX as JSX_2 } from 'react';
 import { Node as Node_2 } from '@xyflow/react';
 import { NodeTypes } from '@xyflow/react';
 import type { ReactNode } from 'react';
+import { RouteRef } from '@backstage/core-plugin-api';
 
 // Warning: (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point ui.d.ts
 // Warning: (ae-forgotten-export) The symbol "WorkflowNodeStatus" needs to be exported by the entry point ui.d.ts
@@ -20,6 +21,9 @@ export type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
 export function DefinitionList(props: {
   items: [string, ReactNode][];
 }): JSX_2.Element;
+
+// @alpha
+export const entityContentRouteRef: RouteRef<undefined>;
 
 // @alpha
 export function ErrorAlert(props: {

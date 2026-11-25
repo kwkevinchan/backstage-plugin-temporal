@@ -20,6 +20,11 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { parse } from 'yaml';
 import type { Entity } from '@backstage/catalog-model';
 import {
+  compatWrapper,
+  convertLegacyRouteRef,
+} from '@backstage/core-compat-api';
+import { renderInTestApp as renderInFrontendTestApp } from '@backstage/frontend-test-utils';
+import {
   mockApis,
   renderInTestApp,
   TestApiProvider,
@@ -29,6 +34,7 @@ import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { listResponse, mockTemporalApi } from '../../testData';
 
 import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { entityContentRouteRef } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import type { WorkflowDefinitionResponse } from '../../common/definition';
 import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
@@ -130,6 +136,9 @@ function render(
   entity: Entity,
   api: ReturnType<typeof mockTemporalApi>,
   path = '/',
+  options?: {
+    mountedRoutes?: Record<string, typeof entityContentRouteRef>;
+  },
 ) {
   return renderInTestApp(
     <TestApiProvider
@@ -145,7 +154,12 @@ function render(
         <EntityTemporalDefinitionContentPage />
       </EntityProvider>
     </TestApiProvider>,
-    { routeEntries: [path] },
+    {
+      routeEntries: [path],
+      mountedRoutes: options?.mountedRoutes ?? {
+        '/temporal': entityContentRouteRef,
+      },
+    },
   );
 }
 
@@ -444,6 +458,118 @@ describe('Definition tab', () => {
       'href',
       '/temporal/namespaces/default/workflows/order-1/runs/run-1',
     );
+  });
+
+  it('resolves Open the run to a custom Temporal tab path in the legacy frontend system', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    await render(
+      yamlEntity,
+      api,
+      '/catalog/default/temporalworkflow/order-flow/definition?workflowId=order-1&runId=run-1',
+      {
+        mountedRoutes: {
+          '/catalog/default/temporalworkflow/order-flow/workflows':
+            entityContentRouteRef,
+        },
+      },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('definition-node-/do/0/validate'),
+      ).toHaveAttribute('data-mark', 'Completed'),
+    );
+    expect(screen.getByRole('link', { name: 'Open the run' })).toHaveAttribute(
+      'href',
+      '/catalog/default/temporalworkflow/order-flow/workflows/namespaces/default/workflows/order-1/runs/run-1',
+    );
+  });
+
+  it('hides Open the run when the Temporal tab is not mounted in the legacy frontend system', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1', {
+      mountedRoutes: {},
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('definition-node-/do/0/validate'),
+      ).toHaveAttribute('data-mark', 'Completed'),
+    );
+    expect(screen.queryByRole('link', { name: 'Open the run' })).toBeNull();
+  });
+
+  it('resolves Open the run to the Temporal tab in the new frontend system', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    renderInFrontendTestApp(
+      compatWrapper(
+        <TestApiProvider
+          apis={[
+            [temporalApiRef, api as any],
+            [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
+            [fetchApiRef, { fetch: jest.fn() }],
+            [permissionApiRef, mockApis.permission()],
+          ]}
+        >
+          <EntityProvider entity={yamlEntity}>
+            <EntityTemporalDefinitionContentPage />
+          </EntityProvider>
+        </TestApiProvider>,
+      ),
+      {
+        initialRouteEntries: [
+          '/catalog/default/temporalworkflow/order-flow/definition?workflowId=order-1&runId=run-1',
+        ],
+        mountedRoutes: {
+          '/catalog/default/temporalworkflow/order-flow/workflows':
+            convertLegacyRouteRef(entityContentRouteRef),
+        },
+      },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('definition-node-/do/0/validate'),
+      ).toHaveAttribute('data-mark', 'Completed'),
+    );
+    expect(screen.getByRole('link', { name: 'Open the run' })).toHaveAttribute(
+      'href',
+      '/catalog/default/temporalworkflow/order-flow/workflows/namespaces/default/workflows/order-1/runs/run-1',
+    );
+  });
+
+  it('hides Open the run when the Temporal tab is not mounted in the new frontend system', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    api.getWorkflowGraph.mockResolvedValue(runGraph);
+    renderInFrontendTestApp(
+      compatWrapper(
+        <TestApiProvider
+          apis={[
+            [temporalApiRef, api as any],
+            [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
+            [fetchApiRef, { fetch: jest.fn() }],
+            [permissionApiRef, mockApis.permission()],
+          ]}
+        >
+          <EntityProvider entity={yamlEntity}>
+            <EntityTemporalDefinitionContentPage />
+          </EntityProvider>
+        </TestApiProvider>,
+      ),
+      {
+        initialRouteEntries: ['/?workflowId=order-1&runId=run-1'],
+      },
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('definition-node-/do/0/validate'),
+      ).toHaveAttribute('data-mark', 'Completed'),
+    );
+    expect(screen.queryByRole('link', { name: 'Open the run' })).toBeNull();
   });
 
   it('shows the latest run for a link with only a workflow ID', async () => {

@@ -21,7 +21,11 @@ export const rootRouteRef = createRouteRef({
   id: 'temporal:root',
 });
 
-/** Mount point of the entity tab. */
+/**
+ * Mount point of the Temporal entity tab.
+ *
+ * @alpha
+ */
 export const entityContentRouteRef = createRouteRef({
   id: 'temporal:entity-content',
 });

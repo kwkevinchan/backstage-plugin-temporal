@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 26 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 110 個，其中 96 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 110 個，./ui 25 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 26 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 110 個，其中 96 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 110 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -65,7 +65,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporal-frontend`                  | `.`        |     25 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |      6 | `@alpha`                  | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
 |                                      | `./common` |    110 | `@public` 96、`@alpha` 14 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal-frontend/report-common.api.md)        |
-|                                      | `./ui`     |     25 | `@alpha`                  | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal-frontend/report-ui.api.md)                |
+|                                      | `./ui`     |     26 | `@alpha`                  | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal-frontend/report-ui.api.md)                |
 | `temporal-backend-module-zigflow`    | `.`        |      1 | `@public`                 | 安裝模組                           | [`report.api.md`](../../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |      1 | `@public`                 | 舊前端系統                         | [`report.api.md`](../../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |      2 | `@alpha`                  | 新前端系統                         | [`report-alpha.api.md`](../../plugins/temporal-module-zigflow/report-alpha.api.md)    |
@@ -135,7 +135,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `createTemporalControlActionDef`、`TemporalControlActionButtonOptions`                                                                                                            | `.`       | 舊系統的 action，按鈕會執行後端的自訂操作             | 舊系統的 `workflowActions`         |
 | `temporalApiRef`、`TemporalApi`、`TemporalClient`                                                                                                                                 | `.`       | 後端的 client：ref、interface 和預設實作              | 其他外掛呼叫後端，或換掉 client    |
 
-`./ui`（步驟圖畫布、狀態工具、面板、class 名稱）是給同版本一起發佈的 `temporal-module-zigflow` 用的。裡面的名稱都是 `@alpha`、不保證相容，其他套件不應該使用。
+`./ui`（步驟圖畫布、狀態工具、面板、class 名稱、`entityContentRouteRef`）是給同版本一起發佈的 `temporal-module-zigflow` 用的。裡面的名稱都是 `@alpha`、不保證相容，其他套件不應該使用。
 
 ### 模組
 

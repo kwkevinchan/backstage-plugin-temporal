@@ -241,6 +241,12 @@ test.describe('definition with a Zigflow run', () => {
       );
       await expect(node('/do/5/cooldown')).not.toHaveAttribute('data-mark');
       await expect(page.getByTestId('definition-legend')).toBeVisible();
+      await expect(
+        page.getByRole('link', { name: 'Open the run' }),
+      ).toHaveAttribute(
+        'href',
+        /\/catalog\/default\/temporalworkflow\/example-yaml-order-workflow\/temporal\/namespaces\/default\/workflows\/example-yaml-order-/,
+      );
       await shot(page, `${theme}-definition-05-run-completed`);
 
       // The unpaid order: failed while it waited for the payment.
