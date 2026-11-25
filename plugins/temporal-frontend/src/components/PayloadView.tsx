@@ -91,7 +91,13 @@ function One(props: { payload: JsonValue; open?: boolean }) {
           {info.description}
         </Text>
         {metadata.map(([key, value]) => (
-          <Text key={key} as="p" variant="body-small" color="secondary">
+          <Text
+            key={key}
+            as="p"
+            variant="body-small"
+            color="secondary"
+            style={{ wordBreak: 'break-all' }}
+          >
             {key}: {typeof value === 'string' ? value : JSON.stringify(value)}
           </Text>
         ))}

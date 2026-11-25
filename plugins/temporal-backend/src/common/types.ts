@@ -274,7 +274,8 @@ export interface ExternalPayload {
 /**
  * A payload decoded with the default data converter. JSON payloads have a
  * `value`; payloads that cannot be decoded (binary, encrypted by a codec)
- * only show their encoding and size in bytes. Payloads in External Storage
+ * only show their encoding, their size in bytes and the other keys of their
+ * metadata as text. Payloads in External Storage
  * have `external`, where they are stored, and no value.
  *
  * @public

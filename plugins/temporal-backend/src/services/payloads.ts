@@ -90,7 +90,7 @@ function decodeJsonPayload(payload: any): JsonValue {
  * Decodes the payloads of a result (an update, a query) like the default
  * data converter: one payload becomes its value, several an array, none
  * undefined. A payload that is not JSON (binary data, or encoded by a
- * payload codec) is described by its encoding and size with
+ * payload codec) is described by its encoding, size and metadata with
  * `undecodable: true`. Takes the payloads as the client gives them (bytes)
  * or in their protobuf JSON form (base64 text).
  */

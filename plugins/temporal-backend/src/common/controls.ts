@@ -46,7 +46,7 @@ export interface WorkflowMessageRequest {
 /**
  * Result of an update, a query or a custom action. A result the backend
  * cannot decode (binary, or encrypted by a codec) is described by
- * `{ encoding, size, undecodable: true }` instead.
+ * `{ encoding, size, undecodable: true, metadata? }` instead.
  *
  * @public
  */
