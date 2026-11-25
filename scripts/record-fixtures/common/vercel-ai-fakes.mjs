@@ -294,9 +294,10 @@ export function createFakeVercelModelProvider() {
 }
 
 /**
- * In-process MCP client factory (`docs`) with `read_file`. When `flakyPaths`
- * sees a toolCallId for the first time on matching calls, it fails once so
- * Temporal's activity retry records an attempt failure with a stack trace.
+ * In-process MCP client factory (`docs`) with `read_file`. With
+ * `failFirstCall`, the first `read_file` call for each tool call ID and path
+ * fails once when the ID starts with `call_r`, so Temporal's activity retry
+ * records an attempt failure with a stack trace.
  */
 export function createFakeMcpFactories({ z, failFirstCall = true }) {
   const failedOnce = new Set();

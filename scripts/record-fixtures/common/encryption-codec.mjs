@@ -20,13 +20,17 @@ const METADATA_ENCODING_KEY = 'encoding';
 const METADATA_ENCRYPTION_KEY_ID = 'encryption-key-id';
 const ENCRYPTED_ENCODING = Buffer.from('binary/encrypted', 'utf8');
 const DEFAULT_KEY_ID = 'test-key-id';
-// Fixed 32-byte test-only key for non-production fixture recording (matches
-// the metadata tag expected by the encrypted fixture tests).
-const DEFAULT_KEY = Buffer.from('temporal-fixture-test-key-'.padEnd(32, '0'));
+// The 32-byte test-only key of the `encryption` sample in
+// `temporalio/samples-typescript`; the committed encrypted fixtures were
+// written with it.
+const DEFAULT_KEY = Buffer.from('test-key-test-key-test-key-test!', 'utf8');
+const IV_LENGTH = 12;
+const TAG_LENGTH = 16;
 
 /**
- * AES-256-GCM PayloadCodec matching Temporal's encryption sample format so
- * recorded encrypted fixtures carry `binary/encrypted` and `encryption-key-id`.
+ * AES-256-GCM PayloadCodec in the format of the `encryption` sample: the data
+ * is `iv (12 bytes) | ciphertext | auth tag (16 bytes)`, and the metadata
+ * carries `binary/encrypted` and `encryption-key-id`.
  */
 export function createEncryptionCodec({
   Payload,
@@ -46,7 +50,7 @@ export function createEncryptionCodec({
             [METADATA_ENCODING_KEY]: ENCRYPTED_ENCODING,
             [METADATA_ENCRYPTION_KEY_ID]: Buffer.from(defaultKeyId, 'utf8'),
           },
-          data: Buffer.concat([iv, tag, encrypted]),
+          data: Buffer.concat([iv, encrypted, tag]),
         };
       });
     },
@@ -60,9 +64,9 @@ export function createEncryptionCodec({
           return payload;
         }
         const buf = Buffer.from(payload.data);
-        const iv = buf.subarray(0, 12);
-        const tag = buf.subarray(12, 28);
-        const encrypted = buf.subarray(28);
+        const iv = buf.subarray(0, IV_LENGTH);
+        const tag = buf.subarray(buf.length - TAG_LENGTH);
+        const encrypted = buf.subarray(IV_LENGTH, buf.length - TAG_LENGTH);
         const decipher = createDecipheriv('aes-256-gcm', key, iv);
         decipher.setAuthTag(tag);
         const decrypted = Buffer.concat([

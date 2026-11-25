@@ -7,8 +7,10 @@
   "dependencies": {
     "@ai-sdk/mcp": "^2.0.66",
     "@ai-sdk/provider": "^4.0.21",
+    "@temporalio/activity": "1.25.0",
     "@temporalio/client": "1.25.0",
     "@temporalio/common": "1.25.0",
+    "@temporalio/plugin": "1.25.0",
     "@temporalio/vercel-ai-sdk": "1.0.0",
     "@temporalio/worker": "1.25.0",
     "@temporalio/workflow": "1.25.0",

@@ -36,7 +36,7 @@ const SCENARIOS = {
       workflowId: `rec-loop-124-${Date.now()}`,
       args: [{}],
     });
-    // Trigger the signal handler during round 2 (~2.2s after start).
+    // Round 1 ends after its 2 s sleep; the signal at 2.3 s lands in round 2.
     await new Promise(r => setTimeout(r, 2300));
     await handle.signal('hint', '多寫一個例子');
     await handle.result();

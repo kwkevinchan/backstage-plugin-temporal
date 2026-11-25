@@ -35,22 +35,16 @@ const { localStep } = proxyLocalActivities({
 
 const hintSignal = defineSignal('hint');
 
-/**
- * NOTE on @temporalio/workflow@1.24 vs @temporalio/workflow@1.25 `proxyActivities`:
- * verify whether `review(input, options)` works or only activity options are at
- * `proxyActivities`. Wait — `proxyActivities` takes ActivityOptions once; OR in
- * Temporal SDK `summary` is passed on `proxyActivities` unless `summary` per
- * call or separate proxy is used! Let's use per-call summary helper with
- * proxyActivities({ startToCloseTimeout: '10 seconds', summary })!
- */
+// `summary` is an activity option, so each round builds its own proxy.
 const reviewWithSummary = summary =>
   proxyActivities({ startToCloseTimeout: '10 seconds', summary }).review;
 
 /** SDK 1.25 `createEventGroup(id, { label })` nested loop (and codec variant). */
-async function groupLoop() {
-  let latestHint = '';
+async function groupLoop({ topic = 'Event Groups 範例' } = {}) {
+  const hints = [];
+  const rounds = [];
   setHandler(hintSignal, async message => {
-    latestHint = message;
+    hints.push(message);
     await notify({ message: `收到提示：${message}` });
   });
 
@@ -64,14 +58,17 @@ async function groupLoop() {
         label: `draft-review · round ${round}`,
       });
       await roundGroup.withScope(async () => {
-        await draft({ topic: 'Event Groups 範例', round, feedback });
+        const { text } = await draft({ topic, round, feedback });
         await sleep('2 seconds');
-        const suffix = feedback ? `（改：${feedback}）` : '';
-        const callReview = reviewWithSummary(`review round ${round}`);
-        feedback = await callReview({
-          text: `第 ${round} 版：Event Groups 範例${suffix}`,
+        const result = await reviewWithSummary(`review round ${round}`)({
+          text,
           round,
-          ...(latestHint ? { hint: latestHint } : {}),
+        });
+        feedback = result.reason;
+        rounds.push({
+          round,
+          score: result.score,
+          decision: result.score >= 0.9 ? 'accept' : 'revise',
         });
       });
     }
@@ -83,7 +80,7 @@ async function groupLoop() {
     eventGroups: [wrapUp],
   }).notify({ message: '完成，3 輪' });
   await notify({ message: '沒有群組的步驟' });
-  return 'ok';
+  return { rounds, hints };
 }
 
 /** Loop in one outer group without nested round groups. */
@@ -101,7 +98,7 @@ async function flatGroup() {
 /** Parallel scopes, nested scopes, and steps tagged with option groups. */
 async function parallelGroups() {
   const a = createEventGroup('par:a', { label: 'Parallel A' });
-  const sub = createEventGroup('par:a:sub', { label: 'Nested in A' });
+  const sub = createEventGroup('par:a:sub', { label: 'A sub' });
   const b = createEventGroup('par:b', { label: 'Parallel B' });
   const tagX = createEventGroup('tag:x', { label: 'Tag X' });
   const tagY = createEventGroup('tag:y', { label: 'Tag Y' });
@@ -137,7 +134,7 @@ async function parallelGroups() {
 /** Ambiguous overlapping/shared option groups across steps. */
 async function ambiguousGroups() {
   const ambA = createEventGroup('amb:a', { label: 'A' });
-  const ambZ = createEventGroup('amb:z', { label: 'Z' });
+  const ambZ = createEventGroup('amb:z', { label: 'Z (unrelated tag)' });
   const ambP = createEventGroup('amb:p', { label: 'P' });
   const ambQ = createEventGroup('amb:q', { label: 'Q' });
 
@@ -161,7 +158,7 @@ async function ambiguousGroups() {
 /** Child workflow invoked inside a parent loop and via `eventGroups` option. */
 async function childWithGroup({ round }) {
   await notify({ message: `子流程，第 ${round} 輪` });
-  const own = createEventGroup('child:own', { label: 'Child own group' });
+  const own = createEventGroup('child:own', { label: 'child own group' });
   await own.withScope(async () => {
     await notify({ message: '子流程自己的群組' });
   });
@@ -204,7 +201,7 @@ async function labelSizes({ labelBytes = 0 } = {}) {
   const group =
     labelBytes > 0
       ? createEventGroup(`label-${labelBytes}`, {
-          label: 'a'.repeat(labelBytes),
+          label: 'x'.repeat(labelBytes),
         })
       : createEventGroup('label-0');
   await group.withScope(() => notify({ message: `label ${labelBytes} bytes` }));

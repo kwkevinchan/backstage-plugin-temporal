@@ -15,6 +15,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { sanitizeHistory } from './sanitize.mjs';
 
@@ -56,10 +57,10 @@ test('normalizes client and worker identities and keeps payload data intact', ()
           failure: {
             message: 'Error: temporary failure',
             stackTrace:
-              'Error: temporary failure\n    at Object.callTool (/home/user/src/tool.js:42:11)\n    at async run (/home/user/src/worker.js:10:5)',
+              'Error: temporary failure\n    at Object.callTool (/path/to/src/tool.js:42:11)\n    at async run (/path/to/src/worker.js:10:5)',
             cause: {
               message: 'Inner',
-              stackTrace: 'Error: inner\n    at /home/user/inner.js:1:1',
+              stackTrace: 'Error: inner\n    at /path/to/inner.js:1:1',
             },
           },
         },
@@ -155,4 +156,123 @@ test('keeps child workflow type distinct from parent workflowType override', () 
       .name,
     'event-groups',
   );
+});
+
+test('applies --workflow-type only to the run itself, never to child workflows', () => {
+  const history = {
+    events: [
+      {
+        eventId: '1',
+        workflowExecutionStartedEventAttributes: {
+          workflowType: { name: 'origParent' },
+        },
+      },
+      {
+        eventId: '5',
+        childWorkflowExecutionStartedEventAttributes: {
+          workflowType: { name: 'origChild' },
+        },
+      },
+      {
+        eventId: '6',
+        childWorkflowExecutionCompletedEventAttributes: {
+          workflowType: { name: 'origChild' },
+        },
+      },
+      {
+        eventId: '7',
+        workflowExecutionContinuedAsNewEventAttributes: {
+          workflowType: { name: 'origParent' },
+        },
+      },
+    ],
+  };
+
+  const out = sanitizeHistory(history, {
+    workflowType: 'publicParent',
+    renameChildTypes: { origChild: 'publicChild' },
+  });
+
+  assert.equal(
+    out.events[0].workflowExecutionStartedEventAttributes.workflowType.name,
+    'publicParent',
+  );
+  assert.equal(
+    out.events[1].childWorkflowExecutionStartedEventAttributes.workflowType
+      .name,
+    'publicChild',
+  );
+  assert.equal(
+    out.events[2].childWorkflowExecutionCompletedEventAttributes.workflowType
+      .name,
+    'publicChild',
+  );
+  assert.equal(
+    out.events[3].workflowExecutionContinuedAsNewEventAttributes.workflowType
+      .name,
+    'publicParent',
+  );
+
+  const untouched = sanitizeHistory(history, { workflowType: 'publicParent' });
+  assert.equal(
+    untouched.events[2].childWorkflowExecutionCompletedEventAttributes
+      .workflowType.name,
+    'origChild',
+  );
+});
+
+const STICKY_HISTORY = () => ({
+  events: [
+    {
+      eventId: '2',
+      workflowTaskScheduledEventAttributes: {
+        taskQueue: { name: 'orig-tq', kind: 'TASK_QUEUE_KIND_NORMAL' },
+      },
+    },
+    {
+      eventId: '8',
+      workflowTaskScheduledEventAttributes: {
+        taskQueue: {
+          name: '4242@alice-laptop.local-5f7647f2-bf7c-4998-a855-f0dbfe77cfc9',
+          kind: 'TASK_QUEUE_KIND_STICKY',
+          normalName: 'orig-tq',
+        },
+      },
+    },
+  ],
+});
+
+test('rewrites sticky task queue names even without --task-queue', () => {
+  const out = sanitizeHistory(STICKY_HISTORY(), {});
+  const sticky = out.events[1].workflowTaskScheduledEventAttributes.taskQueue;
+  assert.equal(sticky.name, 'worker@host-5f7647f2bf7c4998a855f0dbfe77cfc9');
+  assert.equal(sticky.normalName, 'orig-tq');
+  assert.equal(
+    out.events[0].workflowTaskScheduledEventAttributes.taskQueue.name,
+    'orig-tq',
+  );
+  const text = JSON.stringify(out);
+  assert.ok(!text.includes('4242'));
+  assert.ok(!text.includes('alice-laptop'));
+});
+
+test('renames sticky normalName together with the normal queue under --task-queue', () => {
+  const out = sanitizeHistory(STICKY_HISTORY(), { taskQueue: 'public-queue' });
+  assert.equal(
+    out.events[0].workflowTaskScheduledEventAttributes.taskQueue.name,
+    'public-queue',
+  );
+  const sticky = out.events[1].workflowTaskScheduledEventAttributes.taskQueue;
+  assert.equal(sticky.name, 'worker@host-5f7647f2bf7c4998a855f0dbfe77cfc9');
+  assert.equal(sticky.kind, 'TASK_QUEUE_KIND_STICKY');
+  assert.equal(sticky.normalName, 'public-queue');
+});
+
+test('leaves an already sanitized committed history unchanged', () => {
+  const file = new URL(
+    '../../test-fixtures/event-groups/loop-ts-sdk-1.25.json',
+    import.meta.url,
+  );
+  const history = JSON.parse(readFileSync(file, 'utf8'));
+  assert.deepEqual(sanitizeHistory(history, {}), history);
 });

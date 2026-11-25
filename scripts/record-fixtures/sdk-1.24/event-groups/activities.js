@@ -15,15 +15,20 @@
  */
 
 async function draft({ topic, round, feedback }) {
-  return feedback ? `${topic} r${round}: ${feedback}` : `${topic} r${round}`;
+  const suffix = feedback ? `（改：${feedback}）` : '';
+  return { text: `第 ${round} 版：${topic}${suffix}` };
 }
 
-async function review({ text, round }) {
-  return round < 3 ? `第 ${round} 輪還不夠具體` : `done: ${text}`;
+async function review({ round }) {
+  const scores = [0.5, 0.7, 0.9];
+  return {
+    score: scores[Math.min(round, scores.length) - 1],
+    reason: round < 3 ? `第 ${round} 輪還不夠具體` : '可以了',
+  };
 }
 
 async function notify({ message }) {
-  return { delivered: message };
+  return { sent: message };
 }
 
 module.exports = { draft, review, notify };

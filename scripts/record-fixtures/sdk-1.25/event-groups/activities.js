@@ -18,7 +18,7 @@ const base = require('../../sdk-1.24/event-groups/activities');
 
 async function slowStep({ name, ms }) {
   await new Promise(r => setTimeout(r, ms));
-  return { name, ms };
+  return { name };
 }
 
 async function localStep(input) {

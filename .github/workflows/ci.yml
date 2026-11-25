@@ -28,6 +28,11 @@ jobs:
       - name: Boundary scanner self test
         run: node scripts/check-boundaries.test.mjs
 
+      - name: Fixture recorder self tests
+        run: |
+          node scripts/record-fixtures/sanitize.test.mjs
+          node scripts/record-fixtures/common/encryption-codec.test.mjs
+
       # The frontend copies of the shared definitions must match the backend
       # originals (see scripts/sync-common.mjs).
       - name: Shared definitions copies

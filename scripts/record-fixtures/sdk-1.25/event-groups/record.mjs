@@ -29,6 +29,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const runtime = loadSdkRuntime(new URL('../package.json', import.meta.url));
 const TASK_QUEUE = 'event-groups';
 const CODEC_TASK_QUEUE = 'event-groups-codec';
+// Plain-text sample that must not appear in a recorded encrypted history.
+const CODEC_SECRET = 'S3CR3T-明文-42';
 
 function plainScenario(name, workflowType, args = [], extra) {
   return async ({ client, address, outFile }) => {
@@ -101,7 +103,8 @@ const SCENARIOS = {
     const handle = await client.workflow.start('groupLoop', {
       taskQueue: CODEC_TASK_QUEUE,
       workflowId: `rec-codec-loop-${Date.now()}`,
-      args: [{}],
+      args: [{ topic: `codec ${CODEC_SECRET}` }],
+      staticSummary: `static summary 明文：${CODEC_SECRET}`,
     });
     await handle.result();
     exportAndSanitize({

@@ -81,7 +81,7 @@ the root Yarn workspace so `@temporalio/*` stays pinned to `1.24.0` and
    ```
 
 5. Compare the new output against the committed JSON (event counts, event
-   group keys/labels, and `yarn backstage-cli repo test --selectProjects temporal-backend temporal-frontend`),
+   group keys/labels, and `CI=true yarn backstage-cli repo test --selectProjects @kwkevinchan/backstage-plugin-temporal-backend @kwkevinchan/backstage-plugin-temporal-frontend`),
    run `node scripts/check-boundaries.mjs --file <recorded-files>` before copying
    anything into `test-fixtures/event-groups/`, and regenerate snapshots with
    `yarn sync:test-graphs` if graph shapes changed. Remove any temporary

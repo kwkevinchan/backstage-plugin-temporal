@@ -35,6 +35,8 @@ const { AiSdkPlugin } = runtime.sdkRequire('@temporalio/vercel-ai-sdk');
 const { z } = runtime.sdkRequire('zod');
 const TASK_QUEUE = 'ai-sdk-agents';
 const CODEC_TASK_QUEUE = 'ai-sdk-encrypted';
+// Plain-text sample that must not appear in a recorded encrypted history.
+const CODEC_SECRET = 'S3CR3T-明文-42';
 
 const PLAIN_SCENARIOS = {
   'vercel-ai-sdk-parallel-tools': { workflowType: 'aiSdkParallel', args: [] },
@@ -110,6 +112,7 @@ if (runCodec) {
         taskQueue: CODEC_TASK_QUEUE,
         workflowId: `rec-codec-aisdk-${Date.now()}`,
         args: [{ encrypted: true }],
+        staticSummary: `static summary 明文：${CODEC_SECRET}`,
       });
       await handle.result();
       exportAndSanitize({

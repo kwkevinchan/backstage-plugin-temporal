@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -27,9 +28,45 @@ const CLIENT_EVENT_ATTRS = new Set([
 
 const SKIP_RECURSE_KEYS = new Set(['payloads', 'data', 'metadata']);
 
-function sanitizeNode(value, inClientAttrs, options) {
+// Only these event attributes describe the exported run itself; every other
+// `workflowType` belongs to a child workflow.
+const OWN_TYPE_ATTRS = new Set([
+  'workflowExecutionStartedEventAttributes',
+  'workflowExecutionContinuedAsNewEventAttributes',
+]);
+
+const UUID_SUFFIX =
+  /([0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12})$/i;
+
+// The server names a sticky queue `<pid>@<host>-<uuid>`. Keeping the uuid
+// keeps the names of different workers apart without the host name.
+function stickyQueueName(name) {
+  const uuid = UUID_SUFFIX.exec(name)?.[1];
+  const suffix = uuid
+    ? uuid.replace(/-/g, '').toLowerCase()
+    : createHash('sha256').update(name).digest('hex').slice(0, 32);
+  return `worker@host-${suffix}`;
+}
+
+function sanitizeTaskQueue(queue, options) {
+  if (typeof queue.name !== 'string') {
+    return queue;
+  }
+  if (queue.kind === 'TASK_QUEUE_KIND_STICKY') {
+    const out = { ...queue, name: stickyQueueName(queue.name) };
+    if (options.taskQueue && typeof queue.normalName === 'string') {
+      out.normalName = options.taskQueue;
+    }
+    return out;
+  }
+  return options.taskQueue ? { ...queue, name: options.taskQueue } : queue;
+}
+
+function sanitizeNode(value, inClientAttrs, options, parentKey) {
   if (Array.isArray(value)) {
-    return value.map(item => sanitizeNode(item, inClientAttrs, options));
+    return value.map(item =>
+      sanitizeNode(item, inClientAttrs, options, parentKey),
+    );
   }
   if (value === null || typeof value !== 'object') {
     return value;
@@ -49,22 +86,11 @@ function sanitizeNode(value, inClientAttrs, options) {
       continue;
     }
     const childClient = inClientAttrs || CLIENT_EVENT_ATTRS.has(key);
-    out[key] = sanitizeNode(raw, childClient, options);
+    out[key] = sanitizeNode(raw, childClient, options, key);
   }
 
-  if (
-    options.workflowType &&
-    out.workflowType &&
-    typeof out.workflowType.name === 'string'
-  ) {
-    out.workflowType = { ...out.workflowType, name: options.workflowType };
-  }
-  if (
-    options.taskQueue &&
-    out.taskQueue &&
-    typeof out.taskQueue.name === 'string'
-  ) {
-    out.taskQueue = { ...out.taskQueue, name: options.taskQueue };
+  if (out.taskQueue && typeof out.taskQueue === 'object') {
+    out.taskQueue = sanitizeTaskQueue(out.taskQueue, options);
   }
   if (
     typeof out.workflowId === 'string' &&
@@ -73,16 +99,15 @@ function sanitizeNode(value, inClientAttrs, options) {
   ) {
     out.workflowId = options.renameWorkflowIds[out.workflowId];
   }
-  if (
-    out.workflowType &&
-    typeof out.workflowType.name === 'string' &&
-    options.renameChildTypes &&
-    options.renameChildTypes[out.workflowType.name]
-  ) {
-    out.workflowType = {
-      ...out.workflowType,
-      name: options.renameChildTypes[out.workflowType.name],
-    };
+  if (out.workflowType && typeof out.workflowType.name === 'string') {
+    if (options.workflowType && OWN_TYPE_ATTRS.has(parentKey)) {
+      out.workflowType = { ...out.workflowType, name: options.workflowType };
+    } else if (options.renameChildTypes?.[out.workflowType.name]) {
+      out.workflowType = {
+        ...out.workflowType,
+        name: options.renameChildTypes[out.workflowType.name],
+      };
+    }
   }
   return out;
 }
@@ -93,8 +118,11 @@ function sanitizeNode(value, inClientAttrs, options) {
  *   fields with `worker@host`;
  * - truncates every failure `stackTrace` to its first line (stripping local
  *   file paths);
- * - optionally renames `workflowType`, `taskQueue`, child workflow types, and
- *   workflow IDs;
+ * - rewrites every sticky task queue name to `worker@host-<uuid>`, whether or
+ *   not `taskQueue` is set, so no process ID or host name is left;
+ * - optionally renames the run's own `workflowType` (started and
+ *   continued-as-new events only), the normal `taskQueue` (and the
+ *   `normalName` of sticky queues), child workflow types, and workflow IDs;
  * - leaves all encoded payload subtrees untouched.
  */
 export function sanitizeHistory(history, options = {}) {
@@ -103,29 +131,7 @@ export function sanitizeHistory(history, options = {}) {
   }
   return {
     ...history,
-    events: history.events.map(event => {
-      const sanitized = sanitizeNode(event, false, options);
-      // Do not overwrite child initiation `workflowType` with the parent `--workflow-type`.
-      if (
-        options.workflowType &&
-        event.startChildWorkflowExecutionInitiatedEventAttributes?.workflowType
-          ?.name &&
-        sanitized.startChildWorkflowExecutionInitiatedEventAttributes
-          ?.workflowType
-      ) {
-        const orig =
-          event.startChildWorkflowExecutionInitiatedEventAttributes.workflowType
-            .name;
-        const mapped = options.renameChildTypes?.[orig] ?? orig;
-        sanitized.startChildWorkflowExecutionInitiatedEventAttributes.workflowType =
-          {
-            ...sanitized.startChildWorkflowExecutionInitiatedEventAttributes
-              .workflowType,
-            name: mapped,
-          };
-      }
-      return sanitized;
-    }),
+    events: history.events.map(event => sanitizeNode(event, false, options)),
   };
 }
 
@@ -168,6 +174,8 @@ if (
       [
         'Usage: node sanitize.mjs [--in file.json] [--out file.json]',
         '  [--workflow-type name] [--task-queue name]',
+        '  (sticky task queue names are always rewritten to worker@host-<uuid>;',
+        '   --workflow-type applies to the run itself, not to child workflows)',
         '  [--rename-workflow-id old=new] [--rename-child-type old=new]',
       ].join('\n'),
     );

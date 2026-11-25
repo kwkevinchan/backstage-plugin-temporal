@@ -26,16 +26,18 @@ const { draft, notify } = proxyActivities({
   startToCloseTimeout: '10 seconds',
 });
 
+// `summary` is an activity option, so each round builds its own proxy.
 const reviewWithSummary = summary =>
   proxyActivities({ startToCloseTimeout: '10 seconds', summary }).review;
 
 const hintSignal = defineSignal('hint');
 
 /** SDK 1.24 `createEventGroup(label, { id })` nested loop with signal handler. */
-async function groupLoop() {
-  let latestHint = '';
+async function groupLoop({ topic = 'Event Groups 範例' } = {}) {
+  const hints = [];
+  const rounds = [];
   setHandler(hintSignal, async message => {
-    latestHint = message;
+    hints.push(message);
     await notify({ message: `收到提示：${message}` });
   });
 
@@ -49,13 +51,17 @@ async function groupLoop() {
         id: `loop:draft-review:${round}`,
       });
       await roundGroup.withScope(async () => {
-        await draft({ topic: 'Event Groups 範例', round, feedback });
+        const { text } = await draft({ topic, round, feedback });
         await sleep('2 seconds');
-        const suffix = feedback ? `（改：${feedback}）` : '';
-        feedback = await reviewWithSummary(`review round ${round}`)({
-          text: `第 ${round} 版：Event Groups 範例${suffix}`,
+        const result = await reviewWithSummary(`review round ${round}`)({
+          text,
           round,
-          ...(latestHint ? { hint: latestHint } : {}),
+        });
+        feedback = result.reason;
+        rounds.push({
+          round,
+          score: result.score,
+          decision: result.score >= 0.9 ? 'accept' : 'revise',
         });
       });
     }
@@ -67,7 +73,7 @@ async function groupLoop() {
     eventGroups: [wrapUp],
   }).notify({ message: '完成，3 輪' });
   await notify({ message: '沒有群組的步驟' });
-  return 'ok';
+  return { rounds, hints };
 }
 
 /** SDK 1.24 group without explicit ID: the SDK derives a 40-char hex hash ID. */
