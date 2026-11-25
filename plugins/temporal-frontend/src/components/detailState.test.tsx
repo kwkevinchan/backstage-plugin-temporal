@@ -35,6 +35,7 @@ import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import type { WorkflowGraphNode, WorkflowGraphResponse } from '../common';
 import { temporalApiRef, TemporalWorkflowSectionDef } from '../extensions';
+import { agentGraph } from '../testGraphs/agentGraph';
 import { loopGraph } from '../testGraphs/loopGraph';
 import {
   entity,
@@ -272,18 +273,117 @@ describe('WorkflowDetailPage URL query state', () => {
       'Card declined',
     );
 
-    // Switching back to Steps moves the single drawer next to the graph while keeping ?step.
+    // The step belongs to the timeline: leaving the tab unselects it.
     await userEvent.click(screen.getByRole('tab', { name: 'Steps' }));
     expect(location()).toBe(
+      '/namespaces/default/workflows/payment-1/runs/run-2',
+    );
+    expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
+  });
+
+  it('keeps the drawer of a step opened from the URL next to the graph in Timeline', async () => {
+    const api = mockTemporalApi();
+    await renderEntity(
+      api,
       '/namespaces/default/workflows/payment-1/runs/run-2?step=activity-11',
     );
-    const afterSwitch = screen.getAllByTestId('step-drawer');
-    expect(afterSwitch).toHaveLength(1);
+    const graphLayout = await screen.findByTestId('workflow-graph-layout');
     expect(
-      within(screen.getByTestId('workflow-graph-layout')).getByTestId(
-        'step-drawer',
-      ),
+      await within(graphLayout).findByTestId('step-drawer'),
     ).toHaveTextContent('Card declined');
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Timeline' }));
+    expect(location()).toBe(
+      '/namespaces/default/workflows/payment-1/runs/run-2?step=activity-11&tab=timeline',
+    );
+    const timeline = await screen.findByTestId('workflow-timeline');
+    const panel = timeline.closest('[role="tabpanel"]') as HTMLElement;
+    expect(screen.getAllByTestId('step-drawer')).toHaveLength(1);
+    expect(within(graphLayout).getByTestId('step-drawer')).toHaveTextContent(
+      'Card declined',
+    );
+    expect(within(panel).queryByTestId('step-drawer')).not.toBeInTheDocument();
+    expect(
+      within(timeline).getByTestId('timeline-bar-activity-11'),
+    ).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('unselects a step picked in the timeline when another tab is opened', async () => {
+    for (const tabName of ['Steps', 'Events']) {
+      const api = mockTemporalApi();
+      const { unmount } = await renderEntity(
+        api,
+        '/namespaces/default/workflows/payment-1/runs/run-2?tab=timeline',
+      );
+      const timeline = await screen.findByTestId('workflow-timeline');
+      fireEvent.click(within(timeline).getByTestId('timeline-bar-activity-11'));
+      expect(location()).toBe(
+        '/namespaces/default/workflows/payment-1/runs/run-2?tab=timeline&step=activity-11',
+      );
+      expect(screen.getAllByTestId('step-drawer')).toHaveLength(1);
+      expect(screen.getByTestId('step-activity-11')).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+
+      await userEvent.click(screen.getByRole('tab', { name: tabName }));
+      expect(location()).toBe(
+        `/namespaces/default/workflows/payment-1/runs/run-2${
+          tabName === 'Events' ? '?tab=events' : ''
+        }`,
+      );
+      expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
+      expect(screen.getByTestId('step-activity-11')).toHaveAttribute(
+        'aria-pressed',
+        'false',
+      );
+      unmount();
+    }
+  });
+
+  it('does not select or reveal in the graph a step picked in the timeline', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowGraph.mockResolvedValue(agentGraph);
+    await renderEntity(
+      api,
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=timeline',
+    );
+    const timeline = await screen.findByTestId('workflow-timeline');
+    const round = screen.getByTestId('group-label:loop:agent:1');
+    expect(round).toHaveAttribute('data-selected', 'false');
+    // Opens the groups of the timeline only.
+    await userEvent.click(
+      within(timeline).getByRole('button', { name: 'Expand groups' }),
+    );
+
+    // A tool call in a collapsed round of the graph.
+    // The first one is in round 1.
+    fireEvent.click(
+      within(timeline).getAllByTitle('search_docs · Activity')[0],
+    );
+    expect(location()).toBe(
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=timeline&step=activity-17',
+    );
+    const panel = timeline.closest('[role="tabpanel"]') as HTMLElement;
+    const drawer = within(panel).getByTestId('step-drawer');
+    expect(screen.getAllByTestId('step-drawer')).toHaveLength(1);
+    expect(round).toHaveAttribute('data-selected', 'false');
+
+    // Its model call, picked from the timeline drawer.
+    await userEvent.click(
+      within(drawer).getByRole('button', { name: /^Model call/ }),
+    );
+    expect(location()).toBe(
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=timeline&step=activity-11',
+    );
+    expect(within(panel).getByTestId('step-drawer')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('group-frame-label:loop:agent:1'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('group-label:loop:agent:1')).toHaveAttribute(
+      'data-selected',
+      'false',
+    );
   });
 
   it('supports details and extension section tabs from the URL', async () => {
@@ -420,10 +520,11 @@ describe('WorkflowDetailPage URL query state', () => {
     );
     expect(navigation()).toBe('REPLACE');
 
-    // Switch to Events, pick another step via "Show step" -> updates step, preserves tab=events.
+    // Switch to Events (unselects the timeline step), pick another step via
+    // "Show step" -> sets step, preserves tab=events.
     await userEvent.click(screen.getByRole('tab', { name: 'Events' }));
     expect(location()).toBe(
-      '/namespaces/default/workflows/payment-1/runs/run-2?tab=events&step=activity-11',
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=events',
     );
     const grouped = screen.getByTestId('grouped-events');
     const reserveGroup = within(grouped)

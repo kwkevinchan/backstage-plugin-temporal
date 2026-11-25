@@ -34,18 +34,10 @@ export const EVENT_GROUPS_TAB = 'event-groups';
  * Whether a step ID is safe to persist in and restore from the `?step=` URL
  * query parameter across page reloads and auto-refresh.
  *
- * All 12 history-backed `WorkflowNodeKind`s use immutable initiating event IDs
- * (or the run's singleton `'start'` / `'end'` IDs): `workflowStarted`,
- * `workflowClosed`, `activity`, `timer`, `signal`, `signalSent`, `update`,
- * `childWorkflow`, `marker`, `cancelRequest`, `workflowTask` (linkable when
- * failed and therefore non-internal), and `event` (non-internal only if ever
- * promoted).
- *
- * By contrast, synthetic `waiting` nodes (`id: 'waiting'`, `events: []`) are
- * derived transiently while a workflow is waiting with no open steps and may
- * vanish or reappear as the run progresses across reloads/auto-refresh, while
- * `internal` nodes (non-failed `workflowTask` and ungrouped `event`) are hidden
- * from selectable step views. Both are excluded from URL deep links.
+ * History-backed steps keep the IDs of their initiating events (or the run's
+ * `'start'` / `'end'` IDs). Synthetic `waiting` nodes come and go as the run
+ * progresses, and `internal` nodes are not shown in the step views, so
+ * neither is linkable.
  */
 export function isLinkableStep(node: WorkflowGraphNode): boolean {
   return !node.internal && node.kind !== 'waiting';
