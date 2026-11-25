@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { JsonObject, JsonValue } from '@backstage/types';
+import type { JsonObject } from '@backstage/types';
 import type {
   PendingActivity,
   WorkflowFailure,
@@ -31,7 +31,6 @@ import {
   durationToMs,
   eventTypeName,
   failureFromCloseEvent,
-  failureSummary,
   summaryOf,
   toDisplayJson,
   toIsoTime,
@@ -102,11 +101,6 @@ export interface BuildGraphOptions {
   pendingActivities?: PendingActivity[];
   /** Search attributes from describe, for the waiting hint. */
   searchAttributes?: JsonObject;
-  /**
-   * False leaves out inputs, results and marker details, and keeps only
-   * the message, kind and type of the failures.
-   */
-  includePayloads: boolean;
   /** Called when arrows beyond {@link MAX_GRAPH_EDGES} were left out. */
   onEdgesCapped?: () => void;
   /** Failure of the closed run from describe, when the history is cut. */
@@ -269,8 +263,6 @@ export function buildWorkflowGraphWithLlm(
   const llmEntry = new Map<Building, LlmStepEntry>();
   const byKey = new Map<string, Building>();
   const eventGroups = new EventGroupCollector();
-  const payload = (value: JsonValue | undefined) =>
-    options.includePayloads ? value : undefined;
 
   const add = (
     key: string,
@@ -343,7 +335,7 @@ export function buildWorkflowGraphWithLlm(
         kind: 'workflowStarted',
         name: 'Start',
         status: 'Completed',
-        input: payload(decodePayloads(a.input) ?? null),
+        input: decodePayloads(a.input) ?? null,
         details: dropUndefined({
           workflowType: a.workflowType?.name || undefined,
           taskQueue: a.taskQueue?.name || undefined,
@@ -377,7 +369,7 @@ export function buildWorkflowGraphWithLlm(
       });
       instant(node, event);
       attach(node, event);
-      if (a.result) node.result = payload(decodePayloads(a.result) ?? null);
+      if (a.result) node.result = decodePayloads(a.result) ?? null;
       if (a.failure) node.failure = toWorkflowFailure(a.failure);
       if (status === 'TimedOut') {
         node.failure = { message: 'Workflow execution timed out' };
@@ -395,7 +387,7 @@ export function buildWorkflowGraphWithLlm(
           workflowId: options.workflowId,
           runId: a.newExecutionRunId || undefined,
         });
-        node.input = payload(decodePayloads(a.input));
+        node.input = decodePayloads(a.input);
       }
       continue;
     }
@@ -425,7 +417,7 @@ export function buildWorkflowGraphWithLlm(
         stepId: a.activityId || undefined,
         status: 'Scheduled',
         startTime: time,
-        input: payload(decodePayloads(a.input)),
+        input: decodePayloads(a.input),
         maximumAttempts: max > 0 ? max : undefined,
         details: dropUndefined({
           taskQueue: a.taskQueue?.name || undefined,
@@ -487,7 +479,7 @@ export function buildWorkflowGraphWithLlm(
       if (!node) continue;
       attach(node, event);
       close(node, event, status);
-      if (a.result) node.result = payload(decodePayloads(a.result) ?? null);
+      if (a.result) node.result = decodePayloads(a.result) ?? null;
       if (a.failure) node.failure = toWorkflowFailure(a.failure);
       const entry = llmEntry.get(node);
       if (entry && a.result) entry.result = a.result;
@@ -550,7 +542,7 @@ export function buildWorkflowGraphWithLlm(
         kind: 'signal',
         name: a.signalName ?? 'Signal',
         status: 'Completed',
-        input: payload(decodePayloads(a.input)),
+        input: decodePayloads(a.input),
         details: dropUndefined({ identity: a.identity || undefined }),
       });
       instant(node, event);
@@ -566,7 +558,7 @@ export function buildWorkflowGraphWithLlm(
         status: 'Running',
         startTime: time,
         waitingFor: `Signaling ${target}`,
-        input: payload(decodePayloads(a.input)),
+        input: decodePayloads(a.input),
         workflow: dropUndefined({
           namespace: a.namespace || options.namespace,
           workflowId: target,
@@ -614,7 +606,7 @@ export function buildWorkflowGraphWithLlm(
           stepId: updateId,
           status: 'Scheduled',
           startTime: time,
-          input: payload(decodePayloads(request?.input?.args)),
+          input: decodePayloads(request?.input?.args),
           details: dropUndefined({
             identity: request?.meta?.identity || undefined,
           }),
@@ -647,7 +639,7 @@ export function buildWorkflowGraphWithLlm(
         node.failure = toWorkflowFailure(a.outcome.failure);
       } else {
         close(node, event, 'Completed');
-        node.result = payload(decodePayloads(a.outcome?.success) ?? null);
+        node.result = decodePayloads(a.outcome?.success) ?? null;
       }
       continue;
     }
@@ -663,7 +655,7 @@ export function buildWorkflowGraphWithLlm(
         status: 'Scheduled',
         startTime: time,
         waitingFor: `Starting child workflow ${a.workflowId ?? ''}`.trim(),
-        input: payload(decodePayloads(a.input)),
+        input: decodePayloads(a.input),
         workflow: {
           namespace: a.namespace || options.namespace,
           workflowId: a.workflowId ?? '',
@@ -716,7 +708,7 @@ export function buildWorkflowGraphWithLlm(
       if (!node) continue;
       attach(node, event);
       close(node, event, status);
-      if (a.result) node.result = payload(decodePayloads(a.result) ?? null);
+      if (a.result) node.result = decodePayloads(a.result) ?? null;
       if (a.failure) node.failure = toWorkflowFailure(a.failure);
       if (status === 'TimedOut' && !node.failure) {
         node.failure = { message: 'Child workflow timed out' };
@@ -741,7 +733,7 @@ export function buildWorkflowGraphWithLlm(
         name: isLocalActivity ? 'Local activity' : markerName,
         status: a.failure ? 'Failed' : 'Completed',
         failure: toWorkflowFailure(a.failure),
-        input: Object.keys(details).length > 0 ? payload(details) : undefined,
+        input: Object.keys(details).length > 0 ? details : undefined,
         details: { markerName },
       });
       if (isLocalActivity) {
@@ -818,10 +810,9 @@ export function buildWorkflowGraphWithLlm(
       name: eventType,
       status: 'Completed',
       internal: true,
-      details:
-        attributesKey && options.includePayloads
-          ? (toDisplayJson(event[attributesKey]) as JsonObject)
-          : undefined,
+      details: attributesKey
+        ? (toDisplayJson(event[attributesKey]) as JsonObject)
+        : undefined,
     });
     instant(node, event);
     attach(node, event);
@@ -932,18 +923,13 @@ export function buildWorkflowGraphWithLlm(
   const current = currentStep(visible, options, closeEvent);
   const response: WorkflowGraphResponse = {
     status: options.status,
-    nodes: nodes.map(({ first: _f, last: _l, ...node }) =>
-      dropUndefined(
-        options.includePayloads ? node : withoutNodeFailureDetails(node),
-      ),
-    ),
+    nodes: nodes.map(({ first: _f, last: _l, ...node }) => dropUndefined(node)),
     edges,
     current: current.text,
     currentDeadline: current.deadline,
     completedSteps: steps.filter(n => n.status === 'Completed').length,
     totalSteps: steps.length,
     truncated: options.truncated,
-    payloadsHidden: !options.includePayloads,
     runChain:
       typeof previousRunId === 'string' || nextRunId
         ? dropUndefined({
@@ -956,19 +942,6 @@ export function buildWorkflowGraphWithLlm(
     eventGroupsTruncated: groups.truncated || undefined,
   };
   return { graph: dropUndefined(response), llm };
-}
-
-/** A node with its failures as the read level shows them. */
-function withoutNodeFailureDetails(node: WorkflowGraphNode): WorkflowGraphNode {
-  return {
-    ...node,
-    failure: node.failure && failureSummary(node.failure),
-    attempts: node.attempts?.map(attempt =>
-      attempt.failure
-        ? { ...attempt, failure: failureSummary(attempt.failure) }
-        : attempt,
-    ),
-  };
 }
 
 /**

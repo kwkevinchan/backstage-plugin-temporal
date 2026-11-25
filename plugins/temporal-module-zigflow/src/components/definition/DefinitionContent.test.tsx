@@ -129,7 +129,6 @@ const runGraph: WorkflowGraphResponse = {
   completedSteps: 1,
   totalSteps: 2,
   truncated: false,
-  payloadsHidden: false,
 };
 
 function render(

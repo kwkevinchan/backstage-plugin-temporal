@@ -258,59 +258,27 @@ describe('temporalActionsModule against the Temporal backend', () => {
     return { invoke, workflowService, auditor, auditEvent };
   }
 
-  it('omits failure causes and stack trace from get-workflow when the user only has read permission', async () => {
-    const readOnly = await setup({
-      deny: [
-        'temporal.workflow.history.read',
-        'temporal.workflow.history.list',
-      ],
-    });
-    const { output } = await readOnly.invoke('get-workflow', {
+  it('gives get-workflow the failure causes without the stack traces', async () => {
+    const { invoke } = await setup();
+    const { output } = await invoke('get-workflow', {
       workflowId: 'order-1',
       runId: 'run-1',
       namespace: 'default',
       entityRef: 'component:default/orders',
     });
-
-    expect(
-      readOnly.workflowService.describeWorkflowExecution,
-    ).toHaveBeenCalled();
     expect((output as any).failure).toEqual({
-      message: 'Payment failed',
-      kind: 'ApplicationFailure',
-      type: 'PaymentError',
-    });
-    const serialized = JSON.stringify(output);
-    expect(serialized).not.toContain('Card declined');
-    expect(serialized).not.toContain('4111-secret');
-    expect(serialized).not.toContain('CardError');
-    expect(serialized).not.toContain('charge.ts:42');
-    expect(serialized).not.toContain('charge.ts:10');
-
-    const withHistory = await setup();
-    const { output: fullOutput } = await withHistory.invoke('get-workflow', {
-      workflowId: 'order-1',
-      runId: 'run-1',
-      namespace: 'default',
-      entityRef: 'component:default/orders',
-    });
-    expect((fullOutput as any).failure).toEqual({
       message: 'Payment failed',
       kind: 'ApplicationFailure',
       type: 'PaymentError',
       causes: ['Card declined: 4111-secret'],
     });
-    expect(JSON.stringify(fullOutput)).not.toContain('charge.ts:42');
-    expect(JSON.stringify(fullOutput)).not.toContain('charge.ts:10');
+    expect(JSON.stringify(output)).not.toContain('charge.ts:42');
+    expect(JSON.stringify(output)).not.toContain('charge.ts:10');
   });
 
-  it('enforces permissions on the matched dependsOn TemporalWorkflow entity for get-workflow and signal-workflow', async () => {
+  it('enforces the signal permission on the matched dependsOn TemporalWorkflow entity', async () => {
     const { invoke, workflowService } = await setup({
       deny: [
-        {
-          permission: 'temporal.workflow.history.read',
-          resourceRef: 'temporalworkflow:default/order-workflow',
-        },
         {
           permission: 'temporal.workflow.signal',
           resourceRef: 'temporalworkflow:default/order-workflow',
@@ -328,8 +296,8 @@ describe('temporalActionsModule against the Temporal backend', () => {
       message: 'Payment failed',
       kind: 'ApplicationFailure',
       type: 'PaymentError',
+      causes: ['Card declined: 4111-secret'],
     });
-    expect(JSON.stringify(output)).not.toContain('Card declined');
 
     await expect(
       invoke('signal-workflow', {

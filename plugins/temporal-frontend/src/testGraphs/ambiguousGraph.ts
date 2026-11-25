@@ -370,7 +370,6 @@ export const ambiguousGraph: WorkflowGraphResponse = {
   completedSteps: 4,
   totalSteps: 4,
   truncated: false,
-  payloadsHidden: false,
   eventGroups: [
     {
       key: 'label:amb:a',

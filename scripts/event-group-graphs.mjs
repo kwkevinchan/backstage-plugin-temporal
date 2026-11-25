@@ -60,12 +60,6 @@ const graphs = [
       'a loop of three rounds, each round a group inside the loop group, a signal handler group and a group of one step',
   },
   {
-    name: 'loopGraphPayloadsHidden',
-    fixture: 'event-groups/loop-ts-sdk-1.25.json',
-    about: 'the same run for a caller without the permission to read payloads',
-    includePayloads: false,
-  },
-  {
     name: 'parallelGraph',
     fixture: 'event-groups/parallel.json',
     about:
@@ -118,7 +112,6 @@ for (const graph of graphs) {
     workflowId: 'wf',
     status: runStatus(events),
     truncated: false,
-    includePayloads: graph.includePayloads ?? true,
   });
   const source = [
     header,

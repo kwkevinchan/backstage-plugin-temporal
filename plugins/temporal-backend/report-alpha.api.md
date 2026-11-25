@@ -47,10 +47,6 @@ export interface TemporalAccessService {
     credentials: BackstageCredentials,
   ): Promise<string | undefined>;
   canListAll(credentials: BackstageCredentials): Promise<boolean>;
-  canReadPayloads(
-    workflow: TemporalAccessibleWorkflow,
-    credentials: BackstageCredentials,
-  ): Promise<boolean>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowSummary" needs to be exported by the entry point alpha.d.ts
   linkWorkflowEntities(
     items: WorkflowSummary[],
@@ -67,7 +63,6 @@ export interface TemporalAccessService {
     ref: WorkflowRunRef,
     options: {
       entityRef?: string;
-      level: TemporalWorkflowAccessLevel;
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow>;
@@ -187,9 +182,6 @@ export interface TemporalLlmToolStep {
   toolCallId?: string;
   toolName?: string;
 }
-
-// @alpha
-export type TemporalWorkflowAccessLevel = 'read' | 'history';
 
 // @alpha
 export const temporalWorkflowConditions: Conditions<{

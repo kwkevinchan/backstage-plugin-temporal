@@ -67,11 +67,11 @@ Backstage 其他外掛也這樣處理執行時的資料。Kubernetes 外掛用 c
 
 每次請求的工作量不會隨執行的數量增加：
 
-| 請求           | 後端做的事                                                                                                                                                                                     |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 實體的流程清單 | 查實體的讀取權限並讀實體；對它依賴的 `TemporalWorkflow` 實體（最多 20 個）查讀取權限，讀允許的那些；然後送**一個** visibility 查詢，讀一頁                                                     |
-| 單一流程       | 照上面讀實體和相關實體；describe 這個流程（流程失敗、逾時、被終止或 continue-as-new 時，再讀它的最後一個事件）；流程自己對不到時，最多再 describe 3 個祖先。詳情另外查使用者能不能看輸入和結果 |
-| 分頁的統計     | 照上面讀實體和相關實體；然後一個 visibility 查詢，取最近 `limit` 筆 run（預設 50，最多 100）                                                                                                   |
+| 請求           | 後端做的事                                                                                                                                                 |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 實體的流程清單 | 查實體的讀取權限並讀實體；對它依賴的 `TemporalWorkflow` 實體（最多 20 個）查讀取權限，讀允許的那些；然後送**一個** visibility 查詢，讀一頁                 |
+| 單一流程       | 照上面讀實體和相關實體；describe 這個流程（流程失敗、逾時、被終止或 continue-as-new 時，再讀它的最後一個事件）；流程自己對不到時，最多再 describe 3 個祖先 |
+| 分頁的統計     | 照上面讀實體和相關實體；然後一個 visibility 查詢，取最近 `limit` 筆 run（預設 50，最多 100）                                                               |
 
 模組註冊的 workflow enricher 會跑在回傳的每一筆上，成本看模組而定。
 
@@ -96,7 +96,7 @@ Backstage 其他外掛也這樣處理執行時的資料。Kubernetes 外掛用 c
 
 有兩種人可以讓執行出現在某個實體上，並套用那個實體的權限：
 
-- **catalog 的作者。** 標註、`TemporalWorkflow` 的 spec 和 `spec.dependsOn` 都寫在 catalog 的 YAML 檔裡。能註冊或編輯實體的人，就能把它指到允許的 namespace 裡任何一個 Workflow Type。請限制誰能註冊、編輯實體（catalog rules、審查 catalog 檔案）。
+- **catalog 的作者。** 標註、`TemporalWorkflow` 的 spec 和 `spec.dependsOn` 都寫在 catalog 的 YAML 檔裡。能註冊或編輯實體的人，就能把它指到允許的 namespace 裡任何一個 Workflow Type，然後讀到那些執行，包括輸入和結果。請限制誰能註冊、編輯實體（catalog rules、審查 catalog 檔案）。
 - **能啟動流程或設定 Search Attribute 的人。** `entityRef` Search Attribute 的可信程度和這些呼叫者一樣。請限制 Temporal namespace 的寫入權限；不希望其他寫入者決定歸屬時，不要設定 `temporal.searchAttributes.entityRef`。
 
 外掛無法交叉驗證這些宣告，它顯示 catalog 和 Temporal 宣告的內容。外掛所有的信任邊界列在 README 的 [Security](../../README.md#security) 一節。

@@ -163,7 +163,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'overlap-1',
       status: 'Running',
       truncated: false,
-      includePayloads: false,
     });
     const visibleSpans = graph.nodes
       .filter(n => !n.internal)
@@ -184,7 +183,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'capped-1',
       status: 'Completed',
       truncated: false,
-      includePayloads: false,
       onEdgesCapped: onCapped,
     });
     expect(capped.edges).toHaveLength(MAX_GRAPH_EDGES);
@@ -211,7 +209,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-tool-id',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
     });
     const idMs = performance.now() - t0;
     expect(idMs).toBeLessThan(CI_BUDGET_MS);
@@ -227,7 +224,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-inferred',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
     });
     const inferredMs = performance.now() - t1;
     expect(inferredMs).toBeLessThan(CI_BUDGET_MS);
@@ -250,7 +246,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-multi-rev',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
       llmAdapters: adapters,
     });
     const elapsed = performance.now() - t0;
@@ -277,7 +272,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-local-acts',
       status: 'Completed',
       truncated: false,
-      includePayloads: false,
     });
     const elapsed = performance.now() - t0;
 
@@ -286,7 +280,7 @@ describe('graph building performance and edge/linking equivalence', () => {
     expect(graph.edges).toHaveLength(4401);
   });
 
-  it('builds large-payload synthetic histories with expected event counts and payload visibility', () => {
+  it('builds large-payload synthetic histories with expected event counts and payloads', () => {
     const fewStructured = largePayloadFewStepsHistory({
       activities: 2,
       payloadBytes: 2048,
@@ -298,7 +292,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-few-with',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
     });
     const fewActivitiesWith = fewGraphWith.nodes.filter(
       n => n.kind === 'activity',
@@ -321,7 +314,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-few-str',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
     });
     const strAct = fewStringGraph.nodes.find(n => n.kind === 'activity')!;
     expect(
@@ -330,17 +322,6 @@ describe('graph building performance and edge/linking equivalence', () => {
         'utf8',
       ),
     ).toBe(2048);
-
-    const fewGraphWithout = buildWorkflowGraph(fewStructured, {
-      namespace: 'default',
-      workflowId: 'perf-few-without',
-      status: 'Completed',
-      truncated: false,
-      includePayloads: false,
-    });
-    expect(
-      fewGraphWithout.nodes.find(n => n.kind === 'activity')!.result,
-    ).toBeUndefined();
 
     const many = largePayloadManyEventsHistory({
       activities: 3,
@@ -352,7 +333,6 @@ describe('graph building performance and edge/linking equivalence', () => {
       workflowId: 'perf-many',
       status: 'Completed',
       truncated: false,
-      includePayloads: true,
     });
     const manyAct = manyGraph.nodes.find(n => n.kind === 'activity')!;
     const inputSize = Buffer.byteLength(

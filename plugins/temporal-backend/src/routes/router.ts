@@ -32,11 +32,7 @@ import {
 } from '../common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
-import {
-  TemporalAccessService,
-  TemporalEntityContext,
-  TemporalWorkflowAccessLevel,
-} from '../node/alpha';
+import { TemporalAccessService, TemporalEntityContext } from '../node/alpha';
 import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
@@ -53,7 +49,7 @@ import {
   loadOpenApiSpec,
   openApiSpecFor,
 } from './openApiRoutes';
-import { decodePageToken, withoutFailureDetails } from '../services/convert';
+import { decodePageToken } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
   entityRefFromParams,
@@ -108,12 +104,9 @@ export async function createRouter(
     );
   });
 
-  /** The workflow of the request's path, with the access checks of `level`. */
-  const loadWorkflow = (
-    req: Request,
-    level: TemporalWorkflowAccessLevel,
-  ): Promise<LoadedWorkflow> =>
-    loadRequestWorkflow({ httpAuth, access }, req, level);
+  /** The workflow of the request's path, with the access checks. */
+  const loadWorkflow = (req: Request): Promise<LoadedWorkflow> =>
+    loadRequestWorkflow({ httpAuth, access }, req);
 
   router.get('/entities/:kind/:namespace/:name/workflows', async (req, res) => {
     const credentials = await httpAuth.credentials(req);
@@ -275,14 +268,8 @@ export async function createRouter(
   });
 
   router.get(workflowRunPath, async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const { credentials, context, matchedEntityRef, workflow } = loaded;
-    // The stack trace and the causes of failures need the history
-    // permission; without it the failures keep their message and type.
-    const includeFailureDetails = await access.canReadPayloads(
-      loaded,
-      credentials,
-    );
+    const { credentials, context, matchedEntityRef, workflow } =
+      await loadWorkflow(req);
     const workflowWithEntity =
       matchedEntityRef && matchedEntityRef !== context?.entityRef
         ? { ...workflow, workflowEntityRef: matchedEntityRef }
@@ -290,7 +277,7 @@ export async function createRouter(
     const detail = context
       ? await queries.enrichDetail(workflowWithEntity, context, credentials)
       : workflowWithEntity;
-    res.json(includeFailureDetails ? detail : withoutFailureDetails(detail));
+    res.json(detail);
   });
 
   router.get(workflowRunSubpath('history'), async (req, res) => {
@@ -301,7 +288,7 @@ export async function createRouter(
     } catch {
       throw new InputError('Invalid page token');
     }
-    const { ref, workflow } = await loadWorkflow(req, 'history');
+    const { ref, workflow } = await loadWorkflow(req);
     res.json(
       await queries.history(
         { ...ref, runId: workflow.runId },
@@ -311,20 +298,13 @@ export async function createRouter(
   });
 
   router.get(workflowRunSubpath('result'), async (req, res) => {
-    const { workflow } = await loadWorkflow(req, 'history');
+    const { workflow } = await loadWorkflow(req);
     res.json(await queries.result(workflow));
   });
 
   router.get(workflowRunSubpath('graph'), async (req, res) => {
-    const loaded = await loadWorkflow(req, 'read');
-    const { workflow } = loaded;
-    // Inputs and results need the history permission; without it the
-    // graph is shown without them.
-    const includePayloads = await access.canReadPayloads(
-      loaded,
-      loaded.credentials,
-    );
-    const graph = await queries.graph(workflow, { includePayloads });
+    const { workflow } = await loadWorkflow(req);
+    const graph = await queries.graph(workflow);
     if (graph.runChain) {
       graph.runChain = await queries.runPosition(workflow, graph.runChain);
     }
@@ -332,19 +312,18 @@ export async function createRouter(
   });
 
   // The full record of one model call: messages, reasoning, tool calls.
-  // Like inputs and results, it needs the history permission. `index`
-  // picks a later call of a step that made several.
+  // `index` picks a later call of a step that made several.
   router.get(workflowRunSubpath('llm-calls/:eventId'), async (req, res) => {
     const eventId = req.params.eventId;
     if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
     const index = optionalString(req.query.index, 'index') ?? '0';
     if (!/^\d{1,4}$/.test(index)) throw new InputError('Invalid index');
-    const { workflow } = await loadWorkflow(req, 'history');
+    const { workflow } = await loadWorkflow(req);
     res.json(await ai.llmCall(workflow, eventId, Number(index)));
   });
 
   router.get(workflowRunSubpath('progress'), async (req, res) => {
-    const { workflow } = await loadWorkflow(req, 'read');
+    const { workflow } = await loadWorkflow(req);
     res.json(await lists.progress(workflow));
   });
 
@@ -353,7 +332,7 @@ export async function createRouter(
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
   router.get(workflowRunSubpath('message-definitions'), async (req, res) => {
-    const { workflow, context, credentials } = await loadWorkflow(req, 'read');
+    const { workflow, context, credentials } = await loadWorkflow(req);
     const [reported, entity] = await Promise.all([
       queries.messageDefinitions(workflow),
       workflowEntityOf(workflow, context, credentials),
@@ -417,7 +396,7 @@ export async function createRouter(
       requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const { name, args } = parseMessageBody(req);
         const entityRef = await authorizeOnWorkflow(
           access,

@@ -68,7 +68,9 @@ export function parseTemporalWorkflowResourceRef(
 }
 
 /**
- * Read the workflow list and workflow details of an entity.
+ * Read the workflows of an entity: the list, the details, the step graph,
+ * the event history, the inputs and results, the failure details and the
+ * records of model calls.
  *
  * @public
  */
@@ -79,43 +81,17 @@ export const temporalWorkflowReadPermission = createPermission({
 });
 
 /**
- * Read the event history of an entity's workflows. History events contain
- * workflow inputs and results.
- *
- * @public
- */
-export const temporalWorkflowHistoryReadPermission = createPermission({
-  name: 'temporal.workflow.history.read',
-  attributes: { action: 'read' },
-  resourceType: RESOURCE_TYPE_CATALOG_ENTITY,
-});
-
-/**
- * List the workflows of a namespace on the Workflows page, and open the
- * details and the step graph of any of them without an entity. Inputs,
- * results and the event history also need
- * {@link temporalWorkflowHistoryListPermission}. A resource permission on
- * `temporal-workflow`: a policy can allow it, deny it, or return a
- * conditional decision with the rules of that resource type.
+ * List the workflows of a namespace on the Workflows page, and open any of
+ * them without an entity, with everything
+ * {@link temporalWorkflowReadPermission} shows of an entity's workflows. A
+ * resource permission on `temporal-workflow`: a policy can allow it, deny
+ * it, or return a conditional decision with the rules of that resource
+ * type.
  *
  * @public
  */
 export const temporalWorkflowListPermission = createPermission({
   name: 'temporal.workflow.list',
-  attributes: { action: 'read' },
-  resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
-});
-
-/**
- * Read the event history, inputs and results of any workflow opened without
- * an entity (from the Workflows page). Used together with
- * {@link temporalWorkflowListPermission}. A resource permission on
- * `temporal-workflow`.
- *
- * @public
- */
-export const temporalWorkflowHistoryListPermission = createPermission({
-  name: 'temporal.workflow.history.list',
   attributes: { action: 'read' },
   resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
 });
@@ -234,9 +210,7 @@ export const temporalControlPermissions = [
  */
 export const temporalPermissions = [
   temporalWorkflowReadPermission,
-  temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
-  temporalWorkflowHistoryListPermission,
   temporalWorkflowQueryPermission,
   ...temporalControlPermissions,
 ];

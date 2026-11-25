@@ -110,7 +110,7 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 - **外掛沒有資料庫。** Temporal 本來就是記錄系統。外掛每次都向它查詢，只保留小的記憶體快取（已結束 Run 的進度），所以沒有需要搬移或維持一致的資料。
 - **流程屬於哪個實體，靠比對而不是登記。** 實體的流程是：流程類型相同且在它的 Task Queue 上（標註或 `TemporalWorkflow` spec），或在 Search Attribute 裡帶著它的參照。catalog 裡不會為每次執行存任何東西。
 - **一個 `TemporalWorkflow` 實體就是一個 Workflow Type，元件用 `dependsOn` 連過去。** `dependsOn` 的語意正好符合這個關係（「需要它才能運作」），catalog 圖和 about 卡片本來就會顯示它，而且不需要為其他 kind 另外寫 processor（[README](../../README.md#workflow-entities)）。
-- **流程是一種權限資源。** `temporal.workflow.list` 和 `temporal.workflow.history.list` 是 `temporal-workflow` 上的資源權限，規則（流程類型、Task Queue、Namespace、啟動者）由後端轉成清單用的 Temporal visibility 查詢。實體權限則留在 catalog 實體上，所以 catalog 的規則（例如 `isEntityOwner`）可以用。
+- **流程是一種權限資源。** `temporal.workflow.list` 是 `temporal-workflow` 上的資源權限，規則（流程類型、Task Queue、Namespace、啟動者）由後端轉成清單用的 Temporal visibility 查詢。實體權限則留在 catalog 實體上，所以 catalog 的規則（例如 `isEntityOwner`）可以用。
 - **外掛不讀 External Storage 裡的 Payload。** 要讀就得在外掛裡放 AWS 憑證和 SDK，還要有一個放著客戶資料的 bucket 的讀取權限，而外掛只是用來看流程的。它只顯示 Payload 存在哪裡，並可選用一個連到你自己主控台的連結，誰能讀物件由那個主控台的權限決定（[Large payloads](../../README.md#large-payloads-external-storage)）。
 - **一般的類別，不事先做抽象。** 沒有 repository interface，也沒有容器：各層就是資料夾，由 `plugin.ts` 把物件互相傳進去。
 - **在 dagre 之上自寫幾何排版，而不是改用 ELK。** 平面步驟圖原本就在 `@xyflow/react` 中以 `@dagrejs/dagre`（MIT）同步計算排版；在 dagre 之上漸進加上 event group 外框、最小可讀縮放下的折行、迴圈／分組堆疊與正交邊分道，可維持同步排版、讓沒有外框的圖保留完全相同的座標（由 `layoutBaseline.ts` 驗證），也避免引入體積較大且採非同步／worker 模型的 `elkjs`。至於事前是否曾針對這些需求正式評測或原型驗證過 ELK，由於版本庫中沒有相關紀錄，屬未確認事項。
@@ -122,17 +122,13 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 - **大 Payload 建圖維持不截斷、同步解碼（尚無大小上限）。**
   Temporal 預設單一 payload 上限為 2 MB（512 KB 警告）、單次執行事件紀錄上限為 50 MB 或 51,200 筆事件（10 MB / 10,240 筆警告）。於 Node `v24.22.2` 直接對編譯後的 `plugins/temporal-backend/dist/services/graph.cjs.js` 執行程序內基準測試（使用 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts` 的合成紀錄，3 次預熱與 10 次計時；無插樁量測 `buildWorkflowGraph` 與 `JSON.stringify`，另包裹 `convert.decodePayloads` 量測解碼佔比，期間 `toDisplayJson` 呼叫次數為 0），實測數字如下：
 
-  | 情境                                                             | `includePayloads` | `buildWorkflowGraph` 中位 / 最高 | `decodePayloads` 中位 | 其他部分中位 | `JSON.stringify` 中位 / 最高 | 回應 JSON 大小               |
-  | ---------------------------------------------------------------- | ----------------- | -------------------------------- | --------------------- | ------------ | ---------------------------- | ---------------------------- |
-  | 24 步 × ~2 MB 結果，巢狀物件（149 事件，原始 payload 48.00 MB）  | `true`            | `196.55 / 214.09 ms`             | `168.49 ms`           | `4.21 ms`    | `176.25 / 194.17 ms`         | `48.03 MB`（`48,030,510 B`） |
-  | 24 步 × ~2 MB 結果，巢狀物件（149 事件，原始 payload 48.00 MB）  | `false`           | `142.04 / 159.18 ms`             | `139.94 ms`           | `3.95 ms`    | `0.12 / 0.20 ms`             | `0.03 MB`（`28,881 B`）      |
-  | 24 步 × ~2 MB 結果，字串 blob（149 事件，原始 payload 48.00 MB） | `true`            | `66.40 / 91.28 ms`               | `59.06 ms`            | `2.58 ms`    | `138.16 / 157.56 ms`         | `48.03 MB`（`48,031,390 B`） |
-  | 24 步 × ~2 MB 結果，字串 blob（149 事件，原始 payload 48.00 MB） | `false`           | `63.28 / 83.43 ms`               | `57.79 ms`            | `2.47 ms`    | `0.11 / 0.23 ms`             | `0.03 MB`（`28,881 B`）      |
-  | 4,985 事件，830 × 10 KiB 輸入與輸出，巢狀物件（原始 16.95 MB）   | `true`            | `85.45 / 101.83 ms`              | `63.50 ms`            | `19.62 ms`   | `58.98 / 70.67 ms`           | `18.00 MB`（`17,997,747 B`） |
-  | 4,985 事件，830 × 10 KiB 輸入與輸出，巢狀物件（原始 16.95 MB）   | `false`           | `83.15 / 95.75 ms`               | `62.70 ms`            | `17.93 ms`   | `3.99 / 7.40 ms`             | `0.97 MB`（`974,181 B`）     |
-  | 4,985 事件，830 × 10 KiB 輸入與輸出，字串 blob（原始 17.00 MB）  | `true`            | `32.98 / 59.36 ms`               | `15.64 ms`            | `16.26 ms`   | `39.78 / 51.24 ms`           | `18.04 MB`（`18,044,937 B`） |
-  | 4,985 事件，830 × 10 KiB 輸入與輸出，字串 blob（原始 17.00 MB）  | `false`           | `38.62 / 44.00 ms`               | `16.08 ms`            | `17.53 ms`   | `4.69 / 12.16 ms`            | `0.97 MB`（`974,181 B`）     |
+  | 情境                                                             | `buildWorkflowGraph` 中位 / 最高 | `decodePayloads` 中位 | 其他部分中位 | `JSON.stringify` 中位 / 最高 | 回應 JSON 大小               |
+  | ---------------------------------------------------------------- | -------------------------------- | --------------------- | ------------ | ---------------------------- | ---------------------------- |
+  | 24 步 × ~2 MB 結果，巢狀物件（149 事件，原始 payload 48.00 MB）  | `196.55 / 214.09 ms`             | `168.49 ms`           | `4.21 ms`    | `176.25 / 194.17 ms`         | `48.03 MB`（`48,030,510 B`） |
+  | 24 步 × ~2 MB 結果，字串 blob（149 事件，原始 payload 48.00 MB） | `66.40 / 91.28 ms`               | `59.06 ms`            | `2.58 ms`    | `138.16 / 157.56 ms`         | `48.03 MB`（`48,031,390 B`） |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，巢狀物件（原始 16.95 MB）   | `85.45 / 101.83 ms`              | `63.50 ms`            | `19.62 ms`   | `58.98 / 70.67 ms`           | `18.00 MB`（`17,997,747 B`） |
+  | 4,985 事件，830 × 10 KiB 輸入與輸出，字串 blob（原始 17.00 MB）  | `32.98 / 59.36 ms`               | `15.64 ms`            | `16.26 ms`   | `39.78 / 51.24 ms`           | `18.04 MB`（`18,044,937 B`） |
 
-  量測顯示 `buildWorkflowGraph` 耗時主要來自 `decodePayloads` 的 base64 解碼與 `JSON.parse`，逼近 50 MB 紀錄上限且含結構化大物件時，`buildWorkflowGraph` 與 `JSON.stringify` 合計達 ~373 ms；`includePayloads: false` 可消除回應大小與 `JSON.stringify` 開銷（降到 5 ms 以下），但因目前實作仍會先呼叫 `decodePayloads` 再依參數捨棄，因此仍需承擔解碼耗時。重測用的大 payload 產生器（`largePayloadFewStepsHistory`、`largePayloadManyEventsHistory`）收錄於 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts`。
+  量測顯示 `buildWorkflowGraph` 耗時主要來自 `decodePayloads` 的 base64 解碼與 `JSON.parse`，逼近 50 MB 紀錄上限且含結構化大物件時，`buildWorkflowGraph` 與 `JSON.stringify` 合計達 ~373 ms。流程圖的回應一律帶著解碼後的 payload。重測用的大 payload 產生器（`largePayloadFewStepsHistory`、`largePayloadManyEventsHistory`）收錄於 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts`。
 
 回到[文件索引](README.md)。

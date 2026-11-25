@@ -314,7 +314,6 @@ export class WorkflowListQueries {
     const cached = this.progressCache.get(key);
     if (cached) return cached;
     const graph = await this.queries.graph(workflow, {
-      includePayloads: false,
       maxEvents: MAX_PROGRESS_EVENTS,
     });
     const progress: WorkflowProgressResponse = {

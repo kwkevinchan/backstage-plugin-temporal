@@ -160,7 +160,6 @@ export class AiWorkflowQueries {
       status: workflow.status,
       truncated,
       pendingActivities: workflow.pendingActivities,
-      includePayloads: false,
       llmAdapters: this.queries.llmAdapters,
     });
     const nodeId = `activity-${scheduledEventId}`;

@@ -70,7 +70,6 @@ function stepKindText(step: WorkflowGraphNode): string {
 
 export interface StepDrawerProps {
   step: WorkflowGraphNode;
-  payloadsHidden: boolean;
   /** Link to the details page of another run (child, next run). */
   workflowHref(ref: WorkflowRef): string;
   onClose(): void;
@@ -88,7 +87,7 @@ export interface StepDrawerProps {
  * and the events it was built from.
  */
 export function StepDrawer(props: StepDrawerProps) {
-  const { step, payloadsHidden, workflowHref, onClose } = props;
+  const { step, workflowHref, onClose } = props;
   const duration =
     step.startTime && step.startTime !== step.endTime
       ? formatDuration(step.startTime, step.endTime)
@@ -212,7 +211,6 @@ export function StepDrawer(props: StepDrawerProps) {
           <LlmPanel
             step={step}
             nodes={props.nodes ?? []}
-            payloadsHidden={payloadsHidden}
             workflowRef={props.workflowRef}
             entityRef={props.entityRef}
             onSelectStep={props.onSelectStep}
@@ -222,30 +220,20 @@ export function StepDrawer(props: StepDrawerProps) {
 
       {step.failure && (
         <Section title="Error" testId="step-error">
-          <FailureView failure={step.failure} detailsHidden={payloadsHidden} />
+          <FailureView failure={step.failure} />
         </Section>
       )}
 
-      {showsPayloads && payloadsHidden && (
-        <Section title="Input and output">
-          <Text as="p" variant="body-small" color="secondary">
-            Inputs and results are hidden: they need the permission to read the
-            event history.
-          </Text>
-        </Section>
-      )}
-      {showsPayloads && !payloadsHidden && (hasInput || !hasResult) && (
+      {showsPayloads && (hasInput || !hasResult) && (
         <Section title="Input" testId="step-input">
           <PayloadView payload={step.input} open />
         </Section>
       )}
-      {showsPayloads &&
-        !payloadsHidden &&
-        (hasResult || step.kind === 'activity') && (
-          <Section title="Output" testId="step-output">
-            <PayloadView payload={step.result} open />
-          </Section>
-        )}
+      {showsPayloads && (hasResult || step.kind === 'activity') && (
+        <Section title="Output" testId="step-output">
+          <PayloadView payload={step.result} open />
+        </Section>
+      )}
 
       {step.attempts && step.attempts.length > 0 && (
         <Section title="Attempts" testId="step-attempts">
@@ -263,10 +251,7 @@ export function StepDrawer(props: StepDrawerProps) {
                 )}
               </Flex>
               {a.failure && !(a.attempt === step.attempt && step.failure) && (
-                <FailureView
-                  failure={a.failure}
-                  detailsHidden={payloadsHidden}
-                />
+                <FailureView failure={a.failure} />
               )}
             </div>
           ))}

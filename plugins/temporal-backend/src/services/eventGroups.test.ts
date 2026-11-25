@@ -34,7 +34,6 @@ const options: BuildGraphOptions = {
   workflowId: 'wf',
   status: 'Completed',
   truncated: false,
-  includePayloads: false,
 };
 
 function graphOf(events: any[], extra: Partial<BuildGraphOptions> = {}) {

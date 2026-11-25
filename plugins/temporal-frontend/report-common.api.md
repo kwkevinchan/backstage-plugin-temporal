@@ -549,12 +549,6 @@ export const temporalWorkflowEntityV1alpha1Schema: {
 };
 
 // @public
-export const temporalWorkflowHistoryListPermission: ResourcePermission<'temporal-workflow'>;
-
-// @public
-export const temporalWorkflowHistoryReadPermission: ResourcePermission<'catalog-entity'>;
-
-// @public
 export const temporalWorkflowListPermission: ResourcePermission<'temporal-workflow'>;
 
 // @public
@@ -647,7 +641,6 @@ export interface WorkflowDetail extends WorkflowSummary {
   // (undocumented)
   executionTime?: string;
   failure?: WorkflowFailure;
-  failureDetailsHidden?: boolean;
   firstRunId?: string;
   // (undocumented)
   memo?: JsonObject;
@@ -762,7 +755,6 @@ export interface WorkflowGraphResponse {
   eventGroupsTruncated?: boolean;
   // (undocumented)
   nodes: WorkflowGraphNode[];
-  payloadsHidden: boolean;
   runChain?: WorkflowRunChain;
   // (undocumented)
   status: WorkflowStatus;

@@ -89,7 +89,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` (and `temporal.workflow.history.list` for the history routes) allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none)."
+      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none)."
       schema:
         type: string
     scheduleEntityRef:
@@ -528,9 +528,6 @@ components:
           additionalProperties: {}
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
-        failureDetailsHidden:
-          type: boolean
-          description: 'True when the caller cannot read the event history: `failure` and the `lastFailure` of the pending activities have only `message`, `kind` and `type`, without the stack trace and the causes.'
         continuedAsNewRunId:
           type: string
           description: The run this one continued as, for a run that continued as new.
@@ -647,7 +644,7 @@ components:
           description: Event type without the `EVENT_TYPE_` prefix, for example `WorkflowExecutionStarted`.
         attributes:
           type: object
-          description: The event attributes as JSON, with payloads shown as `{ encoding, value }` (decoded JSON) or `{ encoding, data }` (base64 of data that is not plain JSON).
+          description: 'The event attributes as JSON, with payloads shown as `DecodedPayload`: `{ encoding, value }` (decoded JSON), `{ encoding, size, undecodable: true, metadata? }` (data that is not plain JSON, for example encrypted payloads; the data itself is not sent) or `{ encoding, external }` (a reference to External Storage).'
           additionalProperties: {}
       additionalProperties: false
     WorkflowHistoryResponse:
@@ -896,7 +893,6 @@ components:
         - completedSteps
         - totalSteps
         - truncated
-        - payloadsHidden
       properties:
         status:
           $ref: '#/components/schemas/WorkflowStatus'
@@ -921,9 +917,6 @@ components:
         truncated:
           type: boolean
           description: True when the history was longer than the backend reads for a graph (5000 events).
-        payloadsHidden:
-          type: boolean
-          description: True when inputs and results were left out for lack of permission. The failures of the steps and their attempts then have only `message`, `kind` and `type`, without the stack trace and the causes.
         runChain:
           $ref: '#/components/schemas/WorkflowRunChain'
         eventGroups:
@@ -1609,17 +1602,12 @@ paths:
     get:
       operationId: getWorkflowRun
       summary: Get the details of a workflow (one run)
-      description: |-
-        Without the history permission, the failure and the last failures of the pending activities keep only their message, kind and type (`failureDetailsHidden`).
-
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `failureDetailsHidden`.
+      description: "Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given."
       tags:
         - Workflows
       x-temporal-permissions:
         - temporal.workflow.read
         - temporal.workflow.list
-        - temporal.workflow.history.read
-        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1648,13 +1636,12 @@ paths:
     get:
       operationId: getWorkflowRunHistory
       summary: Get one page of the history of a workflow (one run)
-      description: "Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given."
+      description: "Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given."
       tags:
         - Workflows
       x-temporal-permissions:
-        - temporal.workflow.history.read
+        - temporal.workflow.read
         - temporal.workflow.list
-        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1688,13 +1675,12 @@ paths:
       description: |-
         Reads only the close event of the run, in one Temporal call, independent of history length. A running run returns 200 with only `status` (not 404).
 
-        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
       tags:
         - Workflows
       x-temporal-permissions:
-        - temporal.workflow.history.read
+        - temporal.workflow.read
         - temporal.workflow.list
-        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1724,16 +1710,14 @@ paths:
       operationId: getWorkflowRunGraph
       summary: Get the steps and arrows of a workflow run (one run)
       description: |-
-        Inputs and results are left out (`payloadsHidden`) without the history permission, and failures keep only their message, kind and type; step summaries and event group labels are returned without it too. The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
+        The `llm`, `tool`, `groups`, `eventGroups` and `eventGroupsTruncated` fields are experimental.
 
-        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Also evaluated, never a 403: `temporal.workflow.history.read` on the entity, or `temporal.workflow.history.list` for a workflow opened without one; they only decide `payloadsHidden`.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
       tags:
         - Workflows
       x-temporal-permissions:
         - temporal.workflow.read
         - temporal.workflow.list
-        - temporal.workflow.history.read
-        - temporal.workflow.history.list
       parameters:
         - $ref: '#/components/parameters/namespace'
         - $ref: '#/components/parameters/workflowId'
@@ -1799,15 +1783,14 @@ paths:
       description: |-
         Reads at most 5,000 history events of the run. Answers `404` when the events read have no such model call, with a message that says so; when the history is longer and the step lies beyond the events read, the message says that the history was truncated.
 
-        Permission: `temporal.workflow.history.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` and `temporal.workflow.history.list` for a workflow they cover when no `entityRef` is given.
+        Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
 
         Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
       tags:
         - Experimental
       x-temporal-permissions:
-        - temporal.workflow.history.read
+        - temporal.workflow.read
         - temporal.workflow.list
-        - temporal.workflow.history.list
       x-temporal-experimental: true
       parameters:
         - $ref: '#/components/parameters/namespace'

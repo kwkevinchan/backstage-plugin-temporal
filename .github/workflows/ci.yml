@@ -317,12 +317,12 @@ jobs:
       - name: Smoke test
         run: yarn test:e2e
 
-      - name: Smoke test (no-history permission policy)
+      - name: Smoke test (no-read permission policy)
         if: matrix.app == 'app'
         env:
-          TEMPORAL_E2E_POLICY: no-history
-          SMOKE_REPORT_DIR: e2e-test-report/${{ matrix.app }}-no-history
-        run: yarn test:e2e e2e-tests/no-history-policy.test.ts
+          TEMPORAL_E2E_POLICY: no-read
+          SMOKE_REPORT_DIR: e2e-test-report/${{ matrix.app }}-no-read
+        run: yarn test:e2e e2e-tests/no-read-policy.test.ts
 
       - name: Upload screenshots and report
         if: always()

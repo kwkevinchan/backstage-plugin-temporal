@@ -27,7 +27,6 @@ const graph: WorkflowGraphResponse = {
   completedSteps: 3,
   totalSteps: 5,
   truncated: false,
-  payloadsHidden: false,
 };
 const workflow = {
   runId: 'run-1',

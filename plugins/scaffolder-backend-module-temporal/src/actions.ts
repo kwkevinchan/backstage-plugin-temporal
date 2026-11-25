@@ -316,9 +316,7 @@ export function createTemporalWorkflowWaitAction(
           z
             .boolean()
             .optional()
-            .describe(
-              'Output the workflow result; needs the history permission. False by default',
-            ),
+            .describe('Output the workflow result. False by default'),
       },
       output: {
         status: z => z.string(),

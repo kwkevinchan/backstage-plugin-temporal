@@ -17,7 +17,7 @@
 import { createBackend } from '@backstage/backend-defaults';
 import {
   E2E_POLICY_ENV,
-  noHistoryPolicyModule,
+  noReadPolicyModule,
   resolveE2ePolicy,
 } from './e2ePolicy';
 import { escalateActionModule } from './escalateAction';
@@ -36,9 +36,9 @@ backend.add(import('@backstage/plugin-catalog-backend-module-logs'));
 backend.add(import('@backstage/plugin-permission-backend'));
 // Development only: every permission is allowed by default. Temporal permissions
 // are still registered and checked, so a real policy can restrict them, or
-// TEMPORAL_E2E_POLICY=no-history denies history read/list for e2e tests.
-if (resolveE2ePolicy(process.env[E2E_POLICY_ENV]) === 'no-history') {
-  backend.add(noHistoryPolicyModule);
+// TEMPORAL_E2E_POLICY=no-read denies workflow read/list for e2e tests.
+if (resolveE2ePolicy(process.env[E2E_POLICY_ENV]) === 'no-read') {
+  backend.add(noReadPolicyModule);
 } else {
   backend.add(
     import('@backstage/plugin-permission-backend-module-allow-all-policy'),

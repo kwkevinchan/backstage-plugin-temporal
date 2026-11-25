@@ -328,37 +328,6 @@ export function toWorkflowFailure(
   return dropUndefined(out);
 }
 
-/**
- * A failure as the read level shows it: the kind, the application error
- * type and the message of the outermost failure. The stack trace, the
- * cause chain and the other fields need the history level.
- */
-export function failureSummary(failure: WorkflowFailure): WorkflowFailure {
-  return dropUndefined({
-    message: failure.message,
-    kind: failure.kind,
-    type: failure.type,
-  });
-}
-
-/**
- * The details of a run for a caller without the history level: its failure
- * and the last failures of its pending activities as {@link failureSummary}
- * gives them, with `failureDetailsHidden`.
- */
-export function withoutFailureDetails(detail: WorkflowDetail): WorkflowDetail {
-  return {
-    ...detail,
-    ...(detail.failure ? { failure: failureSummary(detail.failure) } : {}),
-    pendingActivities: detail.pendingActivities.map(activity =>
-      activity.lastFailure
-        ? { ...activity, lastFailure: failureSummary(activity.lastFailure) }
-        : activity,
-    ),
-    failureDetailsHidden: true,
-  };
-}
-
 /** Failure of a closed execution, from its closing history event. */
 export function failureFromCloseEvent(
   event: Json,

@@ -10,23 +10,7 @@
       "resourceType": "catalog-entity"
     },
     {
-      "name": "temporal.workflow.history.read",
-      "attributes": {
-        "action": "read"
-      },
-      "type": "resource",
-      "resourceType": "catalog-entity"
-    },
-    {
       "name": "temporal.workflow.list",
-      "attributes": {
-        "action": "read"
-      },
-      "type": "resource",
-      "resourceType": "temporal-workflow"
-    },
-    {
-      "name": "temporal.workflow.history.list",
       "attributes": {
         "action": "read"
       },

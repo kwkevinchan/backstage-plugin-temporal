@@ -58,10 +58,10 @@ export type TemporalWorkflowFilter =
 
 /**
  * The `temporal-workflow` permission resource: a workflow, checked with
- * `temporal.workflow.list` and `temporal.workflow.history.list` when it is
- * opened without a catalog entity. Rules apply to the workflow summary and
- * turn into a visibility query for lists. Add rules with a module of the
- * temporal plugin and `coreServices.permissionsRegistry.addPermissionRules`.
+ * `temporal.workflow.list` when it is opened without a catalog entity.
+ * Rules apply to the workflow summary and turn into a visibility query for
+ * lists. Add rules with a module of the temporal plugin and
+ * `coreServices.permissionsRegistry.addPermissionRules`.
  *
  * @alpha
  */
@@ -70,14 +70,6 @@ export const temporalWorkflowPermissionResourceRef =
     pluginId: 'temporal',
     resourceType: RESOURCE_TYPE_TEMPORAL_WORKFLOW,
   });
-
-/**
- * `read` for the details and step graph of a workflow, `history` for its
- * history, inputs and results.
- *
- * @alpha
- */
-export type TemporalWorkflowAccessLevel = 'read' | 'history';
 
 /**
  * A catalog entity whose workflows are shown, after the access checks.
@@ -153,15 +145,6 @@ export interface TemporalAccessService {
   ): Promise<string | undefined>;
 
   /**
-   * True when the caller may see the inputs, the results and the failure
-   * details of a workflow.
-   */
-  canReadPayloads(
-    workflow: TemporalAccessibleWorkflow,
-    credentials: BackstageCredentials,
-  ): Promise<boolean>;
-
-  /**
    * Checks a permission on an entity, or, without an entity, that the
    * policy allows it for every entity (an unconditional ALLOW). Throws
    * `NotAllowedError` otherwise.
@@ -185,15 +168,14 @@ export interface TemporalAccessService {
 
   /**
    * Reads a workflow with every check: the namespace is allowed, the
-   * caller has the permission of `level` on the entity it belongs to
-   * (`entityRef`, else the entity in its search attribute), or the list
-   * permissions when opened without an entity.
+   * caller has `temporal.workflow.read` on the entity it belongs to
+   * (`entityRef`, else the entity in its search attribute), or
+   * `temporal.workflow.list` when opened without an entity.
    */
   loadWorkflow(
     ref: WorkflowRunRef,
     options: {
       entityRef?: string;
-      level: TemporalWorkflowAccessLevel;
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow>;

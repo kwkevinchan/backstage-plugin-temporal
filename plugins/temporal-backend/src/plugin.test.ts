@@ -578,7 +578,7 @@ describe('temporal backend plugin', () => {
     expect(await statusOf('not a ref')).toBe(404);
   });
 
-  it('pages through history with the history permission', async () => {
+  it('pages through history with the read permission', async () => {
     const { server, workflowService, permissions } = await start();
     const res = await request(server).get(
       `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=${ref}&pageSize=10`,
@@ -606,7 +606,7 @@ describe('temporal backend plugin', () => {
       [
         expect.objectContaining({
           permission: expect.objectContaining({
-            name: 'temporal.workflow.history.read',
+            name: 'temporal.workflow.read',
           }),
         }),
       ],
@@ -645,7 +645,7 @@ describe('temporal backend plugin', () => {
       [
         expect.objectContaining({
           permission: expect.objectContaining({
-            name: 'temporal.workflow.history.read',
+            name: 'temporal.workflow.read',
           }),
         }),
       ],
@@ -774,7 +774,7 @@ describe('temporal backend plugin', () => {
     expect(res.body).toEqual({ status: 'Running' });
     const denied = await start({
       workflowService,
-      deny: ['temporal.workflow.history.list'],
+      deny: ['temporal.workflow.list'],
     });
     const hidden = await request(denied.server).get(
       '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/result',
@@ -783,7 +783,7 @@ describe('temporal backend plugin', () => {
     expect(hidden.body.error).toBeDefined();
   });
 
-  it('returns the step graph, with payloads when the history may be read', async () => {
+  it('returns the step graph, with payloads', async () => {
     const { server, permissions } = await start();
     const res = await request(server).get(
       `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
@@ -791,7 +791,6 @@ describe('temporal backend plugin', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
       status: 'Failed',
-      payloadsHidden: false,
       truncated: false,
       nodes: [
         {
@@ -806,21 +805,13 @@ describe('temporal backend plugin', () => {
       [
         expect.objectContaining({
           permission: expect.objectContaining({
-            name: 'temporal.workflow.history.read',
+            name: 'temporal.workflow.read',
           }),
           resourceRef: ref,
         }),
       ],
       expect.anything(),
     );
-
-    const noHistory = await start({ deny: ['temporal.workflow.history.read'] });
-    const hidden = await request(noHistory.server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph?entityRef=${ref}`,
-    );
-    expect(hidden.status).toBe(200);
-    expect(hidden.body.payloadsHidden).toBe(true);
-    expect(hidden.body.nodes[0].input).toBeUndefined();
 
     const denied = await start({ deny: ['temporal.workflow.read'] });
     await request(denied.server)
@@ -1590,38 +1581,11 @@ describe('temporal backend plugin', () => {
         expect(requests).toEqual([
           {
             permission: expect.objectContaining({
-              name: expect.stringMatching(
-                /^temporal\.workflow\.(list|history\.list)$/,
-              ),
+              name: 'temporal.workflow.list',
             }),
           },
         ]);
       }
-    });
-
-    it('needs the history list permission for history without an entity', async () => {
-      const { server } = await start({
-        deny: ['temporal.workflow.history.list'],
-      });
-      await request(server)
-        .get('/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run')
-        .expect(200);
-      // The workflow has no entity reference attribute to fall back to:
-      // the same answer as for a workflow that does not exist.
-      for (const path of ['history', 'result']) {
-        await request(server)
-          .get(
-            `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/${path}`,
-          )
-          .expect(404);
-      }
-      // The graph is shown without inputs and results.
-      const graph = await request(server).get(
-        '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/graph',
-      );
-      expect(graph.status).toBe(200);
-      expect(graph.body.payloadsHidden).toBe(true);
-      expect(graph.body.nodes[0]).not.toHaveProperty('input');
     });
 
     it('still checks the entity when entityRef is given', async () => {
@@ -1678,72 +1642,19 @@ describe('temporal backend plugin', () => {
     const baseRun =
       '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 
-    it('hides payloads and failure details when history is denied on the matched TemporalWorkflow entity', async () => {
-      const { server } = await start({
-        deny: [
-          {
-            permission: 'temporal.workflow.history.read',
-            resourceRef: orderWfRef,
-          },
-        ],
-      });
-      const detail = await request(server).get(
-        `${baseRun}?entityRef=${checkoutRef}`,
-      );
-      expect(detail.status).toBe(200);
-      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
-      expect(detail.body.failureDetailsHidden).toBe(true);
-      expect(detail.body.failure).toMatchObject({ message: 'outer' });
-      expect(detail.body.failure.cause).toBeUndefined();
-
-      const graph = await request(server).get(
-        `${baseRun}/graph?entityRef=${checkoutRef}`,
-      );
-      expect(graph.status).toBe(200);
-      expect(graph.body.payloadsHidden).toBe(true);
-      expect(graph.body.nodes[0].input).toBeUndefined();
-    });
-
-    it('hides payloads and failure details when history is denied on the opened entity even if allowed on the matched entity', async () => {
-      const { server } = await start({
-        deny: [
-          {
-            permission: 'temporal.workflow.history.read',
-            resourceRef: checkoutRef,
-          },
-        ],
-      });
-      const detail = await request(server).get(
-        `${baseRun}?entityRef=${checkoutRef}`,
-      );
-      expect(detail.status).toBe(200);
-      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
-      expect(detail.body.failureDetailsHidden).toBe(true);
-      expect(detail.body.failure.cause).toBeUndefined();
-
-      const graph = await request(server).get(
-        `${baseRun}/graph?entityRef=${checkoutRef}`,
-      );
-      expect(graph.status).toBe(200);
-      expect(graph.body.payloadsHidden).toBe(true);
-      expect(graph.body.nodes[0].input).toBeUndefined();
-    });
-
-    it('shows payloads and failure details when history is allowed on both entities', async () => {
+    it('shows payloads and failure details through the matched TemporalWorkflow entity', async () => {
       const { server } = await start();
       const detail = await request(server).get(
         `${baseRun}?entityRef=${checkoutRef}`,
       );
       expect(detail.status).toBe(200);
       expect(detail.body.workflowEntityRef).toBe(orderWfRef);
-      expect(detail.body.failureDetailsHidden).toBeUndefined();
       expect(detail.body.failure?.cause).toMatchObject({ message: 'inner' });
 
       const graph = await request(server).get(
         `${baseRun}/graph?entityRef=${checkoutRef}`,
       );
       expect(graph.status).toBe(200);
-      expect(graph.body.payloadsHidden).toBe(false);
       expect(graph.body.nodes[0].input).toEqual({
         encoding: 'json/plain',
         value: 42,
@@ -1755,63 +1666,6 @@ describe('temporal backend plugin', () => {
       const detail = await request(server).get(`${baseRun}?entityRef=${ref}`);
       expect(detail.status).toBe(200);
       expect(detail.body.workflowEntityRef).toBeUndefined();
-    });
-
-    it('checks history on the ancestor matched TemporalWorkflow entity for child workflows', async () => {
-      const workflowService = createFakeWorkflowService();
-      workflowService.describeWorkflowExecution.mockImplementation(
-        async (req: any) => {
-          if (req.execution.workflowId === 'child-0') {
-            return {
-              workflowExecutionInfo: {
-                ...executionInfo({
-                  workflowId: 'child-0',
-                  type: 'childWorkflow',
-                  taskQueue: 'child-queue',
-                  status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
-                }),
-                parentExecution: {
-                  workflowId: 'parent-1',
-                  runId: 'parent-1-run',
-                },
-              } as any,
-              pendingActivities: [],
-            };
-          }
-          return {
-            workflowExecutionInfo: executionInfo({
-              workflowId: 'parent-1',
-              type: 'orderWorkflow',
-              taskQueue: 'orders',
-              status: 'WORKFLOW_EXECUTION_STATUS_FAILED',
-            }),
-            pendingActivities: [],
-          };
-        },
-      );
-      const { server } = await start({
-        workflowService,
-        deny: [
-          {
-            permission: 'temporal.workflow.history.read',
-            resourceRef: orderWfRef,
-          },
-        ],
-      });
-      const detail = await request(server).get(
-        `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run?entityRef=${checkoutRef}`,
-      );
-      expect(detail.status).toBe(200);
-      expect(detail.body.workflowEntityRef).toBe(orderWfRef);
-      expect(detail.body.failureDetailsHidden).toBe(true);
-      expect(detail.body.failure.cause).toBeUndefined();
-
-      const graph = await request(server).get(
-        `/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run/graph?entityRef=${checkoutRef}`,
-      );
-      expect(graph.status).toBe(200);
-      expect(graph.body.payloadsHidden).toBe(true);
-      expect(graph.body.nodes[0].input).toBeUndefined();
     });
   });
 

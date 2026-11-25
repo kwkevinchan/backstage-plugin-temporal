@@ -43,11 +43,7 @@ import {
   WorkflowRunRef,
 } from '../common';
 import { TemporalService } from '../node';
-import {
-  TemporalAccessService,
-  TemporalControlAction,
-  TemporalWorkflowAccessLevel,
-} from '../node/alpha';
+import { TemporalAccessService, TemporalControlAction } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {
@@ -226,12 +222,9 @@ export function createControlRouter(
   const router = Router();
   router.use(express.json());
 
-  /** The workflow of the request's path, with the access checks of `level`. */
-  const loadWorkflow = (
-    req: Request,
-    level: TemporalWorkflowAccessLevel,
-  ): Promise<LoadedWorkflow> =>
-    loadRequestWorkflow({ httpAuth, access }, req, level);
+  /** The workflow of the request's path, with the access checks. */
+  const loadWorkflow = (req: Request): Promise<LoadedWorkflow> =>
+    loadRequestWorkflow({ httpAuth, access }, req);
 
   /**
    * Checks a control permission on the workflow's entity. A bad entity
@@ -274,7 +267,7 @@ export function createControlRouter(
       requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(
           temporalWorkflowSignalPermission,
           loaded,
@@ -303,7 +296,7 @@ export function createControlRouter(
       requestWorkflowMeta(req, initialName ? { name: initialName } : {}),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(
           temporalWorkflowUpdatePermission,
           loaded,
@@ -336,7 +329,7 @@ export function createControlRouter(
       requestWorkflowMeta(req),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(
           temporalWorkflowCancelPermission,
           loaded,
@@ -358,7 +351,7 @@ export function createControlRouter(
       requestWorkflowMeta(req, initialReason ? { reason: initialReason } : {}),
       'high',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(
           temporalWorkflowTerminatePermission,
           loaded,
@@ -395,7 +388,7 @@ export function createControlRouter(
       ),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(
           temporalWorkflowRerunPermission,
           loaded,
@@ -429,7 +422,7 @@ export function createControlRouter(
       requestWorkflowMeta(req, { actionId }),
       'medium',
       async setMeta => {
-        const loaded = await loadWorkflow(req, 'read');
+        const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(action.permission, loaded);
         setMeta(workflowMeta(loaded.workflow, entityRef, { actionId }));
         if (action.filter && !action.filter(loaded.workflow)) {

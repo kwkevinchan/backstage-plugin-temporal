@@ -37,7 +37,7 @@ function fixture(name: string, dir = 'event-groups'): any[] {
   return readHistoryFixture(dir, name).events;
 }
 
-async function start(options: { history: boolean; events: any[] }) {
+async function start(options: { events: any[] }) {
   const workflowService = createFakeWorkflowService();
   workflowService.describeWorkflowExecution.mockImplementation(
     async (req: any) =>
@@ -57,13 +57,7 @@ async function start(options: { history: boolean; events: any[] }) {
   );
   const permissions = mockServices.permissions.mock({
     authorize: jest.fn(async requests =>
-      requests.map((r: any) => ({
-        result:
-          !options.history &&
-          r.permission.name.startsWith('temporal.workflow.history')
-            ? AuthorizeResult.DENY
-            : AuthorizeResult.ALLOW,
-      })),
+      requests.map(() => ({ result: AuthorizeResult.ALLOW })),
     ) as any,
   });
   const { server } = await startTestBackend({
@@ -80,14 +74,12 @@ async function start(options: { history: boolean; events: any[] }) {
 }
 
 describe('event groups in the graph route', () => {
-  it('shows the groups, their labels and their tokens without the history permission', async () => {
+  it('shows the groups, their labels and their tokens', async () => {
     const server = await start({
-      history: false,
       events: fixture('loop-ts-sdk-1.25'),
     });
     const res = await request(server).get(graphPath);
     expect(res.status).toBe(200);
-    expect(res.body.payloadsHidden).toBe(true);
     const loop = res.body.eventGroups.find(
       (g: any) => g.key === 'label:loop:draft-review',
     );
@@ -109,16 +101,8 @@ describe('event groups in the graph route', () => {
       'label:loop:draft-review:1',
     ]);
     expect(step.summary).toBe('review round 1');
-    // No inputs or results.
-    expect(step.input).toBeUndefined();
-    expect(step.result).toBeUndefined();
-    const body = JSON.stringify(res.body);
-    for (const text of ['第 1 版', '還不夠具體', '多寫一個例子']) {
-      expect(body).not.toContain(text);
-    }
 
     const agent = await start({
-      history: false,
       events: fixture('vercel-ai-sdk-agent', 'llm-integrations'),
     });
     const agentRes = await request(agent).get(graphPath);
@@ -133,23 +117,9 @@ describe('event groups in the graph route', () => {
     });
   });
 
-  it('shows the same groups with the history permission', async () => {
-    const events = fixture('loop-ts-sdk-1.25');
-    const reader = await request(await start({ history: false, events })).get(
-      graphPath,
-    );
-    const historyReader = await request(
-      await start({ history: true, events }),
-    ).get(graphPath);
-    expect(historyReader.status).toBe(200);
-    expect(historyReader.body.payloadsHidden).toBe(false);
-    expect(historyReader.body.eventGroups).toEqual(reader.body.eventGroups);
-  });
-
   it('shows the groups of a run whose labels a codec encoded', async () => {
     const res = await request(
       await start({
-        history: false,
         events: fixture('codec-loop'),
       }),
     ).get(graphPath);
@@ -165,17 +135,15 @@ describe('event groups in the graph route', () => {
   it('answers as before for a run without groups', async () => {
     const events = fixture('loop-ts-sdk-1.25');
     const stripped = events.map(({ eventGroupMarkers: _m, ...e }) => e);
-    const plain = await request(
-      await start({ history: true, events: stripped }),
-    ).get(graphPath);
+    const plain = await request(await start({ events: stripped })).get(
+      graphPath,
+    );
     expect(plain.status).toBe(200);
     expect(plain.body).not.toHaveProperty('eventGroups');
     expect(plain.body).not.toHaveProperty('eventGroupsTruncated');
     expect(plain.body.nodes.some((n: any) => 'groups' in n)).toBe(false);
 
-    const grouped = await request(await start({ history: true, events })).get(
-      graphPath,
-    );
+    const grouped = await request(await start({ events })).get(graphPath);
     const { eventGroups: _g, ...rest } = grouped.body;
     expect({
       ...rest,
