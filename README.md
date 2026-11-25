@@ -418,6 +418,10 @@ same scroll position. Temporal's page tokens are kept in the browser's
 session storage; when they are gone (another tab), the list opens on the
 first page and says so.
 
+The details page keeps its tab and selected step in the URL
+(`?tab=timeline&step=activity-11`), so a link to it opens the same view.
+A tab or step the run does not have is ignored.
+
 Workflow lists start with the workflow type, then the workflow ID, status
 and progress. **Show all runs** also lists the earlier runs of workflows that
 continued as new; without it each execution chain shows its latest run.

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { useParams, useResolvedPath } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useResolvedPath, useSearchParams } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { useApi } from '@backstage/core-plugin-api';
 import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
@@ -61,6 +61,16 @@ import {
 import { WorkflowGraph } from './graph/WorkflowGraph';
 import type { GroupViews } from './graph/eventGroups';
 import type { GroupDisplay } from './graph/WorkflowGraph';
+import {
+  DEFAULT_DETAIL_TAB,
+  EVENT_GROUPS_TAB,
+  isLinkableStep,
+  resolveDetailStep,
+  resolveDetailTab,
+  STATIC_DETAIL_TABS,
+  withDetailStep,
+  withDetailTab,
+} from './detailState';
 import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
 import { JsonView, MemoView } from './PayloadView';
@@ -329,6 +339,8 @@ function GraphCard(props: {
   graph?: WorkflowGraphResponse;
   graphError?: Error;
   selectedId?: string;
+  /** Shows the step drawer next to the graph. */
+  showDrawer: boolean;
   onSelect(id: string | undefined): void;
   /** Selects a step from the step panel (a tool call of a model call). */
   onSelectStep(id: string): void;
@@ -344,6 +356,7 @@ function GraphCard(props: {
 }) {
   const { graph, graphError, selectedId, onSelect } = props;
   const selected = graph?.nodes.find(n => n.id === selectedId);
+  const showDrawer = Boolean(selected) && props.showDrawer;
   const fullscreen = useGraphFullscreenState();
   return (
     <Card>
@@ -404,9 +417,9 @@ function GraphCard(props: {
                 onGroupViewChange={props.onGroupViewChange}
                 focusGroup={props.focusGroup}
                 onGroupDisplay={props.onGroupDisplay}
-                panelOpen={Boolean(selected)}
+                panelOpen={showDrawer}
               />
-              {selected && (
+              {showDrawer && selected && (
                 <StepDrawer
                   step={selected}
                   payloadsHidden={graph.payloadsHidden}
@@ -435,12 +448,16 @@ function TimelineTab(props: {
   workflow: WorkflowDetail;
   showMarkers: boolean;
   live: boolean;
+  selectedId?: string;
+  showDrawer: boolean;
+  onSelect(id: string | undefined): void;
+  onSelectStep(id: string): void;
   workflowHref(ref: WorkflowRef): string;
   entityRef?: string;
 }) {
-  const { graph } = props;
-  const [selectedId, setSelectedId] = useState<string | undefined>();
+  const { graph, selectedId, onSelect } = props;
   const selected = graph.nodes.find(n => n.id === selectedId);
+  const showDrawer = Boolean(selected) && props.showDrawer;
   return (
     <div className={tp('tp-graph-layout')}>
       <div className={tp('tp-graph-column')}>
@@ -456,16 +473,16 @@ function TimelineTab(props: {
           workflow={props.workflow}
           showMarkers={props.showMarkers}
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={onSelect}
           live={props.live}
         />
       </div>
-      {selected && (
+      {showDrawer && selected && (
         <StepDrawer
           step={selected}
           payloadsHidden={graph.payloadsHidden}
           workflowHref={props.workflowHref}
-          onClose={() => setSelectedId(undefined)}
+          onClose={() => onSelect(undefined)}
           nodes={graph.nodes}
           workflowRef={{
             namespace: props.workflow.namespace,
@@ -473,7 +490,7 @@ function TimelineTab(props: {
             runId: props.workflow.runId,
           }}
           entityRef={props.entityRef}
-          onSelectStep={setSelectedId}
+          onSelectStep={props.onSelectStep}
         />
       )}
     </div>
@@ -503,9 +520,20 @@ export function WorkflowDetailPage(
     }),
     [params.namespace, params.workflowId, params.runId],
   );
+  const [searchParams, setSearchParams] = useSearchParams();
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | undefined>();
-  const [tab, setTab] = useState<string>('steps');
+  const runKey = `${workflowRef.namespace}\0${workflowRef.workflowId}\0${workflowRef.runId}`;
+  // Local fallback only for non-linkable steps (synthetic `waiting` nodes).
+  const [ephemeralStep, setEphemeralStep] = useState<{
+    runKey: string;
+    id: string;
+  }>();
+  // Where to mount the step drawer (graph vs timeline) so only one renders at a time.
+  const [drawerChoice, setDrawerChoice] = useState<{
+    runKey: string;
+    where: 'graph' | 'timeline';
+  }>();
+  const revealedStepRef = useRef<string>();
   const [showMarkers, setShowMarkers] = useState(false);
   // Temporal event groups the user expanded or collapsed, and the group
   // picked in the Event Groups tab.
@@ -552,6 +580,19 @@ export function WorkflowDetailPage(
   );
   const nodes = data.graph?.nodes;
   const eventGroups = data.graph?.eventGroups;
+  const urlSelectedNode = useMemo(
+    () => resolveDetailStep(searchParams, nodes),
+    [searchParams, nodes],
+  );
+  const ephemeralNode = useMemo(
+    () =>
+      ephemeralStep?.runKey === runKey
+        ? nodes?.find(n => n.id === ephemeralStep.id && !n.internal)
+        : undefined,
+    [ephemeralStep, runKey, nodes],
+  );
+  const selectedNode = ephemeralNode ?? urlSelectedNode;
+  const selectedId = selectedNode?.id;
   // A step picked outside the graph: its groups are expanded.
   const openGroupsOf = useCallback(
     (id: string) => {
@@ -565,6 +606,107 @@ export function WorkflowDetailPage(
     },
     [nodes],
   );
+  const revealStep = useCallback(
+    (id: string) => {
+      const node = nodes?.find(n => n.id === id);
+      if (node && isMarkerStep(node)) setShowMarkers(true);
+      openGroupsOf(id);
+    },
+    [nodes, openGroupsOf],
+  );
+  // Place the drawer of a deep-linked step and reveal it once per URL
+  // selection, so later tab changes do not move the drawer and later manual
+  // toggles of markers or group boxes are not overridden.
+  useEffect(() => {
+    if (!urlSelectedNode || ephemeralNode) return;
+    const key = `${runKey}\0${urlSelectedNode.id}`;
+    if (revealedStepRef.current === key) return;
+    revealedStepRef.current = key;
+    if (searchParams.get('tab') === 'timeline') {
+      setDrawerChoice({ runKey, where: 'timeline' });
+      // The timeline shows markers only with the switch on; the graph's
+      // groups are left as they are.
+      if (isMarkerStep(urlSelectedNode)) setShowMarkers(true);
+    } else {
+      setDrawerChoice({ runKey, where: 'graph' });
+      revealStep(urlSelectedNode.id);
+    }
+  }, [runKey, urlSelectedNode, ephemeralNode, revealStep, searchParams]);
+  const setTab = useCallback(
+    (nextTab: string) => {
+      const normalized = nextTab === DEFAULT_DETAIL_TAB ? null : nextTab;
+      if (searchParams.get('tab') === normalized) return;
+      // A step picked in the timeline belongs to the Timeline tab: it is
+      // unselected when the tab is left. One updater for both params, because
+      // a second call in the same event would start from the same params.
+      const dropStep =
+        searchParams.get('tab') === 'timeline' &&
+        drawerChoice?.runKey === runKey &&
+        drawerChoice.where === 'timeline';
+      if (dropStep) {
+        setEphemeralStep(undefined);
+        revealedStepRef.current = undefined;
+      }
+      setSearchParams(
+        current => {
+          const next = withDetailTab(current, nextTab);
+          return dropStep ? withDetailStep(next, undefined) : next;
+        },
+        { replace: true },
+      );
+    },
+    [drawerChoice, runKey, searchParams, setSearchParams],
+  );
+  const selectStep = useCallback(
+    (id: string | undefined) => {
+      if (!id) {
+        setEphemeralStep(undefined);
+        revealedStepRef.current = undefined;
+        if (searchParams.has('step')) {
+          setSearchParams(current => withDetailStep(current, undefined), {
+            replace: true,
+          });
+        }
+        return;
+      }
+      const node = nodes?.find(n => n.id === id);
+      if (node && !isLinkableStep(node)) {
+        setEphemeralStep({ runKey, id });
+        revealedStepRef.current = undefined;
+        if (searchParams.has('step')) {
+          setSearchParams(current => withDetailStep(current, undefined), {
+            replace: true,
+          });
+        }
+        return;
+      }
+      setEphemeralStep(undefined);
+      revealedStepRef.current = `${runKey}\0${id}`;
+      if (searchParams.get('step') !== id) {
+        setSearchParams(current => withDetailStep(current, id), {
+          replace: true,
+        });
+      }
+    },
+    [nodes, runKey, searchParams, setSearchParams],
+  );
+  const selectInPlace = useCallback(
+    (where: 'graph' | 'timeline', id: string | undefined) => {
+      if (id !== undefined) {
+        setDrawerChoice({ runKey, where });
+      }
+      selectStep(id);
+    },
+    [runKey, selectStep],
+  );
+  const selectFromGraph = useCallback(
+    (id: string | undefined) => selectInPlace('graph', id),
+    [selectInPlace],
+  );
+  const selectFromTimeline = useCallback(
+    (id: string | undefined) => selectInPlace('timeline', id),
+    [selectInPlace],
+  );
   const scrollToGraph = useCallback(
     () =>
       graphRef.current?.scrollIntoView?.({
@@ -576,21 +718,19 @@ export function WorkflowDetailPage(
   const selectFromTab = useCallback(
     (id: string) => {
       // A marker picked in the events is shown in the graph.
-      const node = nodes?.find(n => n.id === id);
-      if (node && isMarkerStep(node)) setShowMarkers(true);
-      openGroupsOf(id);
-      setSelectedId(id);
+      revealStep(id);
+      selectFromGraph(id);
       scrollToGraph();
     },
-    [nodes, scrollToGraph, openGroupsOf],
+    [revealStep, selectFromGraph, scrollToGraph],
   );
   // A step picked in the step panel: selected and shown in its groups.
   const selectInGraph = useCallback(
     (id: string) => {
-      openGroupsOf(id);
-      setSelectedId(id);
+      revealStep(id);
+      selectFromGraph(id);
     },
-    [openGroupsOf],
+    [revealStep, selectFromGraph],
   );
   // A group picked in the Event Groups tab: expanded with the groups
   // around it and brought into view.
@@ -607,10 +747,10 @@ export function WorkflowDetailPage(
       }
       setGroupViews(views => ({ ...views, ...open }));
       setFocusGroup({ key });
-      setSelectedId(undefined);
+      selectStep(undefined);
       scrollToGraph();
     },
-    [eventGroups, scrollToGraph],
+    [eventGroups, scrollToGraph, selectStep],
   );
 
   // Back to the list with its filters and page, as it was left.
@@ -667,6 +807,19 @@ export function WorkflowDetailPage(
   const sections = workflowSections.filter(
     s => !s.filter || s.filter(workflow),
   );
+  const availableTabs = new Set<string>([
+    ...STATIC_DETAIL_TABS,
+    ...(graph && eventGroups && eventGroups.length > 0
+      ? [EVENT_GROUPS_TAB]
+      : []),
+    ...sections.map(s => `section-${s.id}`),
+  ]);
+  const tab = resolveDetailTab(searchParams, availableTabs);
+  const defaultDrawerIn = tab === 'timeline' ? 'timeline' : 'graph';
+  const drawerIn: 'graph' | 'timeline' =
+    drawerChoice?.runKey === runKey ? drawerChoice.where : defaultDrawerIn;
+  const showTimelineDrawer = tab === 'timeline' && drawerIn === 'timeline';
+  const showGraphDrawer = !showTimelineDrawer;
   const running = workflow.status === 'Running';
   const historyRef = {
     namespace: workflow.namespace,
@@ -816,8 +969,9 @@ export function WorkflowDetailPage(
           <GraphCard
             graph={graph}
             graphError={data.graphError}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
+            selectedId={showGraphDrawer ? selectedId : undefined}
+            showDrawer={showGraphDrawer}
+            onSelect={selectFromGraph}
             onSelectStep={selectInGraph}
             workflowRef={historyRef}
             entityRef={entityRef}
@@ -865,6 +1019,10 @@ export function WorkflowDetailPage(
                     workflow={workflow}
                     showMarkers={showMarkers}
                     live={running && autoRefresh}
+                    selectedId={showTimelineDrawer ? selectedId : undefined}
+                    showDrawer={showTimelineDrawer}
+                    onSelect={selectFromTimeline}
+                    onSelectStep={selectFromTimeline}
                     workflowHref={workflowHref}
                     entityRef={entityRef}
                   />
