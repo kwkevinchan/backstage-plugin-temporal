@@ -24,6 +24,7 @@ import {
   WorkflowStatus,
   WorkflowSummary,
 } from '../common';
+import { describeUndecodable } from './payloads';
 import {
   referenceInfo,
   referenceOf,
@@ -124,7 +125,7 @@ export function decodePayload(payload: Json): JsonObject {
 }
 
 function decodePlainPayload(payload: Json): JsonObject {
-  const metadata: JsonObject = {};
+  const metadata: Record<string, string> = {};
   for (const [key, raw] of Object.entries(payload.metadata ?? {})) {
     metadata[key] = decodeBase64(raw);
   }
@@ -146,12 +147,7 @@ function decodePlainPayload(payload: Json): JsonObject {
     typeof payload.data === 'string'
       ? Buffer.from(payload.data, 'base64').length
       : 0;
-  const raw: JsonObject = { encoding, size, undecodable: true };
-  const extra = Object.fromEntries(
-    Object.entries(metadata).filter(([k]) => k !== 'encoding'),
-  );
-  if (Object.keys(extra).length > 0) raw.metadata = extra;
-  return raw;
+  return describeUndecodable(encoding, size, metadata);
 }
 
 /** Orders the entries of a map by key, in code unit order. */

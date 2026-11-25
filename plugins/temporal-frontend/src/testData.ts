@@ -15,6 +15,7 @@
  */
 
 import { Entity } from '@backstage/catalog-model';
+import type { JsonObject } from '@backstage/types';
 import type {
   WorkflowDetail,
   WorkflowGraphNode,
@@ -153,6 +154,30 @@ export const historyResponse: WorkflowHistoryResponse = {
   ],
 };
 
+/** One payload of each kind the plugin cannot decode. */
+export const undecodablePayloads: Record<string, JsonObject> = {
+  encrypted: {
+    encoding: 'binary/encrypted',
+    size: 64,
+    undecodable: true,
+    metadata: { 'encryption-key-id': 'payments-key-1' },
+  },
+  binary: { encoding: 'binary/plain', size: 2048, undecodable: true },
+  protobuf: {
+    encoding: 'binary/protobuf',
+    size: 96,
+    undecodable: true,
+    metadata: { messageType: 'acme.payments.v1.ChargeRequest' },
+  },
+  invalidJson: { encoding: 'json/plain', size: 17, undecodable: true },
+  custom: {
+    encoding: 'binary/acme-compressed',
+    size: 310,
+    undecodable: true,
+    metadata: { codec: 'zstd' },
+  },
+};
+
 export const graphResponse: WorkflowGraphResponse = {
   status: 'Failed',
   current: 'Failed at chargeCard',
@@ -213,7 +238,7 @@ export const graphResponse: WorkflowGraphResponse = {
       maximumAttempts: 2,
       startTime: '2026-01-01T11:00:00.400Z',
       endTime: '2026-01-01T11:00:00.900Z',
-      input: { encoding: 'binary/encrypted', size: 64, undecodable: true },
+      input: undecodablePayloads.encrypted,
       failure: { message: 'Card declined', kind: 'ApplicationFailure' },
       attempts: [
         { attempt: 1, status: 'Failed', failure: { message: 'Bank timeout' } },

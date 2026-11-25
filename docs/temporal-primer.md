@@ -285,7 +285,7 @@ encrypts, what lands in S3 is already encrypted.
 - **Codec.** A step after the Data Converter that transforms a whole Payload,
   usually to encrypt or compress it. Once encrypted, neither the server nor any
   UI can read it unless a Codec Server decodes it. Screen: the plugin shows the
-  encoding and size of a payload it cannot decode; it does not decrypt.
+  kind, encoding and size of a payload it cannot decode; it does not decrypt.
 - **External Storage.** An SDK feature (public preview) that stores payloads
   above a threshold in S3 and keeps a reference in the history. See
   [External Storage](https://docs.temporal.io/external-storage) for the

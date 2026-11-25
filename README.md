@@ -1281,9 +1281,34 @@ its permission.
 
 Inputs and results (of the workflow and of each activity) are decoded like
 the default data converter does and shown as JSON. Payloads that cannot be
-decoded (binary, or encrypted by a codec) are shown with their encoding and
-size only. Inputs and results are part of the history and need
+decoded are described instead (see
+[Payloads the plugin cannot decode](#payloads-the-plugin-cannot-decode)). Inputs and results are part of the history and need
 `temporal.workflow.history.read`.
+
+## Payloads the plugin cannot decode
+
+The plugin has no codec. A payload that is not JSON is never sent to the
+browser; the page shows what kind of payload it is, its encoding and size,
+and its other metadata. The kind comes from the `encoding` of the payload:
+
+| Kind            | Encoding                                              | What the page says                                                            |
+| --------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Encrypted       | `binary/encrypted`                                    | Encrypted by a payload codec, with the key ID (`encryption-key-id`) if given. |
+| Binary data     | `binary/plain`                                        | Not text, so only the size is shown.                                          |
+| Protobuf binary | `binary/protobuf`                                     | The message type (`messageType`); reading it needs the protobuf schema.       |
+| Invalid JSON    | `json/plain` or `json/protobuf`, with invalid content | The content is not valid JSON.                                                |
+| Custom encoding | any other encoding                                    | Encoded by a payload codec or a custom data converter.                        |
+
+Known limits:
+
+- The content of an encrypted payload cannot be seen. The plugin does not
+  decrypt payloads.
+- "Encrypted" is recognized by convention (`binary/encrypted` is the
+  encoding of the Temporal encryption samples). A codec that uses another
+  encoding name is shown as a custom encoding.
+- If you use a payload codec, the signals, updates and workflow starts sent
+  from the page carry plain JSON, because the backend has no codec. Their
+  input stays in plain text in the history.
 
 ## Schedules
 

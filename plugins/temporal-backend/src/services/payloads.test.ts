@@ -51,6 +51,24 @@ describe('payloads', () => {
     ).toEqual({ encoding: 'binary/encrypted', size: 3, undecodable: true });
     expect(
       decodeJsonPayloads({
+        payloads: [
+          {
+            metadata: {
+              encoding: Buffer.from('binary/encrypted'),
+              'encryption-key-id': Buffer.from('key-1'),
+            },
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      }),
+    ).toEqual({
+      encoding: 'binary/encrypted',
+      size: 3,
+      undecodable: true,
+      metadata: { 'encryption-key-id': 'key-1' },
+    });
+    expect(
+      decodeJsonPayloads({
         payloads: [{ metadata: { encoding: Buffer.from('binary/null') } }],
       }),
     ).toBeNull();

@@ -1019,7 +1019,7 @@ components:
       type: object
       properties:
         result:
-          description: 'The result; absent when there is none. A result the backend cannot decode is `{ encoding, size, undecodable: true }`.'
+          description: 'The result; absent when there is none. A result the backend cannot decode is `{ encoding, size, undecodable: true }`, with `metadata` (the metadata other than `encoding`, as text) when the payload has any.'
       additionalProperties: false
     WorkflowIdReusePolicy:
       type: string

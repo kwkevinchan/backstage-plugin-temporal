@@ -169,7 +169,7 @@ describe('EntityTemporalContent', () => {
     );
     const drawer = screen.getByTestId('step-drawer');
     expect(within(drawer).getByTestId('step-input')).toHaveTextContent(
-      'binary/encrypted, 64 bytes (not decoded)',
+      'Encrypted (binary/encrypted, 64 bytes)',
     );
     expect(within(drawer).getByTestId('step-error')).toHaveTextContent(
       'Card declined',

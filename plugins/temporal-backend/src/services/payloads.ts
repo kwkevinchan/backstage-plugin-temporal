@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { JsonValue } from '@backstage/types';
+import type { JsonObject, JsonValue } from '@backstage/types';
 
 /**
  * A Temporal payload, as the client sends it: metadata and data as bytes.
@@ -49,6 +49,23 @@ function bytesOf(value: unknown): Buffer {
   return Buffer.alloc(0);
 }
 
+/**
+ * The description of a payload that cannot be decoded: its encoding and
+ * size, and its other metadata (as text) when it has any.
+ */
+export function describeUndecodable(
+  encoding: string,
+  size: number,
+  metadata: Record<string, string>,
+): JsonObject {
+  const described: JsonObject = { encoding, size, undecodable: true };
+  const extra = Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => key !== 'encoding'),
+  );
+  if (Object.keys(extra).length > 0) described.metadata = extra;
+  return described;
+}
+
 /** The value of one payload, like the default data converter. */
 function decodeJsonPayload(payload: any): JsonValue {
   const encoding = bytesOf(payload?.metadata?.encoding).toString('utf8');
@@ -62,7 +79,11 @@ function decodeJsonPayload(payload: any): JsonValue {
     }
   }
   // Binary data or a payload codec (for example encryption): describe it.
-  return { encoding, size: data.length, undecodable: true };
+  const metadata: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(payload?.metadata ?? {})) {
+    metadata[key] = bytesOf(raw).toString('utf8');
+  }
+  return describeUndecodable(encoding, data.length, metadata);
 }
 
 /**

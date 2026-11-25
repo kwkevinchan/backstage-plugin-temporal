@@ -75,13 +75,13 @@
 
 ### 搜尋與資料
 
-| Temporal 概念           | 外掛裡的對應                                                                                                                                                             | 備註                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| Search Attributes       | 兩個選用的 Keyword 屬性（名稱寫在 `temporal.searchAttributes`）記錄實體和啟動者；**Details** 列出全部屬性；`…Pending` 屬性會變成 "Waiting for …"。                       | 見下文。                                                                               |
-| Memo                    | **Details** 分頁。                                                                                                                                                       |                                                                                        |
-| Payload、Data Converter | 照預設 Data Converter 的方式解碼，以 JSON 顯示。                                                                                                                         | 需要 history 權限，因為輸入和結果可能含個人資料。                                      |
-| Codec、Codec Server     | 沒有。                                                                                                                                                                   | 加密過的 Payload 只顯示編碼和大小。                                                    |
-| External Storage        | 認得官方 S3 驅動留下的參照，顯示它的位置（`s3://bucket/key`）、SHA-256 和大小，附複製按鈕；外掛不讀 bucket。選用的 `temporal.externalStorage.objectUrl` 範本可加上連結。 | 只支援 S3 驅動。見 [Large payloads](../../README.md#large-payloads-external-storage)。 |
+| Temporal 概念           | 外掛裡的對應                                                                                                                                                             | 備註                                                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| Search Attributes       | 兩個選用的 Keyword 屬性（名稱寫在 `temporal.searchAttributes`）記錄實體和啟動者；**Details** 列出全部屬性；`…Pending` 屬性會變成 "Waiting for …"。                       | 見下文。                                                                                                        |
+| Memo                    | **Details** 分頁。                                                                                                                                                       |                                                                                                                 |
+| Payload、Data Converter | 照預設 Data Converter 的方式解碼，以 JSON 顯示。                                                                                                                         | 需要 history 權限，因為輸入和結果可能含個人資料。                                                               |
+| Codec、Codec Server     | 沒有。                                                                                                                                                                   | 解不開的 Payload 顯示種類（加密、二進位、Protobuf、壞掉的 JSON、自訂編碼）、編碼、大小和 metadata；外掛不解密。 |
+| External Storage        | 認得官方 S3 驅動留下的參照，顯示它的位置（`s3://bucket/key`）、SHA-256 和大小，附複製按鈕；外掛不讀 bucket。選用的 `temporal.externalStorage.objectUrl` 範本可加上連結。 | 只支援 S3 驅動。見 [Large payloads](../../README.md#large-payloads-external-storage)。                          |
 
 ### Worker 與佇列
 
