@@ -170,7 +170,7 @@ export const temporalPlugin = createBackendPlugin({
           logger,
         );
         const ai = new AiWorkflowQueries(queries);
-        // Workflows as a permission resource, for the list permissions.
+        // Workflows as a permission resource, for the list permission.
         // Modules can add more rules (addPermissionRules).
         permissionsRegistry.addResourceType({
           resourceRef: temporalWorkflowPermissionResourceRef,

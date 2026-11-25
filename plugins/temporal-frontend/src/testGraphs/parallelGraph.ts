@@ -708,7 +708,6 @@ export const parallelGraph: WorkflowGraphResponse = {
   completedSteps: 9,
   totalSteps: 9,
   truncated: false,
-  payloadsHidden: false,
   eventGroups: [
     {
       key: 'label:par:a',

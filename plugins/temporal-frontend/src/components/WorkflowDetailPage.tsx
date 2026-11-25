@@ -182,10 +182,7 @@ function DetailsTab(props: { workflow: WorkflowDetail }) {
           <Text as="h3" variant="title-x-small">
             Failure
           </Text>
-          <FailureView
-            failure={workflow.failure}
-            detailsHidden={workflow.failureDetailsHidden}
-          />
+          <FailureView failure={workflow.failure} />
         </div>
       )}
       {workflow.pendingActivities.length > 0 && (
@@ -422,7 +419,6 @@ function GraphCard(props: {
               {showDrawer && selected && (
                 <StepDrawer
                   step={selected}
-                  payloadsHidden={graph.payloadsHidden}
                   workflowHref={props.workflowHref}
                   onClose={() => onSelect(undefined)}
                   nodes={graph.nodes}
@@ -480,7 +476,6 @@ function TimelineTab(props: {
       {showDrawer && selected && (
         <StepDrawer
           step={selected}
-          payloadsHidden={graph.payloadsHidden}
           workflowHref={props.workflowHref}
           onClose={() => onSelect(undefined)}
           nodes={graph.nodes}
@@ -1046,7 +1041,6 @@ export function WorkflowDetailPage(
                   workflowRef={historyRef}
                   entityRef={entityRef}
                   reloadKey={historyReload}
-                  payloadsHidden={graph?.payloadsHidden}
                   onSelect={selectFromTab}
                 />
               </TabPanel>

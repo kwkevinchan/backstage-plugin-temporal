@@ -80,9 +80,7 @@ describe('temporal common', () => {
       ]),
     ).toEqual([
       ['temporal.workflow.read', 'catalog-entity'],
-      ['temporal.workflow.history.read', 'catalog-entity'],
       ['temporal.workflow.list', 'temporal-workflow'],
-      ['temporal.workflow.history.list', 'temporal-workflow'],
       ['temporal.workflow.query', 'catalog-entity'],
       ['temporal.workflow.start', 'catalog-entity'],
       ['temporal.workflow.signal', 'catalog-entity'],

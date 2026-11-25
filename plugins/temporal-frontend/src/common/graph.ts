@@ -224,12 +224,6 @@ export interface WorkflowGraphResponse {
   totalSteps: number;
   /** True when the history was longer than the backend reads. */
   truncated: boolean;
-  /**
-   * True when inputs and results were left out for lack of permission. The
-   * failures of the steps and their attempts then have only `message`,
-   * `kind` and `type`, without the stack trace and the causes.
-   */
-  payloadsHidden: boolean;
   /** The run's place among the runs of a workflow that continues as new. */
   runChain?: WorkflowRunChain;
   /**

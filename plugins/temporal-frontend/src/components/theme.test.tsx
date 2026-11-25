@@ -55,7 +55,6 @@ describe('light and dark themes', () => {
           <WorkflowGraph graph={graphResponse} onSelect={onSelect} />
           <StepDrawer
             step={step}
-            payloadsHidden={false}
             workflowHref={() => '/x'}
             onClose={() => {}}
           />

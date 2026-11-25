@@ -223,7 +223,6 @@ describe('get-workflow', () => {
     completedSteps: 1,
     totalSteps: 4,
     truncated: false,
-    payloadsHidden: false,
     current: 'Waiting for ship',
     ...over,
   });
@@ -324,25 +323,6 @@ describe('get-workflow', () => {
       message: 'Workflow failed',
       kind: 'ActivityFailure',
       causes: ['card declined'],
-    });
-  });
-
-  it('has no causes when the backend hides the failure details', async () => {
-    const { client, invoke } = setup();
-    client.describe.mockResolvedValue({
-      ...summary({ status: 'Failed' }),
-      pendingActivities: [],
-      failureDetailsHidden: true,
-      failure: { message: 'Workflow failed', kind: 'ActivityFailure' },
-    });
-    client.graph.mockResolvedValue(graph({ nodes: [] }));
-    const { output } = await invoke('get-workflow', {
-      workflowId: 'order-1',
-      runId: 'run-1',
-    });
-    expect((output as any).failure).toEqual({
-      message: 'Workflow failed',
-      kind: 'ActivityFailure',
     });
   });
 
@@ -604,7 +584,6 @@ describe('step summary', () => {
       completedSteps: 0,
       totalSteps: 3,
       truncated: false,
-      payloadsHidden: false,
     });
     const { output } = await invoke('get-workflow', {
       workflowId: 'order-1',

@@ -58,20 +58,20 @@ and
 By default, the development backend uses Backstage's allow-all permission
 policy so every Temporal permission is granted.
 
-To test the permissioned UI where workflow history permissions are denied
-(`temporal.workflow.history.read` and `temporal.workflow.history.list` return
-`DENY` for all users, while all other permissions stay allowed), set
-`TEMPORAL_E2E_POLICY=no-history`:
+To test the UI of a user who may see the catalog but no workflows
+(`temporal.workflow.read` and `temporal.workflow.list` return `DENY` for all
+users, while all other permissions stay allowed), set
+`TEMPORAL_E2E_POLICY=no-read`:
 
 ```bash
-TEMPORAL_E2E_POLICY=no-history yarn workspace backend start
+TEMPORAL_E2E_POLICY=no-read yarn workspace backend start
 ```
 
 And to run the matching Playwright end-to-end spec against the development
 app (legacy `app` by default, or `SMOKE_APP=app-next`):
 
 ```bash
-TEMPORAL_E2E_POLICY=no-history yarn test:e2e e2e-tests/no-history-policy.test.ts
+TEMPORAL_E2E_POLICY=no-read yarn test:e2e e2e-tests/no-read-policy.test.ts
 ```
 
 Any unknown non-empty value of `TEMPORAL_E2E_POLICY` causes the backend to fail

@@ -26,11 +26,7 @@ import {
   WorkflowDetail,
   WorkflowRunRef,
 } from '../common';
-import {
-  TemporalAccessService,
-  TemporalEntityContext,
-  TemporalWorkflowAccessLevel,
-} from '../node/alpha';
+import { TemporalAccessService, TemporalEntityContext } from '../node/alpha';
 import { Request } from 'express';
 import { canonicalEntityRef } from '../access/DefaultTemporalAccessService';
 import {
@@ -64,17 +60,15 @@ export interface LoadedWorkflow {
   workflow: WorkflowDetail;
 }
 
-/** The workflow of the request's path, with the access checks of `level`. */
+/** The workflow of the request's path, with the access checks. */
 export async function loadRequestWorkflow(
   deps: { httpAuth: HttpAuthService; access: TemporalAccessService },
   req: Request,
-  level: TemporalWorkflowAccessLevel,
 ): Promise<LoadedWorkflow> {
   const credentials = await deps.httpAuth.credentials(req);
   const ref = workflowRunRefFromParams(req);
   const loaded = await deps.access.loadWorkflow(ref, {
     entityRef: parseEntityRefParam(req.query.entityRef),
-    level,
     credentials,
   });
   return { credentials, ref, ...loaded };

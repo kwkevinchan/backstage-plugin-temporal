@@ -596,7 +596,6 @@ describe('WorkflowDetailPage URL query state', () => {
       completedSteps: 1,
       totalSteps: 1,
       truncated: false,
-      payloadsHidden: false,
       nodes: [
         graphResponse.nodes[0],
         graphResponse.nodes[2],

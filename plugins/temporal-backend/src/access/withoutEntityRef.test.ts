@@ -62,8 +62,6 @@ const entityConditional: PolicyDecision = {
 interface Setup {
   /** Decision of temporal.workflow.list. */
   list: PolicyDecision;
-  /** Decision of temporal.workflow.history.list; the list's by default. */
-  historyList?: PolicyDecision;
   /** Decision of the entity permission without a resource. */
   entityAny: PolicyDecision;
   /** Decision of the entity permission on an entity. */
@@ -116,9 +114,6 @@ async function start(setup: Setup) {
     authorizeConditional: jest.fn(async (requests: any[]) =>
       requests.map((r: any) => {
         if (r.permission.name === 'temporal.workflow.list') return setup.list;
-        if (r.permission.name === 'temporal.workflow.history.list') {
-          return setup.historyList ?? setup.list;
-        }
         return setup.entityAny;
       }),
     ) as any,
@@ -164,14 +159,17 @@ describe('opening a workflow without entityRef', () => {
     }
   });
 
-  it('refuses the history without its list permission and the entity permission, without reading the workflow', async () => {
-    const backend = await start({
-      list: ALLOW,
-      historyList: DENY,
-      entityAny: DENY,
+  it('serves the history and the result with the list permission alone', async () => {
+    const backend = await start({ list: ALLOW, entityAny: DENY });
+    const history = await backend.get({ exists: true, path: '/history' });
+    expect(history.status).toBe(200);
+    expect(history.body.events[0].attributes.input.payloads[0]).toEqual({
+      encoding: 'json/plain',
+      value: 42,
     });
-    const res = await backend.get({ exists: true, path: '/history' });
-    expect(res).toMatchObject({ status: 403, describes: 0 });
+    const result = await backend.get({ exists: true, path: '/result' });
+    expect(result.status).toBe(200);
+    expect(result.body.failure.message).toBe('outer');
   });
 
   const sameAsMissing: [string, Setup][] = [
@@ -208,23 +206,14 @@ describe('opening a workflow without entityRef', () => {
         linked: 'component:default/orders',
       },
     ],
-    [
-      'the condition of the list permission matches but the history list permission is denied',
-      {
-        list: inNamespaces(['default']),
-        historyList: DENY,
-        entityAny: entityConditional,
-      },
-    ],
   ];
 
   it.each(sameAsMissing)(
     'answers as for a workflow that does not exist when %s',
     async (_name, setup) => {
       const backend = await start(setup);
-      const path = setup.historyList ? '/history' : undefined;
-      const denied = await backend.get({ exists: true, path });
-      const missing = await backend.get({ exists: false, path });
+      const denied = await backend.get({ exists: true });
+      const missing = await backend.get({ exists: false });
       expect(missing.status).toBe(404);
       expect(denied.status).toBe(missing.status);
       expect(denied.body).toEqual(missing.body);

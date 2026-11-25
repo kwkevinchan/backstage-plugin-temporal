@@ -115,11 +115,11 @@ limit who can declare such matches; see
 
 The work of each request does not grow with the number of executions:
 
-| Request                   | What the backend does                                                                                                                                                                                                                                                                                               |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An entity's workflow list | Checks the read permission on the entity and reads it, checks the read permission on up to 20 `TemporalWorkflow` entities it depends on and reads the allowed ones, then sends **one** visibility query for one page                                                                                                |
-| One workflow              | Loads the entity and its related entities as above, describes the workflow (and reads its last event when it failed, timed out, was terminated or continued as new), and describes up to 3 ancestors when the workflow does not match by itself. The details also check whether the user may see inputs and results |
-| The statistics of the tab | Loads the entity and its related entities as above, then one visibility query for the latest `limit` runs (50 by default, at most 100)                                                                                                                                                                              |
+| Request                   | What the backend does                                                                                                                                                                                                                           |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An entity's workflow list | Checks the read permission on the entity and reads it, checks the read permission on up to 20 `TemporalWorkflow` entities it depends on and reads the allowed ones, then sends **one** visibility query for one page                            |
+| One workflow              | Loads the entity and its related entities as above, describes the workflow (and reads its last event when it failed, timed out, was terminated or continued as new), and describes up to 3 ancestors when the workflow does not match by itself |
+| The statistics of the tab | Loads the entity and its related entities as above, then one visibility query for the latest `limit` runs (50 by default, at most 100)                                                                                                          |
 
 Workflow enrichers registered by modules run on the returned items; their cost
 depends on the module.
@@ -158,7 +158,8 @@ applied:
 
 - **Catalog authors.** Annotations, the `TemporalWorkflow` spec and
   `spec.dependsOn` are in catalog YAML files. Anyone who can register or edit
-  an entity can point it at any workflow type in an allowed namespace. Limit
+  an entity can point it at any workflow type in an allowed namespace, and
+  then read those executions, inputs and results included. Limit
   who can register and edit entities (catalog rules, review of the catalog
   files).
 - **Anyone who can start a workflow or set its search attributes.** The

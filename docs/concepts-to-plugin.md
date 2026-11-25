@@ -93,7 +93,7 @@ names what is not available.
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Search Attributes       | Two optional keyword attributes, named in `temporal.searchAttributes`, record the entity and the initiator; **Details** lists all attributes; `…Pending` attributes become "Waiting for …".                                                       | See below.                                                                          |
 | Memo                    | **Details** tab.                                                                                                                                                                                                                                  |                                                                                     |
-| Payload, Data Converter | Decoded like the default Data Converter and shown as JSON.                                                                                                                                                                                        | Needs the history permission, because inputs and results may hold personal data.    |
+| Payload, Data Converter | Decoded like the default Data Converter and shown as JSON.                                                                                                                                                                                        | Shown to whoever may read the workflow; inputs and results may hold personal data.  |
 | Codec, Codec Server     | Not available.                                                                                                                                                                                                                                    | An encrypted payload shows only its encoding and size.                              |
 | External Storage        | References left by the official S3 driver are shown by their location (`s3://bucket/key`, the SHA-256 and the size), with copy buttons; the plugin never reads the bucket. An optional `temporal.externalStorage.objectUrl` template adds a link. | S3 driver only. See [Large payloads](../README.md#large-payloads-external-storage). |
 
@@ -184,8 +184,8 @@ ends (`packages/example-worker/src/workflows.js`).
 Every request passes the Backstage permission framework, and every operation is
 recorded with the auditor. Most permissions are resource permissions on the
 catalog entity, so a policy can reuse catalog rules ("only the owners of the
-component may terminate"); two list permissions apply to workflows themselves,
-with rules of their own. The Temporal history records who acted
+component may terminate"); the list permission applies to workflows themselves,
+with rules of its own. The Temporal history records who acted
 (`backstage:user:default/jane`). The permission table, policy examples and
 conditions are in [Permissions](../README.md#permissions) and
 [Workflow controls](../README.md#workflow-controls). With no policy, or the

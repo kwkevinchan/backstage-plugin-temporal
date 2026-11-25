@@ -487,14 +487,14 @@ panel). Two calls of one tool with the same arguments
 in parallel cannot be told apart; they are paired in the order the steps
 were scheduled.
 
-The graph and the timeline need the read permission only, and show names
-and numbers the backend reads from the payloads of a model call: the
-framework, the model, the token counts (input, output, reasoning, cached),
-the finish reason, the names and tool call IDs of the tools it asked for,
-and the type or message of an error. No setting turns this on: whoever may
-read a workflow sees it wherever the history has model calls. The
-messages, the thinking and tool arguments and results need
-`temporal.workflow.history.read`, like inputs and results
+The graph and the timeline show names and numbers the backend reads from
+the payloads of a model call: the framework, the model, the token counts
+(input, output, reasoning, cached), the finish reason, the names and tool
+call IDs of the tools it asked for, and the type of an error. No setting
+turns this on: whoever may read a workflow sees it wherever the history has
+model calls. The
+messages, the thinking and tool arguments and results come from the full
+record of the call, with the same permission
 (`GET .../llm-calls/:eventId`; `?index=` picks a later call of a step that
 made several).
 
@@ -587,8 +587,7 @@ the group the workflow was in at that time. A child workflow's step has
 the groups of the parent's event; the child's own history has only its own
 groups. Groups do not continue across continue-as-new: each run has its
 own, and the continued-as-new event counts in the group it was called in.
-The graph needs the read permission only, like the summaries of the steps:
-the groups, their names and their tokens are shown to anyone who may read
+The groups, their names and their tokens are shown to anyone who may read
 the workflow. A run has at most 1000 groups and a step 32; more are left
 out (`eventGroupsTruncated`).
 
@@ -984,42 +983,31 @@ rejected so they cannot change the visibility query.
 
 ## Permissions
 
-| Permission                       | Resource type       | Used for                                                                                                      |
-| -------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `temporal.workflow.read`         | `catalog-entity`    | Workflow list, details, step graph (with step summaries and event group labels), progress, Zigflow definition |
-| `temporal.workflow.history.read` | `catalog-entity`    | Event history, inputs and results, failure details                                                            |
-| `temporal.workflow.list`         | `temporal-workflow` | Workflows page and its schedules; details and step graph without an entity                                    |
-| `temporal.workflow.history.list` | `temporal-workflow` | Event history, inputs and results, failure details without an entity                                          |
-| `temporal.workflow.query`        | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                             |
-| `temporal.workflow.start`        | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                |
-| `temporal.workflow.signal`       | `catalog-entity`    | Send a signal                                                                                                 |
-| `temporal.workflow.update`       | `catalog-entity`    | Send an update (also used by the example custom action)                                                       |
-| `temporal.workflow.cancel`       | `catalog-entity`    | Ask a running workflow to cancel                                                                              |
-| `temporal.workflow.terminate`    | `catalog-entity`    | Terminate a running workflow, with a reason                                                                   |
-| `temporal.workflow.rerun`        | `catalog-entity`    | Start a run again with the same input                                                                         |
+| Permission                    | Resource type       | Used for                                                                                                                                 |
+| ----------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `temporal.workflow.read`      | `catalog-entity`    | Workflow list, details, step graph, progress, event history, inputs and results, failure details, model call records, Zigflow definition |
+| `temporal.workflow.list`      | `temporal-workflow` | Workflows page and its schedules; everything of `temporal.workflow.read` for a workflow opened without an entity                         |
+| `temporal.workflow.query`     | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                                                        |
+| `temporal.workflow.start`     | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                                           |
+| `temporal.workflow.signal`    | `catalog-entity`    | Send a signal                                                                                                                            |
+| `temporal.workflow.update`    | `catalog-entity`    | Send an update (also used by the example custom action)                                                                                  |
+| `temporal.workflow.cancel`    | `catalog-entity`    | Ask a running workflow to cancel                                                                                                         |
+| `temporal.workflow.terminate` | `catalog-entity`    | Terminate a running workflow, with a reason                                                                                              |
+| `temporal.workflow.rerun`     | `catalog-entity`    | Start a run again with the same input                                                                                                    |
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
 allows the Workflows page, which lists the workflows of the allowed
-namespaces, and opening the details and the step graph of any of them
-without an entity. Their event history, inputs and results also need
-`temporal.workflow.history.list`. Both are resource permissions on the
-`temporal-workflow` resource type (a workflow): a policy can allow them,
-deny them, or return a conditional decision with these rules (see
+namespaces, and opening any of them without an entity, with everything
+`temporal.workflow.read` shows. It is a resource permission on the
+`temporal-workflow` resource type (a workflow): a policy can allow it,
+deny it, or return a conditional decision with these rules (see
 [Workflow conditions](#workflow-conditions)). An unconditional
 ALLOW lets a user read every workflow. When a
 request names an entity (`entityRef`), the entity permissions are checked as
-before. Without the history permission the step graph is still shown, without
-inputs and results. Failures are shown at both levels, with different
-content:
-
-| Level                                        | What a failure shows                                                                                          |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| read (`temporal.workflow.read` or list)      | The kind, the application error type and the message of the outermost failure; the error type of a model call |
-| history (also `temporal.workflow.history.*`) | Also the stack trace, the cause chain and the other fields, and the error messages in the model call records  |
-
-The details of a run, the step graph, the progress and the lists use the read
-level; `GET .../result` and the model call records need the history level.
+before. Whoever may read a workflow sees all of it: the inputs and results,
+the event history, the whole failures (stack trace and cause chain) and the
+records of its model calls (see [Security](#security)).
 Access is open by default: with the permission
 framework disabled, or with the allow-all policy (as in the development
 backend), every signed-in user can read every entity's workflows. To restrict
@@ -1053,8 +1041,7 @@ resolve; this is covered by an integration test in the backend plugin.
 ### Workflow conditions
 
 The backend plugin registers these rules for the `temporal-workflow`
-resource type, used by `temporal.workflow.list` and
-`temporal.workflow.history.list`:
+resource type, used by `temporal.workflow.list`:
 
 | Rule                | Params          | Allows the workflows                                                  |
 | ------------------- | --------------- | --------------------------------------------------------------------- |
@@ -1282,8 +1269,8 @@ its permission.
 Inputs and results (of the workflow and of each activity) are decoded like
 the default data converter does and shown as JSON. Payloads that cannot be
 decoded (binary, or encrypted by a codec) are shown with their encoding and
-size only. Inputs and results are part of the history and need
-`temporal.workflow.history.read`.
+size only. Whoever may read a workflow sees its inputs and results (see
+[Security](#security)).
 
 ## Schedules
 
@@ -1506,13 +1493,17 @@ warning; it does not fail the lint.
   Write a permission policy before you enable the plugin for people who
   should not have that (see [Permissions](#permissions)), or set
   `temporal.control.enabled: false` to keep the plugin read-only.
-- **Inputs and results can contain personal or secret data.** They are part
-  of the history and need `temporal.workflow.history.read`; without it the
-  graph is shown without them. The summaries of the steps and the labels of
-  event groups are shown with `temporal.workflow.read` alone: do not put
-  secrets into them. Keep the list permissions
-  (`temporal.workflow.list`, `.history.list`) for people who may read every
-  workflow.
+- **Inputs and results can contain personal or secret data.** Whoever may
+  read a workflow (`temporal.workflow.read` on its entity, or
+  `temporal.workflow.list` without one) sees its contents too: the inputs
+  and results, the event history, the whole failures and the records of
+  its model calls. To limit who sees the contents, limit who may read the
+  workflow: write a policy for `temporal.workflow.read` on the entities
+  (for example with `isEntityOwner`), and keep `temporal.workflow.list` for
+  people who may read every workflow it allows. The plugin has no way today
+  to show a workflow to someone without its contents; a codec that
+  encrypts payloads in the workers keeps them unreadable for everyone in
+  Backstage.
 - **Least privilege towards Temporal.** The token only needs the read
   role on the namespaces in `connection.namespaces` (plus the write role if
   you use the operations). List only the namespaces Backstage should see.
@@ -1538,7 +1529,9 @@ warning; it does not fail the lint.
     `TemporalWorkflow` `spec` fields, and `spec.dependsOn` references are
     declared in catalog YAML files. Permissions are checked against those
     declared entities (and matched `TemporalWorkflow` entities for
-    `dependsOn`), so restrict who can register or edit catalog entities.
+    `dependsOn`), so restrict who can register or edit catalog entities:
+    someone who can register an entity that points at a task queue can read
+    every workflow on it, inputs and results included.
   - **Search attributes trust anyone who can write to Temporal.**
     `temporal.searchAttributes.entityRef` and `temporal.searchAttributes.initiator`
     are trusted by entity ownership matching and the `IS_INITIATOR` permission
@@ -1591,7 +1584,7 @@ warning; it does not fail the lint.
     Scaffolder task outputs. While the action reads Temporal as the caller who
     runs the template, once stored in task outputs, who can view them is
     decided by Scaffolder task permissions rather than
-    `temporal.workflow.history.read`. Restrict Scaffolder task visibility or
+    `temporal.workflow.read`. Restrict Scaffolder task visibility or
     avoid `includeResult: true` and sensitive search attributes in shared
     templates.
 

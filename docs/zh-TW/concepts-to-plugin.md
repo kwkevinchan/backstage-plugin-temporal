@@ -79,7 +79,7 @@
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | Search Attributes       | 兩個選用的 Keyword 屬性（名稱寫在 `temporal.searchAttributes`）記錄實體和啟動者；**Details** 列出全部屬性；`…Pending` 屬性會變成 "Waiting for …"。                       | 見下文。                                                                               |
 | Memo                    | **Details** 分頁。                                                                                                                                                       |                                                                                        |
-| Payload、Data Converter | 照預設 Data Converter 的方式解碼，以 JSON 顯示。                                                                                                                         | 需要 history 權限，因為輸入和結果可能含個人資料。                                      |
+| Payload、Data Converter | 照預設 Data Converter 的方式解碼，以 JSON 顯示。                                                                                                                         | 看得到流程的人都看得到；輸入和結果可能含個人資料。                                     |
 | Codec、Codec Server     | 沒有。                                                                                                                                                                   | 加密過的 Payload 只顯示編碼和大小。                                                    |
 | External Storage        | 認得官方 S3 驅動留下的參照，顯示它的位置（`s3://bucket/key`）、SHA-256 和大小，附複製按鈕；外掛不讀 bucket。選用的 `temporal.externalStorage.objectUrl` 範本可加上連結。 | 只支援 S3 驅動。見 [Large payloads](../../README.md#large-payloads-external-storage)。 |
 
@@ -138,7 +138,7 @@ export async function releaseWorkflow(input: ReleaseInput) {
 
 ### 權限與稽核
 
-每個請求都經過 Backstage 權限框架，每個操作都記進 auditor。大部分權限是掛在 catalog 實體上的資源權限，所以政策可以重用 catalog 的規則（「只有元件的 owner 能 Terminate」）；另外兩個 list 權限是針對流程本身，有自己的規則。Temporal 的事件紀錄會記下是誰操作的（`backstage:user:default/jane`）。權限表、政策範例和條件都在 [Permissions](../../README.md#permissions) 和 [Workflow controls](../../README.md#workflow-controls)。沒有政策、或用 allow-all 政策時，登入的人什麼都能看、什麼都能做；要給不該有這些權限的人使用前，請先寫政策。檢查怎麼分層，見[運作方式](how-it-works.md)。
+每個請求都經過 Backstage 權限框架，每個操作都記進 auditor。大部分權限是掛在 catalog 實體上的資源權限，所以政策可以重用 catalog 的規則（「只有元件的 owner 能 Terminate」）；另外 list 權限是針對流程本身，有自己的規則。Temporal 的事件紀錄會記下是誰操作的（`backstage:user:default/jane`）。權限表、政策範例和條件都在 [Permissions](../../README.md#permissions) 和 [Workflow controls](../../README.md#workflow-controls)。沒有政策、或用 allow-all 政策時，登入的人什麼都能看、什麼都能做；要給不該有這些權限的人使用前，請先寫政策。檢查怎麼分層，見[運作方式](how-it-works.md)。
 
 ### 操作、Schedule 與範本
 

@@ -215,7 +215,8 @@ const agentEvents = () => [
 ];
 
 async function start(options: {
-  history: boolean;
+  /** Denies `temporal.workflow.read`; every other permission is allowed. */
+  denyRead?: boolean;
   events?: () => unknown[];
   historyPage?: (req: any) => { events: unknown[]; nextPageToken?: Uint8Array };
   features?: any[];
@@ -249,8 +250,7 @@ async function start(options: {
     authorize: jest.fn(async requests =>
       requests.map((r: any) => ({
         result:
-          !options.history &&
-          r.permission.name.startsWith('temporal.workflow.history')
+          options.denyRead && r.permission.name === 'temporal.workflow.read'
             ? AuthorizeResult.DENY
             : AuthorizeResult.ALLOW,
       })),
@@ -282,7 +282,7 @@ const decoded = (payload: any) =>
 
 describe('LLM routes', () => {
   it('shows model calls of the official adapters', async () => {
-    const { server } = await start({ history: true });
+    const { server } = await start({});
     const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
     const small = graph.body.nodes.find(
@@ -301,15 +301,14 @@ describe('LLM routes', () => {
   });
 
   it('reads the model calls of a module adapter, several in one step', async () => {
-    const reader = await start({
-      history: false,
+    const { server } = await start({
       events: agentEvents,
       features: [adapterModule(wholeAgent)],
     });
-    const graph = await request(reader.server).get(path('/graph'));
+    const graph = await request(server).get(path('/graph'));
     expect(graph.status).toBe(200);
     const node = graph.body.nodes.find((n: any) => n.id === 'activity-2');
-    // Names and numbers only without the history permission.
+    // Names and numbers only in the graph.
     expect(node.llm).toEqual({
       call: 'plan',
       framework: 'whole-agent',
@@ -319,16 +318,6 @@ describe('LLM routes', () => {
       usage: { inputTokens: 30 },
       toolCalls: [],
       reasoning: false,
-    });
-    expect(node.result).toBeUndefined();
-    expect(
-      (await request(reader.server).get(path('/llm-calls/2'))).status,
-    ).toBe(403);
-
-    const { server } = await start({
-      history: true,
-      events: agentEvents,
-      features: [adapterModule(wholeAgent)],
     });
     const first = await request(server).get(path('/llm-calls/2'));
     expect(first.status).toBe(200);
@@ -358,14 +347,13 @@ describe('LLM routes', () => {
   it('fails to start when a module takes the ID of an adapter', async () => {
     await expect(
       start({
-        history: true,
         features: [adapterModule({ ...wholeAgent, id: 'vercel-ai-sdk' })],
       }),
     ).rejects.toThrow('Duplicate LLM adapter id: vercel-ai-sdk');
   });
 
   it('says where a record stored in External Storage is, without reading it', async () => {
-    const { server } = await start({ history: true });
+    const { server } = await start({});
     const res = await request(server).get(path('/llm-calls/2'));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -386,7 +374,7 @@ describe('LLM routes', () => {
   });
 
   it('explains records it cannot read', async () => {
-    const { server } = await start({ history: true });
+    const { server } = await start({});
     const sealed = await request(server).get(path('/llm-calls/8'));
     expect(sealed.status).toBe(200);
     expect(sealed.body.record).toBeUndefined();
@@ -406,7 +394,6 @@ describe('LLM routes', () => {
         workflowTaskCompletedEventAttributes: {},
       }));
     const { server } = await start({
-      history: true,
       historyPage: req => {
         const page =
           req.nextPageToken && req.nextPageToken.length > 0
@@ -445,57 +432,25 @@ describe('LLM routes', () => {
     expect(ok.body.record.requestModel).toBe('gpt-small');
   });
 
-  it('needs the history permission for the record', async () => {
-    const { server } = await start({ history: false });
+  it('needs the read permission for the record', async () => {
+    const { server } = await start({ denyRead: true });
     expect((await request(server).get(path('/llm-calls/2'))).status).toBe(403);
   });
 
-  it('shows summaries without the history permission', async () => {
-    const { server } = await start({ history: false });
+  it('shows summaries in the graph', async () => {
+    const { server } = await start({});
     const res = await request(server).get(path('/graph'));
     expect(res.status).toBe(200);
-    expect(res.body.payloadsHidden).toBe(true);
     const byId = (id: string) => res.body.nodes.find((n: any) => n.id === id);
     expect(byId('activity-4').llm).toMatchObject({
       record: 'available',
       model: 'gpt-small',
       usage: { inputTokens: 10 },
     });
-    expect(byId('activity-4').result).toBeUndefined();
     // Stored in External Storage: there is nothing to read.
     expect(byId('activity-2').llm.record).toBe('unreadable');
     expect(byId('activity-8').llm.record).toBe('unreadable');
     expect(byId('activity-6').llm).toBeUndefined();
-  });
-
-  it('shows names and numbers of official model calls to readers without the history permission', async () => {
-    for (const [name, check] of [
-      ['vercel-ai-sdk-agent', 'activity-11'],
-      ['openai-agents-agent', 'activity-5'],
-    ]) {
-      const { server } = await start({
-        history: false,
-        events: () => integrationEvents(name),
-      });
-      const res = await request(server).get(path('/graph'));
-      expect(res.status).toBe(200);
-      const node = res.body.nodes.find((n: any) => n.id === check);
-      expect(node.llm).toMatchObject({ record: 'available' });
-      expect(node.llm.usage.inputTokens).toBeGreaterThan(0);
-      expect(node.llm.toolCalls[0].name).toBeTruthy();
-      // No prompt, system instructions, tool arguments or tool results.
-      const body = JSON.stringify(res.body);
-      for (const text of [
-        'Event Groups 是什麼',
-        '你是平台工程助理',
-        'event groups round 1',
-        'docs/event-groups-round-1.md',
-        'Event Groups 是實驗性功能',
-        '查到了',
-      ]) {
-        expect(body).not.toContain(text);
-      }
-    }
   });
 
   it('shows a model call whose input is in External Storage without its model name', async () => {
@@ -511,7 +466,6 @@ describe('LLM routes', () => {
     scheduled.input = { payloads: [payload] };
 
     const { server } = await start({
-      history: true,
       events: () => structuredClone(history),
     });
     const graph = await request(server).get(path('/graph'));

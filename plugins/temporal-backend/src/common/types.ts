@@ -149,12 +149,6 @@ export interface WorkflowDetail extends WorkflowSummary {
   memo?: JsonObject;
   /** Failure of a closed execution (failed, timed out, terminated). */
   failure?: WorkflowFailure;
-  /**
-   * True when the caller cannot read the event history: `failure` and the
-   * `lastFailure` of the pending activities have only `message`, `kind` and
-   * `type`, without the stack trace and the causes.
-   */
-  failureDetailsHidden?: boolean;
   /** The run this one continued as, for a run that continued as new. */
   continuedAsNewRunId?: string;
   /**
@@ -230,9 +224,10 @@ export interface WorkflowStatsResponse {
 
 /**
  * One history event. `attributes` holds the event attributes as JSON, with
- * payloads shown as `{ encoding, value }` (decoded JSON) or
- * `{ encoding, data }` (base64 of data that is not plain JSON, for example
- * encrypted payloads).
+ * payloads shown as {@link DecodedPayload}: `{ encoding, value }` (decoded
+ * JSON), `{ encoding, size, undecodable: true, metadata? }` (data that is
+ * not plain JSON, for example encrypted payloads; the data itself is not
+ * sent) or `{ encoding, external }` (a reference to External Storage).
  *
  * @public
  */

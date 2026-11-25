@@ -309,15 +309,11 @@ export class WorkflowQueries {
 
   /**
    * Steps and arrows of one run, from its history and the pending
-   * activities of `workflow`. Without `includePayloads`, inputs and results
-   * are left out.
+   * activities of `workflow`.
    */
   async graph(
     workflow: WorkflowDetail,
-    options: {
-      includePayloads: boolean;
-      maxEvents?: number;
-    },
+    options: { maxEvents?: number } = {},
   ): Promise<WorkflowGraphResponse> {
     const ref = {
       namespace: workflow.namespace,
@@ -343,7 +339,6 @@ export class WorkflowQueries {
       truncated,
       pendingActivities: workflow.pendingActivities,
       searchAttributes: workflow.searchAttributes,
-      includePayloads: options.includePayloads,
       failure: workflow.failure,
       closeEvent,
       llmAdapters: this.llmAdapters,

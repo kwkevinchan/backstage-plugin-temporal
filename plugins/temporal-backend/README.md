@@ -85,11 +85,11 @@ in the repository README for examples.
 | GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                    | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId`                                       | `temporal.workflow.read` or list              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId`                           | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.history.read`              |
-| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/result`                    | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.read`                      |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/result`                    | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/graph`                     | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/progress`                  | `temporal.workflow.read`                      |
-| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/llm-calls/:eventId` (exp.) | `temporal.workflow.history.read`              |
+| GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/llm-calls/:eventId` (exp.) | `temporal.workflow.read`                      |
 | GET    | `.../workflows/:workflowId/runs/:runId/message-definitions`                          | `temporal.workflow.read`                      |
 | POST   | `.../workflows/:workflowId/runs/:runId/query`                                        | `temporal.workflow.query` + read              |
 
@@ -132,9 +132,9 @@ so a workflow that keeps continuing as new is listed once); `namespace`,
 `entityRef` on every route under `.../workflows/:workflowId/runs/:runId`
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it
-(404 otherwise). Without it, `temporal.workflow.list` (with
-`temporal.workflow.history.list` for history, result and model calls) allows the workflows it covers; when it does not, the entity
-comes from the `searchAttributes.entityRef` search attribute.
+(404 otherwise). Without it, `temporal.workflow.list` allows the workflows
+it covers; when it does not, the entity comes from the
+`searchAttributes.entityRef` search attribute.
 
 The routes that change one workflow (signal, update, cancel, terminate,
 rerun, custom actions) and query first load the workflow with the read

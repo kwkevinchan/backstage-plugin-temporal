@@ -32,7 +32,6 @@ const options = {
   workflowId: 'wf',
   status: 'Completed' as const,
   truncated: false,
-  includePayloads: false,
 };
 
 function read(name: string, adapters?: LlmAdapters) {

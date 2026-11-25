@@ -128,8 +128,7 @@ export interface TemporalApi {
 
   /**
    * Gets the steps of a run grouped from its history, with the arrows
-   * between them. Inputs and results are left out when the caller may not
-   * read the history (`payloadsHidden`).
+   * between them, their inputs and their results.
    */
   getWorkflowGraph(
     ref: WorkflowRunRef,
@@ -139,7 +138,7 @@ export interface TemporalApi {
   /**
    * Gets the full record of one model call (a step with `llm`): messages,
    * reasoning, output, tool calls and tokens. `nodeId` is the ID of the
-   * step in the graph. Needs the permission to read the history.
+   * step in the graph.
    *
    * Experimental: the shape changes before the first stable release.
    *

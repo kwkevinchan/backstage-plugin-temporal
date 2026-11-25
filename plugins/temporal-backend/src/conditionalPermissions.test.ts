@@ -251,7 +251,7 @@ describe('conditional catalog-entity decisions for temporal permissions (R7)', (
       .set('Authorization', mockCredentials.user.header('user:default/bob'));
     expect(other.status).toBe(403);
 
-    // The same holds for the history permission on a single workflow.
+    // The same holds for the history of a single workflow.
     const history =
       '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run/history?entityRef=component:default/orders';
     await request(api)
@@ -441,7 +441,7 @@ describe('conditional catalog-entity decisions across dependsOn entities', () =>
     },
   });
 
-  it('requires history and terminate permissions on both the opened entity and matched TemporalWorkflow entity', async () => {
+  it('requires the terminate permission on both the opened entity and matched TemporalWorkflow entity', async () => {
     const knex = await databases.init('SQLITE_3');
     const base = createFakeWorkflowService();
     const workflowService = {
@@ -523,14 +523,13 @@ describe('conditional catalog-entity decisions across dependsOn entities', () =>
       .set('Authorization', mockCredentials.user.header('user:default/alice'));
     expect(aliceDetail.status).toBe(200);
     expect(aliceDetail.body.workflowEntityRef).toBe(orderWfRef);
-    expect(aliceDetail.body.failureDetailsHidden).toBe(true);
-    expect(aliceDetail.body.failure.cause).toBeUndefined();
+    // The read permission covers the failure details.
+    expect(aliceDetail.body.failure.cause).toBeDefined();
 
     const aliceGraph = await request(api)
       .get(`${failedRun}/graph?entityRef=${checkoutRef}`)
       .set('Authorization', mockCredentials.user.header('user:default/alice'));
     expect(aliceGraph.status).toBe(200);
-    expect(aliceGraph.body.payloadsHidden).toBe(true);
 
     const aliceTerminate = await request(api)
       .post(`${runningRun}/terminate?entityRef=${checkoutRef}`)
@@ -544,7 +543,6 @@ describe('conditional catalog-entity decisions across dependsOn entities', () =>
       .get(`${failedRun}/graph?entityRef=${checkoutRef}`)
       .set('Authorization', mockCredentials.user.header('user:default/bob'));
     expect(bobViaCheckoutGraph.status).toBe(200);
-    expect(bobViaCheckoutGraph.body.payloadsHidden).toBe(true);
 
     const bobViaCheckoutTerminate = await request(api)
       .post(`${runningRun}/terminate?entityRef=${checkoutRef}`)
@@ -557,7 +555,6 @@ describe('conditional catalog-entity decisions across dependsOn entities', () =>
       .get(`${failedRun}/graph?entityRef=${orderWfRef}`)
       .set('Authorization', mockCredentials.user.header('user:default/bob'));
     expect(bobDirectGraph.status).toBe(200);
-    expect(bobDirectGraph.body.payloadsHidden).toBe(false);
 
     const bobDirectTerminate = await request(api)
       .post(`${runningRun}/terminate?entityRef=${orderWfRef}`)

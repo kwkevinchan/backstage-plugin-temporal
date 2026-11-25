@@ -90,8 +90,7 @@ export type WorkflowLlmRecordState =
 
 /**
  * What the graph shows of a model call. Names and numbers only: messages,
- * reasoning, arguments and results need the permission to read the
- * history, through the full record route.
+ * reasoning, arguments and results come from the full record route.
  *
  * Experimental: the shape changes before the first stable release.
  *

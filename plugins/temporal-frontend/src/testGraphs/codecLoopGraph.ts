@@ -883,7 +883,6 @@ export const codecLoopGraph: WorkflowGraphResponse = {
   completedSteps: 11,
   totalSteps: 11,
   truncated: false,
-  payloadsHidden: false,
   eventGroups: [
     {
       key: 'label:loop:draft-review',

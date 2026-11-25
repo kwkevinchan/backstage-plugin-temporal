@@ -97,7 +97,7 @@ const workflowInput = {
       .string()
       .optional()
       .describe(
-        'Entity the workflow belongs to, whose permissions are checked; else the entity in its search attribute, or the list permissions',
+        'Entity the workflow belongs to, whose permissions are checked; else the entity in its search attribute, or the list permission',
       ),
 };
 
@@ -316,9 +316,7 @@ export function createTemporalWorkflowWaitAction(
           z
             .boolean()
             .optional()
-            .describe(
-              'Output the workflow result; needs the history permission. False by default',
-            ),
+            .describe('Output the workflow result. False by default'),
       },
       output: {
         status: z => z.string(),

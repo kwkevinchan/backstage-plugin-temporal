@@ -159,7 +159,6 @@ export const graphResponse: WorkflowGraphResponse = {
   completedSteps: 1,
   totalSteps: 2,
   truncated: false,
-  payloadsHidden: false,
   nodes: [
     {
       id: 'start',
@@ -360,7 +359,6 @@ export const llmGraphResponse: WorkflowGraphResponse = {
   completedSteps: 3,
   totalSteps: 3,
   truncated: false,
-  payloadsHidden: false,
   nodes: [
     {
       id: 'start',

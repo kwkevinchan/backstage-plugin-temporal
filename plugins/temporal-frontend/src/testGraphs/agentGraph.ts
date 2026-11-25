@@ -1877,7 +1877,6 @@ export const agentGraph: WorkflowGraphResponse = {
   completedSteps: 12,
   totalSteps: 12,
   truncated: false,
-  payloadsHidden: false,
   eventGroups: [
     {
       key: 'label:loop:agent',

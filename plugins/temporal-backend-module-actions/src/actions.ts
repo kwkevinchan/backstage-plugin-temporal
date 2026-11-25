@@ -414,7 +414,7 @@ export function registerTemporalActions(
                 .array(z.string())
                 .optional()
                 .describe(
-                  'Messages of the underlying failures, outermost first; left out when the user may not read the history',
+                  'Messages of the underlying failures, outermost first',
                 ),
             })
             .optional()

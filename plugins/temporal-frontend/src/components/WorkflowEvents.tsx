@@ -100,17 +100,15 @@ export function WorkflowEvents(props: {
   entityRef?: string;
   /** Changing it loads the raw events again, from the first page. */
   reloadKey?: number;
-  payloadsHidden?: boolean;
   onSelect(id: string): void;
 }) {
   const [view, setView] = useState<'grouped' | 'raw'>('grouped');
   const [showInternal, setShowInternal] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
-  const activeView = props.payloadsHidden ? 'grouped' : view;
   const hasMarkers = props.steps?.some(isMarkerStep) ?? false;
 
   const eventsContent = () => {
-    if (activeView === 'raw') {
+    if (view === 'raw') {
       return (
         <WorkflowHistory
           key={props.reloadKey}
@@ -142,7 +140,7 @@ export function WorkflowEvents(props: {
           aria-label="Event view"
           selectionMode="single"
           disallowEmptySelection
-          selectedKeys={[activeView]}
+          selectedKeys={[view]}
           onSelectionChange={keys => {
             const [key] = [...keys];
             if (key === 'grouped' || key === 'raw') setView(key);
@@ -151,22 +149,18 @@ export function WorkflowEvents(props: {
           <ToggleButton id="grouped" size="small">
             Grouped
           </ToggleButton>
-          <ToggleButton
-            id="raw"
-            size="small"
-            isDisabled={Boolean(props.payloadsHidden)}
-          >
+          <ToggleButton id="raw" size="small">
             Raw
           </ToggleButton>
         </ToggleButtonGroup>
-        {activeView === 'grouped' && props.steps && (
+        {view === 'grouped' && props.steps && (
           <Switch
             label="Show workflow tasks"
             isSelected={showInternal}
             onChange={setShowInternal}
           />
         )}
-        {activeView === 'grouped' && props.steps && hasMarkers && (
+        {view === 'grouped' && props.steps && hasMarkers && (
           <Switch
             label="Show markers"
             isSelected={showMarkers}
