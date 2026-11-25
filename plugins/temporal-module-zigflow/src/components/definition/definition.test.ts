@@ -30,6 +30,11 @@ import {
   START_ID,
   taskSubtitle,
 } from './dslGraph';
+import {
+  flowNodeBase,
+  layoutSteps,
+} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+import { definitionLayoutBaseline } from './definitionLayoutBaseline';
 import { pointerOfNode, taskAtLine } from './lines';
 import { overlayRun, taskIdentities, zigflowActivityType } from './overlay';
 
@@ -508,5 +513,38 @@ describe('run overlay', () => {
     expect(empty.noMatch).toBe(false);
     expect(empty.unmatched).toBe(0);
     expect(empty.marks.get('/do/0/first')?.status).toBe('NotReached');
+  });
+});
+
+describe('definition layout baseline', () => {
+  it('lays out every-task.yaml as recorded in definitionLayoutBaseline', () => {
+    const doc = parse(
+      readFileSync(
+        join(
+          __dirname,
+          '../../../../../test-fixtures/definitions/every-task.yaml',
+        ),
+        'utf8',
+      ),
+    );
+    const graph = buildDefinitionGraph(doc);
+    for (const width of [undefined, 900]) {
+      const layout = layoutSteps(graph.nodes, graph.edges, width, {
+        direction: 'TB',
+      });
+      expect({
+        width: layout.width,
+        height: layout.height,
+        wrapped: layout.wrapped,
+        nodes: graph.nodes.map(node => {
+          const base = flowNodeBase(layout, node.id);
+          return {
+            id: base.id,
+            position: base.position,
+            size: { width: base.width, height: base.height },
+          };
+        }),
+      }).toEqual(definitionLayoutBaseline);
+    }
   });
 });

@@ -61,6 +61,15 @@ const KNOWN_PROBLEMS = {
   'one or two signals': 0,
   'one to three signals, some leading nowhere': 0,
 };
+/**
+ * At most this many arrows already running through boxes before row alignment
+ * (`lineUpRows = false`) in the random runs and graphs below, as measured. A
+ * bound against regressions in dagre or edge routing, not a demand for none.
+ */
+const KNOWN_PREEXISTING_THROUGH_BOXES = {
+  runs: 47,
+  graphs: 222,
+};
 /** Space between two columns of steps. */
 const COLUMN = 56;
 
@@ -1338,11 +1347,16 @@ describe('random runs', () => {
     'run no more arrows through boxes because of lined up rows, nor spread turns too close, than known in random %s',
     (name, random) => {
       const found: string[] = [];
+      const preexisting: string[] = [];
       for (let seed = FIRST_SEED; seed < FIRST_SEED + SEEDS; seed++) {
         const run = random(seed);
         for (const width of [undefined, 1100]) {
           const result = layOutRun(run, width);
-          const before = new Set(throughBoxes(layOutRun(run, width, false)));
+          const beforeHits = throughBoxes(layOutRun(run, width, false));
+          for (const hit of beforeHits) {
+            preexisting.push(`${seed} at ${width}: ${hit}`);
+          }
+          const before = new Set(beforeHits);
           for (const hit of throughBoxes(result)) {
             if (!before.has(hit)) found.push(`${seed} at ${width}: ${hit}`);
           }
@@ -1352,6 +1366,9 @@ describe('random runs', () => {
         }
       }
       expect(found.length).toBeLessThanOrEqual(KNOWN_PROBLEMS[name]);
+      expect(preexisting.length).toBeLessThanOrEqual(
+        KNOWN_PREEXISTING_THROUGH_BOXES[name],
+      );
     },
     60_000,
   );
