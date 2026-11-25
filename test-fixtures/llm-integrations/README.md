@@ -27,3 +27,53 @@ the time and duration fields and leaves payloads alone.
 | `openai-agents-streaming.json`      | same, `@temporalio/workflow-streams` 1.24.0                                                   | `run(..., { stream: true })`: one `invokeModelStreamActivity` call that returns its stream events; the token details are records (`{"cached_tokens":10}`).                                                                                                | 1: 70/6; cache read 10                                                                     |
 | `openai-agents-summary.json`        | same                                                                                          | Two runs, with the summaries `plan call` and `model call for DocsAgent (object)` (a `ModelSummaryProvider`).                                                                                                                                              | 4: 111/25, 261/40, 112/25, 262/40                                                          |
 | `codec-vercel-ai-sdk-agent.json`    | `@temporalio/vercel-ai-sdk` 1.0.0, TypeScript SDK 1.25.0, the encryption codec of the samples | One round of the agent above, every payload encrypted with the test key of `temporalio/samples-typescript` (`encryption`).                                                                                                                                | 3, unreadable without the codec                                                            |
+
+## Re-recording
+
+The standalone offline workers, fake models, fake MCP servers, and CLI runners
+live under [`scripts/record-fixtures/`](../../scripts/record-fixtures/README.md)
+so no external API keys or network calls are required and root workspace
+dependencies remain untouched.
+
+1. Start a local Temporal dev server (`1.32.1` or newer):
+
+   ```bash
+   temporal server start-dev --headless --port 7233
+   ```
+
+2. Install the pinned SDK packages for the integration you want to record:
+
+   ```bash
+   npm install --prefix scripts/record-fixtures/sdk-1.24 --no-package-lock
+   npm install --prefix scripts/record-fixtures/sdk-1.25 --no-package-lock
+   ```
+
+3. Run the integration runner (writes sanitized JSON to
+   `/tmp/recorded-fixtures/llm-integrations/` by default; accepts `--only`,
+   `--out-dir`, and `--address` / `TEMPORAL_ADDRESS`):
+
+   ```bash
+   node scripts/record-fixtures/sdk-1.24/openai-agents/record.mjs
+   node scripts/record-fixtures/sdk-1.24/vercel-ai-sdk/record.mjs
+   node scripts/record-fixtures/sdk-1.25/vercel-ai-sdk/record.mjs
+   ```
+
+4. When exporting a run manually with `temporal workflow show --output json`,
+   pipe it through [`sanitize.mjs`](../../scripts/record-fixtures/sanitize.mjs)
+   to normalize `identity` fields (`client` / `worker@host`), truncate failure
+   `stackTrace` strings to their first line, and rename workflow types or task
+   queues while leaving encoded payload subtrees untouched:
+
+   ```bash
+   temporal workflow show --workflow-id <id> --run-id <runId> --output json | \
+     node scripts/record-fixtures/sanitize.mjs \
+       --workflow-type <name> \
+       --task-queue <queue> \
+       --out /tmp/recorded-fixtures/llm-integrations/<name>.json
+   ```
+
+5. Compare event counts, event groups, model call counts, and token details
+   against the committed fixture and backend/frontend tests, run
+   `node scripts/check-boundaries.mjs --file <recorded-files>` before updating
+   any committed file in `test-fixtures/llm-integrations/`, and clean up
+   temporary `scripts/record-fixtures/sdk-*/node_modules` directories afterward.

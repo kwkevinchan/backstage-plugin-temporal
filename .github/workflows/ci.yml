@@ -28,6 +28,11 @@ jobs:
       - name: Boundary scanner self test
         run: node scripts/check-boundaries.test.mjs
 
+      - name: Fixture recorder self tests
+        run: |
+          node scripts/record-fixtures/sanitize.test.mjs
+          node scripts/record-fixtures/common/encryption-codec.test.mjs
+
       # The frontend copies of the shared definitions must match the backend
       # originals (see scripts/sync-common.mjs).
       - name: Shared definitions copies
@@ -129,16 +134,34 @@ jobs:
         run: yarn backstage-cli repo lint
 
       - name: Test
+        id: test
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ] && \
             ! git diff --name-only --no-renames "origin/$BASE_REF...HEAD" | grep -Eq '^(test-fixtures/|\.github/workflows/|package\.json$|tsconfig\.json$|yarn\.lock$)'; then
-            yarn backstage-cli repo test --since "origin/$BASE_REF"
+            echo "scope=partial" >> "$GITHUB_OUTPUT"
+            yarn backstage-cli repo test --since "origin/$BASE_REF" --coverage
+            if [ -d coverage ]; then
+              printf 'Partial coverage run (--since origin/%s).\n' "$BASE_REF" > coverage/SCOPE.txt
+            fi
           else
-            yarn backstage-cli repo test
+            echo "scope=full" >> "$GITHUB_OUTPUT"
+            yarn backstage-cli repo test --coverage
+            if [ -d coverage ]; then
+              printf 'Full repository coverage run.\n' > coverage/SCOPE.txt
+            fi
           fi
+
+      - name: Upload coverage report
+        if: always() && steps.test.outputs.scope != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.backstage }}-${{ steps.test.outputs.scope }}
+          path: coverage/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Build
         run: yarn backstage-cli repo build --all
