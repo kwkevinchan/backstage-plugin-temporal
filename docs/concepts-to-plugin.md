@@ -131,6 +131,8 @@ entity is not followed, and a TemporalWorkflow entity's own tab lists only that
 type. The reasons for using
 `dependsOn` are in the [README](../README.md#workflow-entities). The default export of the backend plugin brings the kind
 (`catalogModuleTemporalWorkflowKind`).
+Why executions are not catalog entities, and how a workflow is matched to an
+entity, is in [How workflows map to the catalog](catalog-model.md).
 
 ### Annotations
 

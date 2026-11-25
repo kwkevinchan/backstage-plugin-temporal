@@ -452,7 +452,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 | `messages`     |      | `signals`、`updates`、`queries`：`name`、`description`、`inputSchema`、`example`、`userField` |
 | `definition`   |      | `format`（`serverless-workflow` 或 `source`）、`target`、`symbol`（Definition 分頁）          |
 
-其他實體用標準的 `spec.dependsOn` 連到流程實體（`temporalworkflow:default/order-workflow`）。這些對應關係（標註、`spec` 與 `spec.dependsOn`）由 catalog 實體的作者宣告，管理員應透過限制 catalog 的新增與編輯權限來控管邊界。細節和範例見 [README](../../README.md#workflow-entities)。
+其他實體用標準的 `spec.dependsOn` 連到流程實體（`temporalworkflow:default/order-workflow`）。這些對應關係（標註、`spec` 與 `spec.dependsOn`）由 catalog 實體的作者宣告，管理員應透過限制 catalog 的新增與編輯權限來控管邊界。細節和範例見 [README](../../README.md#workflow-entities)；設計的理由見[流程和 catalog 的對應](catalog-model.md)。
 
 ## 外掛寫出的資料
 
