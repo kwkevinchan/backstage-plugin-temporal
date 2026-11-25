@@ -751,7 +751,8 @@ Other entities link to a workflow entity with the standard `spec.dependsOn`
 (`temporalworkflow:default/order-workflow`). These mappings (annotations, `spec`,
 and `spec.dependsOn`) are declared by catalog entity authors; restrict catalog
 write/registration access to control who defines them. The
-[README](../README.md#workflow-entities) has the details and examples.
+[README](../README.md#workflow-entities) has the details and examples;
+[How workflows map to the catalog](catalog-model.md) explains the design.
 
 ## What the plugin writes
 
