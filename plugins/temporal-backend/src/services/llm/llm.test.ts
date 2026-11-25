@@ -117,7 +117,6 @@ const options = {
   workflowId: 'agent-1',
   status: 'Completed' as const,
   truncated: false,
-  includePayloads: false,
 };
 
 describe('LLM steps in the graph', () => {

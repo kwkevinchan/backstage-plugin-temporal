@@ -45,8 +45,6 @@ import {
   isTemporalWorkflowEntity,
   parseTemporalWorkflowSpec,
   RelatedWorkflows,
-  temporalWorkflowHistoryListPermission,
-  temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
   temporalWorkflowReadPermission,
   TEMPORAL_WORKFLOW_KIND,
@@ -57,7 +55,6 @@ import {
   TemporalAccessibleWorkflow,
   TemporalAccessService,
   TemporalEntityContext,
-  TemporalWorkflowAccessLevel,
   TemporalWorkflowFilter,
 } from '../node/alpha';
 import {
@@ -150,31 +147,13 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   ) {}
 
   private async listDecision(
-    permission:
-      | typeof temporalWorkflowListPermission
-      | typeof temporalWorkflowHistoryListPermission,
     credentials: BackstageCredentials,
   ): Promise<PolicyDecision> {
     const [decision] = await this.permissions.authorizeConditional(
-      [{ permission }],
+      [{ permission: temporalWorkflowListPermission }],
       { credentials },
     );
     return decision;
-  }
-
-  /** True when a `temporal-workflow` permission allows this workflow. */
-  private async allowsWorkflow(
-    permission:
-      | typeof temporalWorkflowListPermission
-      | typeof temporalWorkflowHistoryListPermission,
-    workflow: WorkflowSummary,
-    credentials: BackstageCredentials,
-  ): Promise<boolean> {
-    return this.decisionAllows(
-      await this.listDecision(permission, credentials),
-      workflow,
-      permission.name,
-    );
   }
 
   /** True when a decision of a `temporal-workflow` permission allows it. */
@@ -218,10 +197,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   }
 
   async canListAll(credentials: BackstageCredentials): Promise<boolean> {
-    const decision = await this.listDecision(
-      temporalWorkflowListPermission,
-      credentials,
-    );
+    const decision = await this.listDecision(credentials);
     return decision.result === AuthorizeResult.ALLOW;
   }
 
@@ -229,10 +205,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     namespace: string,
     credentials: BackstageCredentials,
   ): Promise<string | undefined> {
-    const decision = await this.listDecision(
-      temporalWorkflowListPermission,
-      credentials,
-    );
+    const decision = await this.listDecision(credentials);
     if (decision.result === AuthorizeResult.DENY) throw new NotAllowedError();
     // After the permission, so a denied caller cannot probe which
     // namespaces are allowed.
@@ -269,37 +242,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       );
     }
     return visibilityQuery === true ? undefined : visibilityQuery;
-  }
-
-  /**
-   * True when the caller may see the inputs and results of a workflow: the
-   * history permission on its entity (and on the related `TemporalWorkflow`
-   * entity it matched through, when different), or the history list
-   * permission for a workflow opened without one.
-   */
-  async canReadPayloads(
-    access: TemporalAccessibleWorkflow,
-    credentials: BackstageCredentials,
-  ): Promise<boolean> {
-    if (!access.context) {
-      return this.allowsWorkflow(
-        temporalWorkflowHistoryListPermission,
-        access.workflow,
-        credentials,
-      );
-    }
-    const refs = entityRefsToCheck(
-      access.context.entityRef,
-      access.matchedEntityRef,
-    );
-    const decisions = await this.permissions.authorize(
-      refs.map(resourceRef => ({
-        permission: temporalWorkflowHistoryReadPermission,
-        resourceRef,
-      })),
-      { credentials },
-    );
-    return refs.every((_, i) => decisions[i]?.result === AuthorizeResult.ALLOW);
   }
 
   /**
@@ -358,21 +300,16 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
     ref: WorkflowRunRef,
     options: {
       entityRef?: string;
-      level: TemporalWorkflowAccessLevel;
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow> {
-    const { level, credentials } = options;
-    const permission =
-      level === 'history'
-        ? temporalWorkflowHistoryReadPermission
-        : temporalWorkflowReadPermission;
+    const { credentials } = options;
     if (!options.entityRef) {
-      return this.loadWorkflowWithoutEntity(ref, permission, credentials);
+      return this.loadWorkflowWithoutEntity(ref, credentials);
     }
     const context = await this.loadEntity(
       options.entityRef,
-      permission,
+      temporalWorkflowReadPermission,
       credentials,
     );
     // After the permission, so a denied caller cannot probe which
@@ -397,38 +334,29 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
 
   /**
    * A workflow opened without an entity: the list permission covers the
-   * workflows it allows (with the history list permission for their
-   * history), else the entity of its entity reference search attribute
-   * decides. A caller that neither permission can allow gets a 403 before
-   * the workflow is read. For the others, unless the list permission
-   * allows every workflow, a workflow they may not open gets the same 404
-   * as a workflow that does not exist.
+   * workflows it allows, else the entity of its entity reference search
+   * attribute decides. A caller that neither permission can allow gets a
+   * 403 before the workflow is read. For the others, unless the list
+   * permission allows every workflow, a workflow they may not open gets the
+   * same 404 as a workflow that does not exist.
    */
   private async loadWorkflowWithoutEntity(
     ref: WorkflowRunRef,
-    permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
   ): Promise<TemporalAccessibleWorkflow> {
-    const listPermissions =
-      permission === temporalWorkflowHistoryReadPermission
-        ? [
-            temporalWorkflowListPermission,
-            temporalWorkflowHistoryListPermission,
-          ]
-        : [temporalWorkflowListPermission];
-    const decisions = await this.permissions.authorizeConditional(
-      [...listPermissions.map(p => ({ permission: p })), { permission }],
-      { credentials },
-    );
-    const listDecisions = decisions.slice(0, listPermissions.length);
-    const entityDecision = decisions[listPermissions.length];
-    const listMayAllow = listDecisions.every(
-      d => d.result !== AuthorizeResult.DENY,
-    );
+    const [listDecision, entityDecision] =
+      await this.permissions.authorizeConditional(
+        [
+          { permission: temporalWorkflowListPermission },
+          { permission: temporalWorkflowReadPermission },
+        ],
+        { credentials },
+      );
+    const listMayAllow = listDecision.result !== AuthorizeResult.DENY;
     const entityMayAllow = entityDecision?.result !== AuthorizeResult.DENY;
     if (!listMayAllow && !entityMayAllow) throw new NotAllowedError();
     this.sources.checkNamespace(ref.namespace);
-    if (listDecisions.every(d => d.result === AuthorizeResult.ALLOW)) {
+    if (listDecision.result === AuthorizeResult.ALLOW) {
       return { workflow: await this.queries.describe(ref) };
     }
     const notFound = () =>
@@ -437,8 +365,10 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       const workflow = await this.queries.describe(ref);
       if (
         listMayAllow &&
-        listDecisions.every((d, i) =>
-          this.decisionAllows(d, workflow, listPermissions[i].name),
+        this.decisionAllows(
+          listDecision,
+          workflow,
+          temporalWorkflowListPermission.name,
         )
       ) {
         return { workflow };
@@ -455,7 +385,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       if (!entityMayAllow || !linked) throw notFound();
       let context: TemporalEntityContext;
       try {
-        context = await this.loadEntity(linked, permission, credentials);
+        context = await this.loadEntity(
+          linked,
+          temporalWorkflowReadPermission,
+          credentials,
+        );
       } catch (error) {
         // A linked entity that cannot be used counts as none.
         if (error instanceof InputError) throw notFound();
@@ -562,15 +496,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       relatedWorkflows,
     };
   }
-}
-
-function entityRefsToCheck(
-  entityRef: string,
-  matchedEntityRef?: string,
-): string[] {
-  return matchedEntityRef && matchedEntityRef !== entityRef
-    ? [entityRef, matchedEntityRef]
-    : [entityRef];
 }
 
 /** An entity reference in its canonical form, or undefined for a bad one. */

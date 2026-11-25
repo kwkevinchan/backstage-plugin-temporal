@@ -987,7 +987,6 @@ export const loopGraph: WorkflowGraphResponse = {
   completedSteps: 12,
   totalSteps: 12,
   truncated: false,
-  payloadsHidden: false,
   eventGroups: [
     {
       key: 'label:loop:draft-review',

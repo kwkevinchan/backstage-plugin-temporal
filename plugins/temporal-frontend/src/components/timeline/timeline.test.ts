@@ -27,7 +27,6 @@ function graph(steps: WorkflowGraphNode[]): WorkflowGraphResponse {
     completedSteps: 0,
     totalSteps: steps.length,
     truncated: false,
-    payloadsHidden: false,
   };
 }
 

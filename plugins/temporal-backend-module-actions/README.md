@@ -112,10 +112,8 @@ actions with `backend.actions.filter.exclude` (`attributes: { destructive: true 
 (when the plugin records it in the `temporal.searchAttributes.initiator`
 search attribute), the number of steps that are completed, running and failed
 with the names of those that run now, the failure of a failed run, and
-`workflowUrl`, the link to the run in Backstage. The failure always has
-the message, kind and type. Its causes are there only when the user has the
-history permission (`temporal.workflow.history.read` on the entity with
-`entityRef`, `temporal.workflow.history.list` without it); stack traces and the
+`workflowUrl`, the link to the run in Backstage. The failure has the
+message, kind and type, and the messages of its causes; stack traces and the
 payloads of steps are never returned. The step counts use the step kinds that
 the workflow pages count: activities, timers, child workflows, updates and
 signals sent.

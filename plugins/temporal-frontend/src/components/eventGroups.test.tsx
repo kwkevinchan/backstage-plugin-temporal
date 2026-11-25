@@ -40,7 +40,6 @@ import { entity, failedWorkflow, mockTemporalApi } from '../testData';
 import { agentGraph } from '../testGraphs/agentGraph';
 import { codecLoopGraph } from '../testGraphs/codecLoopGraph';
 import { loopGraph } from '../testGraphs/loopGraph';
-import { loopGraphPayloadsHidden } from '../testGraphs/loopGraphPayloadsHidden';
 import { parallelGraph } from '../testGraphs/parallelGraph';
 
 const PATH = '/namespaces/default/workflows/groups-1/runs/run-1';
@@ -255,7 +254,6 @@ describe('event groups on the workflow page', () => {
       completedSteps: count,
       totalSteps: count,
       truncated: false,
-      payloadsHidden: false,
       eventGroups: Array.from({ length: 40 }, (_, g) => ({
         key: `label:g${g}`,
         kind: 'label' as const,
@@ -487,14 +485,6 @@ describe('event groups on the workflow page', () => {
     );
   });
 
-  it('draws the frames when the payloads are hidden', async () => {
-    await render(loopGraphPayloadsHidden);
-    expect(
-      await screen.findByTestId('group-frame-label:loop:draft-review'),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId(`group-${roundKey(3)}`)).toBeInTheDocument();
-  });
-
   it('says when the backend left out event groups', async () => {
     await render({ ...loopGraph, eventGroupsTruncated: true });
     expect(
@@ -659,7 +649,6 @@ describe('event groups on the workflow page', () => {
       completedSteps: 7,
       totalSteps: 7,
       truncated: false,
-      payloadsHidden: false,
       eventGroups: Array.from({ length: 7 }, (_, i) => ({
         key: `label:g${i}`,
         kind: 'label' as const,

@@ -19,14 +19,12 @@ import {
   createPermission,
 } from '@backstage/plugin-permission-common';
 import {
-  temporalWorkflowHistoryListPermission,
-  temporalWorkflowHistoryReadPermission,
   temporalWorkflowListPermission,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
   temporalWorkflowStartPermission,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
-import { NoHistoryPermissionPolicy, resolveE2ePolicy } from './e2ePolicy';
+import { NoReadPermissionPolicy, resolveE2ePolicy } from './e2ePolicy';
 
 describe('resolveE2ePolicy', () => {
   it('defaults to allow-all when unset or blank', () => {
@@ -35,25 +33,26 @@ describe('resolveE2ePolicy', () => {
     expect(resolveE2ePolicy('   ')).toBe('allow-all');
   });
 
-  it('returns no-history when configured', () => {
-    expect(resolveE2ePolicy('no-history')).toBe('no-history');
-    expect(resolveE2ePolicy(' no-history ')).toBe('no-history');
+  it('returns no-read when configured', () => {
+    expect(resolveE2ePolicy('no-read')).toBe('no-read');
+    expect(resolveE2ePolicy(' no-read ')).toBe('no-read');
   });
 
   it('rejects unknown values', () => {
     expect(() => resolveE2ePolicy('deny-all')).toThrow(/TEMPORAL_E2E_POLICY/);
+    expect(() => resolveE2ePolicy('no-history')).toThrow(/TEMPORAL_E2E_POLICY/);
   });
 });
 
-describe('NoHistoryPermissionPolicy', () => {
-  const policy = new NoHistoryPermissionPolicy();
+describe('NoReadPermissionPolicy', () => {
+  const policy = new NoReadPermissionPolicy();
 
-  it('denies history read and history list permissions', async () => {
+  it('denies the workflow read and list permissions', async () => {
     await expect(
-      policy.handle({ permission: temporalWorkflowHistoryReadPermission }),
+      policy.handle({ permission: temporalWorkflowReadPermission }),
     ).resolves.toEqual({ result: AuthorizeResult.DENY });
     await expect(
-      policy.handle({ permission: temporalWorkflowHistoryListPermission }),
+      policy.handle({ permission: temporalWorkflowListPermission }),
     ).resolves.toEqual({ result: AuthorizeResult.DENY });
   });
 
@@ -63,8 +62,6 @@ describe('NoHistoryPermissionPolicy', () => {
       attributes: { action: 'read' },
     });
     for (const permission of [
-      temporalWorkflowReadPermission,
-      temporalWorkflowListPermission,
       temporalWorkflowQueryPermission,
       temporalWorkflowStartPermission,
       catalogRead,

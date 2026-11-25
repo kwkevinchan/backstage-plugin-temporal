@@ -266,7 +266,6 @@ function run(
     completedSteps: 0,
     totalSteps: nodes.length,
     truncated: false,
-    payloadsHidden: false,
   };
 }
 

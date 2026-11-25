@@ -41,7 +41,6 @@ const ref = { namespace: 'default', workflowId: 'agent-1', runId: 'run-1' };
 async function renderDrawer(
   id: string,
   options: {
-    payloadsHidden?: boolean;
     api?: ReturnType<typeof mockTemporalApi>;
   } = {},
 ) {
@@ -51,7 +50,6 @@ async function renderDrawer(
     <TestApiProvider apis={[[temporalApiRef, api]]}>
       <StepDrawer
         step={node(id)}
-        payloadsHidden={options.payloadsHidden ?? false}
         workflowHref={() => '/x'}
         onClose={() => {}}
         nodes={llmGraphResponse.nodes}
@@ -166,19 +164,6 @@ describe('LLM panel', () => {
     expect(screen.queryByTestId('llm-input')).not.toBeInTheDocument();
   });
 
-  it('shows the summary only without the history permission', async () => {
-    const { api } = await renderDrawer('activity-5', { payloadsHidden: true });
-    expect(api.getLlmCall).not.toHaveBeenCalled();
-    expect(screen.getByTestId('llm-panel')).toHaveTextContent(
-      'need the permission to read the event history',
-    );
-    expect(screen.queryByTestId('llm-input')).not.toBeInTheDocument();
-    expect(screen.getByTestId('llm-tools')).toHaveTextContent('search');
-    expect(screen.getByTestId('llm-usage')).toHaveTextContent(
-      'Output tokens96',
-    );
-  });
-
   it('says why a record cannot be shown', async () => {
     const api = mockTemporalApi();
     (api.getLlmCall as jest.Mock).mockResolvedValue({
@@ -237,7 +222,6 @@ const officialGraph: WorkflowGraphResponse = {
   completedSteps: 2,
   totalSteps: 2,
   truncated: false,
-  payloadsHidden: true,
   edges: [{ id: 'm->t', source: 'activity-11', target: 'activity-17' }],
   nodes: [
     {
@@ -334,7 +318,6 @@ describe('A step with several model calls', () => {
       <TestApiProvider apis={[[temporalApiRef, api]]}>
         <StepDrawer
           step={step}
-          payloadsHidden={false}
           workflowHref={() => '/x'}
           onClose={() => {}}
           nodes={llmGraphResponse.nodes}

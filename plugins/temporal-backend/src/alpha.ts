@@ -50,8 +50,8 @@ const { conditions, createConditionalDecision } = createConditionExports({
 export const temporalWorkflowConditions = conditions;
 
 /**
- * Makes a conditional decision for `temporal.workflow.list` and
- * `temporal.workflow.history.list` from {@link temporalWorkflowConditions}.
+ * Makes a conditional decision for `temporal.workflow.list` from
+ * {@link temporalWorkflowConditions}.
  *
  * @alpha
  */

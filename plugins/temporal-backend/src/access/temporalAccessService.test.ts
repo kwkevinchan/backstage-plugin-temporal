@@ -62,7 +62,6 @@ function accessModule(seen: TemporalAccessService[]) {
               },
               {
                 entityRef: 'component:default/orders',
-                level: 'read',
                 credentials: await httpAuth.credentials(req),
               },
             );

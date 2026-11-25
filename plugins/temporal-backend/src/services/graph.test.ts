@@ -91,7 +91,6 @@ const options = (
   workflowId: 'wf-1',
   status: 'Completed',
   truncated: false,
-  includePayloads: true,
   ...overrides,
 });
 
@@ -583,35 +582,6 @@ describe('buildWorkflowGraph', () => {
       `start>signal-${s}`,
       `signal-${s}>waiting`,
     ]);
-  });
-
-  it('leaves out payloads without the history permission', () => {
-    const h = history();
-    h.start({ secret: 1 });
-    h.task();
-    const a = h.schedule('chargeCard', '1', { secret: 2 });
-    h.started(a);
-    h.completed(a, { secret: 3 });
-    h.add('MarkerRecorded', {
-      markerName: 'core_local_activity',
-      details: { data: payloads({ secret: 4 }) },
-    });
-    h.add('UpsertWorkflowSearchAttributes', {
-      searchAttributes: { indexedFields: {} },
-    });
-    const graph = buildWorkflowGraph(
-      h.events,
-      options({ status: 'Running', includePayloads: false }),
-    );
-    expect(graph.payloadsHidden).toBe(true);
-    expect(JSON.stringify(graph)).not.toContain('secret');
-    expect(graph.nodes.find(n => n.kind === 'marker')?.name).toBe(
-      'Local activity',
-    );
-    expect(graph.nodes.find(n => n.kind === 'event')).toMatchObject({
-      name: 'UpsertWorkflowSearchAttributes',
-      internal: true,
-    });
   });
 
   it('shows a failing workflow task', () => {

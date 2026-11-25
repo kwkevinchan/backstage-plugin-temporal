@@ -224,7 +224,7 @@ export class TemporalPluginClient {
     return list.items[0]?.runId;
   }
 
-  /** The workflow's result or failure; needs the history permission. */
+  /** The workflow's result or failure. */
   result(
     ref: WorkflowRunRef,
     entityRef: string | undefined,

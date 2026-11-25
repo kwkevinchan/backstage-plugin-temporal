@@ -204,68 +204,6 @@ describe('EntityTemporalContent', () => {
     expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
   });
 
-  it('says when inputs and results are hidden', async () => {
-    const api = mockTemporalApi();
-    api.getWorkflowGraph.mockResolvedValue({
-      ...graphResponse,
-      payloadsHidden: true,
-      nodes: graphResponse.nodes.map(({ input, result, ...n }) => n),
-    });
-    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
-    fireEvent.click(
-      await screen.findByRole('button', { name: 'reserveStock, Completed' }),
-    );
-    expect(screen.getByTestId('step-drawer')).toHaveTextContent(
-      'Inputs and results are hidden',
-    );
-  });
-
-  it('says when the details of failures are hidden', async () => {
-    const api = mockTemporalApi();
-    api.getWorkflowGraph.mockResolvedValue({
-      ...graphResponse,
-      payloadsHidden: true,
-    });
-    api.getWorkflow.mockResolvedValue({
-      ...failedWorkflow,
-      failure: { message: 'Payment could not be completed' },
-      failureDetailsHidden: true,
-    });
-    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'chargeCard, Failed, attempt 2',
-      }),
-    );
-    expect(screen.getByTestId('step-error')).toHaveTextContent('Card declined');
-    expect(screen.getByTestId('step-error')).toHaveTextContent(
-      'The stack trace and the causes are hidden',
-    );
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Close step details' }),
-    );
-
-    await userEvent.click(screen.getByRole('tab', { name: 'Details' }));
-    expect(screen.getAllByTestId('failure-level')).toHaveLength(1);
-    expect(screen.getByTestId('failure-details-hidden')).toHaveTextContent(
-      'they need the permission to read the event history',
-    );
-  });
-
-  it('does not say so with the history permission', async () => {
-    const api = mockTemporalApi();
-    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'chargeCard, Failed, attempt 2',
-      }),
-    );
-    expect(screen.getByTestId('step-error')).toHaveTextContent('Card declined');
-    expect(
-      screen.queryByTestId('failure-details-hidden'),
-    ).not.toBeInTheDocument();
-  });
-
   it('has tabs with the steps, grouped and raw events, and details', async () => {
     const api = mockTemporalApi();
     await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');

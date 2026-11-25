@@ -28,8 +28,8 @@ import { defineConfig } from '@playwright/test';
  * SMOKE_BACKEND_URL point at servers on other ports (start them yourself,
  * with the same ports in the app config). The External Storage payload test
  * runs when SMOKE_S3 is set (see e2e-tests/payloads.test.ts), and the
- * denied-history test runs when TEMPORAL_E2E_POLICY=no-history is set (see
- * e2e-tests/no-history-policy.test.ts). SMOKE_REPORT_DIR overrides the HTML
+ * denied-read test runs when TEMPORAL_E2E_POLICY=no-read is set (see
+ * e2e-tests/no-read-policy.test.ts). SMOKE_REPORT_DIR overrides the HTML
  * report output folder (default e2e-test-report/<app>).
  */
 const app = process.env.SMOKE_APP ?? 'app';
