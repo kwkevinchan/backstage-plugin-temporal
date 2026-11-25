@@ -33,3 +33,56 @@ The histories of the official AI integrations in
 [`../llm-integrations`](../llm-integrations/README.md) put each round of the
 agent in a group too (`loop:agent`, `loop:agent:1`, `loop:agent:2`); the
 tests read the tokens of the groups from them.
+
+## Re-recording
+
+The standalone workflows and CLI runners live under
+[`scripts/record-fixtures/`](../../scripts/record-fixtures/README.md), outside
+the root Yarn workspace so `@temporalio/*` stays pinned to `1.24.0` and
+`1.25.0`.
+
+1. Start a local Temporal dev server (`1.32.1` or newer):
+
+   ```bash
+   temporal server start-dev --headless --port 7233
+   ```
+
+2. Install the pinned SDK packages you want to record with (without modifying
+   the root lockfile):
+
+   ```bash
+   npm install --prefix scripts/record-fixtures/sdk-1.24 --no-package-lock
+   npm install --prefix scripts/record-fixtures/sdk-1.25 --no-package-lock
+   ```
+
+3. Run the worker and workflows (writes sanitized JSON to
+   `/tmp/recorded-fixtures/event-groups/` by default; use `--only <name>`,
+   `--out-dir <dir>`, or `--address` / `TEMPORAL_ADDRESS` as needed):
+
+   ```bash
+   node scripts/record-fixtures/sdk-1.24/event-groups/record.mjs
+   node scripts/record-fixtures/sdk-1.25/event-groups/record.mjs
+   ```
+
+4. If you export a workflow manually instead of using `record.mjs`, pipe the
+   CLI JSON through [`sanitize.mjs`](../../scripts/record-fixtures/sanitize.mjs)
+   so client/worker identities become `client` / `worker@host`, failure
+   `stackTrace` strings are truncated to their first line, and names match the
+   committed fixture:
+
+   ```bash
+   temporal workflow show --workflow-id <id> --run-id <runId> --output json | \
+     node scripts/record-fixtures/sanitize.mjs \
+       --workflow-type <name> \
+       --task-queue <queue> \
+       --rename-workflow-id <old=new> \
+       --rename-child-type <old=new> \
+       --out /tmp/recorded-fixtures/event-groups/<name>.json
+   ```
+
+5. Compare the new output against the committed JSON (event counts, event
+   group keys/labels, and `yarn backstage-cli repo test --selectProjects temporal-backend temporal-frontend`),
+   run `node scripts/check-boundaries.mjs --file <recorded-files>` before copying
+   anything into `test-fixtures/event-groups/`, and regenerate snapshots with
+   `yarn sync:test-graphs` if graph shapes changed. Remove any temporary
+   `scripts/record-fixtures/sdk-*/node_modules` directories afterward.

@@ -1,0 +1,24 @@
+{
+  "name": "temporal-fixture-recorder-sdk-1-24",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Standalone Temporal TypeScript SDK 1.24.0 + AI SDK + OpenAI Agents fixture recorder (not part of the root Yarn workspace).",
+  "dependencies": {
+    "@ai-sdk/mcp": "^2.0.66",
+    "@ai-sdk/provider": "^4.0.21",
+    "@openai/agents-core": "0.14.3",
+    "@openai/agents-openai": "0.14.3",
+    "@opentelemetry/sdk-trace-base": "^1.25.1",
+    "@temporalio/client": "1.24.0",
+    "@temporalio/common": "1.24.0",
+    "@temporalio/openai-agents": "1.24.0",
+    "@temporalio/vercel-ai-sdk": "1.0.0",
+    "@temporalio/worker": "1.24.0",
+    "@temporalio/workflow": "1.24.0",
+    "@temporalio/workflow-streams": "1.24.0",
+    "ai": "7.0.159",
+    "openai": "^6.46.0",
+    "zod": "^4.1.8"
+  }
+}
