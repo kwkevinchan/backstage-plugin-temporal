@@ -15,6 +15,8 @@
  */
 
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import {
   ApiBlueprint,
   coreExtensionData,
@@ -202,6 +204,86 @@ describe('temporal (new frontend system)', () => {
         screen.getByRole('tab', { name: 'Approvals' }),
       ).toBeInTheDocument();
       unmount();
+    }
+  });
+
+  it('restores and updates tab and step URL query params on both entity tab and Workflows page', async () => {
+    function LocationProbe() {
+      const location = useLocation();
+      const type = useNavigationType();
+      return (
+        <>
+          <span data-testid="alpha-location">{`${location.pathname}${location.search}`}</span>
+          <span data-testid="alpha-nav">{type}</span>
+        </>
+      );
+    }
+    const extensions: TemporalWorkflowExtensionsApi = {
+      getListActions: () => [],
+      getScheduleActions: () => [],
+      getActions: () => [{ id: 'probe', component: LocationProbe }],
+      getSections: () => [],
+    };
+    for (const id of ['entity-content:temporal', 'page:temporal']) {
+      const element = createExtensionTester(
+        temporalPlugin.getExtension(id as 'page:temporal'),
+      ).get(coreExtensionData.reactElement);
+      const first = renderInTestApp(
+        <EntityProvider entity={entity}>{element}</EntityProvider>,
+        {
+          apis: [
+            [temporalApiRef, mockTemporalApi()],
+            [temporalWorkflowExtensionsApiRef, extensions],
+            [permissionApiRef, mockApis.permission()],
+          ],
+          initialRouteEntries: [
+            '/namespaces/default/workflows/payment-1/runs/run-2?tab=details&step=activity-11',
+          ],
+        },
+      );
+      expect(
+        await screen.findByRole(
+          'tab',
+          { name: 'Details' },
+          { timeout: 10_000 },
+        ),
+      ).toHaveAttribute('aria-selected', 'true');
+      expect(await screen.findByTestId('step-drawer')).toHaveTextContent(
+        'Card declined',
+      );
+      await userEvent.click(screen.getByRole('tab', { name: 'Events' }));
+      expect(screen.getByTestId('alpha-location')).toHaveTextContent(
+        '/namespaces/default/workflows/payment-1/runs/run-2?tab=events&step=activity-11',
+      );
+      expect(screen.getByTestId('alpha-nav')).toHaveTextContent('REPLACE');
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Close step details' }),
+      );
+      expect(screen.getByTestId('alpha-location')).toHaveTextContent(
+        '/namespaces/default/workflows/payment-1/runs/run-2?tab=events',
+      );
+      expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
+      first.unmount();
+
+      // Unknown tab/step fall back cleanly without error.
+      const fallback = renderInTestApp(
+        <EntityProvider entity={entity}>{element}</EntityProvider>,
+        {
+          apis: [
+            [temporalApiRef, mockTemporalApi()],
+            [temporalWorkflowExtensionsApiRef, extensions],
+            [permissionApiRef, mockApis.permission()],
+          ],
+          initialRouteEntries: [
+            '/namespaces/default/workflows/payment-1/runs/run-2?tab=unknown&step=missing',
+          ],
+        },
+      );
+      expect(
+        await screen.findByRole('tab', { name: 'Steps' }, { timeout: 10_000 }),
+      ).toHaveAttribute('aria-selected', 'true');
+      expect(screen.queryByTestId('step-drawer')).not.toBeInTheDocument();
+      fallback.unmount();
     }
   });
 });
