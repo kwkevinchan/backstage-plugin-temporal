@@ -102,6 +102,12 @@ for (const theme of ['light', 'dark']) {
     );
     await expect(page.getByTestId('overview-updated')).toContainText('Updated');
     await shot(page, `overview-01-workflows-tab-${theme}`);
+    // The same tab on a 1920 × 1080 screen.
+    const viewport = page.viewportSize();
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await expect(payment.getByTestId('overview-counts')).toBeVisible();
+    await shot(page, `overview-01-workflows-tab-1920-${theme}`);
+    if (viewport) await page.setViewportSize(viewport);
 
     // The optional columns.
     await page.getByRole('button', { name: 'Columns' }).click();
