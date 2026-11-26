@@ -97,7 +97,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: 'An entity, for example `component:default/orders`. `temporal.workflow.start` is checked on it, and the schedule must start one of the workflow types of the entity or of the `TemporalWorkflow` entities it depends on, in its namespace: 404 otherwise. Without it, `temporal.workflow.start` must be allowed without conditions.'
+      description: 'An entity, for example `component:default/orders`. `temporal.workflow.start` is checked on it, and the schedule must start one of the workflow types of the entity or of the `TemporalWorkflow` entities it depends on, in its namespace: 404 otherwise. Without it, `temporal.workflow.list` and `temporal.workflow.start` must be allowed without conditions.'
       schema:
         type: string
     status:
@@ -2358,7 +2358,7 @@ paths:
       description: |-
         With `entityRef`, the schedule must start one of the workflow types of the entity or the `TemporalWorkflow` entities it depends on (404 otherwise). `pause` and `unpause` keep an optional note; `trigger` takes none (400). An `operation` that is not `pause`, `unpause` or `trigger` does not match this route and answers 404 without a body. 409 when Temporal refuses the operation in the state of the schedule.
 
-        Permission: `temporal.workflow.start` on the entity of `entityRef`, or without conditions without it.
+        Permission: `temporal.workflow.start` on the entity of `entityRef`; without it, `temporal.workflow.list` and `temporal.workflow.start`, both without conditions.
 
         Exists unless `temporal.control.enabled` is false (otherwise 404). Recorded with the auditor.
       tags:

@@ -1247,6 +1247,51 @@ describe('workflow controls', () => {
       ).toBe(404);
       expect(handle).not.toHaveBeenCalled();
     });
+
+    it('records an unknown action as a failed audit event', async () => {
+      const { server, backend, auditor, auditEvent, workflowService } =
+        await start({ action });
+      const res = await request(server)
+        .post(`${wf}/actions/unknown${withEntity}`)
+        .send({});
+      expect(res.status).toBe(404);
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-action',
+          meta: expect.objectContaining({
+            namespace: 'default',
+            workflowId: 'wf-1',
+            runId: 'wf-1-run',
+            actionId: 'unknown',
+            entityRef: 'component:default/orders',
+          }),
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotFoundError' }),
+      });
+      expect(auditEvent.success).not.toHaveBeenCalled();
+      // Refused before the workflow is read.
+      expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
+
+      // An ID that does not match the pattern is not recorded as sent.
+      auditor.createEvent.mockClear();
+      auditEvent.fail.mockClear();
+      await request(backend)
+        .post(`${wf}/actions/1-not-an-id${withEntity}`)
+        .send({})
+        .expect(404);
+      expect(auditor.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          eventId: 'workflow-action',
+          meta: expect.objectContaining({ actionId: '<invalid>' }),
+        }),
+      );
+      expect(auditEvent.fail).toHaveBeenCalledWith({
+        error: expect.objectContaining({ name: 'NotFoundError' }),
+      });
+      expect(handle).not.toHaveBeenCalled();
+    });
   });
 });
 
@@ -1372,6 +1417,33 @@ describe('schedule controls', () => {
     expect(conditional.auditEvent.fail).toHaveBeenCalledWith({
       error: expect.objectContaining({ name: 'NotAllowedError' }),
     });
+  });
+
+  it('needs temporal.workflow.list without conditions when there is no entity', async () => {
+    const { server, workflowService, patchesOf, auditEvent } = await start({
+      schedules,
+      conditional: ['temporal.workflow.list'],
+    });
+    for (const op of ['pause', 'unpause', 'trigger']) {
+      await request(server)
+        .post(path('nightly', op, false))
+        .send({})
+        .expect(403);
+    }
+    // An unknown schedule is refused the same way, so IDs cannot be probed.
+    await request(server)
+      .post(path('missing', 'pause', false))
+      .send({})
+      .expect(403);
+    expect(workflowService.describeSchedule).not.toHaveBeenCalled();
+    expect(patchesOf('nightly')).toEqual([]);
+    expect(auditEvent.fail).toHaveBeenCalledTimes(4);
+    expect(auditEvent.fail).toHaveBeenCalledWith({
+      error: expect.objectContaining({ name: 'NotAllowedError' }),
+    });
+    // With the entity, the list decision is not used.
+    await request(server).post(path('nightly', 'pause')).send({}).expect(202);
+    expect(patchesOf('nightly').map(p => Object.keys(p)[0])).toEqual(['pause']);
   });
 
   it('answers 404 for an unknown schedule or operation, 400 for a bad note', async () => {

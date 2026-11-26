@@ -96,19 +96,19 @@ in the repository README for examples.
 The routes that change workflows, unless `temporal.control.enabled` is
 false:
 
-| Method | Path                                                      | Permission                       |
-| ------ | --------------------------------------------------------- | -------------------------------- |
-| POST   | `/entities/:kind/:namespace/:name/workflows`              | `temporal.workflow.start`        |
-| POST   | `/workflows`                                              | `temporal.workflow.start` + list |
-| POST   | `.../workflows/:workflowId/runs/:runId/signal`            | `temporal.workflow.signal`       |
-| POST   | `.../workflows/:workflowId/runs/:runId/update`            | `temporal.workflow.update`       |
-| POST   | `.../workflows/:workflowId/runs/:runId/cancel`            | `temporal.workflow.cancel`       |
-| POST   | `.../workflows/:workflowId/runs/:runId/terminate`         | `temporal.workflow.terminate`    |
-| POST   | `.../workflows/:workflowId/runs/:runId/rerun`             | `temporal.workflow.rerun`        |
-| POST   | `.../workflows/:workflowId/runs/:runId/actions/:actionId` | the action's permission          |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/pause`      | `temporal.workflow.start`        |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/unpause`    | `temporal.workflow.start`        |
-| POST   | `/namespaces/:namespace/schedules/:scheduleId/trigger`    | `temporal.workflow.start`        |
+| Method | Path                                                      | Permission                                             |
+| ------ | --------------------------------------------------------- | ------------------------------------------------------ |
+| POST   | `/entities/:kind/:namespace/:name/workflows`              | `temporal.workflow.start`                              |
+| POST   | `/workflows`                                              | `temporal.workflow.start` + list                       |
+| POST   | `.../workflows/:workflowId/runs/:runId/signal`            | `temporal.workflow.signal`                             |
+| POST   | `.../workflows/:workflowId/runs/:runId/update`            | `temporal.workflow.update`                             |
+| POST   | `.../workflows/:workflowId/runs/:runId/cancel`            | `temporal.workflow.cancel`                             |
+| POST   | `.../workflows/:workflowId/runs/:runId/terminate`         | `temporal.workflow.terminate`                          |
+| POST   | `.../workflows/:workflowId/runs/:runId/rerun`             | `temporal.workflow.rerun`                              |
+| POST   | `.../workflows/:workflowId/runs/:runId/actions/:actionId` | the action's permission                                |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/pause`      | `temporal.workflow.start` (+ list without `entityRef`) |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/unpause`    | `temporal.workflow.start` (+ list without `entityRef`) |
+| POST   | `/namespaces/:namespace/schedules/:scheduleId/trigger`    | `temporal.workflow.start` (+ list without `entityRef`) |
 
 `GET /namespaces/:namespace/workflows/:workflowId` lists the runs of one
 workflow ID (a `WorkflowListResponse`, with `pageSize` and `pageToken`); every

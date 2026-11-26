@@ -1359,7 +1359,8 @@ is paused and why, its next run and a link to the workflow of its last run.
 Unless `temporal.control.enabled` is false, each schedule has **Pause** or **Resume** and
 **Run now**. They need `temporal.workflow.start`, since a schedule starts
 workflows: on the entity whose workflow types it starts, or without
-conditions on the Temporal page. Each one is recorded with the auditor
+conditions on the Temporal page, which also needs `temporal.workflow.list`
+without conditions. Each one is recorded with the auditor
 (`schedule-pause`, `schedule-unpause`, `schedule-trigger`). Creating and
 changing schedules is left to code or the Temporal UI.
 
