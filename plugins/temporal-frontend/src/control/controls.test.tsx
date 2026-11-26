@@ -51,12 +51,14 @@ type DenyRule = string | { permission: string; resourceRef: string };
 
 // usePermission caches results across tests; this one answers from `denied`.
 let denied: DenyRule[] = [];
+// The resource of every permission check, to see what the buttons check.
+let checkedRefs = new Set<string | undefined>();
 jest.mock('@backstage/plugin-permission-react', () => ({
   usePermission: (input: {
     permission: { name: string };
     resourceRef?: string;
   }) => ({
-    loading: false,
+    loading: (checkedRefs.add(input.resourceRef), false),
     allowed: !denied.some(rule =>
       typeof rule === 'string'
         ? rule === input.permission.name
@@ -97,6 +99,7 @@ function render(
     ),
   };
   denied = options?.deny ?? [];
+  checkedRefs = new Set();
   return {
     api,
     ...renderInTestApp(
@@ -238,6 +241,29 @@ describe('WorkflowControls', () => {
     expect(
       await screen.findByRole('button', { name: 'Terminate' }),
     ).toBeEnabled();
+  });
+
+  it('does not check permissions on workflowTypeEntityRef, which is only for a link', async () => {
+    const typeRef = 'temporalworkflow:default/order-workflow';
+    render(
+      <WorkflowControls
+        workflow={{ ...running, workflowTypeEntityRef: typeRef }}
+        entity={entity}
+        reload={jest.fn()}
+        workflowHref={href}
+      />,
+      {
+        deny: [
+          { permission: 'temporal.workflow.terminate', resourceRef: typeRef },
+        ],
+      },
+    );
+    expect(
+      await screen.findByRole('button', { name: 'Terminate' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    expect(checkedRefs.has(typeRef)).toBe(false);
+    expect(checkedRefs.has(entityRef)).toBe(true);
   });
 
   it('sends a signal with JSON arguments', async () => {

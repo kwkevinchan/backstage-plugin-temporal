@@ -25,7 +25,7 @@ import { entityRouteRef } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { temporalApiRef } from '../extensions';
 import { TemporalPageContent } from './TemporalPage';
-import { listResponse, mockTemporalApi } from '../testData';
+import { failedWorkflow, listResponse, mockTemporalApi } from '../testData';
 
 function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
   return renderInTestApp(
@@ -53,7 +53,7 @@ describe('Workflows page', () => {
         {
           ...listResponse.items[0],
           taskQueue: 'orders',
-          workflowEntityRef: 'temporalworkflow:default/order-workflow',
+          workflowTypeEntityRef: 'temporalworkflow:default/order-workflow',
         },
         {
           ...listResponse.items[1],
@@ -98,6 +98,67 @@ describe('Workflows page', () => {
       pageSize: 20,
       pageToken: undefined,
     });
+  });
+
+  it('has a Workflow ID column and a Run ID column that both open the run', async () => {
+    const runId = '0192f3a1-7c5e-7d2b-9a41-5b8e6c0d4f21';
+    const api = mockTemporalApi();
+    api.listWorkflows.mockResolvedValue({
+      ...listResponse,
+      items: [{ ...listResponse.items[0], runId }],
+    });
+    await render(api);
+    const table = await screen.findByRole('grid', {
+      name: 'Workflow executions',
+    });
+    expect(
+      within(table)
+        .getAllByRole('columnheader')
+        .slice(0, 4)
+        .map(h => h.textContent),
+    ).toEqual(['Status', 'Workflow ID', 'Run ID', 'Workflow type']);
+    const open = `/namespaces/default/workflows/order-1/runs/${runId}`;
+    expect(
+      within(table).getByRole('link', { name: 'order-1' }),
+    ).toHaveAttribute('href', open);
+    // The list shows the first 8 characters; the tooltip has the whole ID.
+    const run = within(table).getByRole('link', { name: '0192f3a1' });
+    expect(run).toHaveAttribute('href', open);
+    expect(run).toHaveAttribute('title', runId);
+    expect(
+      within(table).getByRole('button', { name: 'Copy run ID' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the Workflow type of a run opened without an entity as a link', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflow.mockResolvedValue({
+      ...failedWorkflow,
+      workflowTypeEntityRef: 'temporalworkflow:default/payment-workflow',
+    });
+    await render(
+      api,
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=details',
+    );
+    const link = await screen.findByRole('link', { name: 'paymentWorkflow' });
+    expect(link).toHaveAttribute(
+      'href',
+      '/catalog/default/temporalworkflow/payment-workflow',
+    );
+  });
+
+  it('shows the Workflow type as text when no entity matches', async () => {
+    const api = mockTemporalApi();
+    await render(
+      api,
+      '/namespaces/default/workflows/payment-1/runs/run-2?tab=details',
+    );
+    expect(
+      (await screen.findAllByText('paymentWorkflow')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole('link', { name: 'paymentWorkflow' }),
+    ).not.toBeInTheDocument();
   });
 
   it('filters by workflow ID prefix and type, and rejects unsafe input', async () => {

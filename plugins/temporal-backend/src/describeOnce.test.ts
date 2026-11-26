@@ -183,6 +183,7 @@ describe('opening one workflow', () => {
   it('answers with the workflow of another access service as it is', async () => {
     const { server, workflowService } = await start({
       access: {
+        linkWorkflowEntities: async items => items,
         loadWorkflow: async () => ({
           workflow: {
             workflowId: 'wf-1',

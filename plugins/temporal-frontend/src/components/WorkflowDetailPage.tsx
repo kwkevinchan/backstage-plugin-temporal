@@ -150,10 +150,21 @@ function SummaryItem(props: {
 }
 
 function detailItems(workflow: WorkflowDetail): [string, React.ReactNode][] {
+  const typeEntityRef =
+    workflow.workflowEntityRef ?? workflow.workflowTypeEntityRef;
   return [
     ['Workflow ID', workflow.workflowId],
     ['Run ID', workflow.runId],
-    ['Workflow type', workflow.workflowType],
+    [
+      'Workflow type',
+      typeEntityRef ? (
+        <EntityRefLink entityRef={typeEntityRef}>
+          {workflow.workflowType}
+        </EntityRefLink>
+      ) : (
+        workflow.workflowType
+      ),
+    ],
     ['Task queue', workflow.taskQueue],
     ['Namespace', workflow.namespace],
     ['Status', <WorkflowStatusLabel status={workflow.status} />],

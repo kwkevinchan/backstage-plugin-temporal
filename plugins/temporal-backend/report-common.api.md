@@ -1133,6 +1133,7 @@ export interface WorkflowSummary {
   workflowId: string;
   // (undocumented)
   workflowType: string;
+  workflowTypeEntityRef?: string;
 }
 
 // @alpha

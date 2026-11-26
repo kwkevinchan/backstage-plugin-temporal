@@ -274,9 +274,25 @@ export async function createRouter(
       matchedEntityRef && matchedEntityRef !== context?.entityRef
         ? { ...workflow, workflowEntityRef: matchedEntityRef }
         : workflow;
-    const detail = context
-      ? await queries.enrichDetail(workflowWithEntity, context, credentials)
+    // The entity that describes the workflow type is only shown as a link.
+    // An opened TemporalWorkflow entity already is that entity.
+    const needsTypeEntity =
+      !workflowWithEntity.workflowEntityRef &&
+      !(context && isTemporalWorkflowEntity(context.entity));
+    const [linked] = needsTypeEntity
+      ? await access.linkWorkflowEntities(
+          [workflowWithEntity],
+          workflowWithEntity.namespace,
+          credentials,
+        )
+      : [];
+    const typeEntityRef = linked?.workflowTypeEntityRef;
+    const withTypeEntity = typeEntityRef
+      ? { ...workflowWithEntity, workflowTypeEntityRef: typeEntityRef }
       : workflowWithEntity;
+    const detail = context
+      ? await queries.enrichDetail(withTypeEntity, context, credentials)
+      : withTypeEntity;
     res.json(detail);
   });
 
@@ -363,7 +379,7 @@ export async function createRouter(
       workflow.namespace,
       credentials,
     );
-    const ref = linked?.workflowEntityRef;
+    const ref = linked?.workflowTypeEntityRef;
     if (!ref) return undefined;
     const related = context?.relatedWorkflowEntities.find(
       e => stringifyEntityRef(e) === ref,

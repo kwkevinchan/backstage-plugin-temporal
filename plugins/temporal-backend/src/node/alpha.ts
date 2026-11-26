@@ -181,8 +181,9 @@ export interface TemporalAccessService {
   ): Promise<TemporalAccessibleWorkflow>;
 
   /**
-   * Adds `workflowEntityRef` to runs that match a `TemporalWorkflow`
-   * entity the caller can see.
+   * Adds `workflowTypeEntityRef` to runs that match a single
+   * `TemporalWorkflow` entity the caller can see (same namespace, workflow
+   * type and task queue; the entities with the run's task queue win).
    */
   linkWorkflowEntities(
     items: WorkflowSummary[],
