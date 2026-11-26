@@ -155,6 +155,20 @@ function isNamespaceNotFound(error: unknown): boolean {
   return (error as Error)?.name === 'NamespaceNotFoundError';
 }
 
+/** Start of the message of a call that Temporal refused for its rate limit. */
+const RATE_LIMITED_MESSAGE = 'Temporal is rate limiting the backend';
+
+/**
+ * True for the error that {@link mapTemporalError} makes of a call that
+ * Temporal refused for its rate limit (`RESOURCE_EXHAUSTED`).
+ */
+export function isRateLimitedError(error: unknown): boolean {
+  return (
+    error instanceof ServiceUnavailableError &&
+    error.message.startsWith(RATE_LIMITED_MESSAGE)
+  );
+}
+
 /** Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status. */
 export function mapTemporalError(error: unknown): never {
   const { code, message } = grpcErrorOf(error);
@@ -176,9 +190,7 @@ export function mapTemporalError(error: unknown): never {
   }
   if (code === GRPC_RESOURCE_EXHAUSTED) {
     // The backend's own connection is rate limited, not the user.
-    throw new ServiceUnavailableError(
-      `Temporal is rate limiting the backend: ${message}`,
-    );
+    throw new ServiceUnavailableError(`${RATE_LIMITED_MESSAGE}: ${message}`);
   }
   if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
     // The backend's own credentials, not the user's: a server-side problem.

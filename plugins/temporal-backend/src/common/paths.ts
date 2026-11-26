@@ -67,6 +67,14 @@ export function buildEntityWorkflowsPath(entity: CompoundEntityRef): string {
 export const WORKFLOWS_PATH = '/workflows';
 
 /**
+ * Path of the workflow type overview (`POST`), relative to the backend
+ * plugin root: the numbers of several `TemporalWorkflow` entities.
+ *
+ * @public
+ */
+export const WORKFLOW_TYPE_OVERVIEW_PATH = '/workflow-types/overview';
+
+/**
  * Builds the path of an entity's workflow statistics, relative to the backend
  * plugin root: `/entities/:kind/:namespace/:name/workflow-stats`.
  *

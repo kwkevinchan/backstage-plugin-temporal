@@ -118,6 +118,10 @@ export interface TemporalApi {
       entityRef?: string;
     },
   ): Promise<WorkflowProgressResponse>;
+  // Warning: (ae-forgotten-export) The symbol "WorkflowTypeOverviewResponse" needs to be exported by the entry point index.d.ts
+  getWorkflowTypeOverview(
+    entityRefs: string[],
+  ): Promise<WorkflowTypeOverviewResponse>;
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowListResponse" needs to be exported by the entry point index.d.ts
   listEntityWorkflows(
@@ -298,6 +302,10 @@ export class TemporalClient implements TemporalApi {
       entityRef?: string;
     },
   ): Promise<WorkflowProgressResponse>;
+  // (undocumented)
+  getWorkflowTypeOverview(
+    entityRefs: string[],
+  ): Promise<WorkflowTypeOverviewResponse>;
   // (undocumented)
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;
   // (undocumented)

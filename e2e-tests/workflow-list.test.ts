@@ -53,15 +53,22 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: join(shotDir, `${name}.png`), fullPage: true });
 }
 
-/** The page is not wider than the window: no horizontal scroll bar. */
+/**
+ * The page is not wider than the window: no horizontal scroll bar, once the
+ * page has laid itself out again for the new window size.
+ */
 async function expectNoHorizontalScroll(page: Page) {
-  const overflow = await page.evaluate(() => {
-    const root = document.documentElement;
-    return (
-      Math.max(root.scrollWidth, document.body.scrollWidth) - root.clientWidth
-    );
-  });
-  expect(overflow).toBeLessThanOrEqual(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const root = document.documentElement;
+        return (
+          Math.max(root.scrollWidth, document.body.scrollWidth) -
+          root.clientWidth
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(0);
 }
 
 test('the Temporal page lists the run ID and links the workflow type', async ({
@@ -73,6 +80,7 @@ test('the Temporal page lists the run ID and links the workflow type', async ({
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   await page
     .getByRole('textbox', { name: 'Workflow ID starts with' })
     .fill('example-payment-');
@@ -120,3 +128,8 @@ test('the Temporal page lists the run ID and links the workflow type', async ({
     page.getByRole('link', { name: 'paymentWorkflow', exact: true }),
   ).toHaveAttribute('href', paymentEntity);
 });
+
+/** The Executions tab of the Temporal page; the Workflows tab is the default. */
+async function openExecutionsTab(page: Page) {
+  await page.getByRole('tab', { name: 'Executions', exact: true }).click();
+}

@@ -152,6 +152,9 @@ export function isValidWorkflowIdPrefix(value: string): boolean;
 export function isValidWorkflowTypeName(value: string): boolean;
 
 // @public
+export const MAX_WORKFLOW_TYPE_OVERVIEW_REFS = 25;
+
+// @public
 export function mergeWorkflowMessageDefinitions(
   reported: WorkflowMessageDefinitionsResponse,
   described: WorkflowMessageDefinitionsResponse,
@@ -619,6 +622,9 @@ export const temporalWorkflowUpdatePermission: ResourcePermission<'catalog-entit
 
 // @public
 export const WORKFLOW_STATUSES: readonly Exclude<WorkflowStatus, 'Unknown'>[];
+
+// @public
+export const WORKFLOW_TYPE_OVERVIEW_PATH = '/workflow-types/overview';
 
 // @public
 export type WorkflowControlOperation =
@@ -1143,5 +1149,52 @@ export interface WorkflowToolLink {
   llmNodeId?: string;
   name?: string;
   toolCallId?: string;
+}
+
+// @public
+export interface WorkflowTypeOverview {
+  averageDurationMs?: number;
+  completed: number;
+  // (undocumented)
+  entityRef: string;
+  error?: {
+    message: string;
+    rateLimited?: boolean;
+  };
+  failed: number;
+  lastFailure?: WorkflowTypeOverviewRun;
+  latestRun?: WorkflowTypeOverviewRun;
+  running: number;
+  sampleSize: number;
+  updatedAt: string;
+  windowDays: number;
+}
+
+// @public
+export interface WorkflowTypeOverviewRequest {
+  // (undocumented)
+  entityRefs: string[];
+}
+
+// @public
+export interface WorkflowTypeOverviewResponse {
+  // (undocumented)
+  items: WorkflowTypeOverview[];
+}
+
+// @public
+export interface WorkflowTypeOverviewRun {
+  // (undocumented)
+  closeTime?: string;
+  // (undocumented)
+  namespace: string;
+  // (undocumented)
+  runId: string;
+  // (undocumented)
+  startTime?: string;
+  // (undocumented)
+  status: WorkflowStatus;
+  // (undocumented)
+  workflowId: string;
 }
 ```

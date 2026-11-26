@@ -30,6 +30,7 @@ import type {
   WorkflowRunRef,
   WorkflowStatsResponse,
   WorkflowStatus,
+  WorkflowTypeOverviewResponse,
   WorkflowStartRequest,
   WorkflowStartResponse,
   TemporalScheduleNoteRequest,
@@ -100,6 +101,17 @@ export interface TemporalApi {
     entityRef: string,
     options?: { limit?: number },
   ): Promise<WorkflowStatsResponse>;
+
+  /**
+   * The numbers of `TemporalWorkflow` entities for the Workflows tab of the
+   * Temporal page: running runs, runs completed and failed in the last 7
+   * days, the latest run, the mean duration and the last failure. At most
+   * 25 references (`MAX_WORKFLOW_TYPE_OVERVIEW_REFS`); the entities the
+   * caller may not read are left out of the response.
+   */
+  getWorkflowTypeOverview(
+    entityRefs: string[],
+  ): Promise<WorkflowTypeOverviewResponse>;
 
   /**
    * The runs of one workflow ID, in the order of Temporal's visibility

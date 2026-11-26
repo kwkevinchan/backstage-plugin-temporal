@@ -493,7 +493,7 @@ describe('WorkflowDetailPage URL query state', () => {
 
   it('updates URL with replace when switching tabs or picking/closing steps, without adding browser history', async () => {
     const api = mockTemporalApi();
-    await renderStandalone(api, '/?status=Failed');
+    await renderStandalone(api, '/?tab=executions&status=Failed');
     await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.click(screen.getByRole('link', { name: 'payment-1' }));
 
@@ -565,7 +565,7 @@ describe('WorkflowDetailPage URL query state', () => {
 
     // Browser Back returns directly to the workflow list (one step back).
     await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
-    expect(location()).toBe('/?status=Failed');
+    expect(location()).toBe('/?tab=executions&status=Failed');
     expect(listResponse.items[1].workflowId).toBe('payment-1');
   });
 

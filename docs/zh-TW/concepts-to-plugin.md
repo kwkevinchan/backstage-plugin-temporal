@@ -30,12 +30,12 @@
 
 ### 流程與執行
 
-| Temporal 概念       | 外掛裡的對應                                                                                                                                                                                        | 備註                                     |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Workflow Type       | `TemporalWorkflow` 實體的 `spec.workflowType`，或 `temporal.io/workflow-type` 標註；**Workflow type** 卡片和欄位。                                                                                  |                                          |
-| Workflow Execution  | 實體 Temporal 分頁的 **Workflow executions**（狀態、時間、進度：目前在哪一步，或失敗在哪一步）；整個 Namespace 的 **Temporal** 頁；詳細頁。                                                         | 篩選、頁碼、每頁筆數都留在網址裡。       |
-| Workflow ID、Run ID | 都在詳細頁標頭。                                                                                                                                                                                    |                                          |
-| Workflow Definition | **Definition** 分頁：兩個選用的 Zigflow 模組支援用 YAML 寫的流程（YAML 和流程圖並排，可以疊上一次執行）；用程式碼寫的流程，在 `spec.definition` 設 `format: source`，就會顯示原始碼並標出流程函式。 | 程式碼不會被解析，只找出流程函式的位置。 |
+| Temporal 概念       | 外掛裡的對應                                                                                                                                                                                          | 備註                                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Workflow Type       | `TemporalWorkflow` 實體的 `spec.workflowType`，或 `temporal.io/workflow-type` 標註；**Workflow type** 卡片和欄位；Temporal 頁 **Workflows** 分頁的一列，附上現在進行中、最近 7 天完成和失敗的執行數。 | 「進行中」是現在所有在跑的執行，不限 7 天；「失敗」包含 Failed、TimedOut、Terminated。數字是近似值，最多晚一分鐘。 |
+| Workflow Execution  | 實體 Temporal 分頁的 **Workflow executions**（狀態、時間、進度：目前在哪一步，或失敗在哪一步）；整個 Namespace 的執行在 **Temporal** 頁的 **Executions** 分頁；詳細頁。                               | 篩選、頁碼、每頁筆數都留在網址裡。                                                                                 |
+| Workflow ID、Run ID | 都在詳細頁標頭。                                                                                                                                                                                      |                                                                                                                    |
+| Workflow Definition | **Definition** 分頁：兩個選用的 Zigflow 模組支援用 YAML 寫的流程（YAML 和流程圖並排，可以疊上一次執行）；用程式碼寫的流程，在 `spec.definition` 設 `format: source`，就會顯示原始碼並標出流程函式。   | 程式碼不會被解析，只找出流程函式的位置。                                                                           |
 
 ### 步驟
 

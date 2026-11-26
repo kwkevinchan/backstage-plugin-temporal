@@ -190,6 +190,23 @@ describe('TemporalClient requests and responses', () => {
     );
   });
 
+  it('posts the references of the workflow type overview', async () => {
+    const { client, discoveryApi, fetch } = createClientHarness();
+    const base = await discoveryApi.getBaseUrl('temporal');
+    await client.getWorkflowTypeOverview([
+      'temporalworkflow:default/order-workflow',
+    ]);
+    expect(fetch).toHaveBeenLastCalledWith(
+      `${base}/workflow-types/overview`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          entityRefs: ['temporalworkflow:default/order-workflow'],
+        }),
+      }),
+    );
+  });
+
   it('serializes workflow read, history, graph, llm-call, progress, and message-definitions requests', async () => {
     const { client, discoveryApi, fetch } = createClientHarness();
     const base = await discoveryApi.getBaseUrl('temporal');

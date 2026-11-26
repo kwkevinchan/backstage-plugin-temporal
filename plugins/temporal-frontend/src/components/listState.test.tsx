@@ -45,7 +45,10 @@ function Location() {
   );
 }
 
-function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
+function render(
+  api: ReturnType<typeof mockTemporalApi>,
+  path = '/?tab=executions',
+) {
   return renderInTestApp(
     <TestApiProvider
       apis={[
@@ -111,11 +114,13 @@ describe('workflow list state', () => {
       ...listResponse,
       nextPageToken: options?.pageToken ? undefined : 'token-2',
     }));
-    await render(api, '/?status=Completed&pageSize=10');
+    await render(api, '/?tab=executions&status=Completed&pageSize=10');
     await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
     await waitFor(() =>
-      expect(location()).toBe('/?status=Completed&page=2&pageSize=10'),
+      expect(location()).toBe(
+        '/?tab=executions&status=Completed&page=2&pageSize=10',
+      ),
     );
     expect(api.listWorkflows).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -131,12 +136,14 @@ describe('workflow list state', () => {
     const back = await screen.findByTestId('back-to-list');
     expect(back).toHaveAttribute(
       'href',
-      '/?status=Completed&page=2&pageSize=10',
+      '/?tab=executions&status=Completed&page=2&pageSize=10',
     );
     api.listWorkflows.mockClear();
     await userEvent.click(back);
     await screen.findByRole('grid', { name: 'Workflow executions' });
-    expect(location()).toBe('/?status=Completed&page=2&pageSize=10');
+    expect(location()).toBe(
+      '/?tab=executions&status=Completed&page=2&pageSize=10',
+    );
     await waitFor(() =>
       expect(api.listWorkflows).toHaveBeenCalledWith(
         expect.objectContaining({ pageToken: 'token-2', pageSize: 10 }),
@@ -149,9 +156,11 @@ describe('workflow list state', () => {
       screen.getByRole('button', { name: 'Previous page' }),
     );
     await waitFor(() =>
-      expect(location()).toBe('/?status=Completed&pageSize=10'),
+      expect(location()).toBe('/?tab=executions&status=Completed&pageSize=10'),
     );
-    expect(savedListSearch('/')).toBe('?status=Completed&pageSize=10');
+    expect(savedListSearch('/')).toBe(
+      '?tab=executions&status=Completed&pageSize=10',
+    );
   });
 
   it('replaces the history entry when the page or the filters change', async () => {
@@ -172,18 +181,22 @@ describe('workflow list state', () => {
         <Location />
       </TestApiProvider>,
       {
-        routeEntries: ['/before', '/?pageSize=10'],
+        routeEntries: ['/before', '/?tab=executions&pageSize=10'],
         mountedRoutes: { '/catalog/:namespace/:kind/:name': entityRouteRef },
       },
     );
     await screen.findByRole('grid', { name: 'Workflow executions' });
     await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
-    await waitFor(() => expect(location()).toBe('/?page=2&pageSize=10'));
+    await waitFor(() =>
+      expect(location()).toBe('/?tab=executions&page=2&pageSize=10'),
+    );
     expect(navigation()).toBe('REPLACE');
     await userEvent.click(
       screen.getByRole('switch', { name: 'Show all runs' }),
     );
-    await waitFor(() => expect(location()).toBe('/?allRuns=true&pageSize=10'));
+    await waitFor(() =>
+      expect(location()).toBe('/?tab=executions&allRuns=true&pageSize=10'),
+    );
     expect(navigation()).toBe('REPLACE');
 
     // Opening a workflow adds an entry; back returns to the list as it was.
@@ -192,7 +205,7 @@ describe('workflow list state', () => {
     expect(navigation()).toBe('PUSH');
     await userEvent.click(screen.getByRole('button', { name: 'Browser back' }));
     await screen.findByRole('grid', { name: 'Workflow executions' });
-    expect(location()).toBe('/?allRuns=true&pageSize=10');
+    expect(location()).toBe('/?tab=executions&allRuns=true&pageSize=10');
     expect(screen.getByRole('switch', { name: 'Show all runs' })).toBeChecked();
 
     // One more back leaves the list: paging added no entries.
@@ -202,11 +215,11 @@ describe('workflow list state', () => {
 
   it('opens the first page when the page tokens are gone', async () => {
     const api = mockTemporalApi();
-    await render(api, '/?page=3');
+    await render(api, '/?tab=executions&page=3');
     expect(await screen.findByTestId('list-lost-page')).toHaveTextContent(
       'Page 3 could not be opened again',
     );
-    await waitFor(() => expect(location()).toBe('/'));
+    await waitFor(() => expect(location()).toBe('/?tab=executions'));
     expect(api.listWorkflows).not.toHaveBeenCalledWith(
       expect.objectContaining({ pageToken: expect.anything() }),
     );
@@ -214,7 +227,7 @@ describe('workflow list state', () => {
 
   it('reads the filters from the URL', async () => {
     const api = mockTemporalApi();
-    await render(api, '/?allRuns=true&workflowId=order-');
+    await render(api, '/?tab=executions&allRuns=true&workflowId=order-');
     const table = await screen.findByRole('grid', {
       name: 'Workflow executions',
     });
@@ -232,7 +245,7 @@ describe('workflow list state', () => {
 
   it('shows a page size from the URL that is not one of the options', async () => {
     const api = mockTemporalApi();
-    await render(api, '/?pageSize=5');
+    await render(api, '/?tab=executions&pageSize=5');
     await screen.findByRole('grid', { name: 'Workflow executions' });
     expect(api.listWorkflows).toHaveBeenCalledWith(
       expect.objectContaining({ pageSize: 5 }),

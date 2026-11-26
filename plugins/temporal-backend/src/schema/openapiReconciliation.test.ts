@@ -240,6 +240,23 @@ const invalid: Probe[] = [
       1001,
     )}`,
   },
+  {
+    name: 'overview body with more than 25 references',
+    method: 'post',
+    path: '/api/temporal/workflow-types/overview',
+    body: {
+      entityRefs: Array.from(
+        { length: 26 },
+        (_, i) => `temporalworkflow:default/type-${i}`,
+      ),
+    },
+  },
+  {
+    name: 'overview body without references',
+    method: 'post',
+    path: '/api/temporal/workflow-types/overview',
+    body: { entityRefs: [] },
+  },
 ];
 
 const valid: Probe[] = [
@@ -276,6 +293,12 @@ const valid: Probe[] = [
     method: 'post',
     path: '/api/temporal/workflows',
     body: { workflowType: 'orderWorkflow', taskQueue: 'orders' },
+  },
+  {
+    name: 'overview body',
+    method: 'post',
+    path: '/api/temporal/workflow-types/overview',
+    body: { entityRefs: ['temporalworkflow:default/order-workflow'] },
   },
   {
     name: 'null args on a query',
