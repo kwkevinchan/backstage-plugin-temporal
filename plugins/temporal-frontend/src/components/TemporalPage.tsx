@@ -137,7 +137,7 @@ export function TemporalPageInContainer(props: TemporalPageProps) {
 export function TemporalPageWithHeader(props: TemporalPageProps) {
   return (
     <Page themeId="tool">
-      <Header title="Temporal" subtitle="Workflow executions" />
+      <Header title="Temporal" />
       <Content>
         <TemporalPageContent {...withControls(props)} />
       </Content>

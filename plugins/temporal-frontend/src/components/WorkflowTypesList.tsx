@@ -160,6 +160,24 @@ function refLabel(ref: string, defaultKind: string): string {
   }
 }
 
+/** A time on two lines, the date and then the time, so that it fits a narrow column. */
+function DateTime(props: { iso: string | undefined }) {
+  const date = props.iso ? new Date(props.iso) : undefined;
+  if (!date || Number.isNaN(date.getTime())) {
+    return <>{formatTime(props.iso)}</>;
+  }
+  return (
+    <>
+      <span className={tp('tp-overview-line')}>
+        {date.toLocaleDateString()}
+      </span>{' '}
+      <span className={tp('tp-overview-line')}>
+        {date.toLocaleTimeString()}
+      </span>
+    </>
+  );
+}
+
 function RunLink(props: { run: WorkflowTypeOverviewRun; time?: string }) {
   return (
     <Inner>
@@ -169,7 +187,7 @@ function RunLink(props: { run: WorkflowTypeOverviewRun; time?: string }) {
         color="info"
         title={props.run.workflowId}
       >
-        {formatTime(props.time ?? props.run.startTime) || props.run.workflowId}
+        <DateTime iso={props.time ?? props.run.startTime} />
       </Link>
     </Inner>
   );
@@ -561,7 +579,7 @@ export function WorkflowTypesList() {
       cell: (_entity, n) =>
         numbersCell(n, o =>
           o.latestRun ? (
-            <Flex align="center" gap="2" style={{ whiteSpace: 'nowrap' }}>
+            <Flex direction="column" align="start" gap="1">
               <WorkflowStatusLabel status={o.latestRun.status} />
               <RunLink run={o.latestRun} />
             </Flex>
@@ -788,56 +806,60 @@ export function WorkflowTypesList() {
       {entities.error ? (
         <ErrorAlert error={entities.error} />
       ) : (
-        <TableRoot
-          aria-label="Workflows"
-          isPending={pending}
-          sortDescriptor={sort}
-          onSortChange={descriptor =>
-            setSort({
-              column: descriptor.column as SortColumn,
-              direction: descriptor.direction,
-            })
-          }
-        >
-          <TableHeader columns={columnDefs}>
-            {column => (
-              <Column
-                id={column.id}
-                isRowHeader={column.id === 'name'}
-                allowsSorting={column.sortable}
-              >
-                <span title={column.help}>{column.title}</span>
-              </Column>
-            )}
-          </TableHeader>
-          <TableBody
-            items={(byLatestRun && !allRead ? [] : rows).map(entity => ({
-              id: stringifyEntityRef(entity),
-              entity,
-            }))}
-            renderEmptyState={() =>
-              pending ? null : (
-                <Text as="p" variant="body-medium" color="secondary">
-                  No TemporalWorkflow entities match these filters.
-                </Text>
-              )
+        <div className={tp('tp-overview-table')}>
+          <TableRoot
+            aria-label="Workflows"
+            isPending={pending}
+            sortDescriptor={sort}
+            onSortChange={descriptor =>
+              setSort({
+                column: descriptor.column as SortColumn,
+                direction: descriptor.direction,
+              })
             }
           >
-            {item => (
-              <Row
-                id={item.id}
-                columns={columnDefs}
-                onAction={() =>
-                  navigate(entityRoute(entityRouteParams(item.entity)))
-                }
-              >
-                {column => (
-                  <Cell>{column.cell(item.entity, numbers[item.id])}</Cell>
-                )}
-              </Row>
-            )}
-          </TableBody>
-        </TableRoot>
+            <TableHeader columns={columnDefs}>
+              {column => (
+                <Column
+                  id={column.id}
+                  isRowHeader={column.id === 'name'}
+                  allowsSorting={column.sortable}
+                >
+                  <span className={tp('tp-overview-head')} title={column.help}>
+                    {column.title}
+                  </span>
+                </Column>
+              )}
+            </TableHeader>
+            <TableBody
+              items={(byLatestRun && !allRead ? [] : rows).map(entity => ({
+                id: stringifyEntityRef(entity),
+                entity,
+              }))}
+              renderEmptyState={() =>
+                pending ? null : (
+                  <Text as="p" variant="body-medium" color="secondary">
+                    No TemporalWorkflow entities match these filters.
+                  </Text>
+                )
+              }
+            >
+              {item => (
+                <Row
+                  id={item.id}
+                  columns={columnDefs}
+                  onAction={() =>
+                    navigate(entityRoute(entityRouteParams(item.entity)))
+                  }
+                >
+                  {column => (
+                    <Cell>{column.cell(item.entity, numbers[item.id])}</Cell>
+                  )}
+                </Row>
+              )}
+            </TableBody>
+          </TableRoot>
+        </div>
       )}
       {byLatestRun ? (
         <Pager

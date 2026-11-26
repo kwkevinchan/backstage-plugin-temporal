@@ -1651,3 +1651,23 @@
 .tp-overview-count.tp-tone-neutral {
   font-weight: 400;
 }
+
+/*
+ * The table of the Workflows tab: nothing is cut off. Column titles and the
+ * times of the runs wrap; a time shows its date on one line and its time on the next.
+ */
+.tp-overview-table [class*='bui-TableHeadLabel'] {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.tp-overview-head {
+  white-space: normal;
+}
+
+.tp-overview-line {
+  display: block;
+  white-space: nowrap;
+}
