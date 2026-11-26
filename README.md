@@ -66,8 +66,10 @@ workflow definition.
 - **Workflow controls.** Start, signal, update, query, cancel, terminate and
   rerun workflows, and add your own actions.
 - **Workflow types in the catalog.** A `TemporalWorkflow` catalog kind for
-  one workflow type and its definition, and a **Temporal** page with every
-  workflow execution of a namespace.
+  one workflow type and its definition, and a **Temporal** page with two
+  tabs: **Workflows**, the `TemporalWorkflow` entities with the numbers of
+  their runs, and **Executions**, every workflow execution of a namespace
+  (see [The Temporal page](#the-temporal-page)).
 - **Templates.** Scaffolder actions to start a workflow, wait for it and
   send it a signal or an update, and a form field to pick a workflow (see
   [Templates](#templates-scaffolder)).
@@ -315,6 +317,52 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 operations by themselves, first in the action bar and above the lists; the
 `workflowActions`, `workflowListActions` and `scheduleActions` props add
 yours after them.
+
+## The Temporal page
+
+The **Temporal** page (`/temporal`) has two tabs. The tab is in the URL
+(`?tab=executions`); without it the page opens on **Workflows**.
+
+- **Workflows** lists the `TemporalWorkflow` entities of the catalog, by
+  name, 25 to a page. A row shows the workflow (title and description), its
+  owner and system, the numbers below, the latest run, the mean duration of
+  the last 50 runs and the last failure of the last 7 days; a click opens
+  the entity. Lifecycle, namespace and task queue, the entities that use
+  the workflow (`dependencyOf`) and tags are optional columns (**Columns**).
+  The filters are owner, system, lifecycle and name; the owner is **My
+  teams** by default, the groups of the signed-in user (all owners for a
+  user of no group). The rows come from the catalog; entities whose
+  workflows the user may not read (`temporal.workflow.read` on the entity,
+  as on the entity tab) are left out and their runs are not counted.
+- **Executions** is the list of every workflow execution of the default
+  namespace, with the schedules (`temporal.workflow.list`).
+
+The numbers `Running / Completed / Failed`, such as `3 / 120 / 2`:
+
+| Number    | Counts                                                                              |
+| --------- | ----------------------------------------------------------------------------------- |
+| Running   | Every run of the workflow that is running now, however old.                         |
+| Completed | Runs that completed in the last 7 days.                                             |
+| Failed    | Runs that failed, timed out or were terminated in the last 7 days (red when not 0). |
+
+They are approximate: Temporal's visibility store is eventually consistent,
+and the backend keeps the numbers for 60 seconds. The page says how old they
+are. The latest run and the mean duration come from the 50 most recent runs;
+runs that continued as new are left out, as in the run lists.
+
+The tab reads Temporal one page at a time: the numbers of a page come in one
+request to the backend (`POST /api/temporal/workflow-types/overview`, at most
+25 entities). For each entity the backend makes at most three visibility calls:
+one count grouped by status (three counts on a server that cannot group, before
+Temporal 1.22), one list of the 50 most recent runs, and, only when the failures
+of the 7 days are not among those runs, one list of the last failure. At most 4
+of these calls are in flight in a namespace, for all users together, each with the
+deadline of a list (15 seconds). The result is kept for 60 seconds by namespace
+and visibility query; the permission is checked on every request. When Temporal
+rate limits the backend (`RESOURCE_EXHAUSTED`), the rows it refused show `—`
+with the reason and a retry button, the page says so, and nothing is retried on
+its own. Sorting by the latest run needs the numbers of every row, so it is
+offered for 50 workflows or fewer (two requests).
 
 ## Workflow details
 

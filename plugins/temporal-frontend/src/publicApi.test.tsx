@@ -173,7 +173,7 @@ describe('legacy plugin extensions and ./ui sub-path', () => {
           '/catalog/:namespace/:kind/:name': entityRouteRef,
           '/temporal': temporalPlugin.routes.root,
         },
-        routeEntries: ['/temporal'],
+        routeEntries: ['/temporal?tab=executions'],
       },
     );
     expect(await screen.findByText('order-1')).toBeInTheDocument();

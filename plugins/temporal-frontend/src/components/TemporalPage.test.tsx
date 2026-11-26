@@ -27,7 +27,10 @@ import { temporalApiRef } from '../extensions';
 import { TemporalPageContent } from './TemporalPage';
 import { failedWorkflow, listResponse, mockTemporalApi } from '../testData';
 
-function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
+function render(
+  api: ReturnType<typeof mockTemporalApi>,
+  path = '/?tab=executions',
+) {
   return renderInTestApp(
     <TestApiProvider
       apis={[

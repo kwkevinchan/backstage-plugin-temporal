@@ -137,7 +137,7 @@ test('the Temporal page comes back to the same page', async ({ page }) => {
   await checkList(
     page,
     'Workflow executions',
-    '/temporal?allRuns=true&pageSize=5',
+    '/temporal?tab=executions&allRuns=true&pageSize=5',
   );
   mkdirSync(shotDir, { recursive: true });
   await page.screenshot({

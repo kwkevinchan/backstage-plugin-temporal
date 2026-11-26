@@ -50,8 +50,23 @@ shared connection. Both use the same connection. The layers are described in
 
 The lists use the same layers with a different entry: the route asks the access
 service for the read permission on the entity (`loadEntity`), and
-`WorkflowListQueries` builds the query. The Temporal page asks for the list
-permission instead, whose conditions the backend turns into a visibility query.
+`WorkflowListQueries` builds the query. The **Executions** tab of the Temporal
+page asks for the list permission instead, whose conditions the backend turns
+into a visibility query.
+
+The **Workflows** tab of the Temporal page reads its rows from the catalog and
+sends the references of one page (at most 25) to
+`POST /workflow-types/overview`. The access service checks the read permission
+on all of them in one request to the permission framework
+(`loadWorkflowEntities`) and leaves out the entities the user may not read.
+For each of the others, `WorkflowListQueries.overview()` makes at most three
+visibility calls with the entity's visibility query: a count grouped by
+`ExecutionStatus` (running now, closed in the last 7 days), the 50 most recent
+runs, and the last failure when it is not among them. These calls share a
+limit of 4 in flight for each namespace, and the result is kept for 60 seconds
+by namespace and visibility query, so many users on the page do not multiply
+the load on Temporal. A call that Temporal rate limits gives that row an
+error; it is not retried.
 
 ### Operate: press Cancel
 

@@ -20,7 +20,9 @@ import {
 } from '@backstage/catalog-model';
 import { InputError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import type {
+import {
+  isTemporalWorkflowEntityRef,
+  MAX_WORKFLOW_TYPE_OVERVIEW_REFS,
   WorkflowMessageRequest,
   WorkflowRef,
   WorkflowRunRef,
@@ -150,4 +152,31 @@ export function parseMessageBody(req: Request): WorkflowMessageRequest {
     throw new InputError('name is required');
   }
   return { name: name.trim(), args: parseArgs(args) };
+}
+
+/**
+ * The `entityRefs` of an overview body: 1 to
+ * {@link MAX_WORKFLOW_TYPE_OVERVIEW_REFS} references of `TemporalWorkflow`
+ * entities, in their canonical form, without repeats.
+ */
+export function parseOverviewEntityRefs(req: Request): string[] {
+  const { entityRefs } = requestBody(req);
+  if (
+    !Array.isArray(entityRefs) ||
+    entityRefs.length === 0 ||
+    entityRefs.length > MAX_WORKFLOW_TYPE_OVERVIEW_REFS
+  ) {
+    throw new InputError(
+      `entityRefs must be an array of 1 to ${MAX_WORKFLOW_TYPE_OVERVIEW_REFS} entity references`,
+    );
+  }
+  const refs = entityRefs.map(raw => {
+    if (typeof raw !== 'string') throw new InputError('Invalid entityRef');
+    const ref = normalizeEntityRef(raw);
+    if (!isTemporalWorkflowEntityRef(ref)) {
+      throw new InputError(`Not a TemporalWorkflow entity: ${ref}`);
+    }
+    return ref;
+  });
+  return [...new Set(refs)];
 }

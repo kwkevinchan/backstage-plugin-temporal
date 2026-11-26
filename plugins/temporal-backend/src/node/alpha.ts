@@ -116,6 +116,23 @@ export interface TemporalAccessibleWorkflow {
 }
 
 /**
+ * One `TemporalWorkflow` entity of
+ * {@link TemporalAccessService.loadWorkflowEntities}: its context, or why
+ * its workflows cannot be shown (an `InputError`: a spec that is not valid,
+ * or a namespace that is not allowed).
+ *
+ * @alpha
+ */
+export interface TemporalWorkflowEntityLoadResult {
+  /** The reference of the entity, as it was asked for. */
+  entityRef: string;
+  /** The entity and its namespace; absent when `error` is set. */
+  context?: TemporalEntityContext;
+  /** Why the entity's workflows cannot be shown. */
+  error?: Error;
+}
+
+/**
  * Decides who may see and change which workflows, with the permission
  * framework and the catalog. The Temporal backend plugin and its modules
  * share one instance; replace its factory to change how access is decided.
@@ -165,6 +182,19 @@ export interface TemporalAccessService {
     permission: ResourcePermission<'catalog-entity'>,
     credentials: BackstageCredentials,
   ): Promise<TemporalEntityContext>;
+
+  /**
+   * Checks the permission on several `TemporalWorkflow` entities in one
+   * request to the permission framework, then reads the allowed ones with
+   * the caller's credentials. Entities the caller may not read, that do not
+   * exist or are of another kind are left out; the others are in the order
+   * of `entityRefs`.
+   */
+  loadWorkflowEntities(
+    entityRefs: string[],
+    permission: ResourcePermission<'catalog-entity'>,
+    credentials: BackstageCredentials,
+  ): Promise<TemporalWorkflowEntityLoadResult[]>;
 
   /**
    * Reads a workflow with every check: the namespace is allowed, the

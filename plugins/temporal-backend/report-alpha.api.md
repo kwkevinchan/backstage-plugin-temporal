@@ -66,6 +66,11 @@ export interface TemporalAccessService {
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow>;
+  loadWorkflowEntities(
+    entityRefs: string[],
+    permission: ResourcePermission<'catalog-entity'>,
+    credentials: BackstageCredentials,
+  ): Promise<TemporalWorkflowEntityLoadResult[]>;
 }
 
 // @alpha
@@ -247,6 +252,13 @@ export interface TemporalWorkflowEnricherExtensionPoint {
 
 // @alpha
 export const temporalWorkflowEnricherExtensionPoint: ExtensionPoint<TemporalWorkflowEnricherExtensionPoint>;
+
+// @alpha
+export interface TemporalWorkflowEntityLoadResult {
+  context?: TemporalEntityContext;
+  entityRef: string;
+  error?: Error;
+}
 
 // @alpha
 export type TemporalWorkflowFilter =

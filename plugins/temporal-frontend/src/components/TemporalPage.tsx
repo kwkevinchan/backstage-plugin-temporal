@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useSearchParams } from 'react-router-dom';
 import { Content, Header, Page } from '@backstage/core-components';
-import { Container, Flex } from '@backstage/ui';
+import { Container, Flex, Tab, TabList, TabPanel, Tabs } from '@backstage/ui';
 import { AllWorkflowsList } from './AllWorkflowsList';
+import { WorkflowTypesList } from './WorkflowTypesList';
 import { WorkflowDetailPage } from './WorkflowDetailPage';
 import { WorkflowRunsPage } from './WorkflowRunsPage';
 import type {
@@ -46,9 +47,53 @@ export interface TemporalPageProps {
   scheduleActions?: TemporalScheduleActionDef[];
 }
 
+/** The tab of the Temporal page in `?tab=`; Workflows without it. */
+const EXECUTIONS_TAB = 'executions';
+const WORKFLOWS_TAB = 'workflows';
+
 /**
- * Temporal page content: the list, and on nested routes the runs of a
- * workflow ID and the details of a run.
+ * The two tabs of the Temporal page: the `TemporalWorkflow` entities with
+ * the numbers of their runs, and the list of every run with the schedules.
+ */
+function TemporalPageTabs(props: TemporalPageProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab =
+    searchParams.get('tab') === EXECUTIONS_TAB ? EXECUTIONS_TAB : WORKFLOWS_TAB;
+  return (
+    <Tabs
+      selectedKey={tab}
+      onSelectionChange={key =>
+        setSearchParams(
+          current => {
+            const next = new URLSearchParams(current);
+            if (key === EXECUTIONS_TAB) next.set('tab', EXECUTIONS_TAB);
+            else next.delete('tab');
+            return next;
+          },
+          { replace: true },
+        )
+      }
+    >
+      <TabList aria-label="Temporal">
+        <Tab id={WORKFLOWS_TAB}>Workflows</Tab>
+        <Tab id={EXECUTIONS_TAB}>Executions</Tab>
+      </TabList>
+      <TabPanel id={WORKFLOWS_TAB}>
+        <WorkflowTypesList />
+      </TabPanel>
+      <TabPanel id={EXECUTIONS_TAB}>
+        <Flex direction="column" gap="4">
+          <AllWorkflowsList listActions={props.workflowListActions} />
+          <SchedulesCard actions={props.scheduleActions} />
+        </Flex>
+      </TabPanel>
+    </Tabs>
+  );
+}
+
+/**
+ * Temporal page content: the Workflows and Executions tabs, and on nested
+ * routes the runs of a workflow ID and the details of a run.
  */
 export function TemporalPageContent(props: TemporalPageProps) {
   const detail = (
@@ -59,15 +104,7 @@ export function TemporalPageContent(props: TemporalPageProps) {
   );
   return (
     <Routes>
-      <Route
-        path="/"
-        element={
-          <Flex direction="column" gap="4">
-            <AllWorkflowsList listActions={props.workflowListActions} />
-            <SchedulesCard actions={props.scheduleActions} />
-          </Flex>
-        }
-      />
+      <Route path="/" element={<TemporalPageTabs {...props} />} />
       <Route
         path="/namespaces/:namespace/workflows/:workflowId"
         element={<WorkflowRunsPage />}

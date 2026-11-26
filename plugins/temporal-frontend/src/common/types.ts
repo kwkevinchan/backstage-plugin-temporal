@@ -234,6 +234,82 @@ export interface WorkflowStatsResponse {
 }
 
 /**
+ * Most entity references in one request of the workflow type overview.
+ *
+ * @public
+ */
+export const MAX_WORKFLOW_TYPE_OVERVIEW_REFS = 25;
+
+/**
+ * Request of the workflow type overview: references of `TemporalWorkflow`
+ * entities, at most {@link MAX_WORKFLOW_TYPE_OVERVIEW_REFS}.
+ *
+ * @public
+ */
+export interface WorkflowTypeOverviewRequest {
+  entityRefs: string[];
+}
+
+/**
+ * One run in the workflow type overview.
+ *
+ * @public
+ */
+export interface WorkflowTypeOverviewRun {
+  namespace: string;
+  workflowId: string;
+  runId: string;
+  status: WorkflowStatus;
+  startTime?: string;
+  closeTime?: string;
+}
+
+/**
+ * The numbers of one `TemporalWorkflow` entity in the workflow type
+ * overview. The counts are approximate: Temporal's visibility store is
+ * eventually consistent, and the backend keeps the numbers for 60 seconds.
+ *
+ * @public
+ */
+export interface WorkflowTypeOverview {
+  entityRef: string;
+  /** Runs that are running now, however old. */
+  running: number;
+  /** Runs that completed in the last `windowDays` days. */
+  completed: number;
+  /** Runs that failed, timed out or were terminated in the last `windowDays` days. */
+  failed: number;
+  /** Days that `completed`, `failed` and `lastFailure` cover. */
+  windowDays: number;
+  /** The newest run. */
+  latestRun?: WorkflowTypeOverviewRun;
+  /** Mean duration of the closed runs among the most recent `sampleSize` runs, in milliseconds. */
+  averageDurationMs?: number;
+  /** Number of most recent runs `latestRun` and `averageDurationMs` come from (at most 50). */
+  sampleSize: number;
+  /** The most recent run that failed, timed out or was terminated in the last `windowDays` days. */
+  lastFailure?: WorkflowTypeOverviewRun;
+  /** When the numbers were read from Temporal (ISO 8601). */
+  updatedAt: string;
+  /**
+   * Set when the numbers could not be read; the counts are then 0 and are
+   * not shown. `rateLimited` is true when Temporal refused the call for its
+   * rate limit.
+   */
+  error?: { message: string; rateLimited?: boolean };
+}
+
+/**
+ * Response of the workflow type overview: one item for each requested
+ * entity the caller may read, in the order of the request.
+ *
+ * @public
+ */
+export interface WorkflowTypeOverviewResponse {
+  items: WorkflowTypeOverview[];
+}
+
+/**
  * One history event. `attributes` holds the event attributes as JSON, with
  * payloads shown as {@link DecodedPayload}: `{ encoding, value }` (decoded
  * JSON), `{ encoding, size, undecodable: true, metadata? }` (data that is

@@ -49,7 +49,11 @@ const unreachable = async () => {
   throw new TypeError('Failed to fetch');
 };
 
-function render(element: JSX.Element, fetch: () => Promise<Response>) {
+function render(
+  element: JSX.Element,
+  fetch: () => Promise<Response>,
+  path = '/',
+) {
   const api = new TemporalClient({ discoveryApi, fetchApi: { fetch } });
   return renderInTestApp(
     <TestApiProvider
@@ -60,6 +64,7 @@ function render(element: JSX.Element, fetch: () => Promise<Response>) {
     >
       <EntityProvider entity={entity}>{element}</EntityProvider>
     </TestApiProvider>,
+    { routeEntries: [path] },
   );
 }
 
@@ -84,7 +89,7 @@ describe('without the Temporal backend plugin', () => {
   ])(
     'shows the error on the Temporal page (%s)',
     async (_name, fetch, message) => {
-      await render(<TemporalPageContent />, fetch);
+      await render(<TemporalPageContent />, fetch, '/?tab=executions');
       const alerts = await screen.findAllByTestId('temporal-error');
       expect(alerts[0]).toHaveTextContent(message);
     },

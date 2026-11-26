@@ -73,6 +73,7 @@ test('the Temporal page lists the run ID and links the workflow type', async ({
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   await page
     .getByRole('textbox', { name: 'Workflow ID starts with' })
     .fill('example-payment-');
@@ -120,3 +121,8 @@ test('the Temporal page lists the run ID and links the workflow type', async ({
     page.getByRole('link', { name: 'paymentWorkflow', exact: true }),
   ).toHaveAttribute('href', paymentEntity);
 });
+
+/** The Executions tab of the Temporal page; the Workflows tab is the default. */
+async function openExecutionsTab(page: Page) {
+  await page.getByRole('tab', { name: 'Executions', exact: true }).click();
+}

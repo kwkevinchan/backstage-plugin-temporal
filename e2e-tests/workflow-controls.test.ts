@@ -273,6 +273,7 @@ test('starts, signals, queries, updates, cancels and reruns a workflow', async (
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   await page.getByRole('button', { name: 'Start workflow' }).click();
   await dialog(page)
     .getByRole('textbox', { name: /Workflow type/ })
@@ -355,3 +356,8 @@ test('shows the workflow controls in the dark theme', async ({ page }) => {
     .last()
     .click();
 });
+
+/** The Executions tab of the Temporal page; the Workflows tab is the default. */
+async function openExecutionsTab(page: Page) {
+  await page.getByRole('tab', { name: 'Executions', exact: true }).click();
+}

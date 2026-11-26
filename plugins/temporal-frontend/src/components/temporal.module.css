@@ -1636,3 +1636,18 @@
 .tp-node[data-llm] .tp-badge {
   font-size: 13px;
 }
+
+/* The Running / Completed / Failed counts of the Workflows tab. */
+.tp-overview-counts {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tp-overview-count {
+  color: var(--tp-fg);
+  font-weight: 600;
+}
+
+.tp-overview-count.tp-tone-neutral {
+  font-weight: 400;
+}

@@ -20,7 +20,9 @@
 4. `WorkflowQueries` 透過 `TemporalReadRepository` 讀取流程，把 Temporal 的資料轉成外掛自己的 API 型別。Worker 存在 S3 的 Payload 不會被讀取：外掛從紀錄裡的參照顯示它存在哪裡。
 5. JSON 回到頁面。Temporal 那邊的錯誤會轉成對應的 HTTP 狀態，例如連不上時回 `503`。
 
-清單走同樣的層，只是入口不同：路由向授權服務要實體的 read 權限（`loadEntity`），再由 `WorkflowListQueries` 組出查詢。Temporal 頁則改問 list 權限，後端把它的條件轉成 visibility 查詢。
+清單走同樣的層，只是入口不同：路由向授權服務要實體的 read 權限（`loadEntity`），再由 `WorkflowListQueries` 組出查詢。Temporal 頁的 **Executions** 分頁則改問 list 權限，後端把它的條件轉成 visibility 查詢。
+
+Temporal 頁的 **Workflows** 分頁從 catalog 讀出列，再把一頁的實體參照（最多 25 個）送到 `POST /workflow-types/overview`。授權服務用一次權限請求檢查全部實體的 read 權限（`loadWorkflowEntities`），使用者讀不到的實體不回傳。其他每個實體，`WorkflowListQueries.overview()` 用實體的 visibility 查詢最多呼叫三次 visibility：一次依 `ExecutionStatus` 分組的 Count（現在進行中、最近 7 天結束），一次最近 50 次執行的清單，最近 50 次裡沒有失敗時再一次找上次失敗。這些呼叫在每個 Namespace 同時最多 4 個，結果依 Namespace 和 visibility 查詢保留 60 秒，所以很多人同時開這一頁，對 Temporal 的負載也不會跟著倍增。被 Temporal 限流的呼叫，那一列回錯誤，不會重試。
 
 ### 操作：按 Cancel
 

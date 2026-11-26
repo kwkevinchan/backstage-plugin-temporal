@@ -501,6 +501,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   // The first page holds the newest runs, whichever examples ran last, so
   // the payment workflow is found with the filter.
   const all = table(page, 'Workflow executions');
@@ -633,6 +634,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   await page.getByText('Show all runs', { exact: true }).click();
   await expect(
     table(page, 'Workflow executions').getByText('Continued as new').first(),
@@ -647,7 +649,13 @@ async function openRunFromTemporalPage(page: Page, workflowType: string) {
     .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
+  await openExecutionsTab(page);
   const all = table(page, 'Workflow executions');
   await expect(all.getByText(workflowType).first()).toBeVisible();
   await openRun(all, workflowType);
+}
+
+/** The Executions tab of the Temporal page; the Workflows tab is the default. */
+async function openExecutionsTab(page: Page) {
+  await page.getByRole('tab', { name: 'Executions', exact: true }).click();
 }

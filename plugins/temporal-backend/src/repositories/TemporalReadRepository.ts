@@ -33,6 +33,22 @@ function toJson(message: unknown): any {
   return m && typeof m.toJSON === 'function' ? m.toJSON() : message;
 }
 
+/**
+ * The value of a group of a grouped count: a payload whose data is the
+ * JSON of a string, such as `"Running"`.
+ */
+function decodeGroupValue(
+  payload: { data?: Uint8Array | null } | null | undefined,
+): string | undefined {
+  if (!payload?.data) return undefined;
+  try {
+    const value = JSON.parse(Buffer.from(payload.data).toString('utf8'));
+    return typeof value === 'string' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** One page of a Temporal list call, as protobuf JSON. */
 export interface TemporalPage<T> {
   items: T[];
@@ -105,6 +121,34 @@ export class TemporalReadRepository {
         service.countWorkflowExecutions({ namespace, query: visibilityQuery }),
     );
     return Number(response.count ?? 0);
+  }
+
+  /**
+   * Counts the runs of `visibilityQuery` by status, with
+   * `GROUP BY ExecutionStatus` (Temporal 1.22 and later). A server that
+   * cannot group answers `INVALID_ARGUMENT`, an `InputError` here.
+   */
+  async countExecutionsByStatus(
+    namespace: string,
+    visibilityQuery: string,
+  ): Promise<Record<string, number>> {
+    const response = await this.call(
+      'countWorkflowExecutions',
+      namespace,
+      TEMPORAL_DEADLINES.list,
+      service =>
+        service.countWorkflowExecutions({
+          namespace,
+          query: `${visibilityQuery} GROUP BY ExecutionStatus`,
+        }),
+    );
+    const counts: Record<string, number> = {};
+    for (const group of response.groups ?? []) {
+      const status = decodeGroupValue(group.groupValues?.[0]);
+      if (status === undefined) continue;
+      counts[status] = (counts[status] ?? 0) + Number(group.count ?? 0);
+    }
+    return counts;
   }
 
   async describeExecution(ref: WorkflowRef): Promise<any> {

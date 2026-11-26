@@ -634,6 +634,107 @@ components:
         relatedWorkflows:
           $ref: '#/components/schemas/RelatedWorkflows'
       additionalProperties: false
+    WorkflowTypeOverviewRequest:
+      type: object
+      description: References of `TemporalWorkflow` entities, for example one page of the Temporal page.
+      required:
+        - entityRefs
+      properties:
+        entityRefs:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            type: string
+            minLength: 1
+            maxLength: 1000
+      additionalProperties: false
+    WorkflowTypeOverviewRun:
+      type: object
+      description: One run in the workflow type overview.
+      required:
+        - namespace
+        - workflowId
+        - runId
+        - status
+      properties:
+        namespace:
+          type: string
+        workflowId:
+          type: string
+        runId:
+          type: string
+        status:
+          $ref: '#/components/schemas/WorkflowStatus'
+        startTime:
+          type: string
+          description: ISO 8601 timestamp.
+        closeTime:
+          type: string
+          description: ISO 8601 timestamp.
+      additionalProperties: false
+    WorkflowTypeOverview:
+      type: object
+      description: The numbers of one `TemporalWorkflow` entity. The counts are approximate (Temporal's visibility store is eventually consistent) and kept by the backend for 60 seconds.
+      required:
+        - entityRef
+        - running
+        - completed
+        - failed
+        - windowDays
+        - sampleSize
+        - updatedAt
+      properties:
+        entityRef:
+          type: string
+        running:
+          type: integer
+          description: Runs that are running now, however old.
+        completed:
+          type: integer
+          description: Runs that completed in the last `windowDays` days.
+        failed:
+          type: integer
+          description: Runs that failed, timed out or were terminated in the last `windowDays` days.
+        windowDays:
+          type: integer
+          description: Days that `completed`, `failed` and `lastFailure` cover (7).
+        latestRun:
+          $ref: '#/components/schemas/WorkflowTypeOverviewRun'
+        averageDurationMs:
+          type: number
+          description: Mean duration of the closed runs among the most recent `sampleSize` runs, in milliseconds.
+        sampleSize:
+          type: integer
+          description: Number of most recent runs `latestRun` and `averageDurationMs` come from (at most 50; runs that continued as new are left out).
+        lastFailure:
+          $ref: '#/components/schemas/WorkflowTypeOverviewRun'
+        updatedAt:
+          type: string
+          description: When the numbers were read from Temporal (ISO 8601).
+        error:
+          type: object
+          description: Set when the numbers could not be read; the counts are then 0. `rateLimited` is true when Temporal refused a call for its rate limit.
+          required:
+            - message
+          properties:
+            message:
+              type: string
+            rateLimited:
+              type: boolean
+          additionalProperties: false
+      additionalProperties: false
+    WorkflowTypeOverviewResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: One item for each requested entity that the caller may read and that exists, in the order of the request.
+          items:
+            $ref: '#/components/schemas/WorkflowTypeOverview'
+      additionalProperties: false
     WorkflowHistoryEvent:
       type: object
       required:
@@ -1566,6 +1667,37 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
+  /workflow-types/overview:
+    post:
+      operationId: getWorkflowTypeOverview
+      summary: Summarize several TemporalWorkflow entities
+      description: |-
+        The numbers of the Workflows tab of the Temporal page, for up to 25 `TemporalWorkflow` entities: the runs that are running now, the runs completed and failed (failed, timed out or terminated) in the last 7 days, the latest run and the mean duration of the 50 most recent runs (runs that continued as new are left out), and the last failure of the 7 days. The numbers of an entity come from at most three visibility calls to Temporal (one count grouped by status, or three counts when the server cannot group; a list of the most recent runs; a list of the last failure when it is not among them), with at most 4 calls in flight in each namespace. They are kept for 60 seconds by namespace and visibility query. A call that fails, for example for Temporal's rate limit, gives an item with `error`; it is not retried.
+
+        Permission: `temporal.workflow.read` on each entity, checked in one request on every call. Entities the caller may not read, and entities that do not exist, are left out of `items`, without a 403. A reference that is not of kind `TemporalWorkflow` is a 400.
+      tags:
+        - Workflows
+      x-temporal-permissions:
+        - temporal.workflow.read
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTypeOverviewRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowTypeOverviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /namespaces/{namespace}/workflows/{workflowId}:
     get:
       operationId: listWorkflowRuns

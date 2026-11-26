@@ -42,6 +42,8 @@ import {
   WorkflowRunRef,
   WorkflowStatsResponse,
   WorkflowStatus,
+  WORKFLOW_TYPE_OVERVIEW_PATH,
+  WorkflowTypeOverviewResponse,
   WorkflowStartRequest,
   WorkflowStartResponse,
   buildWorkflowActionPath,
@@ -217,6 +219,12 @@ export class TemporalClient implements TemporalApi {
       buildEntityWorkflowStatsPath(parseEntityRef(entityRef)) +
         queryString({ limit: options?.limit }),
     );
+  }
+
+  getWorkflowTypeOverview(
+    entityRefs: string[],
+  ): Promise<WorkflowTypeOverviewResponse> {
+    return this.post(WORKFLOW_TYPE_OVERVIEW_PATH, { entityRefs });
   }
 
   listWorkflowRuns(

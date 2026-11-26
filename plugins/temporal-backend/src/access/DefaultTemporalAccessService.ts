@@ -55,6 +55,7 @@ import {
   TemporalAccessibleWorkflow,
   TemporalAccessService,
   TemporalEntityContext,
+  TemporalWorkflowEntityLoadResult,
   TemporalWorkflowFilter,
 } from '../node/alpha';
 import {
@@ -289,6 +290,38 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       entity,
       related.entities,
       related.relatedWorkflows,
+    );
+  }
+
+  async loadWorkflowEntities(
+    entityRefs: string[],
+    permission: ResourcePermission<'catalog-entity'>,
+    credentials: BackstageCredentials,
+  ): Promise<TemporalWorkflowEntityLoadResult[]> {
+    if (entityRefs.length === 0) return [];
+    const decisions = await this.permissions.authorize(
+      entityRefs.map(resourceRef => ({ permission, resourceRef })),
+      { credentials },
+    );
+    const allowed = entityRefs.filter(
+      (_, i) => decisions[i]?.result === AuthorizeResult.ALLOW,
+    );
+    if (allowed.length === 0) return [];
+    const { items } = await this.catalog.getEntitiesByRefs(
+      { entityRefs: allowed },
+      { credentials },
+    );
+    return allowed.flatMap(
+      (entityRef, i): TemporalWorkflowEntityLoadResult[] => {
+        const entity = items[i];
+        if (!entity || !isTemporalWorkflowEntity(entity)) return [];
+        try {
+          return [{ entityRef, context: this.sources.entityContext(entity) }];
+        } catch (error) {
+          if (error instanceof InputError) return [{ entityRef, error }];
+          throw error;
+        }
+      },
     );
   }
 

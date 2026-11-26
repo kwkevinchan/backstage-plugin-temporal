@@ -25,6 +25,9 @@ import {
   WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowDetail,
+  WorkflowSummary,
+  WorkflowTypeOverview,
+  WorkflowTypeOverviewRun,
   TemporalSchedule,
   TemporalScheduleListResponse,
 } from '../common';
@@ -34,15 +37,21 @@ import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
 import { toTemporalSchedule } from './schedules';
 import { scheduleClientOf } from '../repositories/scheduleClient';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
-import { isScheduleNotFound, mapTemporalError } from '../repositories/errors';
+import {
+  isRateLimitedError,
+  isScheduleNotFound,
+  mapTemporalError,
+} from '../repositories/errors';
 import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
 import {
   buildEntityVisibilityQuery,
   buildNamespaceVisibilityQuery,
   NamespaceWorkflowFilter,
   matchingWorkflowEntity,
+  quote,
   scheduleBelongsToSources,
 } from './visibilityQuery';
+import { KeyedConcurrencyLimit } from './concurrencyLimit';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
 
@@ -60,6 +69,73 @@ const SCHEDULE_DESCRIBE_CONCURRENCY = 8;
 
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
+
+/** Days that the completed and failed counts of the overview cover. */
+export const OVERVIEW_WINDOW_DAYS = 7;
+/** Most recent runs the latest run and the mean duration of the overview come from. */
+export const OVERVIEW_SAMPLE_SIZE = 50;
+/** How long the numbers of one entity are kept, in milliseconds. */
+export const OVERVIEW_CACHE_TTL_MS = 60_000;
+/** Entities whose numbers are kept in memory. */
+export const OVERVIEW_CACHE_SIZE = 1000;
+/** Visibility calls of the overview in flight at once, in each namespace. */
+export const OVERVIEW_CONCURRENCY = 4;
+
+const FAILURE_CONDITION = `ExecutionStatus IN (${CLOSED_WITH_FAILURE.map(
+  quote,
+).join(', ')})`;
+
+/** Mean duration of the closed runs of `items`, in milliseconds. */
+function averageDurationMs(items: WorkflowSummary[]): number | undefined {
+  let sum = 0;
+  let count = 0;
+  for (const item of items) {
+    if (item.startTime && item.closeTime) {
+      const ms = Date.parse(item.closeTime) - Date.parse(item.startTime);
+      if (Number.isFinite(ms) && ms >= 0) {
+        sum += ms;
+        count += 1;
+      }
+    }
+  }
+  return count > 0 ? Math.round(sum / count) : undefined;
+}
+
+/**
+ * The overview item of an entity whose numbers cannot be read: its counts
+ * are 0, and `error` says why.
+ */
+export function failedOverview(
+  entityRef: string,
+  error: unknown,
+  now = Date.now(),
+): WorkflowTypeOverview {
+  const message = error instanceof Error ? error.message : String(error);
+  return {
+    entityRef,
+    running: 0,
+    completed: 0,
+    failed: 0,
+    windowDays: OVERVIEW_WINDOW_DAYS,
+    sampleSize: 0,
+    updatedAt: new Date(now).toISOString(),
+    error: isRateLimitedError(error)
+      ? { message, rateLimited: true }
+      : { message },
+  };
+}
+
+function overviewRun(item: WorkflowSummary): WorkflowTypeOverviewRun {
+  const run: WorkflowTypeOverviewRun = {
+    namespace: item.namespace,
+    workflowId: item.workflowId,
+    runId: item.runId,
+    status: item.status,
+  };
+  if (item.startTime) run.startTime = item.startTime;
+  if (item.closeTime) run.closeTime = item.closeTime;
+  return run;
+}
 
 /**
  * The list use cases of the plugin: the workflows of an entity and of a
@@ -275,17 +351,8 @@ export class WorkflowListQueries {
       .slice(0, options.limit)
       .map(e => toWorkflowSummary(e, convert));
     const byStatus: Partial<Record<WorkflowStatus, number>> = {};
-    let durationSum = 0;
-    let durationCount = 0;
     for (const item of items) {
       byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
-      if (item.startTime && item.closeTime) {
-        const ms = Date.parse(item.closeTime) - Date.parse(item.startTime);
-        if (Number.isFinite(ms) && ms >= 0) {
-          durationSum += ms;
-          durationCount += 1;
-        }
-      }
     }
     const count = (...statuses: WorkflowStatus[]) =>
       statuses.reduce((sum, st) => sum + (byStatus[st] ?? 0), 0);
@@ -297,9 +364,161 @@ export class WorkflowListQueries {
       succeeded: count('Completed'),
       failed: count(...CLOSED_WITH_FAILURE),
       running: count('Running'),
-      averageDurationMs:
-        durationCount > 0 ? Math.round(durationSum / durationCount) : undefined,
+      averageDurationMs: averageDurationMs(items),
       relatedWorkflows: context.relatedWorkflows,
+    };
+  }
+
+  private readonly overviewLimit = new KeyedConcurrencyLimit(
+    OVERVIEW_CONCURRENCY,
+  );
+
+  private readonly overviewCache = new Map<
+    string,
+    { expiresAt: number; overview: WorkflowTypeOverview }
+  >();
+
+  /**
+   * The numbers of a `TemporalWorkflow` entity for the overview of the
+   * Temporal page, from at most three visibility calls: a count grouped by
+   * status (three counts when the server cannot group), a list of the most
+   * recent runs, and, when the failures of the window are not among them,
+   * a list of the last failure. The numbers are kept for
+   * {@link OVERVIEW_CACHE_TTL_MS} by namespace and visibility query. A call
+   * that fails gives an item with `error`; nothing is retried.
+   */
+  async overview(
+    context: TemporalEntityContext,
+  ): Promise<WorkflowTypeOverview> {
+    const now = Date.now();
+    try {
+      const entityQuery = buildEntityVisibilityQuery(
+        this.sources.filterOf(context),
+      );
+      const key = `${context.namespace}\n${entityQuery}`;
+      const cached = this.overviewCache.get(key);
+      if (cached && cached.expiresAt > now) {
+        return { ...cached.overview, entityRef: context.entityRef };
+      }
+      if (cached) this.overviewCache.delete(key);
+      const overview = await this.readOverview(context, entityQuery, now);
+      if (this.overviewCache.size >= OVERVIEW_CACHE_SIZE) {
+        const oldest = this.overviewCache.keys().next().value;
+        if (oldest !== undefined) this.overviewCache.delete(oldest);
+      }
+      this.overviewCache.set(key, {
+        expiresAt: now + OVERVIEW_CACHE_TTL_MS,
+        overview,
+      });
+      return overview;
+    } catch (error) {
+      return failedOverview(context.entityRef, error, now);
+    }
+  }
+
+  private async readOverview(
+    context: TemporalEntityContext,
+    entityQuery: string,
+    now: number,
+  ): Promise<WorkflowTypeOverview> {
+    const { namespace } = context;
+    const limited = <T>(call: () => Promise<T>) =>
+      this.overviewLimit.run(namespace, call);
+    const since = new Date(
+      now - OVERVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const closedSince = `CloseTime > ${quote(since)}`;
+    const sampleQuery = buildEntityVisibilityQuery(
+      this.sources.filterOf(context),
+      { allRuns: false },
+    );
+    const [counts, sample] = await Promise.all([
+      this.countOverview(namespace, entityQuery, closedSince, limited),
+      limited(() =>
+        this.temporalReads.listExecutions(namespace, sampleQuery, {
+          pageSize: OVERVIEW_SAMPLE_SIZE,
+        }),
+      ),
+    ]);
+    const convert = this.queries.convertOptions(namespace);
+    const items = sample.items
+      .slice(0, OVERVIEW_SAMPLE_SIZE)
+      .map(e => toWorkflowSummary(e, convert));
+    const sinceMs = Date.parse(since);
+    let lastFailure = items
+      .filter(
+        item =>
+          CLOSED_WITH_FAILURE.includes(item.status) &&
+          item.closeTime !== undefined &&
+          Date.parse(item.closeTime) > sinceMs,
+      )
+      .sort((a, b) => Date.parse(b.closeTime!) - Date.parse(a.closeTime!))[0];
+    if (!lastFailure && counts.failed > 0) {
+      const failures = await limited(() =>
+        this.temporalReads.listExecutions(
+          namespace,
+          `(${entityQuery}) AND ${FAILURE_CONDITION} AND ${closedSince}`,
+          { pageSize: 1 },
+        ),
+      );
+      const [first] = failures.items;
+      if (first) lastFailure = toWorkflowSummary(first, convert);
+    }
+    const overview: WorkflowTypeOverview = {
+      entityRef: context.entityRef,
+      ...counts,
+      windowDays: OVERVIEW_WINDOW_DAYS,
+      sampleSize: items.length,
+      updatedAt: new Date(now).toISOString(),
+    };
+    if (items[0]) overview.latestRun = overviewRun(items[0]);
+    const average = averageDurationMs(items);
+    if (average !== undefined) overview.averageDurationMs = average;
+    if (lastFailure) overview.lastFailure = overviewRun(lastFailure);
+    return overview;
+  }
+
+  /**
+   * Running runs, and runs completed and failed since the window began:
+   * one grouped count, or three counts when the server cannot group.
+   */
+  private async countOverview(
+    namespace: string,
+    entityQuery: string,
+    closedSince: string,
+    limited: <T>(call: () => Promise<T>) => Promise<T>,
+  ): Promise<{ running: number; completed: number; failed: number }> {
+    let byStatus: Record<string, number>;
+    try {
+      byStatus = await limited(() =>
+        this.temporalReads.countExecutionsByStatus(
+          namespace,
+          `(${entityQuery}) AND (ExecutionStatus = 'Running' OR ${closedSince})`,
+        ),
+      );
+    } catch (error) {
+      if (!(error instanceof InputError)) throw error;
+      const count = (condition: string) =>
+        limited(() =>
+          this.temporalReads.countExecutions(
+            namespace,
+            `(${entityQuery}) AND ${condition}`,
+          ),
+        );
+      const [running, completed, failed] = await Promise.all([
+        count(`ExecutionStatus = 'Running'`),
+        count(`ExecutionStatus = 'Completed' AND ${closedSince}`),
+        count(`${FAILURE_CONDITION} AND ${closedSince}`),
+      ]);
+      return { running, completed, failed };
+    }
+    return {
+      running: byStatus.Running ?? 0,
+      completed: byStatus.Completed ?? 0,
+      failed: CLOSED_WITH_FAILURE.reduce(
+        (sum, status) => sum + (byStatus[status] ?? 0),
+        0,
+      ),
     };
   }
 

@@ -104,8 +104,15 @@ test('shows no workflows when the read and list permissions are denied', async (
   await expect(page.getByText('paymentWorkflow')).toHaveCount(0);
   await shot(page, 'no-read-01-entity-tab');
 
-  // 2. Standalone Temporal page (temporal.workflow.list denied).
+  // 2. Standalone Temporal page: the Workflows tab lists no entity whose
+  // workflows the user may not read, and the Executions tab
+  // (temporal.workflow.list denied) shows an error.
   await page.goto('/temporal');
+  const workflows = table(page, 'Workflows');
+  await expect(workflows).toBeVisible();
+  await expect(workflows).not.toHaveAttribute('aria-busy', 'true');
+  await expect(workflows.getByText('Example payment workflow')).toHaveCount(0);
+  await page.goto('/temporal?tab=executions');
   await expect(page.getByTestId('temporal-error').first()).toBeVisible();
   await expect(table(page, 'Workflow executions')).toHaveCount(0);
   await shot(page, 'no-read-02-workflows-page');

@@ -29,7 +29,9 @@ import {
   mergeWorkflowMessageDefinitions,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
+  WORKFLOW_TYPE_OVERVIEW_PATH,
   WorkflowDetail,
+  WorkflowTypeOverviewResponse,
 } from '../common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
@@ -38,6 +40,7 @@ import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
   LIST_PAGE_SIZE,
+  failedOverview,
   STATS_LIMIT,
   WorkflowListQueries,
 } from '../services/WorkflowListQueries';
@@ -58,6 +61,7 @@ import {
   parseEntityRefParam,
   parseFlag,
   parseMessageBody,
+  parseOverviewEntityRefs,
   parsePageSize,
   workflowIdFromParams,
 } from './params';
@@ -228,6 +232,27 @@ export async function createRouter(
       res.json(await lists.stats(context, { limit }));
     },
   );
+
+  // The numbers of the TemporalWorkflow entities of one page of the
+  // Temporal page. The entities the caller may not read are left out.
+  router.post(WORKFLOW_TYPE_OVERVIEW_PATH, async (req, res) => {
+    const credentials = await httpAuth.credentials(req);
+    const entityRefs = parseOverviewEntityRefs(req);
+    const loaded = await access.loadWorkflowEntities(
+      entityRefs,
+      temporalWorkflowReadPermission,
+      credentials,
+    );
+    const items = await Promise.all(
+      loaded.map(({ entityRef, context, error }) =>
+        context
+          ? lists.overview(context)
+          : Promise.resolve(failedOverview(entityRef, error)),
+      ),
+    );
+    const response: WorkflowTypeOverviewResponse = { items };
+    res.json(response);
+  });
 
   // The runs of one workflow ID, in the order of Temporal's visibility
   // store. Every run is listed with the full permission check of the list
