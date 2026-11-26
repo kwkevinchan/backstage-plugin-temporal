@@ -36,8 +36,8 @@ const withS3 = Boolean(process.env.SMOKE_S3);
 
 function table(page: Page, name: string) {
   return page
-    .getByRole('grid', { name: 'Temporal', exact: true })
-    .or(page.getByRole('table', { name: 'Temporal', exact: true }))
+    .getByRole('grid', { name, exact: true })
+    .or(page.getByRole('table', { name, exact: true }))
     .first();
 }
 

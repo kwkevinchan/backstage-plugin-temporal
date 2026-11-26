@@ -29,8 +29,8 @@ const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
 
 function table(page: Page, name: string) {
   return page
-    .getByRole('grid', { name: 'Temporal', exact: true })
-    .or(page.getByRole('table', { name: 'Temporal', exact: true }))
+    .getByRole('grid', { name, exact: true })
+    .or(page.getByRole('table', { name, exact: true }))
     .first();
 }
 
