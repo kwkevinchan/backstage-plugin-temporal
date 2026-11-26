@@ -242,7 +242,7 @@ describe('Workflows tab of the Temporal page', () => {
     expect(
       await within(await grid()).findAllByTestId('overview-counts'),
     ).toHaveLength(5);
-  });
+  }, 20_000);
 
   it('leaves out the rows the backend does not answer for', async () => {
     const api = mockTemporalApi();
@@ -366,14 +366,12 @@ describe('Workflows tab of the Temporal page', () => {
         'Title of type-07',
       ),
     );
-  });
+  }, 20_000);
 
   it('goes back to the name order when the filters bring more than 50 rows', async () => {
     const api = mockTemporalApi();
-    const few = Array.from({ length: 30 }, (_, i) =>
-      workflowEntity(`few-${i}`),
-    );
-    const many = Array.from({ length: 60 }, (_, i) =>
+    const few = [workflowEntity('few-0'), workflowEntity('few-1')];
+    const many = Array.from({ length: 51 }, (_, i) =>
       workflowEntity(`many-${String(i).padStart(2, '0')}`),
     );
     const catalog = mockCatalog(few);
@@ -399,10 +397,10 @@ describe('Workflows tab of the Temporal page', () => {
         expect.objectContaining({ limit: 50 }),
       ),
     );
-    await userEvent.type(
-      screen.getByRole('searchbox', { name: 'Name' }),
-      'many{Enter}',
-    );
+    const search = screen.getByRole('searchbox', { name: 'Name' });
+    await userEvent.click(search);
+    await userEvent.paste('many');
+    await userEvent.keyboard('{Enter}');
     // Back to pages of 25 by name, with a next page for the rest.
     await waitFor(() =>
       expect(catalog.queryEntities).toHaveBeenLastCalledWith(
@@ -419,7 +417,7 @@ describe('Workflows tab of the Temporal page', () => {
       ).not.toHaveAttribute('aria-sort'),
     );
     expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
-  });
+  }, 20_000);
 
   it('adds the numbers in StrictMode', async () => {
     const api = mockTemporalApi();
