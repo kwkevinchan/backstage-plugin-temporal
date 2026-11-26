@@ -367,6 +367,50 @@ describe('POST /workflow-types/overview', () => {
     );
   });
 
+  it('answers no items to a user who may not read an entity whose numbers are kept', async () => {
+    const deny: string[] = [];
+    const { server, workflowService } = await start({ deny });
+    const first = await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER] });
+    expect(first.body.items).toHaveLength(1);
+    // Another user, refused while the numbers are still kept.
+    deny.push(ORDER);
+    const second = await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER] });
+    expect(second.status).toBe(200);
+    expect(second.body).toEqual({ items: [] });
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers with the requested entity when two entities share kept numbers', async () => {
+    const twin = (name: string): Entity => ({
+      apiVersion: 'temporal.io/v1alpha1',
+      kind: 'TemporalWorkflow',
+      metadata: { name, namespace: 'default' },
+      spec: {
+        owner: 'group:default/team-a',
+        workflowType: 'orderWorkflow',
+        taskQueue: 'orders',
+      },
+    });
+    const { server, workflowService } = await start({
+      entities: [twin('first'), twin('second')],
+    });
+    await request(server)
+      .post(PATH)
+      .send({ entityRefs: ['temporalworkflow:default/first'] });
+    const res = await request(server)
+      .post(PATH)
+      .send({ entityRefs: ['temporalworkflow:default/second'] });
+    expect(res.body.items.map((i: any) => i.entityRef)).toEqual([
+      'temporalworkflow:default/second',
+    ]);
+    // The same visibility query: read once.
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledTimes(1);
+  });
+
   it('has at most 4 visibility calls in flight in a namespace', async () => {
     const entities = workflowEntities(25);
     let inFlight = 0;

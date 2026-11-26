@@ -353,9 +353,10 @@ runs that continued as new are left out, as in the run lists.
 The tab reads Temporal one page at a time: the numbers of a page come in one
 request to the backend (`POST /api/temporal/workflow-types/overview`, at most
 25 entities). For each entity the backend makes at most three visibility calls:
-one count grouped by status (three counts on a server that cannot group, before
-Temporal 1.22), one list of the 50 most recent runs, and, only when the failures
-of the 7 days are not among those runs, one list of the last failure. At most 4
+one count grouped by status, one list of the 50 most recent runs, and, only when
+the failures of the 7 days are not among those runs, one list of the last
+failure. A server that cannot group (before Temporal 1.22) refuses the grouped
+count, and three counts without grouping follow: at most six calls. At most 4
 of these calls are in flight in a namespace, for all users together, each with the
 deadline of a list (15 seconds). The result is kept for 60 seconds by namespace
 and visibility query; the permission is checked on every request. When Temporal

@@ -42,6 +42,16 @@ function sidebarLink(page: Page) {
 }
 
 async function signIn(page: Page, theme: string) {
+  // The browser reports a ResizeObserver loop when the table gets a column
+  // while the menu is open. The notice is harmless, but the development
+  // server shows it in an overlay that takes every click.
+  await page.addInitScript(() => {
+    window.addEventListener('error', event => {
+      if (event.message?.includes('ResizeObserver loop')) {
+        event.stopImmediatePropagation();
+      }
+    });
+  });
   if (theme === 'dark') {
     await page.addInitScript(() => {
       window.localStorage.setItem('theme', 'dark');
@@ -97,6 +107,7 @@ for (const theme of ['light', 'dark']) {
     await page.getByRole('button', { name: 'Columns' }).click();
     await page.getByRole('menuitemcheckbox', { name: 'Lifecycle' }).click();
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(
       workflows.getByRole('columnheader', { name: 'Lifecycle' }),
     ).toBeVisible();

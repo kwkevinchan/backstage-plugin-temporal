@@ -322,6 +322,13 @@ export function WorkflowTypesList() {
   const loaded = useMemo(() => entities.value?.items ?? [], [entities.value]);
   const totalItems = entities.value?.totalItems ?? 0;
   const latestRunSortable = totalItems <= MAX_ROWS_SORTED_BY_LATEST_RUN;
+  // Filters that bring more rows than can be sorted by the latest run go
+  // back to the name order, or the rows past the limit would be missing.
+  const tooManyToSort =
+    byLatestRun && Boolean(entities.value) && !latestRunSortable;
+  useEffect(() => {
+    if (tooManyToSort) setSort({ column: 'name', direction: 'ascending' });
+  }, [tooManyToSort]);
 
   const [numbers, setNumbers] = useState<Record<string, RowNumbers>>({});
   const refsToRead = useMemo(
@@ -332,12 +339,12 @@ export function WorkflowTypesList() {
   /** The error of the last request of numbers that failed as a whole. */
   const [requestError, setRequestError] = useState<Error>();
   const mounted = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   /** Reads the numbers of `refs`, a batch at a time, one batch after another. */
   const read = useCallback(

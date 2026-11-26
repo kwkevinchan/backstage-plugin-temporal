@@ -381,9 +381,10 @@ export class WorkflowListQueries {
   /**
    * The numbers of a `TemporalWorkflow` entity for the overview of the
    * Temporal page, from at most three visibility calls: a count grouped by
-   * status (three counts when the server cannot group), a list of the most
-   * recent runs, and, when the failures of the window are not among them,
-   * a list of the last failure. The numbers are kept for
+   * status, a list of the most recent runs, and, when the failures of the
+   * window are not among them, a list of the last failure. A server that
+   * cannot group refuses the grouped count, and three counts follow: at
+   * most six calls. The numbers are kept for
    * {@link OVERVIEW_CACHE_TTL_MS} by namespace and visibility query. A call
    * that fails gives an item with `error`; nothing is retried.
    */

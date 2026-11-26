@@ -16,6 +16,7 @@
 
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { Entity } from '@backstage/catalog-model';
 import { identityApiRef } from '@backstage/core-plugin-api';
@@ -116,28 +117,32 @@ function render(options: {
   catalog: ReturnType<typeof mockCatalog>;
   ownership?: string[];
   path?: string;
+  strict?: boolean;
 }) {
+  const Wrapper = options.strict ? StrictMode : 'div';
   return renderInTestApp(
-    <TestApiProvider
-      apis={[
-        [temporalApiRef, options.api],
-        [catalogApiRef, options.catalog],
-        [
-          identityApiRef,
-          mockApis.identity({
-            userEntityRef: 'user:default/guest',
-            ownershipEntityRefs: options.ownership ?? [
-              'user:default/guest',
-              'group:default/team-a',
-            ],
-          }),
-        ],
-        [permissionApiRef, mockApis.permission()],
-      ]}
-    >
-      <TemporalPageContent />
-      <Location />
-    </TestApiProvider>,
+    <Wrapper>
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, options.api],
+          [catalogApiRef, options.catalog],
+          [
+            identityApiRef,
+            mockApis.identity({
+              userEntityRef: 'user:default/guest',
+              ownershipEntityRefs: options.ownership ?? [
+                'user:default/guest',
+                'group:default/team-a',
+              ],
+            }),
+          ],
+          [permissionApiRef, mockApis.permission()],
+        ]}
+      >
+        <TemporalPageContent />
+        <Location />
+      </TestApiProvider>
+    </Wrapper>,
     {
       routeEntries: [options.path ?? '/'],
       mountedRoutes: { '/catalog/:namespace/:kind/:name': entityRouteRef },
@@ -361,6 +366,75 @@ describe('Workflows tab of the Temporal page', () => {
         'Title of type-07',
       ),
     );
+  });
+
+  it('goes back to the name order when the filters bring more than 50 rows', async () => {
+    const api = mockTemporalApi();
+    const few = Array.from({ length: 30 }, (_, i) =>
+      workflowEntity(`few-${i}`),
+    );
+    const many = Array.from({ length: 60 }, (_, i) =>
+      workflowEntity(`many-${String(i).padStart(2, '0')}`),
+    );
+    const catalog = mockCatalog(few);
+    catalog.queryEntities.mockImplementation(async (request: any) => {
+      const entities = request.fullTextFilter ? many : few;
+      const start = request.cursor ? Number(request.cursor) : 0;
+      const next = start + request.limit;
+      return {
+        items: entities.slice(start, next),
+        totalItems: entities.length,
+        pageInfo: {
+          nextCursor: next < entities.length ? String(next) : undefined,
+        },
+      };
+    });
+    await render({ api, catalog });
+    await grid();
+    await userEvent.click(
+      screen.getByRole('columnheader', { name: 'Latest run' }),
+    );
+    await waitFor(() =>
+      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
+        expect.objectContaining({ limit: 50 }),
+      ),
+    );
+    await userEvent.type(
+      screen.getByRole('searchbox', { name: 'Name' }),
+      'many{Enter}',
+    );
+    // Back to pages of 25 by name, with a next page for the rest.
+    await waitFor(() =>
+      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          limit: 25,
+          orderFields: { field: 'metadata.name', order: 'asc' },
+          fullTextFilter: expect.objectContaining({ term: 'many' }),
+        }),
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole('columnheader', { name: 'Latest run' }),
+      ).not.toHaveAttribute('aria-sort'),
+    );
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
+  });
+
+  it('adds the numbers in StrictMode', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowTypeOverview.mockImplementation(async refs => ({
+      items: refs.map(ref => overview(ref)),
+    }));
+    await render({
+      api,
+      catalog: mockCatalog([workflowEntity('orders')]),
+      strict: true,
+    });
+    const table = await grid();
+    expect(
+      await within(table).findByTestId('overview-counts'),
+    ).toHaveTextContent('3 / 120 / 2');
   });
 
   it('cannot sort by the latest run with more than 50 rows', async () => {
