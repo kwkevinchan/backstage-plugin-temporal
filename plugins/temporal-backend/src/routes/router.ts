@@ -25,6 +25,7 @@ import {
   getTemporalWorkflowMessages,
   SCHEDULES_PATH,
   isTemporalWorkflowEntity,
+  parseTemporalWorkflowSpec,
   mergeWorkflowMessageDefinitions,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
@@ -83,6 +84,21 @@ export interface RouterOptions {
   ai: AiWorkflowQueries;
   /** False when `temporal.control.enabled` is false. Defaults to true. */
   controlEnabled?: boolean;
+}
+
+/** Whether a TemporalWorkflow entity lists the workflow type of the run. */
+function describesWorkflowType(
+  entity: Entity,
+  workflow: WorkflowDetail,
+): boolean {
+  if (!isTemporalWorkflowEntity(entity)) return false;
+  try {
+    return parseTemporalWorkflowSpec(entity).workflowTypes.includes(
+      workflow.workflowType,
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function createRouter(
@@ -274,9 +290,26 @@ export async function createRouter(
       matchedEntityRef && matchedEntityRef !== context?.entityRef
         ? { ...workflow, workflowEntityRef: matchedEntityRef }
         : workflow;
-    const detail = context
-      ? await queries.enrichDetail(workflowWithEntity, context, credentials)
+    // The entity that describes the workflow type is only shown as a link.
+    // An opened TemporalWorkflow entity already is that entity, unless the
+    // run is a child workflow of another type.
+    const needsTypeEntity =
+      !workflowWithEntity.workflowEntityRef &&
+      !(context && describesWorkflowType(context.entity, workflow));
+    const [linked] = needsTypeEntity
+      ? await access.linkWorkflowEntities(
+          [workflowWithEntity],
+          workflowWithEntity.namespace,
+          credentials,
+        )
+      : [];
+    const typeEntityRef = linked?.workflowTypeEntityRef;
+    const withTypeEntity = typeEntityRef
+      ? { ...workflowWithEntity, workflowTypeEntityRef: typeEntityRef }
       : workflowWithEntity;
+    const detail = context
+      ? await queries.enrichDetail(withTypeEntity, context, credentials)
+      : withTypeEntity;
     res.json(detail);
   });
 
@@ -332,10 +365,11 @@ export async function createRouter(
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
   router.get(workflowRunSubpath('message-definitions'), async (req, res) => {
-    const { workflow, context, credentials } = await loadWorkflow(req);
+    const { workflow, context, credentials, matchedEntityRef } =
+      await loadWorkflow(req);
     const [reported, entity] = await Promise.all([
       queries.messageDefinitions(workflow),
-      workflowEntityOf(workflow, context, credentials),
+      workflowEntityOf(workflow, context, matchedEntityRef, credentials),
     ]);
     res.json(
       mergeWorkflowMessageDefinitions(
@@ -348,22 +382,30 @@ export async function createRouter(
   /**
    * The TemporalWorkflow entity of a run that the caller can read: the
    * entity it was opened with, one it depends on, or the one that matches
-   * its workflow type and task queue.
+   * its workflow type and task queue. The entity matched through `dependsOn`
+   * comes first: several entities can match the type and task queue.
    */
   async function workflowEntityOf(
     workflow: WorkflowDetail,
     context: TemporalEntityContext | undefined,
+    matchedEntityRef: string | undefined,
     credentials: BackstageCredentials,
   ): Promise<Entity | undefined> {
     if (context && isTemporalWorkflowEntity(context.entity)) {
       return context.entity;
     }
+    const matched = matchedEntityRef
+      ? context?.relatedWorkflowEntities.find(
+          e => stringifyEntityRef(e) === matchedEntityRef,
+        )
+      : undefined;
+    if (matched) return matched;
     const [linked] = await access.linkWorkflowEntities(
       [workflow],
       workflow.namespace,
       credentials,
     );
-    const ref = linked?.workflowEntityRef;
+    const ref = linked?.workflowTypeEntityRef;
     if (!ref) return undefined;
     const related = context?.relatedWorkflowEntities.find(
       e => stringifyEntityRef(e) === ref,

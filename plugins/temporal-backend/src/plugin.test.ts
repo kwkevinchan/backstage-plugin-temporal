@@ -77,6 +77,8 @@ async function start(options?: {
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
   entities?: Entity[];
+  /** Replaces the catalog that answers with `entities`. */
+  catalog?: ReturnType<typeof catalogServiceMock.mock>;
   logger?: ReturnType<typeof mockServices.logger.mock>;
   /** Records what the plugin logs, with the fields of its child loggers. */
   recorder?: RecordingLogger;
@@ -107,7 +109,8 @@ async function start(options?: {
   const features: any[] = [
     temporalPlugin,
     temporalAccessServiceFactory,
-    catalogServiceMock.factory({ entities: options?.entities ?? entities }),
+    options?.catalog?.factory ??
+      catalogServiceMock.factory({ entities: options?.entities ?? entities }),
     fakeTemporalServiceFactory(workflowService, {
       entityRefAttribute: options?.entityRefAttribute,
       connection,
@@ -1493,14 +1496,18 @@ describe('temporal backend plugin', () => {
         pageSize: 10,
         nextPageToken: undefined,
       });
-      // Runs that match a TemporalWorkflow entity link to it.
+      // Runs that match a TemporalWorkflow entity link to it. The link is
+      // for display only: no run has workflowEntityRef.
       expect(
-        res.body.items.map((i: any) => [i.workflowId, i.workflowEntityRef]),
+        res.body.items.map((i: any) => [i.workflowId, i.workflowTypeEntityRef]),
       ).toEqual([
         ['order-1', 'temporalworkflow:default/order-workflow'],
         ['order-2', undefined],
         ['pay-1', 'temporalworkflow:default/payment-workflow'],
       ]);
+      expect(res.body.items.filter((i: any) => i.workflowEntityRef)).toEqual(
+        [],
+      );
       expect(permissions.authorizeConditional).toHaveBeenCalledWith(
         [
           {
@@ -1737,6 +1744,156 @@ describe('temporal backend plugin', () => {
       const detail = await request(server).get(`${baseRun}?entityRef=${ref}`);
       expect(detail.status).toBe(200);
       expect(detail.body.workflowEntityRef).toBeUndefined();
+    });
+  });
+
+  describe('workflowTypeEntityRef', () => {
+    const run = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
+    const orderRef = 'temporalworkflow:default/order-workflow';
+    const sameQueue: Entity = {
+      ...orderWorkflowEntity,
+      metadata: { name: 'order-workflow-copy', namespace: 'default' },
+    };
+    const anyQueue: Entity = {
+      ...orderWorkflowEntity,
+      metadata: { name: 'order-workflow-any', namespace: 'default' },
+      spec: { owner: 'group:default/team-a', workflowType: 'orderWorkflow' },
+    };
+    const anyQueue2: Entity = {
+      ...anyQueue,
+      metadata: { name: 'order-workflow-any-2', namespace: 'default' },
+    };
+
+    it('is set on a run opened without an entity, and workflowEntityRef is not', async () => {
+      const { server } = await start();
+      const detail = await request(server).get(run);
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBe(orderRef);
+      expect(detail.body.workflowEntityRef).toBeUndefined();
+    });
+
+    it('is not set when the run is opened through a dependsOn match, which sets workflowEntityRef', async () => {
+      const { server } = await start();
+      const detail = await request(server).get(
+        `${run}?entityRef=component:default/checkout`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowEntityRef).toBe(orderRef);
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
+    });
+
+    it('is not set when the opened entity is the TemporalWorkflow entity', async () => {
+      const { server } = await start();
+      const detail = await request(server).get(`${run}?entityRef=${orderRef}`);
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
+      expect(detail.body.workflowEntityRef).toBeUndefined();
+    });
+
+    it('is not set when no entity matches the type and task queue', async () => {
+      const { server } = await start({
+        entities: [ordersEntity, paymentWorkflowEntity],
+      });
+      const detail = await request(server).get(run);
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
+    });
+
+    it('is not set when two entities match', async () => {
+      const { server } = await start({
+        entities: [orderWorkflowEntity, sameQueue],
+      });
+      const detail = await request(server).get(run);
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
+      const list = await request(server).get('/api/temporal/workflows');
+      expect(list.body.items[0].workflowTypeEntityRef).toBeUndefined();
+    });
+
+    it('prefers the entity with the task queue of the run over one without', async () => {
+      const { server } = await start({
+        entities: [anyQueue, orderWorkflowEntity],
+      });
+      const detail = await request(server).get(run);
+      expect(detail.body.workflowTypeEntityRef).toBe(orderRef);
+      const list = await request(server).get('/api/temporal/workflows');
+      expect(list.body.items[0].workflowTypeEntityRef).toBe(orderRef);
+    });
+
+    it('uses the only entity without a task queue when none has the queue of the run', async () => {
+      const { server } = await start({ entities: [anyQueue] });
+      const detail = await request(server).get(run);
+      expect(detail.body.workflowTypeEntityRef).toBe(
+        'temporalworkflow:default/order-workflow-any',
+      );
+    });
+
+    it('is not set when several entities without a task queue match', async () => {
+      const { server } = await start({ entities: [anyQueue, anyQueue2] });
+      const detail = await request(server).get(run);
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
+    });
+
+    it('is set on a child workflow of another type opened through a TemporalWorkflow entity', async () => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) =>
+          req.execution.workflowId === 'child-0'
+            ? {
+                workflowExecutionInfo: {
+                  ...executionInfo({
+                    workflowId: 'child-0',
+                    type: 'paymentWorkflow',
+                    taskQueue: 'orders',
+                  }),
+                  parentExecution: {
+                    workflowId: 'parent-1',
+                    runId: 'parent-1-run',
+                  },
+                } as any,
+                pendingActivities: [],
+              }
+            : {
+                workflowExecutionInfo: executionInfo({
+                  workflowId: 'parent-1',
+                  type: 'orderWorkflow',
+                  taskQueue: 'orders',
+                }),
+                pendingActivities: [],
+              },
+      );
+      const { server } = await start({ workflowService });
+      const child =
+        '/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run';
+      const detail = await request(server).get(
+        `${child}?entityRef=${orderRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBe(
+        'temporalworkflow:default/payment-workflow',
+      );
+    });
+
+    it('is not set when the caller cannot read the entity in the catalog', async () => {
+      // The catalog answers with the entities the credentials may see.
+      const getEntities = jest.fn(async (_request: unknown, options?: any) => ({
+        items: options?.credentials?.principal?.userEntityRef
+          ? []
+          : [orderWorkflowEntity],
+      }));
+      const catalog = catalogServiceMock.mock({ getEntities });
+      const { server } = await start({ catalog });
+      const detail = await request(server).get(run);
+      expect(detail.status).toBe(200);
+      expect(getEntities).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          credentials: expect.objectContaining({
+            principal: expect.objectContaining({ type: 'user' }),
+          }),
+        }),
+      );
+      expect(detail.body.workflowTypeEntityRef).toBeUndefined();
     });
   });
 

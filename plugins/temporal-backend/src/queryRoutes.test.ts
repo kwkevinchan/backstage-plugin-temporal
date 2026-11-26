@@ -339,6 +339,36 @@ describe('query routes of the core plugin', () => {
     expect(page.body).toEqual(expected);
   });
 
+  it('uses the entity matched through dependsOn when several entities match the type and task queue', async () => {
+    const withMessages = (name: string, signal: string): Entity => ({
+      ...orderWorkflowEntity,
+      metadata: { name, namespace: 'default' },
+      spec: {
+        ...(orderWorkflowEntity.spec as object),
+        messages: { signals: [{ name: signal, description: name }] },
+      },
+    });
+    const { server } = await start({
+      entities: [
+        checkoutEntity,
+        withMessages('order-workflow', 'addNote'),
+        withMessages('order-workflow-copy', 'addNote'),
+      ],
+    });
+    // Nothing links the run to one of the two by type and task queue alone.
+    const page = await request(server).get(`${wf}/message-definitions`);
+    expect(page.body.signals).toEqual([
+      { name: 'addNote', description: 'Add a note' },
+    ]);
+    const res = await request(server).get(
+      `${wf}/message-definitions?entityRef=component:default/checkout`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.signals).toEqual([
+      { name: 'addNote', description: 'order-workflow' },
+    ]);
+  });
+
   it('leaves out what an entity the caller cannot read describes', async () => {
     // From the Workflows page (the list permission), without the read
     // permission on the entity.

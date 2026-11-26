@@ -94,9 +94,17 @@ export interface WorkflowSummary {
   initiator?: string;
   /**
    * The `TemporalWorkflow` entity this run matches, when it is listed for or
-   * opened through an entity that depends on one.
+   * opened through an entity that depends on one. The permission checks of
+   * the operations include this entity.
    */
   workflowEntityRef?: string;
+  /**
+   * The `TemporalWorkflow` entity that describes the workflow type of this
+   * run, found in the catalog by namespace, workflow type and task queue.
+   * It is only for showing a link: no permission check uses it. It is
+   * missing when no entity or more than one entity matches.
+   */
+  workflowTypeEntityRef?: string;
   /** Link to the execution in the Temporal Web UI, when configured. */
   webUiUrl?: string;
   /** Data added by backend workflow enrichers, keyed by enricher. */

@@ -36,6 +36,7 @@ import {
   TableRoot,
   Text,
 } from '@backstage/ui';
+import { CopyButton } from './CopyButton';
 import { formatDuration, formatTime } from './format';
 import { PAGE_SIZES } from './listState';
 import { WorkflowProgress } from './WorkflowProgress';
@@ -58,6 +59,9 @@ export function workflowLink(ref: {
     : buildWorkflowPath(ref);
   return path.slice(1);
 }
+
+/** Characters of a run ID that the lists show; the full ID is the tooltip. */
+const SHORT_RUN_ID_LENGTH = 8;
 
 const ALL = 'all';
 
@@ -148,6 +152,11 @@ export function Pager(props: {
   );
 }
 
+/** The entity to link the workflow type to: the matched or the found one. */
+function typeEntityRef(item: WorkflowSummary): string | undefined {
+  return item.workflowEntityRef ?? item.workflowTypeEntityRef;
+}
+
 interface ColumnDef {
   id: string;
   title: string;
@@ -156,8 +165,9 @@ interface ColumnDef {
 
 /**
  * Workflow executions as a table, in the order of the Temporal UI: status,
- * the workflow ID (the link to the run), the workflow type (a link to its
- * TemporalWorkflow entity when there is one), progress and times.
+ * the workflow ID and the run ID (both link to the run), the workflow type
+ * (a link to its TemporalWorkflow entity when there is one), progress and
+ * times.
  * `entityRef` is passed to the progress requests, so they are checked on
  * that entity.
  */
@@ -222,13 +232,33 @@ export function WorkflowRunsTable(props: {
           ),
         },
   ];
+  if (!props.byRun) {
+    columns.push({
+      id: 'runId',
+      title: 'Run ID',
+      cell: item => (
+        <Flex align="center" gap="1" style={{ whiteSpace: 'nowrap' }}>
+          <Link
+            href={href(item)}
+            variant="body-small"
+            color="info"
+            title={item.runId}
+            data-testid="run-id"
+          >
+            {item.runId.slice(0, SHORT_RUN_ID_LENGTH)}
+          </Link>
+          <CopyButton text={item.runId} label="Copy run ID" />
+        </Flex>
+      ),
+    });
+  }
   if (!props.hideType) {
     columns.push({
       id: 'type',
       title: 'Workflow type',
       cell: item =>
-        item.workflowEntityRef ? (
-          <EntityRefLink entityRef={item.workflowEntityRef}>
+        typeEntityRef(item) ? (
+          <EntityRefLink entityRef={typeEntityRef(item)!}>
             {item.workflowType}
           </EntityRefLink>
         ) : (

@@ -160,14 +160,14 @@ describe('Temporal tab of a component that depends on workflows', () => {
       name: 'Workflow executions',
     });
     expect(within(runs).getByText('deploy-1')).toBeInTheDocument();
-    // Temporal UI order: status, the run's ID, then its type, which links
-    // to the TemporalWorkflow entity.
+    // Temporal UI order: status, the workflow ID, the run ID, then the type,
+    // which links to the TemporalWorkflow entity.
     expect(
       within(runs)
         .getAllByRole('columnheader')
-        .slice(0, 3)
+        .slice(0, 4)
         .map(h => h.textContent),
-    ).toEqual(['Status', 'Workflow ID', 'Workflow type']);
+    ).toEqual(['Status', 'Workflow ID', 'Run ID', 'Workflow type']);
     expect(
       within(runs).getAllByRole('link', { name: 'orderWorkflow' })[0],
     ).toHaveAttribute(

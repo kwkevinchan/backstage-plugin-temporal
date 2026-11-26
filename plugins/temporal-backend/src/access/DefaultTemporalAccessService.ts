@@ -409,8 +409,11 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   }
 
   /**
-   * Adds `workflowEntityRef` to runs that match a `TemporalWorkflow` entity
-   * the caller can see (same namespace, workflow type and task queue).
+   * Adds `workflowTypeEntityRef` to runs that match a `TemporalWorkflow`
+   * entity the caller can see (same namespace, workflow type and task
+   * queue). When several entities match, the ones with the run's task queue
+   * win over the ones without a task queue; if more than one is left at that
+   * level, the run gets no reference.
    */
   async linkWorkflowEntities(
     items: WorkflowSummary[],
@@ -443,12 +446,16 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       }
     });
     return items.map(item => {
-      const match = sources.find(
+      const matches = sources.filter(
         ({ spec }) =>
           spec.workflowTypes.includes(item.workflowType) &&
           (!spec.taskQueue || spec.taskQueue === item.taskQueue),
       );
-      return match ? { ...item, workflowEntityRef: match.ref } : item;
+      const exact = matches.filter(({ spec }) => spec.taskQueue);
+      const level = exact.length > 0 ? exact : matches;
+      return level.length === 1
+        ? { ...item, workflowTypeEntityRef: level[0].ref }
+        : item;
     });
   }
 
