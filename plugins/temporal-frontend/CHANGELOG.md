@@ -242,8 +242,8 @@ additional properties` at `/temporal`). Remove the key from your config.
     its model calls:
     the framework, the model, the token counts (also reasoning and cached),
     the finish reason, the names and tool call IDs of the tools asked for,
-    and the type or message of an error. The messages, the thinking and
-    tool arguments and results still need `temporal.workflow.history.read`.
+    and the type of an error. The messages, the thinking and tool
+    arguments and results are in the details of the step.
     Payloads in External Storage are not read, so a model call whose result
     is stored there is drawn without its model and tokens.
   - `temporalLlmAdapterExtensionPoint` (`./alpha`) adds LLM adapters for other
