@@ -138,7 +138,7 @@ See [concepts](concepts-to-plugin.md#what-the-plugin-adds).
 Open **Example orders service** and its **Temporal** tab. It lists **Workflow
 executions**.
 
-![The Temporal tab of a component: a table of workflow executions with status, progress, start time and duration.](images/entity-tab.png)
+![The Temporal tab of a component: a table of workflow executions with status, workflow ID, run ID, type, progress, start time and duration.](images/entity-tab.png)
 
 1. **The list.** Look at the status (Completed, Failed, Running), the times and the
    progress column: the current step, or the step where it failed (for example

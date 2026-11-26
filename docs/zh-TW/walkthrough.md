@@ -83,7 +83,7 @@
 
 打開 **Example orders service** 的 **Temporal** 分頁，裡面是 **Workflow executions**。
 
-![元件的 Temporal 分頁：Workflow executions 表格，有狀態、進度、開始時間和花費時間。](../images/entity-tab.png)
+![元件的 Temporal 分頁：Workflow executions 表格，有狀態、Workflow ID、Run ID、類型、進度、開始時間和花費時間。](../images/entity-tab.png)
 
 1. **清單。** 看狀態（Completed、Failed、Running）、時間，和進度欄：目前在哪一步，或失敗在哪一步（例如 `0 steps done · Waiting for approval · times out in 23h 58m`，或 `0/1 steps · Failed at chargeCard`）。試試狀態篩選和 **Show all runs**；網址會跟著變，所以瀏覽器的上一頁會回到同一頁。
 2. **失敗的執行。** 打開 `example-payment-…`。標頭顯示 Workflow ID、Run ID、狀態和停在哪裡（`Failed at chargeCard`）。**Steps** 流程圖裡失敗的方塊是紅色的；點選它，右邊的面板會顯示失敗類型和訊息（`CardDeclined`、`Card ending 4242 was declined`）、嘗試次數、輸入和輸出。流程本身失敗的原因鏈（`PaymentFailed`，起因是 Activity 失敗，再起因於 `CardDeclined`）在 **Details** 分頁的 **Failure** 底下。
