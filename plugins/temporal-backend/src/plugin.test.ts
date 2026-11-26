@@ -208,9 +208,8 @@ describe('temporal backend plugin', () => {
       });
       const res = await request(server).get(detail);
       expect(res.status).toBe(503);
-      expect(res.body.error.message).toBe(
-        'Temporal is not reachable: Failed to connect before the deadline',
-      );
+      expect(res.body.error.message).toBe('Temporal is not reachable');
+      expect(JSON.stringify(res.body)).not.toContain('before the deadline');
       expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
     });
   });

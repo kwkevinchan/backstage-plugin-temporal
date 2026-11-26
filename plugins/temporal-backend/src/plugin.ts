@@ -37,7 +37,9 @@ import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
+import type { RequestHandler } from 'express';
 import { createRouter } from './routes/router';
+import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { LlmAdapters } from './services/llm/LlmAdapters';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
@@ -196,6 +198,7 @@ export const temporalPlugin = createBackendPlugin({
         httpRouter.use(
           await createRouter({
             httpAuth,
+            logger,
             auditor,
             access,
             sources,
@@ -204,6 +207,10 @@ export const temporalPlugin = createBackendPlugin({
             ai,
             controlEnabled,
           }),
+        );
+        // After every route, so that it sees the errors of all of them.
+        httpRouter.use(
+          unexpectedErrorHandler(logger) as unknown as RequestHandler,
         );
       },
     });

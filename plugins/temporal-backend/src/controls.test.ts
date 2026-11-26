@@ -1223,9 +1223,8 @@ describe('workflow controls', () => {
         .post(`${wf}/actions/escalate${withEntity}`)
         .send({});
       expect(res.status).toBe(503);
-      expect(res.body.error.message).toBe(
-        'Temporal is not reachable: Failed to connect before the deadline',
-      );
+      expect(res.body.error.message).toBe('Temporal is not reachable');
+      expect(JSON.stringify(res.body)).not.toContain('before the deadline');
       expect(handle).not.toHaveBeenCalled();
     });
 
@@ -1828,9 +1827,7 @@ describe('deadlines of the operations', () => {
       .post(`${wf}/signal${withEntity}`)
       .send({ name: 'addNote' });
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toBe(
-      'Temporal is not reachable: Failed to connect before the deadline',
-    );
+    expect(res.body.error.message).toBe('Temporal is not reachable');
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 });
@@ -1887,10 +1884,11 @@ describe('logs', () => {
     );
     const res = await request(server).get(`${wf}${withEntity}`);
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toContain(
+    expect(res.body.error.message).toBe(
       'Temporal refused the credentials of the backend',
     );
     expect(JSON.stringify(res.body)).not.toContain('SECRET-TOKEN');
+    expect(JSON.stringify(res.body)).not.toContain('bearer rejected');
     expect(recorder.records).toContainEqual({
       level: 'warn',
       message: 'Call to Temporal failed',
@@ -1902,9 +1900,65 @@ describe('logs', () => {
         errorName: 'Error',
         grpcCode: 7,
         grpcStatus: 'PERMISSION_DENIED',
+        errorMessage: '7 PERMISSION_DENIED: bearer rejected',
       },
     });
     expect(JSON.stringify(recorder.records)).not.toContain('SECRET-TOKEN');
+  });
+
+  it.each([
+    [3, 400, 'Temporal rejected the request as invalid'],
+    [14, 503, 'Temporal is not reachable'],
+    [4, 503, 'Temporal did not answer in time'],
+    [8, 503, 'Temporal is rate limiting the backend'],
+    [13, 500, 'Internal server error'],
+  ])(
+    'answers a failed read with a fixed message and logs what Temporal said (gRPC %i)',
+    async (code, status, message) => {
+      const raw = `${code} STATUS: invalid query (Owner = "team-x") at temporal.internal:7233`;
+      const recorder = recordingLogger();
+      const { server, workflowService } = await start({ recorder });
+      workflowService.describeWorkflowExecution.mockRejectedValue(
+        Object.assign(new Error(raw), { code }),
+      );
+      const res = await request(server).get(`${wf}${withEntity}`);
+      expect(res.status).toBe(status);
+      expect(res.body.error.message).toBe(message);
+      expect(JSON.stringify(res.body)).not.toContain('temporal.internal');
+      expect(JSON.stringify(res.body)).not.toContain('Owner');
+      expect(recorder.records).toContainEqual(
+        expect.objectContaining({
+          message: 'Call to Temporal failed',
+          meta: expect.objectContaining({
+            temporalCall: 'describeWorkflowExecution',
+            namespace: 'default',
+            errorMessage: raw,
+          }),
+        }),
+      );
+    },
+  );
+
+  it('answers an error that no route expected with a fixed message and logs it', async () => {
+    const recorder = recordingLogger();
+    const { server, workflowService } = await start({ recorder });
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      new Error('cannot read property of temporal.internal:7233'),
+    );
+    const res = await request(server).get(`${wf}${withEntity}`);
+    expect(res.status).toBe(500);
+    expect(res.body.error.message).toBe('Internal server error');
+    expect(JSON.stringify(res.body)).not.toContain('temporal.internal');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Unexpected error in a route',
+        meta: expect.objectContaining({ method: 'GET' }),
+        error: expect.objectContaining({
+          message: 'cannot read property of temporal.internal:7233',
+        }),
+      }),
+    );
   });
 
   it('warns with the update ID when an update does not finish within the polls', async () => {

@@ -17,7 +17,11 @@
 import type { LoggerService } from '@backstage/backend-plugin-api';
 import type { Connection } from '@temporalio/client';
 import type { TemporalService } from '../node';
-import { describeTemporalFailure, mapConnectionError } from './errors';
+import {
+  describeTemporalFailure,
+  grpcErrorOf,
+  mapConnectionError,
+} from './errors';
 
 /**
  * How long the backend waits for one call to Temporal, in milliseconds. The
@@ -79,8 +83,8 @@ export interface TemporalCallOptions {
  * a failure with the gRPC status as well, read before the error is mapped
  * (the mapped error does not keep it), at `warn` when the server or the
  * backend's credentials are at fault and at `debug` when the request is.
- * Only IDs, names, statuses and durations are logged, never what a call
- * sends or receives.
+ * Only IDs, names, statuses, durations and the message of the error are
+ * logged, never what a call sends or receives.
  */
 export async function callTemporal<T>(
   temporal: Pick<TemporalService, 'getConnection'>,
@@ -106,7 +110,14 @@ export async function callTemporal<T>(
       query: temporalCall === QUERY_CALL,
     });
     options.logger
-      .child({ ...fields(), timeoutMs, ...failure })
+      .child({
+        ...fields(),
+        timeoutMs,
+        ...failure,
+        // What Temporal said stays in the log; the error that `mapError`
+        // throws has fixed text.
+        errorMessage: grpcErrorOf(error).message,
+      })
       [level]('Call to Temporal failed');
     return mapError(error);
   }

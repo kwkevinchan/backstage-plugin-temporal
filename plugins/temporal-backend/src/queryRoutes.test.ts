@@ -552,7 +552,8 @@ describe('query routes of the core plugin', () => {
     );
     const res = await request(down.server).get('/api/temporal/schedules');
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toContain('connection refused');
+    expect(res.body.error.message).toBe('Temporal is not reachable');
+    expect(JSON.stringify(res.body)).not.toContain('connection refused');
 
     // An error that is not about a payload is not hidden by the lenient
     // decoding.

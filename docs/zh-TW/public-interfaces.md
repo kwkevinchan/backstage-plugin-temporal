@@ -199,7 +199,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 即使 `temporal.control.enabled` 是 false，擴充點也會註冊，所以模組照樣能啟動；它們的操作會被略過並記一筆警告。`id` 格式不正確時，不論操作是否啟用，啟動都會失敗。`client` 帶著後端的連線：可以碰到 namespace 裡的每個流程，以及該連線的憑證能到的其他 namespace：會動到其他流程的操作，要自己用 `temporalAccessServiceRef` 檢查那些流程。
 
-`handle` 丟出的錯誤照內建操作的方式回應：`@backstage/errors` 的錯誤用它自己的狀態碼；Temporal client 的 `WorkflowNotFoundError` 回 `404`、`WorkflowUpdateFailedError` 回 `400`、`WorkflowUpdateRPCTimeoutOrCancelledError` 回 `503`；gRPC 錯誤看它的 code（`NOT_FOUND` `404`、`INVALID_ARGUMENT` `400`、`ALREADY_EXISTS` 和 `FAILED_PRECONDITION` `409`、`UNAVAILABLE` 和 `DEADLINE_EXCEEDED` `503`）；其他的回 `500`。`client` 連不上時回 `503`。整個操作裡 `client` 的每次呼叫共用一個 60 秒的期限。需要更久的操作，把呼叫包在 `client.connection.withDeadline(deadline, fn)` 裡：那裡給的期限會取代 `fn` 裡面那些呼叫的 60 秒。
+`handle` 丟出的錯誤照內建操作的方式回應：`@backstage/errors` 的錯誤用它自己的狀態碼；Temporal client 的 `WorkflowNotFoundError` 回 `404`、`WorkflowUpdateFailedError` 回 `400`、`WorkflowUpdateRPCTimeoutOrCancelledError` 回 `503`；gRPC 錯誤看它的 code（`NOT_FOUND` `404`、`INVALID_ARGUMENT` `400`、`ALREADY_EXISTS` 和 `FAILED_PRECONDITION` `409`、`UNAVAILABLE` 和 `DEADLINE_EXCEEDED` `503`）；其他的回 `500`。來自 Temporal 或 client 的錯誤，訊息是固定文字，不是 Temporal 說的原文（見 [HTTP API](#http-api)），只有一個例外：流程拒絕 update 時回應帶的失敗訊息（`400`）。`client` 連不上時回 `503`。整個操作裡 `client` 的每次呼叫共用一個 60 秒的期限。需要更久的操作，把呼叫包在 `client.connection.withDeadline(deadline, fn)` 裡：那裡給的期限會取代 `fn` 裡面那些呼叫的 60 秒。
 
 ### `temporalWorkflowEnricherExtensionPoint`
 
@@ -316,7 +316,21 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 - 沒有：先用 list 權限判斷流程本身（`temporal.workflow.list`），條件也會套用。不允許時，改對流程 `searchAttributes.entityRef` 屬性指的實體做上面的檢查。list 權限和實體上的讀取權限都不可能允許的呼叫者，在讀流程之前就回 `403`。其他人，除非 list 權限允許所有流程，打不開的流程（沒有這個屬性，或透過他讀不到的實體）回的 `404` 和流程不存在時一樣。
 - 操作接著檢查自己的權限：在讀取時用的實體上（若透過依賴的 `TemporalWorkflow` 實體對到，也必須同時在對到的實體上允許），否則在 search attribute 指的實體上；兩者都沒有時，這個權限必須無條件允許。
 
-錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈（`cancel` 遇到已結束的鏈回 `202`，Temporal 不做任何事；Temporal 伺服器不回報鏈的 ID 時，這些操作只作用在打開的 run）；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
+錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈（`cancel` 遇到已結束的鏈回 `202`，Temporal 不做任何事；Temporal 伺服器不回報鏈的 ID 時，這些操作只作用在打開的 run）；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。
+
+**錯誤訊息。** 來自 Temporal 或其 client 的錯誤，訊息是固定文字。Temporal 說的原文（位址、visibility query、伺服器的細節）寫進後端的 log，附上呼叫名稱、namespace 和 gRPC 狀態，不會傳到瀏覽器。路由也不會回傳 stack trace，或沒預期到的錯誤的訊息。
+
+| 狀態  | 訊息                                                                                                                                                                                                                          |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `404` | Temporal 沒有的東西回 `Not found in Temporal`。查找流程或實體的路由，訊息會帶呼叫者給的 ID 或參照                                                                                                                             |
+| `400` | `Temporal rejected the request as invalid`。呼叫者自己輸入的問題（參數錯誤、不允許的 namespace）訊息會指出那個輸入                                                                                                            |
+| `409` | `The resource already exists in Temporal`、`The resource is not in a state that allows this`、`The workflow rejected the query`                                                                                               |
+| `503` | `Temporal is not reachable`、`Temporal did not answer in time`、`Temporal is rate limiting the backend`、`Temporal refused the credentials of the backend`、`No worker answered in time`、`The update did not finish in time` |
+| `500` | `Internal server error`                                                                                                                                                                                                       |
+
+API 回傳的 Worker 訊息只有一種：流程拒絕 update 的失敗（`400`），那是流程自己的程式碼寫給呼叫者的。流程類型總覽每一項的 `error.message` 是 `Temporal is rate limiting the backend`（同時 `rateLimited: true`）、`Temporal did not answer in time` 或 `The numbers could not be read` 其中一個。
+
+後端沒有提供的路由回**沒有內容**的 `404`：`temporal.control.enabled` 為 false 時的操作路由，以及沒裝 Zigflow 後端模組時的定義路由。`GET /openapi.json` 回 OpenAPI 文件（見[OpenAPI spec](../../plugins/temporal-backend/README.md#openapi-spec)，英文）。兩個列表路由收 `searchAttribute`：一個必須為 true 的 `Bool` search attribute 名稱。
 
 讀取一定提供：
 

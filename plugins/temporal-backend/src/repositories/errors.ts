@@ -61,7 +61,7 @@ export function grpcErrorOf(error: unknown): {
 }
 
 /** Names of the errors of `@backstage/errors` that have an HTTP status. */
-const BACKSTAGE_ERRORS = new Set([
+export const BACKSTAGE_ERRORS = new Set([
   'InputError',
   'AuthenticationError',
   'NotAllowedError',
@@ -155,8 +155,27 @@ function isNamespaceNotFound(error: unknown): boolean {
   return (error as Error)?.name === 'NamespaceNotFoundError';
 }
 
-/** Start of the message of a call that Temporal refused for its rate limit. */
-const RATE_LIMITED_MESSAGE = 'Temporal is rate limiting the backend';
+/**
+ * The messages of the errors that a failed call to Temporal becomes. They are
+ * fixed text: what Temporal or the SDK say (addresses, visibility queries,
+ * internal details) is written to the log by `callTemporal`, never sent to
+ * the browser.
+ */
+export const TEMPORAL_ERROR_MESSAGES = {
+  notFound: 'Not found in Temporal',
+  invalid: 'Temporal rejected the request as invalid',
+  alreadyExists: 'The resource already exists in Temporal',
+  wrongState: 'The resource is not in a state that allows this',
+  notReachable: 'Temporal is not reachable',
+  deadline: 'Temporal did not answer in time',
+  rateLimited: 'Temporal is rate limiting the backend',
+  credentials: 'Temporal refused the credentials of the backend',
+  noWorker: 'No worker answered in time',
+  queryRejected: 'The workflow rejected the query',
+  updateTimeout: 'The update did not finish in time',
+} as const;
+
+const RATE_LIMITED_MESSAGE = TEMPORAL_ERROR_MESSAGES.rateLimited;
 
 /**
  * True for the error that {@link mapTemporalError} makes of a call that
@@ -165,38 +184,51 @@ const RATE_LIMITED_MESSAGE = 'Temporal is rate limiting the backend';
 export function isRateLimitedError(error: unknown): boolean {
   return (
     error instanceof ServiceUnavailableError &&
-    error.message.startsWith(RATE_LIMITED_MESSAGE)
+    error.message === RATE_LIMITED_MESSAGE
   );
 }
 
-/** Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status. */
+/**
+ * True for the error that {@link mapTemporalError} makes of a call that
+ * Temporal did not answer within its deadline.
+ */
+export function isDeadlineError(error: unknown): boolean {
+  return (
+    error instanceof ServiceUnavailableError &&
+    error.message === TEMPORAL_ERROR_MESSAGES.deadline
+  );
+}
+
+/**
+ * Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status,
+ * with a fixed message. An error without a mapping is rethrown as it is: it
+ * becomes a 500 with a fixed message in `unexpectedErrorHandler`.
+ */
 export function mapTemporalError(error: unknown): never {
-  const { code, message } = grpcErrorOf(error);
+  const { code } = grpcErrorOf(error);
   if (
     code === GRPC_NOT_FOUND ||
     isScheduleNotFound(error) ||
     isNamespaceNotFound(error)
   ) {
-    throw new NotFoundError(message);
+    throw new NotFoundError(TEMPORAL_ERROR_MESSAGES.notFound);
   }
-  if (code === GRPC_INVALID_ARGUMENT) throw new InputError(message);
+  if (code === GRPC_INVALID_ARGUMENT) {
+    throw new InputError(TEMPORAL_ERROR_MESSAGES.invalid);
+  }
   if (code === GRPC_UNAVAILABLE) {
-    throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.notReachable);
   }
   if (code === GRPC_DEADLINE_EXCEEDED) {
-    throw new ServiceUnavailableError(
-      `Temporal did not answer in time: ${message}`,
-    );
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.deadline);
   }
   if (code === GRPC_RESOURCE_EXHAUSTED) {
     // The backend's own connection is rate limited, not the user.
-    throw new ServiceUnavailableError(`${RATE_LIMITED_MESSAGE}: ${message}`);
+    throw new ServiceUnavailableError(RATE_LIMITED_MESSAGE);
   }
   if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
     // The backend's own credentials, not the user's: a server-side problem.
-    throw new ServiceUnavailableError(
-      `Temporal refused the credentials of the backend: ${message}`,
-    );
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.credentials);
   }
   throw error;
 }
@@ -205,17 +237,18 @@ export function mapTemporalError(error: unknown): never {
  * Rethrows an error of opening the connection to Temporal (the first call,
  * or a call after a failed attempt) as a 503, like an unavailable server.
  */
-export function mapConnectionError(error: unknown): never {
-  const { message } = grpcErrorOf(error);
-  throw new ServiceUnavailableError(`Temporal is not reachable: ${message}`);
+export function mapConnectionError(_error: unknown): never {
+  throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.notReachable);
 }
 
 /** Like {@link mapTemporalError}, with the errors of a query. */
 export function mapQueryError(error: unknown): never {
-  const { code, message } = grpcErrorOf(error);
-  if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
+  const { code } = grpcErrorOf(error);
+  if (code === GRPC_FAILED_PRECONDITION) {
+    throw new ConflictError(TEMPORAL_ERROR_MESSAGES.queryRejected);
+  }
   if (code === GRPC_DEADLINE_EXCEEDED) {
-    throw new ServiceUnavailableError(`No worker answered in time: ${message}`);
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.noWorker);
   }
   return mapTemporalError(error);
 }
@@ -227,9 +260,13 @@ export function mapQueryError(error: unknown): never {
  * worker, so a missed deadline is Temporal's.
  */
 export function mapCommandError(error: unknown): never {
-  const { code, message } = grpcErrorOf(error);
-  if (code === GRPC_ALREADY_EXISTS) throw new ConflictError(message);
-  if (code === GRPC_FAILED_PRECONDITION) throw new ConflictError(message);
+  const { code } = grpcErrorOf(error);
+  if (code === GRPC_ALREADY_EXISTS) {
+    throw new ConflictError(TEMPORAL_ERROR_MESSAGES.alreadyExists);
+  }
+  if (code === GRPC_FAILED_PRECONDITION) {
+    throw new ConflictError(TEMPORAL_ERROR_MESSAGES.wrongState);
+  }
   return mapTemporalError(error);
 }
 
@@ -272,16 +309,14 @@ export function mapChainCommandError(
 export function mapActionError(error: unknown): never {
   if (error instanceof Error && BACKSTAGE_ERRORS.has(error.name)) throw error;
   if (error instanceof WorkflowNotFoundError) {
-    throw new NotFoundError(error.message);
+    throw new NotFoundError(TEMPORAL_ERROR_MESSAGES.notFound);
   }
   if (error instanceof WorkflowUpdateFailedError) {
     const cause = (error.cause as Error | undefined)?.message;
     throw new InputError(cause ? `${error.message}: ${cause}` : error.message);
   }
   if (error instanceof WorkflowUpdateRPCTimeoutOrCancelledError) {
-    throw new ServiceUnavailableError(
-      `The update did not finish in time: ${error.message}`,
-    );
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.updateTimeout);
   }
   if (grpcErrorOf(error).code !== undefined) return mapCommandError(error);
   throw error;

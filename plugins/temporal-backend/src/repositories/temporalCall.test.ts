@@ -45,7 +45,7 @@ describe('callTemporal', () => {
       }),
     ).rejects.toMatchObject({
       name: 'ServiceUnavailableError',
-      message: 'Temporal did not answer in time: slow',
+      message: 'Temporal did not answer in time',
     });
     const at = withDeadline.mock.calls[0][0];
     expect(at).toBeGreaterThanOrEqual(before + 10_000);
@@ -62,8 +62,7 @@ describe('callTemporal', () => {
     await expect(callTemporal(temporal, options(), call)).rejects.toMatchObject(
       {
         name: 'ServiceUnavailableError',
-        message:
-          'Temporal is not reachable: Failed to connect before the deadline',
+        message: 'Temporal is not reachable',
       },
     );
     expect(call).not.toHaveBeenCalled();
@@ -149,9 +148,11 @@ describe('callTemporal', () => {
             errorName: 'Error',
             grpcCode: 7,
             grpcStatus: 'PERMISSION_DENIED',
+            errorMessage: '7 PERMISSION_DENIED: no',
           },
         },
       ]);
+      expect(error.message).not.toContain('PERMISSION_DENIED');
     });
 
     it.each([

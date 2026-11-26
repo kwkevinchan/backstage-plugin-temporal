@@ -714,7 +714,7 @@ components:
           description: When the numbers were read from Temporal (ISO 8601).
         error:
           type: object
-          description: Set when the numbers could not be read; the counts are then 0. `rateLimited` is true when Temporal refused a call for its rate limit.
+          description: Set when the numbers could not be read; the counts are then 0. `message` is fixed text, never what Temporal said. `rateLimited` is true when Temporal refused a call for its rate limit.
           required:
             - message
           properties:

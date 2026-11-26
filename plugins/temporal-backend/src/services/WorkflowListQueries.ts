@@ -38,7 +38,9 @@ import { toTemporalSchedule } from './schedules';
 import { scheduleClientOf } from '../repositories/scheduleClient';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import {
+  isDeadlineError,
   isRateLimitedError,
+  TEMPORAL_ERROR_MESSAGES,
   isScheduleNotFound,
   mapTemporalError,
 } from '../repositories/errors';
@@ -101,16 +103,23 @@ function averageDurationMs(items: WorkflowSummary[]): number | undefined {
   return count > 0 ? Math.round(sum / count) : undefined;
 }
 
+/** The messages of `failedOverview`: fixed text, whatever the error says. */
+export const OVERVIEW_ERROR_MESSAGES = {
+  rateLimited: TEMPORAL_ERROR_MESSAGES.rateLimited,
+  deadline: TEMPORAL_ERROR_MESSAGES.deadline,
+  other: 'The numbers could not be read',
+} as const;
+
 /**
  * The overview item of an entity whose numbers cannot be read: its counts
- * are 0, and `error` says why.
+ * are 0, and `error` says why in one of three fixed messages (rate limited,
+ * no answer in time, any other cause). The caller logs the error itself.
  */
 export function failedOverview(
   entityRef: string,
   error: unknown,
   now = Date.now(),
 ): WorkflowTypeOverview {
-  const message = error instanceof Error ? error.message : String(error);
   return {
     entityRef,
     running: 0,
@@ -120,8 +129,12 @@ export function failedOverview(
     sampleSize: 0,
     updatedAt: new Date(now).toISOString(),
     error: isRateLimitedError(error)
-      ? { message, rateLimited: true }
-      : { message },
+      ? { message: OVERVIEW_ERROR_MESSAGES.rateLimited, rateLimited: true }
+      : {
+          message: isDeadlineError(error)
+            ? OVERVIEW_ERROR_MESSAGES.deadline
+            : OVERVIEW_ERROR_MESSAGES.other,
+        },
   };
 }
 
@@ -413,6 +426,9 @@ export class WorkflowListQueries {
       });
       return overview;
     } catch (error) {
+      this.logger
+        .child({ entityRef: context.entityRef })
+        .warn('Could not read the numbers of an entity', error as Error);
       return failedOverview(context.entityRef, error, now);
     }
   }

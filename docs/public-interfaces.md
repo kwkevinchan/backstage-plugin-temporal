@@ -259,7 +259,10 @@ operations: an error of `@backstage/errors` with its own status;
 `WorkflowUpdateRPCTimeoutOrCancelledError` as `503`; a gRPC error by its
 code (`NOT_FOUND` `404`, `INVALID_ARGUMENT` `400`, `ALREADY_EXISTS` and
 `FAILED_PRECONDITION` `409`, `UNAVAILABLE` and `DEADLINE_EXCEEDED` `503`);
-anything else `500`. A client that cannot connect answers `503`. Every call
+anything else `500`. The message of an error from Temporal or the client is
+fixed text, not what Temporal said (see [HTTP API](#http-api)),
+with one exception: the message of the failure that a rejected update
+carries (`400`). A client that cannot connect answers `503`. Every call
 of `client` shares one deadline of 60 seconds for the whole action. An
 action that needs longer wraps its calls in
 `client.connection.withDeadline(deadline, fn)`: the deadline given there
@@ -522,6 +525,27 @@ refused it: a workflow ID already in use, a schedule in the wrong state), `503` 
 not reachable, not answering within the deadline of the call, rate limiting
 the backend, refusing the backend's own credentials, or no worker answering
 a query or an update in time.
+
+**Messages of errors.** The message of an error that comes from Temporal or its client is fixed text.
+What Temporal said (an address, a visibility query, a detail of the server)
+is written to the backend log, with the name of the call, the namespace and
+the gRPC status, and never sent to the browser. A route never answers with a
+stack trace or the message of an unexpected error either.
+
+| Status | Message                                                                                                                                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `404`  | `Not found in Temporal` for what Temporal does not have. The routes that look up a workflow or an entity name the ID or reference the caller gave                                                                             |
+| `400`  | `Temporal rejected the request as invalid`. Messages about the caller's own input (a wrong parameter, a namespace that is not allowed) name that input                                                                        |
+| `409`  | `The resource already exists in Temporal`, `The resource is not in a state that allows this`, `The workflow rejected the query`                                                                                               |
+| `503`  | `Temporal is not reachable`, `Temporal did not answer in time`, `Temporal is rate limiting the backend`, `Temporal refused the credentials of the backend`, `No worker answered in time`, `The update did not finish in time` |
+| `500`  | `Internal server error`                                                                                                                                                                                                       |
+
+The one message of a worker that the API returns is the failure of an update
+that the workflow rejected (`400`): the workflow's own code wrote it for the
+caller. The `error.message` of a workflow type overview item is one of
+`Temporal is rate limiting the backend` (with `rateLimited: true`),
+`Temporal did not answer in time` or `The numbers could not be read`.
+
 Routes the backend does not serve answer `404` **without** a body: the
 operations when `temporal.control.enabled` is false, and the definition route
 without the Zigflow backend module. `GET /openapi.json` answers with the OpenAPI document (see
