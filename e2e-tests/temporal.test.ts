@@ -48,7 +48,11 @@ function isIgnoredConsoleError(text: string): boolean {
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 
@@ -494,6 +498,7 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   // with the shared workflow action.
   await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   // The first page holds the newest runs, whichever examples ran last, so
@@ -562,6 +567,7 @@ async function expectPageMargins(
 ) {
   const sidebar = await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .boundingBox();
   const box = await content.boundingBox();
@@ -624,6 +630,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await shot('dark-07-workflow-waiting');
   await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page.getByText('Show all runs', { exact: true }).click();
@@ -637,6 +644,7 @@ test('shows the details page in the dark theme', async ({ page }) => {
 async function openRunFromTemporalPage(page: Page, workflowType: string) {
   await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   const all = table(page, 'Workflow executions');

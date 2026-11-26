@@ -29,8 +29,8 @@ const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
 
 function table(page: Page, name: string) {
   return page
-    .getByRole('grid', { name, exact: true })
-    .or(page.getByRole('table', { name, exact: true }))
+    .getByRole('grid', { name: 'Temporal', exact: true })
+    .or(page.getByRole('table', { name: 'Temporal', exact: true }))
     .first();
 }
 
@@ -55,7 +55,11 @@ async function openTemporalTab(page: Page) {
   await entityLink.first().click();
   await page
     .getByRole('tab', { name: 'Temporal', exact: true })
-    .or(page.getByRole('link', { name: 'Temporal', exact: true }))
+    .or(
+      page
+        .getByRole('link', { name: 'Temporal', exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first()
     .click();
   const runs = table(page, 'Workflow executions');

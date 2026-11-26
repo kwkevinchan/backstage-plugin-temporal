@@ -43,7 +43,10 @@ async function signIn(page: Page) {
   await page.waitForURL(/\/catalog|\/$/);
   // Signed in once the app shows its sidebar.
   await expect(
-    page.getByRole('link', { name: 'Temporal', exact: true }).first(),
+    page
+      .getByRole('link', { name: 'Temporal', exact: true })
+      .and(page.locator(':not([href*="/catalog/"])'))
+      .first(),
   ).toBeVisible({ timeout: 120_000 });
 }
 

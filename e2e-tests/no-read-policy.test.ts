@@ -39,7 +39,11 @@ test.skip(
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 

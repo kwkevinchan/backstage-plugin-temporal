@@ -41,7 +41,10 @@ async function signIn(page: Page) {
   await page.getByRole('button', { name: 'Enter' }).click();
   await page.waitForURL(/\/catalog|\/$/);
   await expect(
-    page.getByRole('link', { name: 'Temporal', exact: true }).first(),
+    page
+      .getByRole('link', { name: 'Temporal', exact: true })
+      .and(page.locator(':not([href*="/catalog/"])'))
+      .first(),
   ).toBeVisible({ timeout: 120_000 });
 }
 
@@ -67,6 +70,7 @@ test('the Temporal page lists the run ID and links the workflow type', async ({
   await signIn(page);
   await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page

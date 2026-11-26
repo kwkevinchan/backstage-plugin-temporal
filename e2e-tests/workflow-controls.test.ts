@@ -70,7 +70,11 @@ function watch(page: Page) {
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 
@@ -266,6 +270,7 @@ test('starts, signals, queries, updates, cancels and reruns a workflow', async (
   // 9. Start workflow on the Temporal page asks for the type and queue.
   await page
     .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page.getByRole('button', { name: 'Start workflow' }).click();

@@ -116,7 +116,11 @@ test('large payloads stored in S3: the location is shown, the content is not', a
   await entityLink.first().click();
   await page
     .getByRole('tab', { name: 'Temporal', exact: true })
-    .or(page.getByRole('link', { name: 'Temporal', exact: true }))
+    .or(
+      page
+        .getByRole('link', { name: 'Temporal', exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first()
     .click();
   const runs = page
