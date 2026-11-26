@@ -114,7 +114,7 @@ Task Queue 不用事先建立；第一次有 Worker 或 Client 用到某個名�
 
 - **Search Attributes。** 掛在執行上、可以搜尋和篩選的欄位；型別要先在伺服器上註冊。**Memo** 則是不能搜尋的附註。外掛用 Search Attribute 判斷流程屬於哪個實體（`BackstageEntityRef`）和誰啟動的（`BackstageInitiator`）。畫面：**Details** 分頁的 **Search attributes** 和 **Memo**。名稱以 `Pending` 結尾的屬性會變成 "Waiting for …"（[說明](concepts-to-plugin.md#pending-search-attribute-的約定)）。
 - **Payload 與 Data Converter。** 流程的輸入、輸出和 Activity 的參數都存成 Payload：metadata（例如 `encoding: json/plain`）加上位元組。Data Converter 負責物件和 Payload 互轉。畫面：步驟面板裡的輸入、輸出，以 JSON 顯示。
-- **Codec。** 接在 Data Converter 之後，對整個 Payload 再轉換一次，通常是加密或壓縮。加密之後，伺服器和任何 UI 都讀不到內容，除非用 Codec Server 解碼。畫面：外掛遇到解不開的 Payload 只顯示編碼和大小；外掛不解密。
+- **Codec。** 接在 Data Converter 之後，對整個 Payload 再轉換一次，通常是加密或壓縮。加密之後，伺服器和任何 UI 都讀不到內容，除非用 Codec Server 解碼。畫面：外掛遇到解不開的 Payload 顯示種類、編碼和大小；外掛不解密。
 - **External Storage。** SDK 的功能（public preview）：把超過門檻的 Payload 存進 S3，紀錄裡只留一個參照。門檻和版本請看 [External Storage](https://docs.temporal.io/external-storage)。畫面：外掛不讀 bucket，步驟面板顯示 Payload 存在哪裡（`s3://bucket/key` 和 SHA-256）（[設定方式](../../README.md#large-payloads-external-storage)）。
 
 ## 最小的 TypeScript 範例

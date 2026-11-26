@@ -31,7 +31,7 @@
     schema, with the relations of its owner, system and `spec.dependsOn`. A
     backend without the catalog plugin skips it.
   - The `temporal-workflow` permission resource type: `temporal.workflow.list`
-    and `temporal.workflow.history.list` are checked with `authorizeConditional`,
+    is checked with `authorizeConditional`,
     and conditions become a Temporal visibility query for the Workflows page.
     Rules: `HAS_WORKFLOW_TYPE`, `HAS_TASK_QUEUE`, `IN_NAMESPACE` and
     `IS_INITIATOR` (with `temporal.searchAttributes.initiator`);
@@ -170,8 +170,8 @@ additional properties` at `/temporal`). Remove the key from your config.
     its model calls:
     the framework, the model, the token counts (also reasoning and cached),
     the finish reason, the names and tool call IDs of the tools asked for,
-    and the type or message of an error. The messages, the thinking and
-    tool arguments and results still need `temporal.workflow.history.read`.
+    and the type of an error. The messages, the thinking and tool
+    arguments and results are in the details of the step.
     Payloads in External Storage are not read, so a model call whose result
     is stored there is drawn without its model and tokens.
   - `temporalLlmAdapterExtensionPoint` (`./alpha`) adds LLM adapters for other

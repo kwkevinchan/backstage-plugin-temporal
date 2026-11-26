@@ -19,6 +19,7 @@ import type { DecodedPayload, ExternalPayload } from '../common';
 import { Text } from '@backstage/ui';
 import { CopyButton } from './CopyButton';
 import { ExternalPayloadView } from './ExternalPayloadView';
+import { undecodableInfo } from './payloadKind';
 import { tp } from './styles';
 
 function isDecoded(value: unknown): value is DecodedPayload {
@@ -78,11 +79,29 @@ export function JsonView(props: { value: JsonValue; open?: boolean }) {
 function One(props: { payload: JsonValue; open?: boolean }) {
   const { payload } = props;
   if (isDecoded(payload) && 'undecodable' in payload) {
+    const info = undecodableInfo(payload.encoding, payload.metadata);
+    const metadata = Object.entries(payload.metadata ?? {});
     return (
-      <Text as="p" variant="body-small" color="secondary">
-        {payload.encoding || 'unknown encoding'}, {payload.size} bytes (not
-        decoded)
-      </Text>
+      <div style={{ display: 'grid', gap: 2 }} data-kind={info.kind}>
+        <Text as="p" variant="body-small" color="secondary">
+          {info.label} ({payload.encoding || 'unknown encoding'}, {payload.size}{' '}
+          bytes)
+        </Text>
+        <Text as="p" variant="body-small" color="secondary">
+          {info.description}
+        </Text>
+        {metadata.map(([key, value]) => (
+          <Text
+            key={key}
+            as="p"
+            variant="body-small"
+            color="secondary"
+            style={{ wordBreak: 'break-all' }}
+          >
+            {key}: {typeof value === 'string' ? value : JSON.stringify(value)}
+          </Text>
+        ))}
+      </div>
     );
   }
   if (isReference(payload)) {
@@ -95,8 +114,8 @@ function One(props: { payload: JsonValue; open?: boolean }) {
 
 /**
  * A decoded payload, or an array of them (several arguments). Payloads that
- * could not be decoded show their encoding and size; payloads stored in
- * External Storage show where they are stored.
+ * could not be decoded show their kind, encoding, size and metadata;
+ * payloads stored in External Storage show where they are stored.
  */
 export function PayloadView(props: { payload?: JsonValue; open?: boolean }) {
   const { payload } = props;
