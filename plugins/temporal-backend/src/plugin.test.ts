@@ -1836,13 +1836,11 @@ describe('temporal backend plugin', () => {
 
     it('is not set when the caller cannot read the entity in the catalog', async () => {
       // The catalog answers with the entities the credentials may see.
-      const getEntities = jest.fn(
-        async (_request: unknown, options?: any) => ({
-          items: options?.credentials?.principal?.userEntityRef
-            ? []
-            : [orderWorkflowEntity],
-        }),
-      );
+      const getEntities = jest.fn(async (_request: unknown, options?: any) => ({
+        items: options?.credentials?.principal?.userEntityRef
+          ? []
+          : [orderWorkflowEntity],
+      }));
       const catalog = catalogServiceMock.mock({ getEntities });
       const { server } = await start({ catalog });
       const detail = await request(server).get(run);
