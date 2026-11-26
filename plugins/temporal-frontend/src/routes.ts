@@ -16,7 +16,7 @@
 
 import { createRouteRef } from '@backstage/core-plugin-api';
 
-/** Root of the Workflows page. */
+/** Root of the Temporal page. */
 export const rootRouteRef = createRouteRef({
   id: 'temporal:root',
 });

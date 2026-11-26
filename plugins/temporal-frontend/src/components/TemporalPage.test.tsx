@@ -44,7 +44,7 @@ function render(api: ReturnType<typeof mockTemporalApi>, path = '/') {
   );
 }
 
-describe('Workflows page', () => {
+describe('Temporal page', () => {
   it('lists every workflow with entity links', async () => {
     const api = mockTemporalApi();
     api.listWorkflows.mockResolvedValue({

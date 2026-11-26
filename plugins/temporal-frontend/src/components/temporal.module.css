@@ -496,7 +496,7 @@
   gap: var(--bui-space-3, 12px);
 }
 
-/* Workflows page in the new frontend system: space below the app header. */
+/* Temporal page in the new frontend system: space below the app header. */
 .tp-page {
   padding-top: var(--bui-space-5, 20px);
 }

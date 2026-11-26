@@ -48,7 +48,7 @@ export const temporalWorkflowControlsAction =
 
 /**
  * "Start workflow" above the list of a `TemporalWorkflow` entity and on the
- * Workflows page.
+ * Temporal page.
  *
  * @alpha
  */

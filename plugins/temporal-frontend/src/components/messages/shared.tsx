@@ -26,7 +26,7 @@ import { tp } from '../styles';
 /**
  * Whether the user may use a control permission on the entity (and on
  * `additionalResourceRef`, when different). Without an entity (a workflow
- * from the Workflows page that is not linked to one) the frontend cannot
+ * from the Temporal page that is not linked to one) the frontend cannot
  * ask, so the control is enabled and the backend decides.
  */
 export function useControlPermission(

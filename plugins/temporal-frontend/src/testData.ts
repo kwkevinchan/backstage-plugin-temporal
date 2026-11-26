@@ -543,7 +543,7 @@ export const llmCallResponse: WorkflowLlmCallResponse = {
   raw: { v: 1, attributes: { 'gen_ai.request.model': 'fake-reasoner-1' } },
 };
 
-/** One schedule of the Workflows page. */
+/** One schedule of the Temporal page. */
 export const nightlySchedule: TemporalSchedule = {
   namespace: 'default',
   scheduleId: 'nightly-orders',

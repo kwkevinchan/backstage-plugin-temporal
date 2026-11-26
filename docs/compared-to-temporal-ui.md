@@ -15,13 +15,13 @@ screens, which differ between Temporal UI versions.
 
 ## The workflow list
 
-![Two wireframes side by side. Left, the Temporal Web UI Workflows page: a namespace selector, a filter bar over all workflows, a table of status, ID, type and times, batch operations and further pages. Right, the plugin's Temporal tab of an entity: only the entity's workflows with a progress column, plus schedule operations; Start workflow is on TemporalWorkflow entities and the Workflows page.](images/compare-list.svg)
+![Two wireframes side by side. Left, the Temporal Web UI Workflows page: a namespace selector, a filter bar over all workflows, a table of status, ID, type and times, batch operations and further pages. Right, the plugin's Temporal tab of an entity: only the entity's workflows with a progress column, plus schedule operations; Start workflow is on TemporalWorkflow entities and the Temporal page.](images/compare-list.svg)
 
 Left: the Temporal Web UI lists every workflow of a namespace, with a query bar
 and, around it, the cluster's other areas. Right: the plugin lists the workflows
 that belong to the entity you are looking at, adds a progress column (the current
 step, or the step where it failed), and offers the operations your policy allows.
-The **Workflows** page lists a whole namespace when you may list every workflow.
+The **Temporal** page lists a whole namespace when you may list every workflow.
 
 ## One workflow
 
@@ -39,7 +39,7 @@ What the Temporal Web UI offers depends on its version; see the
 
 |                             | Temporal Web UI                                                                              | This plugin                                                                                                                   |
 | --------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| How you get there           | Pick a namespace and search all workflows                                                    | From a Backstage component or `TemporalWorkflow` entity, showing only what belongs to it; a Workflows page shows the rest     |
+| How you get there           | Pick a namespace and search all workflows                                                    | From a Backstage component or `TemporalWorkflow` entity, showing only what belongs to it; a Temporal page shows the rest     |
 | Who may see and do what     | Temporal's namespace permissions                                                             | Backstage permissions, down to "only the component's owners may terminate"; operations are audited and attributed to the user |
 | Main view                   | Event history and timeline                                                                   | A step graph; select a box for input and output. Timeline and events are tabs                                                 |
 | Operations                  | Start, signal, update, query, cancel, terminate, reset, batch operations, schedules and more | Start, signal, update, query, cancel, terminate, rerun, and pause, resume or trigger schedules                                |

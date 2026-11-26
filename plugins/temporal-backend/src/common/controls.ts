@@ -68,7 +68,7 @@ export type WorkflowIdReusePolicy =
 
 /**
  * Body of `POST /entities/:kind/:namespace/:name/workflows` (start a workflow
- * of an entity) and `POST /workflows` (start a workflow from the Workflows
+ * of an entity) and `POST /workflows` (start a workflow from the Temporal
  * page). For an entity, the workflow type and task queue default to the
  * entity's; `namespace` is only read by `POST /workflows`. Without
  * `workflowId`, one is made from the workflow type.

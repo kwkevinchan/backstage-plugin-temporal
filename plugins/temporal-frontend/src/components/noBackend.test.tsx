@@ -82,7 +82,7 @@ describe('without the Temporal backend plugin', () => {
     ['unreachable', unreachable, /Failed to fetch/],
     ["the plugin's 404", notFound, /^Request failed with 404/],
   ])(
-    'shows the error on the Workflows page (%s)',
+    'shows the error on the Temporal page (%s)',
     async (_name, fetch, message) => {
       await render(<TemporalPageContent />, fetch);
       const alerts = await screen.findAllByTestId('temporal-error');

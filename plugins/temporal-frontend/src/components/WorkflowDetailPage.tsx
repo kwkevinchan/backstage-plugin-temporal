@@ -507,7 +507,7 @@ function TimelineTab(props: {
  * Details of one workflow execution: a summary line, the step graph with a
  * panel for the selected step, and tabs with the steps, the events and the
  * details. With an entity, the backend checks the permission on that
- * entity; without one (the Workflows page), it checks
+ * entity; without one (the Temporal page), it checks
  * `temporal.workflow.list`.
  */
 export function WorkflowDetailPage(

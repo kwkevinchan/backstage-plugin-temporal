@@ -149,7 +149,7 @@ describe('opening one workflow', () => {
   it('describes it once from its search attribute, without entityRef', async () => {
     const { server, workflowService } = await start();
     const res = await request(server).get(path);
-    // The fake workflow has no entity reference attribute: the Workflows
+    // The fake workflow has no entity reference attribute: the Temporal
     // page permissions decide, and the enrichers need an entity.
     expect(res.status).toBe(200);
     expect(res.body.memo).toEqual({ customer: externalMemo() });

@@ -800,7 +800,7 @@ describe('workflow controls', () => {
     expect(workflowService.startWorkflowExecution).not.toHaveBeenCalled();
   });
 
-  it('starts a workflow from the Workflows page', async () => {
+  it('starts a workflow from the Temporal page', async () => {
     const { server, workflowService, permissions } = await start();
     const res = await request(server)
       .post('/api/temporal/workflows')
@@ -928,7 +928,7 @@ describe('workflow controls', () => {
     expect(res.body.error.name).toBe('ConflictError');
   });
 
-  it('does not start from the Workflows page with a conditional decision', async () => {
+  it('does not start from the Temporal page with a conditional decision', async () => {
     const { server, workflowService, auditor, auditEvent } = await start({
       conditional: ['temporal.workflow.start'],
     });
@@ -1565,7 +1565,7 @@ describe('with temporal.control.enabled: false', () => {
       body,
     ]),
     [
-      'start from the Workflows page',
+      'start from the Temporal page',
       '/api/temporal/workflows',
       { workflowType: 'orderWorkflow', taskQueue: 'orders' },
     ],

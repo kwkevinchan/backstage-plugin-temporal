@@ -180,7 +180,7 @@ export interface TemporalApi {
   /**
    * Starts a workflow. With `entityRef`, a workflow of that entity (its
    * workflow type and task queue are the defaults); without it, from the
-   * Workflows page (`workflowType` and `taskQueue` are required). Needs
+   * Temporal page (`workflowType` and `taskQueue` are required). Needs
    * `temporal.workflow.start`.
    */
   startWorkflow(

@@ -69,7 +69,7 @@ describe('operations (new frontend system)', () => {
     expect(action.filter).toBeUndefined();
   });
 
-  it('shows Start on TemporalWorkflow entities and the Workflows page', () => {
+  it('shows Start on TemporalWorkflow entities and the Temporal page', () => {
     const start = createExtensionTester(temporalStartWorkflowListAction).get(
       temporalWorkflowListActionDataRef,
     );
@@ -134,7 +134,7 @@ describe('the operations on the pages (new frontend system)', () => {
     return factory.factory({}) as TemporalWorkflowExtensionsApi;
   }
 
-  /** Renders the details page on the entity tab and on the Workflows page. */
+  /** Renders the details page on the entity tab and on the Temporal page. */
   async function eachPage(
     control: object,
     check: (api: ReturnType<typeof mockTemporalApi>) => Promise<void>,
@@ -180,7 +180,7 @@ describe('the operations on the pages (new frontend system)', () => {
     expect(SCHEDULE_CONTROL_IDS.has(api.getScheduleActions()[0].id)).toBe(true);
   });
 
-  it('shows Rerun on the entity tab and the Workflows page', async () => {
+  it('shows Rerun on the entity tab and the Temporal page', async () => {
     await eachPage({}, async () => {
       expect(
         await screen.findByRole('button', { name: 'Rerun' }),

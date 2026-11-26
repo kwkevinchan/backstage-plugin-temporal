@@ -1473,7 +1473,7 @@ describe('temporal backend plugin', () => {
     );
   });
 
-  describe('Workflows page', () => {
+  describe('Temporal page', () => {
     it('lists every workflow of the namespace with filters', async () => {
       const workflowService = createFakeWorkflowService();
       workflowService.listWorkflowExecutions.mockResolvedValue({

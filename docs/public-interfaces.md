@@ -156,7 +156,7 @@ The 111 names in groups. Every name is in the
 | `TemporalWorkflowActionBlueprint`, `TemporalWorkflowSectionBlueprint`, `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`, `TemporalControlActionBlueprint` | `./alpha` | The five blueprints ([below](#blueprints-and-props))                                       | You add a button, a tab or a control                        |
 | `temporalPlugin`                                                                                                                                                                  | `.`       | The plugin for the legacy system                                                           | `createApp({ plugins: [...] })` of a legacy app             |
 | `EntityTemporalContent`, `EntityTemporalContentProps`                                                                                                                             | `.`       | The entity tab, and its props                                                              | Legacy `EntityPage.tsx`                                     |
-| `TemporalPage`, `TemporalPageProps`                                                                                                                                               | `.`       | The Workflows page, and its props                                                          | Legacy `App.tsx`                                            |
+| `TemporalPage`, `TemporalPageProps`                                                                                                                                               | `.`       | The Temporal page, and its props                                                          | Legacy `App.tsx`                                            |
 | `EntityTemporalWorkflowSummaryCard`, `EntityTemporalRelatedWorkflowsCard`                                                                                                         | `.`       | Overview cards of `TemporalWorkflow` entities and of entities that depend on them          | Legacy entity pages                                         |
 | `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs`                                                                                             | `.`       | Conditions for `EntitySwitch` and `if` (also in `./common`)                                | Legacy entity pages                                         |
 | `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`, `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`                                                           | `.`       | What the legacy props take                                                                 | Legacy props                                                |
@@ -272,7 +272,7 @@ runs, in the order the enrichers were added, where a workflow is read
 through an entity: the workflow lists of an entity, and the details of a
 workflow read through one (passed as `entityRef`, or the entity of its
 search attribute when the list permission does not allow it). It does not
-run for the list of the Workflows page or for details allowed by the list
+run for the list of the Temporal page or for details allowed by the list
 permission. Put your data under `extensions[id]` of each summary
 (`WorkflowSummary.extensions`); the fields you return are merged into the
 summary. The frontend shows it nowhere by itself, so pair it with a
@@ -334,12 +334,12 @@ catalog rejects `TemporalWorkflow` entities.
 
 ## Frontend extension
 
-![Where frontend extensions appear. On the right, the pages of the entity tab and of the Workflows page: above a workflow list the list actions (Start workflow, then yours), on each schedule the schedule actions, on the details page of a run the actions in the action bar (Signal, Cancel and the other operations, then yours, before Query and Refresh) and the sections as tabs after Steps, Timeline, Events and Details. On the left, the new frontend system: the five blueprints attach to the inputs actions, sections, listActions and scheduleActions of api:temporal/workflow-extensions, which is not exported; the legacy system: the props workflowActions, workflowSections, workflowListActions and scheduleActions of EntityTemporalContent and TemporalPage, and createTemporalControlActionDef. Both meet at the same places, props first, one entry per id. Components get TemporalWorkflowExtensionProps or useTemporalWorkflow() and call the backend with temporalApiRef (api:temporal, TemporalClient).](images/frontend-mounts.svg)
+![Where frontend extensions appear. On the right, the pages of the entity tab and of the Temporal page: above a workflow list the list actions (Start workflow, then yours), on each schedule the schedule actions, on the details page of a run the actions in the action bar (Signal, Cancel and the other operations, then yours, before Query and Refresh) and the sections as tabs after Steps, Timeline, Events and Details. On the left, the new frontend system: the five blueprints attach to the inputs actions, sections, listActions and scheduleActions of api:temporal/workflow-extensions, which is not exported; the legacy system: the props workflowActions, workflowSections, workflowListActions and scheduleActions of EntityTemporalContent and TemporalPage, and createTemporalControlActionDef. Both meet at the same places, props first, one entry per id. Components get TemporalWorkflowExtensionProps or useTemporalWorkflow() and call the backend with temporalApiRef (api:temporal, TemporalClient).](images/frontend-mounts.svg)
 
 ### Blueprints and props
 
 Both frontend systems fill the same four places on the same pages (the
-entity tab and the Workflows page). The page takes the legacy props first,
+entity tab and the Temporal page). The page takes the legacy props first,
 then the extensions collected by `api:temporal/workflow-extensions`, and
 keeps one entry per `id`.
 
@@ -386,9 +386,9 @@ work in a test):
 | Field               | Is                                                                                                                         |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `workflow`          | The `WorkflowDetail` shown, with `extensions` from the enrichers                                                           |
-| `entity?`           | The catalog entity the page is shown for; absent on the Workflows page                                                     |
+| `entity?`           | The catalog entity the page is shown for; absent on the Temporal page                                                     |
 | `reload()`          | Reads the workflow again, for example after your button changed it                                                         |
-| `workflowHref(ref)` | The link of another run's details page on the same page (entity tab or Workflows page), for example a run you just started |
+| `workflowHref(ref)` | The link of another run's details page on the same page (entity tab or Temporal page), for example a run you just started |
 
 List actions get `{ entity?, workflowHref(ref) }`; schedule actions get
 `{ schedule, entity?, reload() }`.
@@ -419,7 +419,7 @@ The plugin of the new system has these extensions. Change one with
 
 | ID                                             | What                                                                  |
 | ---------------------------------------------- | --------------------------------------------------------------------- |
-| `page:temporal`                                | Workflows page on `/temporal`                                         |
+| `page:temporal`                                | Temporal page on `/temporal`                                         |
 | `entity-content:temporal`                      | Temporal tab of entities                                              |
 | `entity-card:temporal/workflow-summary`        | Summary card of `TemporalWorkflow` entities                           |
 | `entity-card:temporal/related-workflows`       | Workflow entities card of entities that depend on them                |
@@ -439,16 +439,16 @@ the `temporal` plugin.
 
 ### Routes and links
 
-The plugin has two route refs: `root` (the Workflows page, `temporal:root`)
+The plugin has two route refs: `root` (the Temporal page, `temporal:root`)
 and `entityContent` (the entity tab, `temporal:entity-content`). In the
 legacy system they are `temporalPlugin.routes.root` and
 `temporalPlugin.routes.entityContent` of the main entry point; in the new
 system the default export of `./alpha` has the same `routes`. Another plugin
-links to the Workflows page with `useRouteRef(temporalPlugin.routes.root)`.
+links to the Temporal page with `useRouteRef(temporalPlugin.routes.root)`.
 
 Below either page, the details of a run are at
 `namespaces/:namespace/workflows/:workflowId/runs/:runId`: for the
-Workflows page on `/temporal` that is
+Temporal page on `/temporal` that is
 `/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId`, which
 `buildWorkflowRunPath` of `./common` builds after the page path. The
 `workflowUrl` output of the Scaffolder module uses this shape. Without the
@@ -1074,7 +1074,7 @@ export const temporalModuleOwner = createBackendModule({
 ```
 
 The value is then `workflow.extensions?.owner` in the frontend, as in the
-next example, on the pages where the enricher runs (not on the Workflows
+next example, on the pages where the enricher runs (not on the Temporal
 page; see [the extension point](#temporalworkflowenricherextensionpoint)).
 
 ### Add an LLM adapter
@@ -1159,7 +1159,7 @@ Legacy system: pass
 `workflowSections={[{ id: 'owner', title: 'Owner', component: OwnerSection }]}`
 to `EntityTemporalContent` and `TemporalPage`. A component deeper in the tab
 gets the same props with `useTemporalWorkflow()`. This tab reads data of the
-enricher above, so on the Workflows page it shows "unknown".
+enricher above, so on the Temporal page it shows "unknown".
 
 ### Override an extension
 

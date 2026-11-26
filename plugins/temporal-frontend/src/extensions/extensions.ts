@@ -31,7 +31,7 @@ export interface TemporalWorkflowExtensionProps {
   reload(): void;
   /**
    * Link of the details page of another workflow on the same page (entity
-   * tab or Workflows page), for example a run that was just started.
+   * tab or Temporal page), for example a run that was just started.
    */
   workflowHref(ref: WorkflowRef): string;
 }
@@ -54,12 +54,12 @@ export interface TemporalWorkflowActionDef {
 
 /**
  * Props of components shown above a workflow list: the list of an entity
- * (with `entity`) or the Workflows page (without).
+ * (with `entity`) or the Temporal page (without).
  *
  * @public
  */
 export interface TemporalWorkflowListActionProps {
-  /** The entity whose workflows are listed; absent on the Workflows page. */
+  /** The entity whose workflows are listed; absent on the Temporal page. */
   entity?: Entity;
   /** Link of the details page of a workflow, relative to the list. */
   workflowHref(ref: WorkflowRef): string;
@@ -79,7 +79,7 @@ export interface TemporalWorkflowListActionDef {
   component: ComponentType<TemporalWorkflowListActionProps>;
   /**
    * Show the action only when this returns true. `entity` is absent on the
-   * Workflows page.
+   * Temporal page.
    */
   filter?: (context: { entity?: Entity }) => boolean;
 }
@@ -91,7 +91,7 @@ export interface TemporalWorkflowListActionDef {
  */
 export interface TemporalScheduleActionProps {
   schedule: TemporalSchedule;
-  /** The entity whose schedules are listed; absent on the Workflows page. */
+  /** The entity whose schedules are listed; absent on the Temporal page. */
   entity?: Entity;
   /** Reads the schedules again, after a change. */
   reload(): void;
@@ -132,7 +132,7 @@ export interface TemporalWorkflowSectionDef {
 
 /**
  * Workflow actions, list actions and sections contributed by other plugins
- * in the new frontend system. The entity tab and the Workflows page both
+ * in the new frontend system. The entity tab and the Temporal page both
  * read it, so blueprint extensions show on every page.
  */
 export interface TemporalWorkflowExtensionsApi {

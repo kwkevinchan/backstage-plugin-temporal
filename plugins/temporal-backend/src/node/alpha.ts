@@ -102,7 +102,7 @@ export interface TemporalEntityContext {
 export interface TemporalAccessibleWorkflow {
   /**
    * The entity the workflow is shown for. Undefined when it was opened
-   * without one (the Workflows page) under the list permission.
+   * without one (the Temporal page) under the list permission.
    */
   context?: TemporalEntityContext;
   /**
@@ -130,7 +130,7 @@ export interface TemporalAccessService {
   canListAll(credentials: BackstageCredentials): Promise<boolean>;
 
   /**
-   * Checks `temporal.workflow.list` for the Workflows page, listing
+   * Checks `temporal.workflow.list` for the Temporal page, listing
    * `namespace`. Returns undefined when every workflow of it may be listed,
    * or the visibility query the list must also match (a conditional
    * decision). Throws `InputError` when the namespace is not allowed and
@@ -214,7 +214,7 @@ export const temporalAccessServiceRef = createServiceRef<TemporalAccessService>(
 export interface TemporalControlActionContext {
   /**
    * The entity the workflow belongs to. Undefined for a workflow opened from
-   * the Workflows page that is not linked to an entity.
+   * the Temporal page that is not linked to an entity.
    */
   entity?: Entity;
   /** The workflow the action runs on, as read just before. */
@@ -290,7 +290,7 @@ export const temporalControlExtensionPoint =
 export interface TemporalWorkflowEnricherContext {
   /**
    * The entity whose workflows are shown. Enrichers should handle it being
-   * undefined: lists that span entities (the Workflows page) may run
+   * undefined: lists that span entities (the Temporal page) may run
    * enrichers without one in a later version.
    */
   entity?: Entity;

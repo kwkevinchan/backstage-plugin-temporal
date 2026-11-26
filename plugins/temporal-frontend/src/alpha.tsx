@@ -88,7 +88,7 @@ const temporalApi = ApiBlueprint.make({
  * (`api:temporal/workflow-extensions`). Extensions of
  * `TemporalWorkflowActionBlueprint`, `TemporalWorkflowListActionBlueprint`,
  * `TemporalScheduleActionBlueprint` and `TemporalWorkflowSectionBlueprint`
- * attach to its inputs; the entity tab and the Workflows page both show
+ * attach to its inputs; the entity tab and the Temporal page both show
  * them.
  */
 const temporalWorkflowExtensionsApi = ApiBlueprint.makeWithOverrides({
@@ -145,14 +145,14 @@ const temporalEntityContent = EntityContentBlueprint.make({
 });
 
 /**
- * Workflows page on `/temporal`. Its title and icon make the app list it in
+ * Temporal page on `/temporal`. Its title and icon make the app list it in
  * the sidebar. Workflow actions and sections come from
  * {@link temporalWorkflowExtensionsApi}, as on the entity tab.
  */
 const temporalPage = PageBlueprint.make({
   params: {
     path: '/temporal',
-    title: 'Workflows',
+    title: 'Temporal',
     icon: <RiFlowChart size="1em" />,
     routeRef: convertLegacyRouteRef(rootRouteRef),
     loader: () =>

@@ -66,7 +66,7 @@ workflow definition.
 - **Workflow controls.** Start, signal, update, query, cancel, terminate and
   rerun workflows, and add your own actions.
 - **Workflow types in the catalog.** A `TemporalWorkflow` catalog kind for
-  one workflow type and its definition, and a **Workflows** page with every
+  one workflow type and its definition, and a **Temporal** page with every
   workflow execution of a namespace.
 - **Templates.** Scaffolder actions to start a workflow, wait for it and
   send it a signal or an update, and a form field to pick a workflow (see
@@ -98,7 +98,7 @@ workflow definition.
 | Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension points (`./alpha`) and the permissions and types (`./common`).                                                                               |
-| [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Workflows page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions, schedule actions, sections and buttons of custom backend actions; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
+| [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Temporal page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions, schedule actions, sections and buttons of custom backend actions; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                                                                                  |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                                                                             |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-actions`](plugins/temporal-backend-module-actions)       | backend-plugin-module  | Backstage backend | Actions registry actions: list and read workflows, start them, send signals and updates, for AI assistants and MCP clients                                                                                                                                                                                                                                      |
@@ -229,7 +229,7 @@ This adds a **Temporal** tab to entities of any kind that have Temporal
 annotations, to `TemporalWorkflow` entities and to entities that depend on
 them; a summary card on the overview of `TemporalWorkflow` entities; a card
 with the workflow entities on the overview of entities that depend on them;
-and the **Workflows** page on `/temporal`. The page has a title and an icon,
+and the **Temporal** page on `/temporal`. The page has a title and an icon,
 so the app lists it in the sidebar with the nav items it discovers from pages
 (`navItems` of `NavContentBlueprint`).
 
@@ -300,7 +300,7 @@ const temporalWorkflowPage = (
 component (use it with
 `if={e => getDependsOnTemporalWorkflowRefs(e).length > 0}`).
 
-The Workflows page (`App.tsx` and the sidebar in `Root.tsx`):
+The Temporal page (`App.tsx` and the sidebar in `Root.tsx`):
 
 ```tsx
 import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal-frontend';
@@ -308,7 +308,7 @@ import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 <Route path="/temporal" element={<TemporalPage />} />;
 
-<SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />;
+<SidebarItem icon={AccountTreeIcon} to="temporal" text="Temporal" />;
 ```
 
 `EntityTemporalContent` and `TemporalPage` show the buttons of the
@@ -986,9 +986,9 @@ rejected so they cannot change the visibility query.
 | Permission                    | Resource type       | Used for                                                                                                                                 |
 | ----------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `temporal.workflow.read`      | `catalog-entity`    | Workflow list, details, step graph, progress, event history, inputs and results, failure details, model call records, Zigflow definition |
-| `temporal.workflow.list`      | `temporal-workflow` | Workflows page and its schedules; everything of `temporal.workflow.read` for a workflow opened without an entity                         |
+| `temporal.workflow.list`      | `temporal-workflow` | Temporal page and its schedules; everything of `temporal.workflow.read` for a workflow opened without an entity                         |
 | `temporal.workflow.query`     | `catalog-entity`    | Run a query chosen by the user (the Query dialog)                                                                                        |
-| `temporal.workflow.start`     | `catalog-entity`    | Start a workflow of the entity or from the Workflows page; pause, resume and run its schedules                                           |
+| `temporal.workflow.start`     | `catalog-entity`    | Start a workflow of the entity or from the Temporal page; pause, resume and run its schedules                                           |
 | `temporal.workflow.signal`    | `catalog-entity`    | Send a signal                                                                                                                            |
 | `temporal.workflow.update`    | `catalog-entity`    | Send an update (also used by the example custom action)                                                                                  |
 | `temporal.workflow.cancel`    | `catalog-entity`    | Ask a running workflow to cancel                                                                                                         |
@@ -997,7 +997,7 @@ rejected so they cannot change the visibility query.
 
 The plugin registers the permissions and checks them on every request. The
 entity permissions use the entity as the resource. `temporal.workflow.list`
-allows the Workflows page, which lists the workflows of the allowed
+allows the Temporal page, which lists the workflows of the allowed
 namespaces, and opening any of them without an entity, with everything
 `temporal.workflow.read` shows. It is a resource permission on the
 `temporal-workflow` resource type (a workflow): a policy can allow it,
@@ -1050,7 +1050,7 @@ resource type, used by `temporal.workflow.list`:
 | `IN_NAMESPACE`      | `namespaces`    | of one of these Temporal namespaces                                   |
 | `IS_INITIATOR`      | `claims`        | started by one of these users (`temporal.searchAttributes.initiator`) |
 
-For the Workflows page, the conditions become a Temporal visibility query
+For the Temporal page, the conditions become a Temporal visibility query
 that is added to the list query (`allOf` with AND, `anyOf` with OR).
 `IN_NAMESPACE` is decided for the namespace being listed, because a
 visibility query cannot filter on the namespace; a list whose conditions
@@ -1168,7 +1168,7 @@ with the caller's permissions; an entity the caller cannot read describes
 nothing.
 
 **Start workflow** is on the Temporal tab of `TemporalWorkflow` entities and
-on the Workflows page. For an entity, the workflow type and task queue come
+on the Temporal page. For an entity, the workflow type and task queue come
 from its spec, and the input is filled with `spec.exampleInput` (an array of
 arguments, or one value):
 
@@ -1182,7 +1182,7 @@ spec:
 
 The backend only starts the entity's own workflow types on its task queue,
 and sets the `searchAttributes.entityRef` and `searchAttributes.initiator`
-attributes (when configured) to the entity and the user. From the Workflows
+attributes (when configured) to the entity and the user. From the Temporal
 page, the workflow type and task queue are typed in. Leave the workflow ID
 empty to have one made from the workflow type.
 
@@ -1194,8 +1194,8 @@ permissions on the workflow's entity: the entity the page is shown for, else
 the entity in the `searchAttributes.entityRef` attribute. When the workflow
 belongs to the page's entity through a `TemporalWorkflow` entity it depends on,
 that entity must allow the permission too. A workflow without
-an entity (opened from the Workflows page) is only controlled when the policy
-allows the permission without conditions. Starting from the Workflows page
+an entity (opened from the Temporal page) is only controlled when the policy
+allows the permission without conditions. Starting from the Temporal page
 also needs `temporal.workflow.list`. The operations on one workflow, and
 queries, first load it with the read checks: `temporal.workflow.read` on the
 entity (with `entityRef`; the workflow must belong to it, 404 otherwise), or
@@ -1301,7 +1301,7 @@ Known limits:
 ## Schedules
 
 Temporal schedules start workflows on a calendar or an interval. The
-Workflows page lists the schedules of the default namespace, and the
+Temporal page lists the schedules of the default namespace, and the
 Temporal tab of an entity lists those that start its workflow types (on its
 task queue, when it has one). Each one shows when it
 runs (`every 1h`, `02:00 on MONDAY-FRIDAY`, with its time zone), whether it
@@ -1310,11 +1310,11 @@ is paused and why, its next run and a link to the workflow of its last run.
 Unless `temporal.control.enabled` is false, each schedule has **Pause** or **Resume** and
 **Run now**. They need `temporal.workflow.start`, since a schedule starts
 workflows: on the entity whose workflow types it starts, or without
-conditions on the Workflows page. Each one is recorded with the auditor
+conditions on the Temporal page. Each one is recorded with the auditor
 (`schedule-pause`, `schedule-unpause`, `schedule-trigger`). Creating and
 changing schedules is left to code or the Temporal UI.
 
-The Workflows page lists schedules for users that may list every workflow
+The Temporal page lists schedules for users that may list every workflow
 (`temporal.workflow.list` without conditions); an entity's list needs
 `temporal.workflow.read` on the entity. At most the first 500 schedules of a
 namespace are read. A schedule whose memo or arguments cannot be decoded
@@ -1349,15 +1349,15 @@ TemporalWorkflowActionBlueprint.make({
 
 `TemporalWorkflowSectionBlueprint` adds a tab in the same way, and
 `TemporalWorkflowListActionBlueprint` a control above the workflow lists
-(its `filter` gets the entity, absent on the Workflows page). They attach to
+(its `filter` gets the entity, absent on the Temporal page). They attach to
 the shared mount point `api:temporal/workflow-extensions`, so they show on
-the pages of the entity tab and of the Workflows page. In the legacy system, pass
+the pages of the entity tab and of the Temporal page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
 `scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
 `useTemporalWorkflow()`. To test a component that
 calls the hook, wrap it in `TemporalWorkflowProvider`.
 
-To change one of the plugin's own extensions, such as the Workflows page,
+To change one of the plugin's own extensions, such as the Temporal page,
 take it from the plugin with `getExtension()` and install the plugin with
 `withOverrides()`. The plugin does not export its extensions by name; the IDs
 are `page:temporal`, `entity-content:temporal`,
@@ -1722,7 +1722,7 @@ Smoke tests sign in as the guest user, open the Temporal tab, open a failed
 workflow, select the failed step in the graph and check its input and error,
 switch to the grouped events, open a running workflow, a `TemporalWorkflow`
 entity and its runs, a component that depends on workflow entities, and the
-Workflows page from the sidebar, and save a screenshot of every step. A
+Temporal page from the sidebar, and save a screenshot of every step. A
 second test takes the details page in the dark theme. The control tests
 (`e2e-tests/workflow-controls.test.ts`, with `example-worker serve` running) start a
 ticket workflow, signal, query and update it, run the custom Escalate

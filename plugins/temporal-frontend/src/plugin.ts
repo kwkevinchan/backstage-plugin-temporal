@@ -75,7 +75,7 @@ export const EntityTemporalContent: (
 );
 
 /**
- * Workflows page: every workflow of the default namespace, with filters,
+ * Temporal page: every workflow of the default namespace, with filters,
  * and the workflow details, with the operations that change workflows
  * (unless `temporal.control.enabled` is false). Needs the
  * `temporal.workflow.list` permission. Mount it on `/temporal` and add a

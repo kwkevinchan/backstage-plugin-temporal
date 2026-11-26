@@ -809,7 +809,7 @@ describe('StartWorkflowButton', () => {
     );
   });
 
-  it('asks for the type and the task queue on the Workflows page', async () => {
+  it('asks for the type and the task queue on the Temporal page', async () => {
     const { api } = render(<StartWorkflowButton workflowHref={href} />);
     await userEvent.click(
       await screen.findByRole('button', { name: 'Start workflow' }),
@@ -1085,7 +1085,7 @@ describe('with temporal.control.enabled: false', () => {
       <StartWorkflowButton entity={workflowEntity} workflowHref={href} />,
     ],
     [
-      'Start workflow on the Workflows page',
+      'Start workflow on the Temporal page',
       <StartWorkflowButton workflowHref={href} />,
     ],
     [

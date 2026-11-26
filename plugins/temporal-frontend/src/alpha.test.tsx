@@ -51,12 +51,12 @@ describe('temporal (new frontend system)', () => {
     expect(temporalPlugin.id).toBe('temporal');
   });
 
-  it('adds the Workflows page with a title and icon for the sidebar', () => {
+  it('adds the Temporal page with a title and icon for the sidebar', () => {
     const tester = createExtensionTester(
       temporalPlugin.getExtension('page:temporal'),
     );
     expect(tester.get(coreExtensionData.routePath)).toBe('/temporal');
-    expect(tester.get(coreExtensionData.title)).toBe('Workflows');
+    expect(tester.get(coreExtensionData.title)).toBe('Temporal');
     expect(tester.get(coreExtensionData.icon)).toBeTruthy();
   });
 
@@ -155,7 +155,7 @@ describe('temporal (new frontend system)', () => {
     ]);
   });
 
-  it('shows the shared actions and sections on the entity tab and the Workflows page', async () => {
+  it('shows the shared actions and sections on the entity tab and the Temporal page', async () => {
     const extensions: TemporalWorkflowExtensionsApi = {
       getListActions: () => [],
       getScheduleActions: () => [],
@@ -207,7 +207,7 @@ describe('temporal (new frontend system)', () => {
     }
   });
 
-  it('restores and updates tab and step URL query params on both entity tab and Workflows page', async () => {
+  it('restores and updates tab and step URL query params on both entity tab and Temporal page', async () => {
     function LocationProbe() {
       const location = useLocation();
       const type = useNavigationType();

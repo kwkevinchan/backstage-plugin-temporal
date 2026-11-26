@@ -29,7 +29,7 @@ the table with the role of each package and
   (`./node`), the extension points (`./alpha`) and the shared
   definitions (`./common`). One `backend.add()` installs all of it.
 - **Core, frontend** (`temporal-frontend`): the entity tab, the details page,
-  the Workflows page and the buttons of the operations, for both frontend
+  the Temporal page and the buttons of the operations, for both frontend
   systems. It needs the backend.
 - **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
   Definition tab. Each one needs the core of its side.
