@@ -156,7 +156,7 @@ The 111 names in groups. Every name is in the
 | `TemporalWorkflowActionBlueprint`, `TemporalWorkflowSectionBlueprint`, `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`, `TemporalControlActionBlueprint` | `./alpha` | The five blueprints ([below](#blueprints-and-props))                                       | You add a button, a tab or a control                        |
 | `temporalPlugin`                                                                                                                                                                  | `.`       | The plugin for the legacy system                                                           | `createApp({ plugins: [...] })` of a legacy app             |
 | `EntityTemporalContent`, `EntityTemporalContentProps`                                                                                                                             | `.`       | The entity tab, and its props                                                              | Legacy `EntityPage.tsx`                                     |
-| `TemporalPage`, `TemporalPageProps`                                                                                                                                               | `.`       | The Temporal page, and its props                                                          | Legacy `App.tsx`                                            |
+| `TemporalPage`, `TemporalPageProps`                                                                                                                                               | `.`       | The Temporal page, and its props                                                           | Legacy `App.tsx`                                            |
 | `EntityTemporalWorkflowSummaryCard`, `EntityTemporalRelatedWorkflowsCard`                                                                                                         | `.`       | Overview cards of `TemporalWorkflow` entities and of entities that depend on them          | Legacy entity pages                                         |
 | `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs`                                                                                             | `.`       | Conditions for `EntitySwitch` and `if` (also in `./common`)                                | Legacy entity pages                                         |
 | `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`, `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`                                                           | `.`       | What the legacy props take                                                                 | Legacy props                                                |
@@ -383,11 +383,11 @@ What actions and sections receive as props, and what
 elsewhere; `TemporalWorkflowProvider` with the same value as `value` makes it
 work in a test):
 
-| Field               | Is                                                                                                                         |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `workflow`          | The `WorkflowDetail` shown, with `extensions` from the enrichers                                                           |
+| Field               | Is                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `workflow`          | The `WorkflowDetail` shown, with `extensions` from the enrichers                                                          |
 | `entity?`           | The catalog entity the page is shown for; absent on the Temporal page                                                     |
-| `reload()`          | Reads the workflow again, for example after your button changed it                                                         |
+| `reload()`          | Reads the workflow again, for example after your button changed it                                                        |
 | `workflowHref(ref)` | The link of another run's details page on the same page (entity tab or Temporal page), for example a run you just started |
 
 List actions get `{ entity?, workflowHref(ref) }`; schedule actions get
@@ -419,7 +419,7 @@ The plugin of the new system has these extensions. Change one with
 
 | ID                                             | What                                                                  |
 | ---------------------------------------------- | --------------------------------------------------------------------- |
-| `page:temporal`                                | Temporal page on `/temporal`                                         |
+| `page:temporal`                                | Temporal page on `/temporal`                                          |
 | `entity-content:temporal`                      | Temporal tab of entities                                              |
 | `entity-card:temporal/workflow-summary`        | Summary card of `TemporalWorkflow` entities                           |
 | `entity-card:temporal/related-workflows`       | Workflow entities card of entities that depend on them                |

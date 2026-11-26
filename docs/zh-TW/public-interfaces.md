@@ -128,7 +128,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `TemporalWorkflowActionBlueprint`、`TemporalWorkflowSectionBlueprint`、`TemporalWorkflowListActionBlueprint`、`TemporalScheduleActionBlueprint`、`TemporalControlActionBlueprint` | `./alpha` | 五個 blueprint（[見下](#blueprint-和-props)）         | 加按鈕、分頁或控制項               |
 | `temporalPlugin`                                                                                                                                                                  | `.`       | 舊系統的外掛                                          | 舊 app 的 `createApp({ plugins })` |
 | `EntityTemporalContent`、`EntityTemporalContentProps`                                                                                                                             | `.`       | 實體分頁和它的 props                                  | 舊系統的 `EntityPage.tsx`          |
-| `TemporalPage`、`TemporalPageProps`                                                                                                                                               | `.`       | Temporal 頁和它的 props                              | 舊系統的 `App.tsx`                 |
+| `TemporalPage`、`TemporalPageProps`                                                                                                                                               | `.`       | Temporal 頁和它的 props                               | 舊系統的 `App.tsx`                 |
 | `EntityTemporalWorkflowSummaryCard`、`EntityTemporalRelatedWorkflowsCard`                                                                                                         | `.`       | `TemporalWorkflow` 實體和依賴它的實體的總覽卡片       | 舊系統的實體頁                     |
 | `isTemporalAvailable`、`isTemporalWorkflowEntity`、`getDependsOnTemporalWorkflowRefs`                                                                                             | `.`       | 給 `EntitySwitch` 和 `if` 用的條件（`./common` 也有） | 舊系統的實體頁                     |
 | `TemporalWorkflowActionDef`、`TemporalWorkflowSectionDef`、`TemporalWorkflowListActionDef`、`TemporalScheduleActionDef`                                                           | `.`       | 舊系統 props 收的型別                                 | 舊系統的 props                     |
@@ -260,11 +260,11 @@ tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，�
 
 action 和 section 收到的 props，也是在詳細頁裡 `useTemporalWorkflow()` 的回傳值（在詳細頁以外呼叫會丟出錯誤；測試裡用 `TemporalWorkflowProvider` 以同樣的值當 `value` 包住元件）：
 
-| 欄位                | 是什麼                                                                        |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `workflow`          | 顯示中的 `WorkflowDetail`，含 enricher 加上的 `extensions`                    |
+| 欄位                | 是什麼                                                                       |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `workflow`          | 顯示中的 `WorkflowDetail`，含 enricher 加上的 `extensions`                   |
 | `entity?`           | 頁面所屬的 catalog 實體；Temporal 頁上沒有                                   |
-| `reload()`          | 重新讀取流程，例如你的按鈕改動了它之後                                        |
+| `reload()`          | 重新讀取流程，例如你的按鈕改動了它之後                                       |
 | `workflowHref(ref)` | 同一頁（實體分頁或 Temporal 頁）上另一次執行的詳細頁連結，例如剛啟動的那一次 |
 
 list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ schedule, entity?, reload() }`。
@@ -281,7 +281,7 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 | ID                                             | 是什麼                                   |
 | ---------------------------------------------- | ---------------------------------------- |
-| `page:temporal`                                | `/temporal` 上的 Temporal 頁            |
+| `page:temporal`                                | `/temporal` 上的 Temporal 頁             |
 | `entity-content:temporal`                      | 實體的 Temporal 分頁                     |
 | `entity-card:temporal/workflow-summary`        | `TemporalWorkflow` 實體的摘要卡片        |
 | `entity-card:temporal/related-workflows`       | 依賴流程實體的實體上的流程實體卡片       |

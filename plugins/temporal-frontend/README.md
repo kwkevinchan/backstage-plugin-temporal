@@ -56,16 +56,16 @@ in the repository README). Besides the plugin, `./alpha` exports
 
 Legacy frontend system:
 
-| Export                                                                                | What it is                                              |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `temporalPlugin`                                                                      | The plugin.                                             |
-| `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.            |
+| Export                                                                                | What it is                                             |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `temporalPlugin`                                                                      | The plugin.                                            |
+| `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.           |
 | `TemporalPage`                                                                        | Temporal page: the workflow executions of a namespace. |
-| `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.      |
-| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                  |
-| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                            |
-| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).              |
-| `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.             |
+| `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.     |
+| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                 |
+| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                           |
+| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).             |
+| `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.            |
 
 `EntityTemporalContent` and `TemporalPage` show the buttons of the
 operations first; the `workflowActions`, `workflowListActions` and
