@@ -1834,6 +1834,46 @@ describe('temporal backend plugin', () => {
       expect(detail.body.workflowTypeEntityRef).toBeUndefined();
     });
 
+    it('is set on a child workflow of another type opened through a TemporalWorkflow entity', async () => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.describeWorkflowExecution.mockImplementation(
+        async (req: any) =>
+          req.execution.workflowId === 'child-0'
+            ? {
+                workflowExecutionInfo: {
+                  ...executionInfo({
+                    workflowId: 'child-0',
+                    type: 'paymentWorkflow',
+                    taskQueue: 'orders',
+                  }),
+                  parentExecution: {
+                    workflowId: 'parent-1',
+                    runId: 'parent-1-run',
+                  },
+                } as any,
+                pendingActivities: [],
+              }
+            : {
+                workflowExecutionInfo: executionInfo({
+                  workflowId: 'parent-1',
+                  type: 'orderWorkflow',
+                  taskQueue: 'orders',
+                }),
+                pendingActivities: [],
+              },
+      );
+      const { server } = await start({ workflowService });
+      const child =
+        '/api/temporal/namespaces/default/workflows/child-0/runs/child-0-run';
+      const detail = await request(server).get(
+        `${child}?entityRef=${orderRef}`,
+      );
+      expect(detail.status).toBe(200);
+      expect(detail.body.workflowTypeEntityRef).toBe(
+        'temporalworkflow:default/payment-workflow',
+      );
+    });
+
     it('is not set when the caller cannot read the entity in the catalog', async () => {
       // The catalog answers with the entities the credentials may see.
       const getEntities = jest.fn(async (_request: unknown, options?: any) => ({
