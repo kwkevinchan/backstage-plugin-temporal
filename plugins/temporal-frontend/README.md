@@ -9,7 +9,7 @@ Shows Temporal workflows next to the catalog entities that own them: a
 the step graph, a **Timeline** tab (steps on a time axis), events and details, queries,
 schedules, cards for
 `TemporalWorkflow` entities (one entity is one workflow type and its
-definition) and a **Workflows** page. Works with the legacy
+definition) and a **Temporal** page. Works with the legacy
 and the new frontend system of Backstage 1.56. The **Definition** tab for
 workflows written in YAML (Zigflow) is a separate package,
 [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](../temporal-module-zigflow/README.md).
@@ -38,7 +38,7 @@ the configuration.
 ## API
 
 New frontend system (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`):
-the default export is the plugin, with the entity content, the Workflows
+the default export is the plugin, with the entity content, the Temporal
 page, the entity cards, the API and the buttons of the operations
 (`temporal-workflow-action:temporal/controls`,
 `temporal-workflow-list-action:temporal/start` and
@@ -56,16 +56,16 @@ in the repository README). Besides the plugin, `./alpha` exports
 
 Legacy frontend system:
 
-| Export                                                                                | What it is                                              |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `temporalPlugin`                                                                      | The plugin.                                             |
-| `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.            |
-| `TemporalPage`                                                                        | Workflows page: the workflow executions of a namespace. |
-| `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.      |
-| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                  |
-| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                            |
-| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).              |
-| `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.             |
+| Export                                                                                | What it is                                             |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `temporalPlugin`                                                                      | The plugin.                                            |
+| `EntityTemporalContent`                                                               | Entity tab: workflow executions and details.           |
+| `TemporalPage`                                                                        | Temporal page: the workflow executions of a namespace. |
+| `EntityTemporalWorkflowSummaryCard`                                                   | Workflow type card of a `TemporalWorkflow` entity.     |
+| `EntityTemporalRelatedWorkflowsCard`                                                  | Workflow types a component depends on.                 |
+| `isTemporalAvailable`, `isTemporalWorkflowEntity`, `getDependsOnTemporalWorkflowRefs` | Conditions for entity pages.                           |
+| `TemporalClient`                                                                      | Client of the backend API (`TemporalApi`).             |
+| `createTemporalControlActionDef`                                                      | A button that runs a custom backend action.            |
 
 `EntityTemporalContent` and `TemporalPage` show the buttons of the
 operations first; the `workflowActions`, `workflowListActions` and

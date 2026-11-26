@@ -23,7 +23,7 @@ import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 /**
  * The list actions (such as "Start workflow") from the props (legacy
  * frontend system) and from the shared workflow extensions API (new
- * frontend system) that apply to the list of `entity`, or to the Workflows
+ * frontend system) that apply to the list of `entity`, or to the Temporal
  * page without one.
  */
 export function WorkflowListActions(props: {

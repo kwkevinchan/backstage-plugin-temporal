@@ -48,7 +48,11 @@ function isIgnoredConsoleError(text: string): boolean {
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 
@@ -490,10 +494,11 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(merged.getByText('orderWorkflow').first()).toBeVisible();
   await shot('17-component-related-workflows');
 
-  // 16. Workflows page from the sidebar: every workflow, then one of them,
+  // 16. Temporal page from the sidebar: every workflow, then one of them,
   // with the shared workflow action.
   await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   // The first page holds the newest runs, whichever examples ran last, so
@@ -561,7 +566,8 @@ async function expectPageMargins(
   content: ReturnType<Page['locator']>,
 ) {
   const sidebar = await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .boundingBox();
   const box = await content.boundingBox();
@@ -599,10 +605,10 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await openRun(runs, 'fulfillmentWorkflow');
   await expect(step(page, /^bookCourier, Completed, attempt 3/)).toBeVisible();
   await shot('dark-04-workflow-fulfillment');
-  await openRunFromWorkflowsPage(page, 'deploymentWorkflow');
+  await openRunFromTemporalPage(page, 'deploymentWorkflow');
   await expect(step(page, /^waitForUpstream/)).toBeVisible();
   await shot('dark-05-workflows-page-running');
-  await openRunFromWorkflowsPage(page, 'pipelineWorkflow');
+  await openRunFromTemporalPage(page, 'pipelineWorkflow');
   await expect(step(page, /^notifyTeam, Completed/)).toBeVisible();
   await graphSettled(page);
   await (await rightmostStep(page)).click();
@@ -616,14 +622,15 @@ test('shows the details page in the dark theme', async ({ page }) => {
   }
   await shot('dark-06-long-workflow-panel');
   await graphShot(page, 'dark-06-long-workflow-panel-graph');
-  await openRunFromWorkflowsPage(page, 'approvalWorkflow');
+  await openRunFromTemporalPage(page, 'approvalWorkflow');
   await expect(page.getByTestId('workflow-current')).toContainText(
     'Waiting for approval',
   );
   await graphSettled(page);
   await shot('dark-07-workflow-waiting');
   await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page.getByText('Show all runs', { exact: true }).click();
@@ -633,10 +640,11 @@ test('shows the details page in the dark theme', async ({ page }) => {
   await shot('dark-08-workflows-page-all-runs');
 });
 
-/** Opens a run from the Workflows page in the sidebar. */
-async function openRunFromWorkflowsPage(page: Page, workflowType: string) {
+/** Opens a run from the Temporal page in the sidebar. */
+async function openRunFromTemporalPage(page: Page, workflowType: string) {
   await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   const all = table(page, 'Workflow executions');

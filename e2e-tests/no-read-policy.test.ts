@@ -21,9 +21,9 @@ import { expect, Page, test } from '@playwright/test';
 /*
  * Exercises the workflow views under TEMPORAL_E2E_POLICY=no-read, where
  * both `temporal.workflow.read` (entity-scoped) and `temporal.workflow.list`
- * (standalone Workflows page) are denied while the catalog stays readable:
+ * (standalone Temporal page) are denied while the catalog stays readable:
  * - the entity's Temporal tab shows an error instead of its runs;
- * - the Workflows page shows an error instead of the runs of the namespace;
+ * - the Temporal page shows an error instead of the runs of the namespace;
  * - the details page of a run opened by its URL shows an error, without its
  *   steps, inputs or results.
  */
@@ -39,7 +39,11 @@ test.skip(
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 
@@ -100,7 +104,7 @@ test('shows no workflows when the read and list permissions are denied', async (
   await expect(page.getByText('paymentWorkflow')).toHaveCount(0);
   await shot(page, 'no-read-01-entity-tab');
 
-  // 2. Standalone Workflows page (temporal.workflow.list denied).
+  // 2. Standalone Temporal page (temporal.workflow.list denied).
   await page.goto('/temporal');
   await expect(page.getByTestId('temporal-error').first()).toBeVisible();
   await expect(table(page, 'Workflow executions')).toHaveCount(0);

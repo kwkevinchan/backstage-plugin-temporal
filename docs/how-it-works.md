@@ -37,7 +37,7 @@ shared connection. Both use the same connection. The layers are described in
    allowed list (otherwise `400`); the user has the read permission on the entity
    the page belongs to (otherwise `403`); the entity exists in the catalog and
    the user may see it, and the workflow belongs to that entity (otherwise
-   `404`). A workflow opened without an entity (from the Workflows page) is
+   `404`). A workflow opened without an entity (from the Temporal page) is
    allowed by the list permission instead; if that does not apply, the
    workflow's `entityRef` search attribute decides which entity the permission
    is checked on.
@@ -50,7 +50,7 @@ shared connection. Both use the same connection. The layers are described in
 
 The lists use the same layers with a different entry: the route asks the access
 service for the read permission on the entity (`loadEntity`), and
-`WorkflowListQueries` builds the query. The Workflows page asks for the list
+`WorkflowListQueries` builds the query. The Temporal page asks for the list
 permission instead, whose conditions the backend turns into a visibility query.
 
 ### Operate: press Cancel

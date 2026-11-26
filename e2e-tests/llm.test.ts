@@ -107,12 +107,19 @@ async function openRun(page: Page, workflowType: string) {
   await page.getByRole('button', { name: 'Enter' }).click();
   await page.waitForURL(/\/catalog|\/$/);
   await expect(
-    page.getByRole('link', { name: 'Workflows', exact: true }).first(),
+    page
+      .getByRole('link', { name: 'Temporal', exact: true })
+      .and(page.locator(':not([href*="/catalog/"])'))
+      .first(),
   ).toBeVisible({ timeout: 120_000 });
   await page.goto('/catalog/default/component/example-orders');
   await page
     .getByRole('tab', { name: 'Temporal', exact: true })
-    .or(page.getByRole('link', { name: 'Temporal', exact: true }))
+    .or(
+      page
+        .getByRole('link', { name: 'Temporal', exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first()
     .click();
   const runs = table(page, 'Workflow executions');

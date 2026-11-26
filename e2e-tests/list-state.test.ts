@@ -43,7 +43,10 @@ async function signIn(page: Page) {
   await page.waitForURL(/\/catalog|\/$/);
   // Signed in once the app shows its sidebar.
   await expect(
-    page.getByRole('link', { name: 'Workflows', exact: true }).first(),
+    page
+      .getByRole('link', { name: 'Temporal', exact: true })
+      .and(page.locator(':not([href*="/catalog/"])'))
+      .first(),
   ).toBeVisible({ timeout: 120_000 });
 }
 
@@ -129,7 +132,7 @@ async function checkList(page: Page, name: string, listUrl: string) {
   return second;
 }
 
-test('the Workflows page comes back to the same page', async ({ page }) => {
+test('the Temporal page comes back to the same page', async ({ page }) => {
   await signIn(page);
   await checkList(
     page,

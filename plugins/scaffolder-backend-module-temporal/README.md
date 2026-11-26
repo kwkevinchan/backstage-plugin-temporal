@@ -151,7 +151,7 @@ steps:
         by: ${{ user.ref }}
 ```
 
-`workflowUrl` links to the Workflows page of the frontend plugin
+`workflowUrl` links to the Temporal page of the frontend plugin
 (`/temporal/...` under `app.baseUrl`).
 
 ## Notify when a decision is needed

@@ -33,7 +33,7 @@
 | Temporal 概念       | 外掛裡的對應                                                                                                                                                                                        | 備註                                     |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | Workflow Type       | `TemporalWorkflow` 實體的 `spec.workflowType`，或 `temporal.io/workflow-type` 標註；**Workflow type** 卡片和欄位。                                                                                  |                                          |
-| Workflow Execution  | 實體 Temporal 分頁的 **Workflow executions**（狀態、時間、進度：目前在哪一步，或失敗在哪一步）；整個 Namespace 的 **Workflows** 頁；詳細頁。                                                        | 篩選、頁碼、每頁筆數都留在網址裡。       |
+| Workflow Execution  | 實體 Temporal 分頁的 **Workflow executions**（狀態、時間、進度：目前在哪一步，或失敗在哪一步）；整個 Namespace 的 **Temporal** 頁；詳細頁。                                                         | 篩選、頁碼、每頁筆數都留在網址裡。       |
 | Workflow ID、Run ID | 都在詳細頁標頭。                                                                                                                                                                                    |                                          |
 | Workflow Definition | **Definition** 分頁：兩個選用的 Zigflow 模組支援用 YAML 寫的流程（YAML 和流程圖並排，可以疊上一次執行）；用程式碼寫的流程，在 `spec.definition` 設 `format: source`，就會顯示原始碼並標出流程函式。 | 程式碼不會被解析，只找出流程函式的位置。 |
 
@@ -55,17 +55,17 @@
 
 ### 操作
 
-| Temporal 概念     | 外掛裡的對應                                                                                                    | 備註                                                                                   |
-| ----------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Start             | `TemporalWorkflow` 實體的 Temporal 分頁和 Workflows 頁的 **Start workflow**；`spec.exampleInput` 預填輸入。     | 操作（`temporal.control.enabled`）。後端只啟動實體自己的流程類型和它的 Task Queue。    |
-| Signal            | **Signal…**：對話框列出流程宣告的 Signal 名稱，參數填 JSON。                                                    | 操作（`temporal.control.enabled`）。                                                   |
-| Query             | **Query…**；流程結束後也能查。                                                                                  | 一定可用，有自己的權限。                                                               |
-| Update            | **Update…**：顯示回傳值或 validator 的錯誤訊息。                                                                | 操作（`temporal.control.enabled`）。被拒絕的 Update 不在事件紀錄裡，所以流程圖上沒有。 |
-| Cancel、Terminate | 兩個按鈕，都要確認；Terminate 要填原因，原因留在事件紀錄。                                                      | 操作（`temporal.control.enabled`）。                                                   |
-| Reset             | 沒有。                                                                                                          | 用 Temporal UI 或 CLI。                                                                |
-| Rerun             | 用相同的輸入、類型、Task Queue 等，以新的 Workflow ID 再啟動一次。                                              | 外掛自己的操作。                                                                       |
-| Batch operations  | 沒有。                                                                                                          | 用 Temporal UI 或 CLI。                                                                |
-| Schedules         | 列在 Workflows 頁（預設 Namespace）和實體的 Temporal 分頁；也有 **Pause**／**Resume** 和 **Run now** 這些操作。 | 建立和修改 Schedule 留給程式碼或 Temporal UI。                                         |
+| Temporal 概念     | 外掛裡的對應                                                                                                   | 備註                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Start             | `TemporalWorkflow` 實體的 Temporal 分頁和 Temporal 頁的 **Start workflow**；`spec.exampleInput` 預填輸入。     | 操作（`temporal.control.enabled`）。後端只啟動實體自己的流程類型和它的 Task Queue。    |
+| Signal            | **Signal…**：對話框列出流程宣告的 Signal 名稱，參數填 JSON。                                                   | 操作（`temporal.control.enabled`）。                                                   |
+| Query             | **Query…**；流程結束後也能查。                                                                                 | 一定可用，有自己的權限。                                                               |
+| Update            | **Update…**：顯示回傳值或 validator 的錯誤訊息。                                                               | 操作（`temporal.control.enabled`）。被拒絕的 Update 不在事件紀錄裡，所以流程圖上沒有。 |
+| Cancel、Terminate | 兩個按鈕，都要確認；Terminate 要填原因，原因留在事件紀錄。                                                     | 操作（`temporal.control.enabled`）。                                                   |
+| Reset             | 沒有。                                                                                                         | 用 Temporal UI 或 CLI。                                                                |
+| Rerun             | 用相同的輸入、類型、Task Queue 等，以新的 Workflow ID 再啟動一次。                                             | 外掛自己的操作。                                                                       |
+| Batch operations  | 沒有。                                                                                                         | 用 Temporal UI 或 CLI。                                                                |
+| Schedules         | 列在 Temporal 頁（預設 Namespace）和實體的 Temporal 分頁；也有 **Pause**／**Resume** 和 **Run now** 這些操作。 | 建立和修改 Schedule 留給程式碼或 Temporal UI。                                         |
 
 ### 長流程
 

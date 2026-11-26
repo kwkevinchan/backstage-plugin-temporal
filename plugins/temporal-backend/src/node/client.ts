@@ -50,7 +50,7 @@ export const CONTROL_DISABLED_MESSAGE =
   'The Temporal backend plugin does not serve the operations that change workflows: temporal.control.enabled is false in the app-config of the backend that runs it. Set temporal.control.enabled to true there (it is the default) to start, signal or update workflows';
 
 /**
- * Builds the link to a run on the Workflows page of the frontend plugin.
+ * Builds the link to a run on the Temporal page of the frontend plugin.
  *
  * @param appBaseUrl - `app.baseUrl`
  * @public

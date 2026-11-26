@@ -71,7 +71,7 @@ export const Root = ({ children }: PropsWithChildren<{}>) => (
       <SidebarLogo />
       <SidebarGroup label="Menu" icon={<MenuIcon />}>
         <SidebarItem icon={HomeIcon} to="catalog" text="Home" />
-        <SidebarItem icon={AccountTreeIcon} to="temporal" text="Workflows" />
+        <SidebarItem icon={AccountTreeIcon} to="temporal" text="Temporal" />
       </SidebarGroup>
       <SidebarSpace />
       <SidebarDivider />

@@ -101,7 +101,7 @@ describe('SchedulesCard', () => {
     ).toBeNull();
   });
 
-  it('is left out on the Workflows page without the list permission', async () => {
+  it('is left out on the Temporal page without the list permission', async () => {
     const api = mockTemporalApi();
     api.listSchedules.mockRejectedValue(
       Object.assign(new Error('forbidden'), { statusCode: 403 }),

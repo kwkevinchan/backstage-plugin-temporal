@@ -46,9 +46,9 @@ type ColumnDef = {
 
 /**
  * The Temporal schedules of an entity (those that start its workflow types)
- * or of the Workflows page: when they run, the next and the last runs, and
+ * or of the Temporal page: when they run, the next and the last runs, and
  * whether they are paused. The card is left out for an entity without
- * schedules, and on the Workflows page for users who may not list every
+ * schedules, and on the Temporal page for users who may not list every
  * workflow.
  */
 export function SchedulesCard(props: {

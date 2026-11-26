@@ -74,7 +74,7 @@ export const temporalWorkflowSectionDataRef =
 
 /**
  * The workflow extensions API of the Temporal plugin collects the
- * extensions; the entity tab and the Workflows page both read it.
+ * extensions; the entity tab and the Temporal page both read it.
  *
  * @alpha
  */
@@ -143,7 +143,7 @@ export const TemporalWorkflowActionBlueprint = createExtensionBlueprint({
 
 /**
  * Adds a control above the workflow lists: the list of an entity and the
- * Workflows page. `filter` gets the entity, absent on the Workflows page.
+ * Temporal page. `filter` gets the entity, absent on the Temporal page.
  *
  * @example
  * ```tsx
@@ -181,7 +181,7 @@ export const TemporalWorkflowListActionBlueprint = createExtensionBlueprint({
 
 /**
  * Adds a control to each schedule of the schedule lists: the schedules of
- * an entity and of the Workflows page.
+ * an entity and of the Temporal page.
  *
  * @alpha
  */

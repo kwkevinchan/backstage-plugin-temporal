@@ -128,7 +128,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `TemporalWorkflowActionBlueprint`、`TemporalWorkflowSectionBlueprint`、`TemporalWorkflowListActionBlueprint`、`TemporalScheduleActionBlueprint`、`TemporalControlActionBlueprint` | `./alpha` | 五個 blueprint（[見下](#blueprint-和-props)）         | 加按鈕、分頁或控制項               |
 | `temporalPlugin`                                                                                                                                                                  | `.`       | 舊系統的外掛                                          | 舊 app 的 `createApp({ plugins })` |
 | `EntityTemporalContent`、`EntityTemporalContentProps`                                                                                                                             | `.`       | 實體分頁和它的 props                                  | 舊系統的 `EntityPage.tsx`          |
-| `TemporalPage`、`TemporalPageProps`                                                                                                                                               | `.`       | Workflows 頁和它的 props                              | 舊系統的 `App.tsx`                 |
+| `TemporalPage`、`TemporalPageProps`                                                                                                                                               | `.`       | Temporal 頁和它的 props                               | 舊系統的 `App.tsx`                 |
 | `EntityTemporalWorkflowSummaryCard`、`EntityTemporalRelatedWorkflowsCard`                                                                                                         | `.`       | `TemporalWorkflow` 實體和依賴它的實體的總覽卡片       | 舊系統的實體頁                     |
 | `isTemporalAvailable`、`isTemporalWorkflowEntity`、`getDependsOnTemporalWorkflowRefs`                                                                                             | `.`       | 給 `EntitySwitch` 和 `if` 用的條件（`./common` 也有） | 舊系統的實體頁                     |
 | `TemporalWorkflowActionDef`、`TemporalWorkflowSectionDef`、`TemporalWorkflowListActionDef`、`TemporalScheduleActionDef`                                                           | `.`       | 舊系統 props 收的型別                                 | 舊系統的 props                     |
@@ -202,7 +202,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ### `temporalWorkflowEnricherExtensionPoint`
 
-`./alpha`，`@alpha`。`addWorkflowEnricher({ id, enrich })` 在流程摘要上加資料：`enrich(items, { entity?, namespace, credentials })` 依加入順序，在透過實體讀取流程的地方執行：實體的流程列表，以及透過實體讀取的詳細資料（以 `entityRef` 傳入，或 list 權限不允許時改用的 search attribute 實體）。Workflows 頁的列表、以 list 權限開啟的詳細資料不會執行。把你的資料放在每筆摘要的 `extensions[id]`（`WorkflowSummary.extensions`）；回傳的欄位會合併進摘要。前端不會自己顯示它，要搭配一個讀它的[分頁或按鈕](#blueprint-和-props)。丟出錯誤的 enricher 會被略過並記一筆警告；id 重複會讓外掛啟動失敗。不要假設 `entity` 一定有值：之後跨實體的列表可能在沒有實體時也執行 enricher。
+`./alpha`，`@alpha`。`addWorkflowEnricher({ id, enrich })` 在流程摘要上加資料：`enrich(items, { entity?, namespace, credentials })` 依加入順序，在透過實體讀取流程的地方執行：實體的流程列表，以及透過實體讀取的詳細資料（以 `entityRef` 傳入，或 list 權限不允許時改用的 search attribute 實體）。Temporal 頁的列表、以 list 權限開啟的詳細資料不會執行。把你的資料放在每筆摘要的 `extensions[id]`（`WorkflowSummary.extensions`）；回傳的欄位會合併進摘要。前端不會自己顯示它，要搭配一個讀它的[分頁或按鈕](#blueprint-和-props)。丟出錯誤的 enricher 會被略過並記一筆警告；id 重複會讓外掛啟動失敗。不要假設 `entity` 一定有值：之後跨實體的列表可能在沒有實體時也執行 enricher。
 
 enricher 拿到完整的流程，含失敗內容；放進 `extensions` 的內容，看得到這個流程的人都看得到。自訂操作也拿到完整的流程（`handle` 和 `filter`），`handle` 的回傳值原樣送出。
 
@@ -229,11 +229,11 @@ tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，�
 
 ## 前端擴充
 
-![前端擴充出現在哪裡。右邊是實體分頁和 Workflows 頁：流程列表上方是 list action（先是 Start workflow，再來是你的），每個排程上是 schedule action，一次執行的詳細頁上，動作列放 action（Signal、Cancel 等操作，再來是你的，然後是 Query 和 Refresh），section 是 Steps、Timeline、Events、Details 後面的分頁。左邊是新前端系統：五個 blueprint 接到 api:temporal/workflow-extensions（不匯出）的 actions、sections、listActions、scheduleActions 輸入；舊前端系統：EntityTemporalContent 和 TemporalPage 的 workflowActions、workflowSections、workflowListActions、scheduleActions props，以及 createTemporalControlActionDef。兩條路徑到同一個位置，props 在前，同一個 id 只留一個。元件拿到 TemporalWorkflowExtensionProps 或用 useTemporalWorkflow()，並透過 temporalApiRef（api:temporal，TemporalClient）呼叫後端。](images/frontend-mounts.svg)
+![前端擴充出現在哪裡。右邊是實體分頁和 Temporal 頁：流程列表上方是 list action（先是 Start workflow，再來是你的），每個排程上是 schedule action，一次執行的詳細頁上，動作列放 action（Signal、Cancel 等操作，再來是你的，然後是 Query 和 Refresh），section 是 Steps、Timeline、Events、Details 後面的分頁。左邊是新前端系統：五個 blueprint 接到 api:temporal/workflow-extensions（不匯出）的 actions、sections、listActions、scheduleActions 輸入；舊前端系統：EntityTemporalContent 和 TemporalPage 的 workflowActions、workflowSections、workflowListActions、scheduleActions props，以及 createTemporalControlActionDef。兩條路徑到同一個位置，props 在前，同一個 id 只留一個。元件拿到 TemporalWorkflowExtensionProps 或用 useTemporalWorkflow()，並透過 temporalApiRef（api:temporal，TemporalClient）呼叫後端。](images/frontend-mounts.svg)
 
 ### Blueprint 和 props
 
-兩套前端系統填的是同樣頁面（實體分頁和 Workflows 頁）上的同樣四個位置。頁面先放舊系統的 props，再放 `api:temporal/workflow-extensions` 收集到的擴充，同一個 `id` 只留一個。
+兩套前端系統填的是同樣頁面（實體分頁和 Temporal 頁）上的同樣四個位置。頁面先放舊系統的 props，再放 `api:temporal/workflow-extensions` 收集到的擴充，同一個 `id` 只留一個。
 
 | 位置             | 新系統（`./alpha`）                                                 | 輸入              | 舊系統的 prop（`EntityTemporalContent`、`TemporalPage`） | 元件收到                          | `filter` 收到      |
 | ---------------- | ------------------------------------------------------------------- | ----------------- | -------------------------------------------------------- | --------------------------------- | ------------------ |
@@ -260,12 +260,12 @@ tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，�
 
 action 和 section 收到的 props，也是在詳細頁裡 `useTemporalWorkflow()` 的回傳值（在詳細頁以外呼叫會丟出錯誤；測試裡用 `TemporalWorkflowProvider` 以同樣的值當 `value` 包住元件）：
 
-| 欄位                | 是什麼                                                                        |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `workflow`          | 顯示中的 `WorkflowDetail`，含 enricher 加上的 `extensions`                    |
-| `entity?`           | 頁面所屬的 catalog 實體；Workflows 頁上沒有                                   |
-| `reload()`          | 重新讀取流程，例如你的按鈕改動了它之後                                        |
-| `workflowHref(ref)` | 同一頁（實體分頁或 Workflows 頁）上另一次執行的詳細頁連結，例如剛啟動的那一次 |
+| 欄位                | 是什麼                                                                       |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `workflow`          | 顯示中的 `WorkflowDetail`，含 enricher 加上的 `extensions`                   |
+| `entity?`           | 頁面所屬的 catalog 實體；Temporal 頁上沒有                                   |
+| `reload()`          | 重新讀取流程，例如你的按鈕改動了它之後                                       |
+| `workflowHref(ref)` | 同一頁（實體分頁或 Temporal 頁）上另一次執行的詳細頁連結，例如剛啟動的那一次 |
 
 list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ schedule, entity?, reload() }`。
 
@@ -281,7 +281,7 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 | ID                                             | 是什麼                                   |
 | ---------------------------------------------- | ---------------------------------------- |
-| `page:temporal`                                | `/temporal` 上的 Workflows 頁            |
+| `page:temporal`                                | `/temporal` 上的 Temporal 頁             |
 | `entity-content:temporal`                      | 實體的 Temporal 分頁                     |
 | `entity-card:temporal/workflow-summary`        | `TemporalWorkflow` 實體的摘要卡片        |
 | `entity-card:temporal/related-workflows`       | 依賴流程實體的實體上的流程實體卡片       |
@@ -295,9 +295,9 @@ list action 收到 `{ entity?, workflowHref(ref) }`；schedule action 收到 `{ 
 
 ### 路由和連結
 
-外掛有兩個 route ref：`root`（Workflows 頁，`temporal:root`）和 `entityContent`（實體分頁，`temporal:entity-content`）。舊系統是主入口的 `temporalPlugin.routes.root`、`temporalPlugin.routes.entityContent`；新系統是 `./alpha` 預設匯出上同樣的 `routes`。其他外掛用 `useRouteRef(temporalPlugin.routes.root)` 連到 Workflows 頁。
+外掛有兩個 route ref：`root`（Temporal 頁，`temporal:root`）和 `entityContent`（實體分頁，`temporal:entity-content`）。舊系統是主入口的 `temporalPlugin.routes.root`、`temporalPlugin.routes.entityContent`；新系統是 `./alpha` 預設匯出上同樣的 `routes`。其他外掛用 `useRouteRef(temporalPlugin.routes.root)` 連到 Temporal 頁。
 
-在這兩個頁面底下，一次執行的詳細頁在 `namespaces/:namespace/workflows/:workflowId/runs/:runId`：Workflows 頁在 `/temporal` 時就是 `/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId`，也就是頁面路徑後面接 `./common` 的 `buildWorkflowRunPath`。Scaffolder 模組的 `workflowUrl` 輸出用的就是這個形狀。不帶 run 的 `namespaces/:namespace/workflows/:workflowId`（`buildWorkflowPath`）列出這個 workflow ID 的所有 run；只有一個 run 時直接打開那個 run。
+在這兩個頁面底下，一次執行的詳細頁在 `namespaces/:namespace/workflows/:workflowId/runs/:runId`：Temporal 頁在 `/temporal` 時就是 `/temporal/namespaces/:namespace/workflows/:workflowId/runs/:runId`，也就是頁面路徑後面接 `./common` 的 `buildWorkflowRunPath`。Scaffolder 模組的 `workflowUrl` 輸出用的就是這個形狀。不帶 run 的 `namespaces/:namespace/workflows/:workflowId`（`buildWorkflowPath`）列出這個 workflow ID 的所有 run；只有一個 run 時直接打開那個 run。
 
 ## HTTP API
 
@@ -641,7 +641,7 @@ export const temporalModuleOwner = createBackendModule({
 });
 ```
 
-在前端，這個值就是 `workflow.extensions?.owner`，見下一個範例；只在 enricher 有執行的頁面拿得到（Workflows 頁沒有，見[擴充點](#temporalworkflowenricherextensionpoint)）。
+在前端，這個值就是 `workflow.extensions?.owner`，見下一個範例；只在 enricher 有執行的頁面拿得到（Temporal 頁沒有，見[擴充點](#temporalworkflowenricherextensionpoint)）。
 
 ### 加一個 LLM 轉接器
 
@@ -719,7 +719,7 @@ export const temporalTabsModule = createFrontendModule({
 });
 ```
 
-舊系統：把 `workflowSections={[{ id: 'owner', title: 'Owner', component: OwnerSection }]}` 傳給 `EntityTemporalContent` 和 `TemporalPage`。分頁裡較深層的元件用 `useTemporalWorkflow()` 拿到同樣的 props。這個分頁讀的是上面 enricher 的資料，所以在 Workflows 頁會顯示 "unknown"。
+舊系統：把 `workflowSections={[{ id: 'owner', title: 'Owner', component: OwnerSection }]}` 傳給 `EntityTemporalContent` 和 `TemporalPage`。分頁裡較深層的元件用 `useTemporalWorkflow()` 拿到同樣的 props。這個分頁讀的是上面 enricher 的資料，所以在 Temporal 頁會顯示 "unknown"。
 
 ### 覆寫一個擴充
 

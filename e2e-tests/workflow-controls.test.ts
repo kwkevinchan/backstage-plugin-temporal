@@ -22,10 +22,10 @@ import { expect, Page, test } from '@playwright/test';
  * Workflow controls: start a ticket workflow from its TemporalWorkflow
  * entity, signal it, query it, update it, run the custom Escalate action,
  * cancel it, rerun it and terminate the rerun; then start a workflow from
- * the Workflows page. Needs a running example worker
+ * the Temporal page. Needs a running example worker
  * (`yarn workspace example-worker serve`). Runs after temporal.test.ts
  * (files run in name order), so the workflows it starts do not push the
- * example workflows off the first page of the Workflows list.
+ * example workflows off the first page of the list of the Temporal page.
  */
 const app = process.env.SMOKE_APP ?? 'app';
 const shotDir = process.env.SMOKE_SHOT_DIR ?? join('e2e-test-results', app);
@@ -70,7 +70,11 @@ function watch(page: Page) {
 function entityTab(page: Page, name: string) {
   return page
     .getByRole('tab', { name, exact: true })
-    .or(page.getByRole('link', { name, exact: true }))
+    .or(
+      page
+        .getByRole('link', { name, exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first();
 }
 
@@ -263,9 +267,10 @@ test('starts, signals, queries, updates, cancels and reruns a workflow', async (
   await expect(summary(page)).toContainText('Terminated', { timeout: 60_000 });
   await shot('41-terminated');
 
-  // 9. Start workflow on the Workflows page asks for the type and queue.
+  // 9. Start workflow on the Temporal page asks for the type and queue.
   await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page.getByRole('button', { name: 'Start workflow' }).click();
@@ -277,7 +282,7 @@ test('starts, signals, queries, updates, cancels and reruns a workflow', async (
     .fill('backstage-example');
   await dialog(page)
     .getByRole('textbox', { name: 'Input (JSON)' })
-    .fill('{"title": "From the Workflows page"}');
+    .fill('{"title": "From the Temporal page"}');
   await shot('42-workflows-page-start');
   await dialog(page)
     .getByRole('button', { name: 'Start', exact: true })

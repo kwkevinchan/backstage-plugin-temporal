@@ -165,9 +165,9 @@ function StartWorkflowDialog(props: {
 /**
  * "Start workflow" with its dialog. With a `TemporalWorkflow` entity it
  * starts that workflow, with the example input of the entity filled in;
- * without one (the Workflows page) the workflow type and task queue are
+ * without one (the Temporal page) the workflow type and task queue are
  * asked for. Opens the new workflow once it has started. A list action:
- * the list of a `TemporalWorkflow` entity and the Workflows page show it.
+ * the list of a `TemporalWorkflow` entity and the Temporal page show it.
  */
 function StartWorkflowButtonContent(props: TemporalWorkflowListActionProps) {
   const { entity } = props;

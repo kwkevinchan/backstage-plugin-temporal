@@ -47,7 +47,7 @@ export interface TemporalPageProps {
 }
 
 /**
- * Workflows page content: the list, and on nested routes the runs of a
+ * Temporal page content: the list, and on nested routes the runs of a
  * workflow ID and the details of a run.
  */
 export function TemporalPageContent(props: TemporalPageProps) {
@@ -81,7 +81,7 @@ export function TemporalPageContent(props: TemporalPageProps) {
 }
 
 /**
- * Workflows page content with the page margins of the new frontend
+ * Temporal page content with the page margins of the new frontend
  * system, under the page header of the app.
  */
 export function TemporalPageInContainer(props: TemporalPageProps) {
@@ -93,14 +93,14 @@ export function TemporalPageInContainer(props: TemporalPageProps) {
 }
 
 /**
- * Workflows page with its own header, for the legacy frontend system: with
+ * Temporal page with its own header, for the legacy frontend system: with
  * the operations that change workflows, which the new frontend system adds
  * as extensions.
  */
 export function TemporalPageWithHeader(props: TemporalPageProps) {
   return (
     <Page themeId="tool">
-      <Header title="Workflows" subtitle="Temporal workflow executions" />
+      <Header title="Temporal" subtitle="Workflow executions" />
       <Content>
         <TemporalPageContent {...withControls(props)} />
       </Content>

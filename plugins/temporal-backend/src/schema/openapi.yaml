@@ -1303,7 +1303,7 @@ paths:
       operationId: listWorkflows
       summary: List the workflows of a namespace
       description: |-
-        Every workflow of a namespace, for the Workflows page. Runs that match a `TemporalWorkflow` entity the caller can read in the catalog have `workflowTypeEntityRef`.
+        Every workflow of a namespace, for the Temporal page. Runs that match a `TemporalWorkflow` entity the caller can read in the catalog have `workflowTypeEntityRef`.
 
         Permission: `temporal.workflow.list`; a conditional decision limits the list to the workflows it allows.
       tags:
@@ -1340,7 +1340,7 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
     post:
       operationId: startWorkflow
-      summary: Start a workflow from the Workflows page
+      summary: Start a workflow from the Temporal page
       description: |-
         `workflowType` and `taskQueue` are required; `namespace` defaults to `temporal.connection.defaultNamespace`. 409 when the workflow ID is taken.
 

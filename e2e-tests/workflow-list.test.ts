@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { expect, Page, test } from '@playwright/test';
 
 /*
- * The Workflows page: the Workflow ID and Run ID columns, and the workflow
+ * The Temporal page: the Workflow ID and Run ID columns, and the workflow
  * type as a link to the TemporalWorkflow entity of the example catalog
  * (examples/entities.yaml), in the list and on the details of a run.
  */
@@ -41,7 +41,10 @@ async function signIn(page: Page) {
   await page.getByRole('button', { name: 'Enter' }).click();
   await page.waitForURL(/\/catalog|\/$/);
   await expect(
-    page.getByRole('link', { name: 'Workflows', exact: true }).first(),
+    page
+      .getByRole('link', { name: 'Temporal', exact: true })
+      .and(page.locator(':not([href*="/catalog/"])'))
+      .first(),
   ).toBeVisible({ timeout: 120_000 });
 }
 
@@ -61,12 +64,13 @@ async function expectNoHorizontalScroll(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-test('the Workflows page lists the run ID and links the workflow type', async ({
+test('the Temporal page lists the run ID and links the workflow type', async ({
   page,
 }) => {
   await signIn(page);
   await page
-    .getByRole('link', { name: 'Workflows', exact: true })
+    .getByRole('link', { name: 'Temporal', exact: true })
+    .and(page.locator(':not([href*="/catalog/"])'))
     .first()
     .click();
   await page

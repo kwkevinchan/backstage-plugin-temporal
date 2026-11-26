@@ -144,7 +144,7 @@ export async function createRouter(
     res.json(result);
   });
 
-  // Schedules of a namespace, for the Workflows page: like the workflow
+  // Schedules of a namespace, for the Temporal page: like the workflow
   // list without an entity, with the list permission for every workflow.
   router.get(SCHEDULES_PATH, async (req, res) => {
     const credentials = await httpAuth.credentials(req);

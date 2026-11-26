@@ -55,7 +55,11 @@ async function openTemporalTab(page: Page) {
   await entityLink.first().click();
   await page
     .getByRole('tab', { name: 'Temporal', exact: true })
-    .or(page.getByRole('link', { name: 'Temporal', exact: true }))
+    .or(
+      page
+        .getByRole('link', { name: 'Temporal', exact: true })
+        .and(page.locator('[href*="/catalog/"]')),
+    )
     .first()
     .click();
   const runs = table(page, 'Workflow executions');

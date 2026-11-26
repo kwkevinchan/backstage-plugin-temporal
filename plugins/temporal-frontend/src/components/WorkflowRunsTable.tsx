@@ -181,7 +181,7 @@ export function WorkflowRunsTable(props: {
    * type only.
    */
   hideType?: boolean;
-  /** Adds the entity a workflow belongs to (the Workflows page). */
+  /** Adds the entity a workflow belongs to (the Temporal page). */
   showEntity?: boolean;
   emptyText: string;
   pending?: boolean;

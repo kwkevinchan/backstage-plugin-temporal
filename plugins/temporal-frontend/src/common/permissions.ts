@@ -24,7 +24,7 @@ const RESOURCE_TYPE_CATALOG_ENTITY = 'catalog-entity';
 
 /**
  * Resource type of Temporal workflows, for the permissions that do not go
- * through a catalog entity (the Workflows page).
+ * through a catalog entity (the Temporal page).
  *
  * @public
  */
@@ -81,7 +81,7 @@ export const temporalWorkflowReadPermission = createPermission({
 });
 
 /**
- * List the workflows of a namespace on the Workflows page, and open any of
+ * List the workflows of a namespace on the Temporal page, and open any of
  * them without an entity, with everything
  * {@link temporalWorkflowReadPermission} shows of an entity's workflows. A
  * resource permission on `temporal-workflow`: a policy can allow it, deny
@@ -123,8 +123,8 @@ function controlPermission(
 }
 
 /**
- * Start a workflow of an entity, or from the Workflows page. Checked on the
- * entity; from the Workflows page, without an entity, only a policy that
+ * Start a workflow of an entity, or from the Temporal page. Checked on the
+ * entity; from the Temporal page, without an entity, only a policy that
  * allows it for every entity lets it through.
  *
  * @public

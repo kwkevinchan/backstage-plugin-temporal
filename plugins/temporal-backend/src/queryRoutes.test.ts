@@ -260,7 +260,7 @@ describe('query routes of the core plugin', () => {
       );
       return started;
     };
-    // From the Workflows page: the list permission, no entityRef. With no
+    // From the Temporal page: the list permission, no entityRef. With no
     // entity, temporal.workflow.query must be allowed for every entity.
     const allowed = await withBadAttribute();
     const res = await request(allowed.server)
@@ -329,7 +329,7 @@ describe('query routes of the core plugin', () => {
     );
     expect(own.status).toBe(200);
     expect(own.body).toEqual(expected);
-    // Opened with another entity, or from the Workflows page: the entity
+    // Opened with another entity, or from the Temporal page: the entity
     // that matches the workflow type and task queue.
     const other = await request(server).get(
       `${wf}/message-definitions${withEntity}`,
@@ -370,7 +370,7 @@ describe('query routes of the core plugin', () => {
   });
 
   it('leaves out what an entity the caller cannot read describes', async () => {
-    // From the Workflows page (the list permission), without the read
+    // From the Temporal page (the list permission), without the read
     // permission on the entity.
     const { server } = await start({
       entities: [ticketWorkflowEntity],
