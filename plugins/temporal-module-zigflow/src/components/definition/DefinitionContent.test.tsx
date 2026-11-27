@@ -16,7 +16,13 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { parse } from 'yaml';
 import type { Entity } from '@backstage/catalog-model';
 import {
@@ -79,26 +85,22 @@ const codeEntity: Entity = {
 };
 
 const definition: WorkflowDefinitionResponse = {
-  entityRef: 'temporalworkflow:default/order-flow',
   format: 'serverless-workflow',
   target: './order.yaml',
   url: 'https://git.example.com/org/repo/blob/main/order.yaml',
   content,
   size: content.length,
-  maxBytes: 1048576,
   document: parse(content),
   tasks: [
-    { pointer: '/do/0/validate', name: 'validate', startLine: 10, endLine: 14 },
-    { pointer: '/do/1/route', name: 'route', startLine: 15, endLine: 21 },
+    { pointer: '/do/0/validate', startLine: 10, endLine: 14 },
+    { pointer: '/do/1/route', startLine: 15, endLine: 21 },
     {
       pointer: '/do/2/packItems',
-      name: 'packItems',
       startLine: 22,
       endLine: 32,
     },
     {
       pointer: '/do/2/packItems/do/0/pack',
-      name: 'pack',
       startLine: 28,
       endLine: 32,
     },
@@ -301,54 +303,6 @@ describe('Definition tab', () => {
     },
   );
 
-  it('shows the source of a workflow written in code, with its function marked', async () => {
-    const api = mockTemporalApi();
-    const source = [
-      "import { sleep } from '@temporalio/workflow';",
-      '',
-      'export async function orderWorkflow(id: string) {',
-      '  await sleep(1);',
-      '  return id;',
-      '}',
-    ].join('\n');
-    api.getEntityDefinition.mockResolvedValue({
-      entityRef: 'temporalworkflow:default/order-workflow',
-      format: 'source',
-      target: './src/workflows.ts',
-      content: source,
-      size: source.length,
-      maxBytes: 1048576,
-      tasks: [],
-      language: 'typescript',
-      symbol: 'orderWorkflow',
-      symbolLines: { startLine: 3, endLine: 6 },
-    });
-    await render(
-      {
-        ...codeEntity,
-        spec: {
-          ...codeEntity.spec,
-          definition: { format: 'source', target: './src/workflows.ts' },
-        },
-      },
-      api,
-    );
-    const card = await screen.findByTestId('definition-source');
-    expect(card).toHaveTextContent(
-      './src/workflows.ts · typescript · orderWorkflow, lines 3–6',
-    );
-    // The source links stay.
-    expect(
-      within(card).getByRole('link', { name: /View the file/ }),
-    ).toBeInTheDocument();
-    const code = screen.getByTestId('definition-yaml');
-    expect(code).toHaveTextContent('export async function orderWorkflow');
-    expect(
-      screen.getByRole('textbox', { name: 'Workflow source' }),
-    ).toBeInTheDocument();
-    expect(markedLines(code, 'tp-yaml-band')).toEqual([3, 4, 5, 6]);
-  });
-
   it('selects the task of a line, and the lines of a box', async () => {
     const api = mockTemporalApi();
     api.getEntityDefinition.mockResolvedValue(definition);
@@ -408,6 +362,135 @@ describe('Definition tab', () => {
       'aria-pressed',
       'true',
     );
+  });
+
+  it('selects a task whose name has a #', async () => {
+    const api = mockTemporalApi();
+    const text = [
+      'document:',
+      '  dsl: 1.0.0',
+      '  workflowType: hash-flow',
+      'do:',
+      '  - step#one:',
+      '      set:',
+      '        a: 1',
+      '  - step#two:',
+      '      set:',
+      '        b: 2',
+      '',
+    ].join('\n');
+    api.getEntityDefinition.mockResolvedValue({
+      format: 'serverless-workflow',
+      target: './hash.yaml',
+      content: text,
+      document: parse(text),
+      tasks: [
+        { pointer: '/do/0/step#one', startLine: 5, endLine: 7 },
+        { pointer: '/do/1/step#two', startLine: 8, endLine: 10 },
+      ],
+    } satisfies WorkflowDefinitionResponse);
+    await render(yamlEntity, api);
+    const yaml = await screen.findByTestId('definition-yaml');
+    fireEvent.click(screen.getByTestId('definition-node-/do/1/step#two'));
+    expect(screen.getByTestId('definition-yaml-band')).toHaveAttribute(
+      'data-start',
+      '8',
+    );
+    expect(screen.getByTestId('definition-task')).toHaveTextContent('8–10');
+    expect(markedLines(yaml, 'tp-yaml-cursor')).toEqual([8]);
+    fireEvent.click(yaml.querySelector('[data-line="6"]')!);
+    expect(
+      screen.getByTestId('definition-node-/do/0/step#one'),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  describe('reloading a running run', () => {
+    const running: WorkflowGraphResponse = { ...runGraph, status: 'Running' };
+    const setVisibility = (state: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => state,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+    afterEach(() => {
+      setVisibility('visible');
+      jest.useRealTimers();
+    });
+
+    const start = async (api: ReturnType<typeof mockTemporalApi>) => {
+      api.getEntityDefinition.mockResolvedValue(definition);
+      await render(yamlEntity, api, '/?workflowId=order-1&runId=run-1');
+      await waitFor(() =>
+        expect(api.getWorkflowGraph).toHaveBeenCalledTimes(1),
+      );
+      await screen.findByTestId('definition-legend');
+    };
+    const tick = (ms: number) =>
+      act(async () => {
+        await jest.advanceTimersByTimeAsync(ms);
+      });
+
+    it('reloads every ten seconds', async () => {
+      const api = mockTemporalApi();
+      api.getWorkflowGraph.mockResolvedValue(running);
+      await start(api);
+      await tick(9_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(1);
+      await tick(1_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+      await tick(10_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not reload a finished run', async () => {
+      const api = mockTemporalApi();
+      api.getWorkflowGraph.mockResolvedValue(runGraph);
+      await start(api);
+      await tick(60_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(1);
+    });
+
+    it('pauses in a background tab and reloads when the tab is shown again', async () => {
+      const api = mockTemporalApi();
+      api.getWorkflowGraph.mockResolvedValue(running);
+      await start(api);
+      await act(async () => setVisibility('hidden'));
+      await tick(60_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(1);
+      await act(async () => setVisibility('visible'));
+      await tick(0);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not start a reload while one is running', async () => {
+      const api = mockTemporalApi();
+      api.getWorkflowGraph.mockResolvedValueOnce(running);
+      await start(api);
+      api.getWorkflowGraph.mockReturnValue(new Promise(() => {}));
+      await tick(10_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+      await tick(60_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops reloading after an error', async () => {
+      const api = mockTemporalApi();
+      api.getWorkflowGraph.mockResolvedValueOnce(running);
+      await start(api);
+      api.getWorkflowGraph.mockRejectedValue(new Error('down'));
+      await tick(10_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+      await tick(60_000);
+      expect(api.getWorkflowGraph).toHaveBeenCalledTimes(2);
+      expect(
+        screen.getByText('The run could not be loaded'),
+      ).toBeInTheDocument();
+    });
   });
 
   it('shows the YAML and the graph full screen', async () => {
@@ -571,40 +654,19 @@ describe('Definition tab', () => {
     expect(screen.queryByRole('link', { name: 'Open the run' })).toBeNull();
   });
 
-  it('shows the latest run for a link with only a workflow ID', async () => {
-    const api = mockTemporalApi();
-    api.getEntityDefinition.mockResolvedValue(definition);
-    api.getWorkflowGraph.mockResolvedValue(runGraph);
-    // Not among the runs of the entity's list: read from the run list.
-    api.listWorkflowRuns.mockResolvedValue({
-      namespace: 'default',
-      items: [{ ...listResponse.items[0], workflowId: 'order-9', runId: 'r9' }],
-    });
-    await render(yamlEntity, api, '/?workflowId=order-9');
-    await waitFor(() =>
-      expect(api.getWorkflowGraph).toHaveBeenCalledWith(
-        { namespace: 'default', workflowId: 'order-9', runId: 'r9' },
-        { entityRef: 'temporalworkflow:default/order-flow' },
-      ),
-    );
-    expect(api.listWorkflowRuns).toHaveBeenCalledWith(
-      { namespace: 'default', workflowId: 'order-9' },
-      { entityRef: 'temporalworkflow:default/order-flow', pageSize: 1 },
-    );
-  });
-
-  it('takes the run of a workflow ID in the list of the entity without reading the run list', async () => {
+  it('shows no run for a link with only a workflow ID', async () => {
     const api = mockTemporalApi();
     api.getEntityDefinition.mockResolvedValue(definition);
     api.getWorkflowGraph.mockResolvedValue(runGraph);
     await render(yamlEntity, api, '/?workflowId=order-1');
-    await waitFor(() =>
-      expect(api.getWorkflowGraph).toHaveBeenCalledWith(
-        { namespace: 'default', workflowId: 'order-1', runId: 'run-1' },
-        { entityRef: 'temporalworkflow:default/order-flow' },
-      ),
-    );
+    await screen.findByTestId('definition-layout');
+    await waitFor(() => expect(api.listEntityWorkflows).toHaveBeenCalled());
+    expect(api.getWorkflowGraph).not.toHaveBeenCalled();
     expect(api.listWorkflowRuns).not.toHaveBeenCalled();
+    expect(screen.queryByRole('link', { name: 'Open the run' })).toBeNull();
+    expect(screen.getByTestId('definition-run-select')).toHaveTextContent(
+      'No run',
+    );
   });
 
   it('marks unfound tasks Unknown and warns when the run graph is truncated', async () => {
@@ -872,38 +934,9 @@ describe('Definition tab', () => {
         message: deniedMessage,
       },
     });
-    const yamlDeniedView = await render(yamlEntity, api);
+    await render(yamlEntity, api);
     const yamlAlert = await screen.findByTestId('definition-error');
     expect(yamlAlert).toHaveTextContent('The definition could not be read');
     expect(yamlAlert).toHaveTextContent('temporal.definitions.allow');
-    yamlDeniedView.unmount();
-
-    api.getEntityDefinition.mockResolvedValue({
-      entityRef: 'temporalworkflow:default/order-workflow',
-      format: 'source',
-      target: 'https://raw.example.com/workflows.ts',
-      maxBytes: 1048576,
-      tasks: [],
-      error: {
-        kind: 'read',
-        message: deniedMessage,
-      },
-    });
-    await render(
-      {
-        ...codeEntity,
-        spec: {
-          ...codeEntity.spec,
-          definition: {
-            format: 'source',
-            target: 'https://raw.example.com/workflows.ts',
-          },
-        },
-      },
-      api,
-    );
-    const sourceAlert = await screen.findByTestId('definition-error');
-    expect(sourceAlert).toHaveTextContent('The definition could not be read');
-    expect(sourceAlert).toHaveTextContent('temporal.definitions.allow');
   });
 });

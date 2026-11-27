@@ -82,16 +82,13 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
     messages?: TemporalWorkflowMessagesSpec;
     /**
      * The file of the workflow, for the Definition tab: a workflow DSL file
-     * (`serverless-workflow`) drawn as a graph, or the source code
-     * (`source`) with the workflow's function marked.
+     * (`serverless-workflow`) drawn as a graph.
      */
     definition?: {
-      /** Format of the file: `serverless-workflow` or `source`. */
+      /** Format of the file: `serverless-workflow`. */
       format: string;
       /** Path relative to the entity's file, or an absolute URL. */
       target: string;
-      /** `source` only: the function to mark; defaults to the workflow type. */
-      symbol?: string;
     };
   };
 }
@@ -198,16 +195,15 @@ export const temporalWorkflowEntityV1alpha1Schema = {
             },
             definition: {
               type: 'object',
-              description:
-                'The file of the workflow: a workflow DSL file, or its source code.',
+              description: 'The file of the workflow: a workflow DSL file.',
               required: ['format', 'target'],
               additionalProperties: false,
               properties: {
                 format: {
                   type: 'string',
-                  enum: ['serverless-workflow', 'source'],
+                  enum: ['serverless-workflow'],
                   description:
-                    'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow), or source (the source code of a workflow written in code).',
+                    'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow).',
                 },
                 target: {
                   type: 'string',
@@ -215,12 +211,6 @@ export const temporalWorkflowEntityV1alpha1Schema = {
                   maxLength: 2048,
                   description:
                     'Path relative to the file of the entity, or an absolute URL.',
-                },
-                symbol: {
-                  type: 'string',
-                  pattern: '^[A-Za-z_$][A-Za-z0-9_$.]{0,199}$',
-                  description:
-                    'For the source format: the function of the workflow, marked in the file. Defaults to the workflow type.',
                 },
               },
             },

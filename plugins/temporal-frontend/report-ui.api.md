@@ -18,6 +18,9 @@ import { RouteRef } from '@backstage/core-plugin-api';
 export type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
 
 // @alpha
+export const AUTO_REFRESH_MS = 10000;
+
+// @alpha
 export function DefinitionList(props: {
   items: [string, ReactNode][];
 }): JSX_2.Element;
@@ -176,6 +179,9 @@ export function useGraphFullscreen(): GraphFullscreen | undefined;
 
 // @alpha
 export function useGraphFullscreenState(): GraphFullscreen;
+
+// @alpha
+export function usePageVisible(): boolean;
 
 // @alpha
 export function useSettledWidth(

@@ -47,8 +47,6 @@ export function buildEntityDefinitionPath(entity: CompoundEntityRef): string {
 export interface WorkflowDefinitionTask {
   /** JSON pointer of the task, for example `/do/1/checkStock`. */
   pointer: string;
-  /** Name of the task. */
-  name: string;
   /** First line of the task (the line of its name), from 1. */
   startLine: number;
   /** Last line of the task, from 1. */
@@ -72,8 +70,6 @@ export interface WorkflowDefinitionError {
   message: string;
   /** Line of a parse error, from 1. */
   line?: number;
-  /** Column of a parse error, from 1. */
-  column?: number;
 }
 
 /**
@@ -83,28 +79,19 @@ export interface WorkflowDefinitionError {
  * @public
  */
 export interface WorkflowDefinitionResponse {
-  entityRef: string;
   /** Format of the file (`spec.definition.format`). */
-  format: 'serverless-workflow' | 'source';
-  /** `source`: language of the file, from its extension. */
-  language?: SourceLanguage;
-  /** `source`: the function of the workflow (`symbol`, else the type). */
-  symbol?: string;
-  /** `source`: lines of that function, when it was found in the file. */
-  symbolLines?: { startLine: number; endLine: number };
+  format: 'serverless-workflow';
   /** `spec.definition.target` as written. */
   target: string;
   /** The URL the file was read from. */
   url?: string;
   /**
-   * The text of the file; absent when it could not be read, and for a
-   * `serverless-workflow` file with an error.
+   * The text of the file; absent when it could not be read or is not a valid
+   * definition.
    */
   content?: string;
   /** Size of the file in bytes. */
   size?: number;
-  /** Largest file the backend reads, in bytes. */
-  maxBytes: number;
   /** The parsed file. Absent when it is not valid YAML. */
   document?: JsonObject;
   /** The tasks of the definition with their lines, in file order. */
@@ -251,114 +238,4 @@ export function walkDefinitionTasks(
   if (isObject(document) && Array.isArray(document.do)) {
     walk(document.do, ['do'], undefined, [], false, 0);
   }
-}
-
-/**
- * Language of a source file, from the extension of its path or URL.
- *
- * @public
- */
-export type SourceLanguage =
-  | 'typescript'
-  | 'javascript'
-  | 'python'
-  | 'go'
-  | 'java'
-  | 'text';
-
-/** @public */
-export function sourceLanguageOf(target: string): SourceLanguage {
-  const path = target.split(/[?#]/)[0].toLowerCase();
-  if (/\.(ts|tsx|mts|cts)$/.test(path)) return 'typescript';
-  if (/\.(js|jsx|mjs|cjs)$/.test(path)) return 'javascript';
-  if (path.endsWith('.py')) return 'python';
-  if (path.endsWith('.go')) return 'go';
-  if (path.endsWith('.java')) return 'java';
-  return 'text';
-}
-
-function escapeRegExp(text: string) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** A line that declares the function `name` (escaped) in `language`. */
-function declarationPattern(name: string, language: SourceLanguage): RegExp {
-  if (language === 'python') {
-    return new RegExp(`^\\s*(async\\s+)?def\\s+${name}\\s*\\(`);
-  }
-  if (language === 'go') {
-    return new RegExp(`^\\s*func\\s+(\\([^)]*\\)\\s*)?${name}\\s*[(\\[]`);
-  }
-  return new RegExp(
-    `(function\\*?\\s+${name}\\s*[<(])|((const|let|var)\\s+${name}\\s*=)|(^\\s*(public\\s+|private\\s+|protected\\s+|static\\s+|async\\s+)*${name}\\s*[<(][^;]*$)`,
-  );
-}
-
-/**
- * The lines (from 1) of a function in a source file: where it is declared,
- * to the line that closes it. Found by text, not by parsing: a declaration
- * of the name (`function name`, `name = (async) (...) =>`, `def name`,
- * `func name`, a method `name(`), then matching braces, or for Python the
- * indented block. Undefined when the name is not found.
- *
- * @public
- */
-export function findSymbolLines(
-  content: string,
-  symbol: string,
-  language: SourceLanguage,
-): { startLine: number; endLine: number } | undefined {
-  const lines = content.split('\n');
-  const name = escapeRegExp(symbol.split('.').pop()!);
-  const declaration = declarationPattern(name, language);
-  const start = lines.findIndex(line => declaration.test(line));
-  if (start < 0) return undefined;
-  if (language === 'python') {
-    const indent = lines[start].search(/\S/);
-    let end = start;
-    for (let i = start + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line.trim()) continue;
-      if (line.search(/\S/) <= indent) break;
-      end = i;
-    }
-    return { startLine: start + 1, endLine: end + 1 };
-  }
-  // The body starts at the first `{` outside parentheses that ends its line
-  // (so `= {}` defaults and `{ ... }` return types are skipped), else at the
-  // first `{` outside parentheses (a one-line function). Braces are counted
-  // from there; strings and comments are not skipped, which is good enough
-  // to mark the function.
-  let body: { line: number; column: number } | undefined;
-  let fallback: { line: number; column: number } | undefined;
-  let parens = 0;
-  for (let i = start; i < lines.length && !body; i++) {
-    const line = lines[i];
-    for (let c = 0; c < line.length; c++) {
-      const char = line[c];
-      if (char === '(') parens++;
-      else if (char === ')') parens = Math.max(0, parens - 1);
-      else if (char === '{' && parens === 0) {
-        fallback ??= { line: i, column: c };
-        if (!line.slice(c + 1).trim()) {
-          body = { line: i, column: c };
-          break;
-        }
-      }
-    }
-  }
-  const open = body ?? fallback;
-  if (!open) return { startLine: start + 1, endLine: start + 1 };
-  let depth = 0;
-  for (let i = open.line; i < lines.length; i++) {
-    const line = lines[i];
-    for (let c = i === open.line ? open.column : 0; c < line.length; c++) {
-      if (line[c] === '{') depth++;
-      else if (line[c] === '}') {
-        depth--;
-        if (depth === 0) return { startLine: start + 1, endLine: i + 1 };
-      }
-    }
-  }
-  return { startLine: start + 1, endLine: start + 1 };
 }
