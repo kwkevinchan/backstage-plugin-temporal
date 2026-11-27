@@ -36,6 +36,7 @@ export function PendingActivities(props: { activities: PendingActivity[] }) {
         <Column>State</Column>
         <Column>Attempt</Column>
         <Column>Scheduled</Column>
+        <Column>Last heartbeat</Column>
         <Column>Last failure</Column>
       </TableHeader>
       <TableBody>
@@ -58,6 +59,11 @@ export function PendingActivities(props: { activities: PendingActivity[] }) {
             </Cell>
             <Cell>
               <Text variant="body-small">{formatTime(a.scheduledTime)}</Text>
+            </Cell>
+            <Cell>
+              <Text variant="body-small">
+                {formatTime(a.lastHeartbeatTime)}
+              </Text>
             </Cell>
             <Cell>
               <Text variant="body-small" style={{ wordBreak: 'break-word' }}>

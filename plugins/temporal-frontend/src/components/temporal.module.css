@@ -449,6 +449,11 @@
   height: 100%;
   background: var(--tp-fg, var(--bui-fg-info));
 }
+.tp-progress-failed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 .tp-progress-text {
   /* Two lines at most; the full text is in the title. */
   display: -webkit-box;

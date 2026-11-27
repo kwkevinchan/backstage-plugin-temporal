@@ -193,6 +193,8 @@ export function WorkflowRunsTable(props: {
    */
   byRun?: boolean;
   latestRunId?: string;
+  /** Changes when the list is refreshed, so the progress is loaded again. */
+  refreshToken?: number;
 }) {
   const href = props.workflowHref ?? workflowLink;
   const columns: ColumnDef[] = [
@@ -270,7 +272,11 @@ export function WorkflowRunsTable(props: {
     id: 'progress',
     title: 'Progress',
     cell: item => (
-      <WorkflowProgress workflow={item} entityRef={props.entityRef} />
+      <WorkflowProgress
+        workflow={item}
+        entityRef={props.entityRef}
+        refreshToken={props.refreshToken}
+      />
     ),
   });
   if (props.showTaskQueue) {

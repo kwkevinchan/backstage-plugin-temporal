@@ -132,6 +132,7 @@ export function WorkflowRunsPage(props: { entity?: Entity }) {
             label="Runs of the workflow ID"
             items={only ? [] : value?.items ?? []}
             entityRef={entityRef}
+            refreshToken={refresh.count}
             showTaskQueue
             pending={loading || Boolean(only)}
             byRun

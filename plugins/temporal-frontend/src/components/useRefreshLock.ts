@@ -25,16 +25,20 @@ export const REFRESH_LOCK_MS = 1000;
  * reload has ended and at least a second has passed; presses while it is
  * locked are ignored.
  *
+ * `count` is the number of presses that were accepted.
+ *
  * `loading` is true while the data of the button is being loaded.
  */
 export function useRefreshLock(
   reload: () => void,
   loading: boolean,
-): { locked: boolean; refresh: () => void } {
+): { locked: boolean; refresh: () => void; count: number } {
   // Locked while either is true: `holding` for the first second after a
   // press, `waiting` until the reload of that press has ended.
   const [holding, setHolding] = useState(false);
   const [waiting, setWaiting] = useState(false);
+  // Number of accepted presses, for data that is loaded again by a press.
+  const [count, setCount] = useState(0);
   // Read by `refresh`, so that two presses before the next render count as
   // one.
   const lockedRef = useRef(false);
@@ -55,6 +59,7 @@ export function useRefreshLock(
     lockedRef.current = true;
     setHolding(true);
     setWaiting(true);
+    setCount(c => c + 1);
     reload();
     timer.current = window.setTimeout(() => {
       setHolding(false);
@@ -63,5 +68,5 @@ export function useRefreshLock(
     }, REFRESH_LOCK_MS);
   }, [reload]);
 
-  return { locked: holding || waiting, refresh };
+  return { locked: holding || waiting, refresh, count };
 }

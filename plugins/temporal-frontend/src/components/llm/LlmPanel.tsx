@@ -177,7 +177,7 @@ function Part(props: { part: WorkflowLlmPart }) {
     case 'file':
       return (
         <Text as="p" variant="body-small" color="secondary">
-          {String(part.modality ?? 'file')}: file {String(part.file_id)}
+          {filePartText(part)}
         </Text>
       );
     default:
@@ -190,6 +190,19 @@ function Part(props: { part: WorkflowLlmPart }) {
         </div>
       );
   }
+}
+
+/**
+ * A file part by what it has: the modality (or "file"), the file ID or the
+ * name (the Vercel AI SDK adapter sets a name, not an ID) and the MIME type.
+ */
+function filePartText(part: WorkflowLlmPart): string {
+  const identity = part.file_id ?? part.name;
+  return [
+    String(part.modality ?? 'file'),
+    identity ? `: ${String(identity)}` : '',
+    part.mime_type ? ` (${String(part.mime_type)})` : '',
+  ].join('');
 }
 
 function RoleIcon(props: { role: string }) {

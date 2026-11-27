@@ -41,6 +41,21 @@ describe('useRefreshLock', () => {
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
+  it('counts the accepted presses only', () => {
+    const { result } = setup();
+    expect(result.current.count).toBe(0);
+    act(() => {
+      result.current.refresh();
+      result.current.refresh();
+    });
+    expect(result.current.count).toBe(1);
+    act(() => {
+      jest.advanceTimersByTime(REFRESH_LOCK_MS);
+    });
+    act(() => result.current.refresh());
+    expect(result.current.count).toBe(2);
+  });
+
   it('stays locked for a second after a reload that ended at once', () => {
     const { reload, result, rerender } = setup();
     act(() => result.current.refresh());

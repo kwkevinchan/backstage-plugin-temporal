@@ -178,6 +178,34 @@ describe('LLM panel', () => {
     );
   });
 
+  it('shows file parts by name, ID or MIME type, never as undefined', async () => {
+    const api = mockTemporalApi();
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: {
+        ...llmCallResponse.record,
+        inputMessages: [
+          {
+            role: 'user',
+            parts: [
+              { type: 'file', mime_type: 'application/pdf', name: 'a.pdf' },
+              { type: 'file', modality: 'image', file_id: 'file-9' },
+              { type: 'file', mime_type: 'text/plain' },
+              { type: 'file' },
+            ],
+          },
+        ],
+      },
+    });
+    await renderDrawer('activity-5', { api });
+    const input = await screen.findByTestId('llm-input');
+    const text = input.textContent ?? '';
+    expect(text).toContain('file: a.pdf (application/pdf)');
+    expect(text).toContain('image: file-9');
+    expect(text).toContain('file (text/plain)');
+    expect(text).not.toContain('undefined');
+  });
+
   it('shows where a record in External Storage is', async () => {
     const api = mockTemporalApi();
     (api.getLlmCall as jest.Mock).mockResolvedValue({
