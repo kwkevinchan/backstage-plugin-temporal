@@ -444,8 +444,9 @@ which signal or update handler the workflow waits for.
 Limits: Temporal records only the last attempt of an activity and the
 failure of the attempt before it, so earlier attempts are not listed.
 Updates rejected by a validator are not written to the history. The backend
-reads at most 5000 events per run; the graph of a longer history shows its
-start and says so.
+reads at most 5000 events per run for `graph` and `llm-calls` (without caching);
+the graph of a longer history shows its start and says so. In production,
+enable Backstage's `backend.rateLimit` to bound concurrent history reads.
 
 The details page always shows one run: its address has the run ID
 (`…/namespaces/:namespace/workflows/:workflowId/runs/:runId`) and it stays on

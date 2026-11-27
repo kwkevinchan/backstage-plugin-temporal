@@ -17,6 +17,7 @@
 import type { TemporalLlmAdapter } from '../../node/alpha';
 import { buildWorkflowGraph } from '../graph';
 import { LlmAdapters } from './LlmAdapters';
+import { canonicalJson, MAX_CANONICAL_JSON_DEPTH } from './json';
 import { summarizeModelCalls } from './llm';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
@@ -420,5 +421,111 @@ describe('tool calls without a model call', () => {
       name: 'read',
       toolCallId: 'orphan',
     });
+  });
+});
+
+describe('graph building limits (deep payloads and many tool requests)', () => {
+  const makeNested = (depth: number): Record<string, unknown> => {
+    let v: Record<string, unknown> = { leaf: 1 };
+    for (let i = 0; i < depth; i += 1) v = { a: v };
+    return v;
+  };
+
+  it('treats payloads deeper than 64 levels as non-comparable without overflowing the stack', () => {
+    expect(canonicalJson(makeNested(MAX_CANONICAL_JSON_DEPTH - 1))).toEqual(
+      expect.any(String),
+    );
+    expect(canonicalJson(makeNested(MAX_CANONICAL_JSON_DEPTH))).toBeUndefined();
+    expect(canonicalJson(makeNested(5000))).toBeUndefined();
+
+    // Building a graph with a deeply nested tool payload succeeds without throwing.
+    const adapters = new LlmAdapters();
+    adapters.add({
+      id: 'deep-test',
+      isModelCall: step => step.activityType === 'callModel',
+      readModelCalls: step =>
+        step.activityType === 'callModel'
+          ? [
+              {
+                record: {
+                  systemInstructions: [],
+                  inputMessages: [],
+                  toolExecutions: [],
+                  outputMessages: [
+                    {
+                      role: 'assistant',
+                      parts: [
+                        {
+                          type: 'tool_call',
+                          name: 'lookup',
+                          arguments: makeNested(80) as any,
+                        },
+                      ],
+                    },
+                  ],
+                  usage: {},
+                },
+              },
+            ]
+          : [],
+    });
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    h.activity('callModel', 'm-1', { result: { ok: true } });
+    const toolId = h.activity('lookup', 't-1', {
+      input: makeNested(80),
+      result: { ok: true },
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      llmAdapters: adapters,
+    });
+    expect(graph.nodes.find(n => n.id === `activity-${toolId}`)).toBeDefined();
+  });
+
+  it('skips inference and keeps steps plain when unlinked tool requests exceed 500', () => {
+    const count = 501;
+    const adapters = new LlmAdapters();
+    adapters.add({
+      id: 'many-tools-test',
+      isModelCall: step => step.activityType === 'callModel',
+      readModelCalls: step =>
+        step.activityType === 'callModel'
+          ? [
+              {
+                record: {
+                  systemInstructions: [],
+                  inputMessages: [],
+                  toolExecutions: [],
+                  outputMessages: [
+                    {
+                      role: 'assistant',
+                      parts: Array.from({ length: count }, (_, i) => ({
+                        type: 'tool_call',
+                        name: 'lookup',
+                        arguments: { idx: i },
+                      })),
+                    },
+                  ],
+                  usage: {},
+                },
+              },
+            ]
+          : [],
+    });
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    h.activity('callModel', 'm-1', { result: { ok: true } });
+    const firstTool = h.activity('lookup', 't-0', {
+      input: { idx: 0 },
+      result: { ok: true },
+    });
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      llmAdapters: adapters,
+    });
+    const toolNode = graph.nodes.find(n => n.id === `activity-${firstTool}`)!;
+    expect(toolNode).toBeDefined();
+    expect(toolNode.tool).toBeUndefined();
   });
 });

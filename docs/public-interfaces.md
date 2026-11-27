@@ -598,7 +598,8 @@ running workflow, because later steps are unknown until they run). When
 for `/graph` and 1,000 events for `/progress`), so counts cover only the first
 events read. `GET /:wf/llm-calls/:eventId` uses the same 5,000-event limit and
 answers `404` explaining that the history was truncated when `eventId` lies
-beyond the events read.
+beyond the events read. Neither endpoint caches histories; in production,
+enable Backstage's `backend.rateLimit` to bound read load.
 
 The run list of a workflow ID has the runs that continued as new. Its order
 is the one of Temporal's visibility store: the plugin asks for none (SQL
