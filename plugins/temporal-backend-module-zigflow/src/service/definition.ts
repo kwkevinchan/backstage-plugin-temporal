@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { constants, open, realpath, stat } from 'node:fs/promises';
+import { constants, lstat, open, realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import type {
@@ -53,9 +53,9 @@ export const DEFAULT_DEFINITION_MAX_BYTES = 1024 * 1024;
 /** Upper limit of `temporal.definitions.maxBytes`: 8 MiB. */
 const MAX_DEFINITION_MAX_BYTES = 8 * 1024 * 1024;
 /**
- * Most aliases in a definition file, and most copies of one anchor (the
- * anchor and its aliases, with the aliases inside it; `maxAliasCount` of the
- * `yaml` package). The `yaml` package looks up the anchor of each alias in a
+ * Most aliases in a definition file. The `yaml` package counts the anchor
+ * itself as one of the copies, so one anchor takes at most
+ * `MAX_ALIAS_COUNT - 1` aliases (`maxAliasCount` of the `yaml` package). The `yaml` package looks up the anchor of each alias in a
  * scan of the whole document, so the time to turn a file into data grows
  * with aliases times nodes; a small limit keeps it linear.
  */
@@ -567,25 +567,52 @@ function isInside(root: string, path: string): boolean {
  * `maxBytes`. Symlinks may point only to files in the real folder of `root`.
  */
 async function readFileLimited(path: string, root: string, maxBytes: number) {
+  // A file outside the folder, a missing file and one that cannot be read
+  // all give the same answer, and nothing outside the folder is opened.
+  let realRoot: string;
+  try {
+    realRoot = await realpath(root);
+  } catch {
+    throw new TargetError(FILE_FOLDER_MESSAGE);
+  }
+  let realFile: string;
+  try {
+    realFile = await realpath(path);
+  } catch (error) {
+    // Only a name that is missing in a real folder inside `root` is reported
+    // as missing; a link that leads nowhere, or to a place without access,
+    // looks like any other file outside the folder.
+    if ((error as { code?: string }).code === 'ENOENT') {
+      const exists = await lstat(path).then(
+        () => true,
+        () => false,
+      );
+      const parent = await realpath(dirname(path)).catch(() => undefined);
+      if (
+        !exists &&
+        parent !== undefined &&
+        (parent === realRoot || isInside(realRoot, parent))
+      ) {
+        throw error;
+      }
+    }
+    throw new TargetError(FILE_FOLDER_MESSAGE);
+  }
+  if (!isInside(realRoot, realFile)) throw new TargetError(FILE_FOLDER_MESSAGE);
   // Without O_NONBLOCK, opening a FIFO waits until another process writes.
-  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  const handle = await open(
+    realFile,
+    constants.O_RDONLY | constants.O_NONBLOCK,
+  );
   try {
     const opened = await handle.stat();
     if (!opened.isFile()) {
       throw new TargetError('The target is not a regular file');
     }
-    const [realRoot, realFile] = await Promise.all([
-      realpath(root),
-      realpath(path),
-    ]);
     // The opened file must be the checked one: a link that changes between
-    // `open` and `realpath` gives another device or inode.
+    // `realpath` and `open` gives another device or inode.
     const checked = await stat(realFile);
-    if (
-      !isInside(realRoot, realFile) ||
-      checked.dev !== opened.dev ||
-      checked.ino !== opened.ino
-    ) {
+    if (checked.dev !== opened.dev || checked.ino !== opened.ino) {
       throw new TargetError(FILE_FOLDER_MESSAGE);
     }
     if (opened.size > maxBytes) throw new TooLargeError();
@@ -751,7 +778,9 @@ export function parseDefinition(text: string): {
       lineCounter.linePos(duplicate),
     );
   }
-  const tooManyAliases = `The file uses too many aliases (more than ${MAX_ALIAS_COUNT})`;
+  const tooManyAliases = `The file uses too many aliases (at most ${MAX_ALIAS_COUNT} aliases in all, and at most ${
+    MAX_ALIAS_COUNT - 1
+  } for one anchor)`;
   if (aliases > MAX_ALIAS_COUNT) return parseError(tooManyAliases);
   let document: JsonObject;
   try {

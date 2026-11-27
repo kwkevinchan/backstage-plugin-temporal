@@ -515,7 +515,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Zigflow
 
-`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；`format: source` 會回傳允許範圍內的任何檔案，`file:` 目標必須是實體檔所在資料夾內的一般檔案（解析 symlink 之後也一樣），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
+`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；`format: source` 會回傳允許範圍內的任何檔案，`format: serverless-workflow` 只讀 `.yaml` 和 `.yml` 檔，而且只有檔案是有效的定義時才回傳它的文字（解析有錯時，回應不含檔案內容），`file:` 目標必須是實體檔所在資料夾內的一般檔案（解析 symlink 之後也一樣），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
 
 ## 實驗性：模型呼叫和 Event Groups
 
