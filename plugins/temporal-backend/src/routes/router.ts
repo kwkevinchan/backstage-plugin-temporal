@@ -42,6 +42,7 @@ import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
   LIST_PAGE_SIZE,
   failedOverview,
+  OverviewRequestStats,
   STATS_LIMIT,
   WorkflowListQueries,
 } from '../services/WorkflowListQueries';
@@ -245,15 +246,25 @@ export async function createRouter(
       temporalWorkflowReadPermission,
       credentials,
     );
+    const request: OverviewRequestStats = { queueTimeouts: 0 };
     const items = await Promise.all(
       loaded.map(({ entityRef, context, error }) => {
-        if (context) return lists.overview(context);
+        if (context) return lists.overview(context, request);
         logger
           .child({ entityRef })
           .warn('Could not read the workflows of an entity', error as Error);
         return Promise.resolve(failedOverview(entityRef, error));
       }),
     );
+    if (request.queueTimeouts > 0) {
+      // These rows show "did not answer in time" though no call to Temporal
+      // was made for them: the calls waited for the rate limit of the
+      // overview (`temporal.overview.maxVisibilityCallsPerSecond`).
+      logger.warn(
+        'The overview of some entities was not read in time: its visibility calls waited in the queue until their deadline',
+        { entities: loaded.length, queueTimeouts: request.queueTimeouts },
+      );
+    }
     const response: WorkflowTypeOverviewResponse = { items };
     res.json(response);
   });

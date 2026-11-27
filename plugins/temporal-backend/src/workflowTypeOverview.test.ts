@@ -95,6 +95,7 @@ async function start(options?: {
   deny?: string[];
   entities?: Entity[];
   recorder?: RecordingLogger;
+  overviewRatePerSecond?: number;
 }) {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
@@ -112,6 +113,16 @@ async function start(options?: {
   });
   const { server } = await startTestBackend({
     features: [
+      mockServices.rootConfig.factory({
+        data: {
+          temporal: {
+            overview: {
+              maxVisibilityCallsPerSecond:
+                options?.overviewRatePerSecond ?? 1000,
+            },
+          },
+        },
+      }),
       temporalPlugin,
       temporalAccessServiceFactory,
       catalogServiceMock.factory({

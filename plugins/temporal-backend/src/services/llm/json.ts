@@ -47,18 +47,44 @@ export function structured(value: unknown): unknown {
   }
 }
 
-/** JSON text of a value with sorted object keys, for comparing values. */
-export function canonicalJson(value: unknown): string {
-  const sort = (v: unknown): unknown => {
-    if (Array.isArray(v)) return v.map(sort);
+/** Maximum nesting depth canonicalJson traverses before treating a value as non-comparable. */
+export const MAX_CANONICAL_JSON_DEPTH = 64;
+
+/**
+ * JSON text of a value with sorted object keys, for comparing values.
+ * Returns `undefined` when nesting exceeds `maxDepth` (default 64) so a deeply
+ * nested payload never overflows the call stack.
+ */
+export function canonicalJson(
+  value: unknown,
+  maxDepth = MAX_CANONICAL_JSON_DEPTH,
+): string | undefined {
+  let exceeded = false;
+  const sort = (v: unknown, depth: number): unknown => {
+    if (exceeded) return undefined;
+    if (Array.isArray(v)) {
+      if (depth >= maxDepth) {
+        exceeded = true;
+        return undefined;
+      }
+      return v.map(item => sort(item, depth + 1));
+    }
     if (isObject(v)) {
-      return Object.fromEntries(
-        Object.keys(v)
-          .sort()
-          .map(k => [k, sort(v[k])]),
-      );
+      if (depth >= maxDepth) {
+        exceeded = true;
+        return undefined;
+      }
+      const keys = Object.keys(v).sort();
+      const out: Record<string, unknown> = {};
+      for (const k of keys) {
+        out[k] = sort(v[k], depth + 1);
+        if (exceeded) return undefined;
+      }
+      return out;
     }
     return v;
   };
-  return JSON.stringify(sort(value ?? null));
+  const sorted = sort(value ?? null, 0);
+  if (exceeded) return undefined;
+  return JSON.stringify(sorted);
 }

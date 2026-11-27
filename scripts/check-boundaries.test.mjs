@@ -43,6 +43,8 @@ const rnd = n => 'A1b2C3d4E5'.repeat(Math.ceil(n / 10)).slice(0, n);
 const samples = {
   'windows-user-path': j('C:', '\\', 'Users', '\\someone\\project'),
   'wsl-mount-path': j('cd /', 'mnt', '/c/', 'work'),
+  'linux-home-path': j('cd /', 'home', '/someone/project'),
+  'macos-home-path': j('cd /', 'Users', '/someone/project'),
   'private-key': j('-----', 'BEGIN OPENSSH PRIVATE KEY', '-----'),
   'github-token': j('gh', 'p_', rnd(36)),
   'npm-token': j('np', 'm_', rnd(36)),
@@ -70,6 +72,11 @@ test('clean text passes', () => {
     '@kwkevinchan/backstage-plugin-temporal-frontend',
     'https://registry.npmjs.org',
     '/home/runner/work',
+    '/Users/Shared/data',
+    'https://example.com/home/page/',
+    'https://example.com/Users/list/',
+    'see ./home/dir/file and ../Users/x/y',
+    'the /home directory and /Users folder',
     'npm_config_cache',
     'C:Users is not a path',
   ].join('\n');

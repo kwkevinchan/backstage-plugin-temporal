@@ -41,7 +41,11 @@ import {
  * into for lists:
  *
  * - a Temporal visibility query, the part after `WHERE`, for example
- *   `WorkflowType = 'orderWorkflow'`;
+ *   `WorkflowType = 'orderWorkflow'`. The string is placed directly into the
+ *   visibility query — build it with the exported `inCondition` and `quote`
+ *   helpers rather than interpolating untrusted values. An empty string, a
+ *   comment outside quotes, unbalanced parentheses or an unclosed quote is
+ *   rejected, and the list then shows nothing;
  * - `{ namespaces }`: the list is of one of these namespaces. A visibility
  *   query cannot filter on the namespace (it is the scope of the list), so
  *   the access service decides it for the namespace being listed;

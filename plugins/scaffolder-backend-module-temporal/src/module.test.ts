@@ -128,4 +128,52 @@ describe('scaffolderTemporalModule', () => {
       'http://backstage/temporal/namespaces/default/workflows/dry-run/runs/dry-run',
     );
   });
+
+  describe('with a service principal as the initiator', () => {
+    async function signalAction(temporal: object = {}) {
+      const addActions = jest.fn();
+      await startTestBackend({
+        extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
+        features: [
+          scaffolderTemporalModule,
+          catalogServiceMock.factory({ entities: [] }),
+          mockServices.rootConfig.factory({
+            data: { app: { baseUrl: 'http://backstage' }, temporal },
+          }),
+        ],
+      });
+      return addActions.mock.calls
+        .flat()
+        .find((a: { id: string }) => a.id === 'temporal:workflow:signal');
+    }
+    const run = async (signal: any) => {
+      const ctx = createMockActionContext({
+        input: { workflowId: 'release-1', runId: 'run-1', name: 'approve' },
+      });
+      Object.assign(ctx, {
+        getInitiatorCredentials: async () =>
+          mockCredentials.service('plugin:test'),
+        checkpoint: async ({ fn }: any) => fn(),
+      });
+      await signal.handler(ctx);
+    };
+
+    it('refuses writes unless temporal.scaffolder.allowServiceWrites is true', async () => {
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(new Response('{}', { status: 202 }));
+      try {
+        await expect(run(await signalAction())).rejects.toThrow(
+          /temporal\.scaffolder\.allowServiceWrites/,
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
+        await run(
+          await signalAction({ scaffolder: { allowServiceWrites: true } }),
+        );
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        fetchMock.mockRestore();
+      }
+    });
+  });
 });

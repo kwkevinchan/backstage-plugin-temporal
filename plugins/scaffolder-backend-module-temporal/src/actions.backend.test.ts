@@ -156,6 +156,7 @@ describe('temporal:workflow:wait against the backend', () => {
     });
     await createTemporalWorkflowWaitAction({
       client,
+      auth,
       catalog: catalogServiceMock({ entities: [] }),
       appBaseUrl: 'http://backstage/',
       defaultNamespace: 'default',

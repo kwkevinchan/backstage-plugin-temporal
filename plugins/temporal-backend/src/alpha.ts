@@ -34,6 +34,7 @@ import { temporalWorkflowPermissionRules } from './access/rules';
 export * from './node/alpha';
 export { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 export { temporalWorkflowPermissionRules };
+export { inCondition, quote } from './services/visibilityQuery';
 
 const { conditions, createConditionalDecision } = createConditionExports({
   resourceRef: temporalWorkflowPermissionResourceRef,

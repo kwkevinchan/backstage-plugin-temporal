@@ -257,6 +257,95 @@ describe('WorkflowProgress', () => {
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
 
+  it('shows a retry button after a failure and loads again when it is pressed', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowProgress.mockRejectedValueOnce(new Error('boom'));
+    api.getWorkflowProgress.mockResolvedValue({
+      status: 'Running',
+      completedSteps: 2,
+      totalSteps: 2,
+      truncated: false,
+    });
+    await renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <WorkflowProgress workflow={baseWorkflow} />
+      </TestApiProvider>,
+    );
+    await screen.findByText('—');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry progress' }));
+    expect(await screen.findByText('2 steps done')).toBeInTheDocument();
+    expect(api.getWorkflowProgress).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it('loads again when the refresh token changes and keeps the old text meanwhile', async () => {
+    const api = mockTemporalApi();
+    api.getWorkflowProgress
+      .mockResolvedValueOnce({
+        status: 'Running',
+        completedSteps: 1,
+        totalSteps: 1,
+        truncated: false,
+      })
+      .mockResolvedValueOnce({
+        status: 'Running',
+        completedSteps: 3,
+        totalSteps: 3,
+        truncated: false,
+      });
+    const view = await renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <WorkflowProgress workflow={baseWorkflow} refreshToken={0} />
+      </TestApiProvider>,
+    );
+    expect(await screen.findByText('1 step done')).toBeInTheDocument();
+    view.rerender(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <WorkflowProgress workflow={baseWorkflow} refreshToken={1} />
+      </TestApiProvider>,
+    );
+    expect(await screen.findByText('3 steps done')).toBeInTheDocument();
+    expect(api.getWorkflowProgress).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows nothing of the old run when the run changes', async () => {
+    const api = mockTemporalApi();
+    let release: (value: WorkflowProgressResponse) => void = () => undefined;
+    api.getWorkflowProgress
+      .mockRejectedValueOnce(new Error('boom'))
+      .mockImplementationOnce(
+        () =>
+          new Promise<WorkflowProgressResponse>(resolve => {
+            release = resolve;
+          }),
+      );
+    const view = await renderInTestApp(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <WorkflowProgress workflow={baseWorkflow} />
+      </TestApiProvider>,
+    );
+    await screen.findByText('—');
+    view.rerender(
+      <TestApiProvider apis={[[temporalApiRef, api]]}>
+        <WorkflowProgress workflow={{ ...baseWorkflow, runId: 'run-2' }} />
+      </TestApiProvider>,
+    );
+    // The failure of run-1 is gone while run-2 loads.
+    await waitFor(() =>
+      expect(api.getWorkflowProgress).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+    await act(async () =>
+      release({
+        status: 'Running',
+        completedSteps: 4,
+        totalSteps: 4,
+        truncated: false,
+      }),
+    );
+    expect(await screen.findByText('4 steps done')).toBeInTheDocument();
+  });
+
   it('drops queued progress requests when a row unmounts before starting', async () => {
     const deferred = new Map<
       string,

@@ -129,5 +129,5 @@ export interface WorkflowNamespaceOptions {
 
 // Warnings were encountered during analysis:
 //
-// src/node/client.d.ts:50:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
+// src/node/client.d.ts:53:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
 ```

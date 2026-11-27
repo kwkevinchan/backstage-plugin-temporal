@@ -4,9 +4,7 @@
     "packages/*/src",
     "packages/*/config.d.ts",
     "plugins/*/src",
-    "plugins/*/config.d.ts",
-    "plugins/*/dev",
-    "plugins/*/migrations"
+    "plugins/*/config.d.ts"
   ],
   "exclude": ["node_modules", "packages/example-worker"],
   "compilerOptions": {

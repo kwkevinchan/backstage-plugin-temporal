@@ -173,12 +173,8 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
-  listSchedules(options?: {
-    namespace?: string;
-  }): Promise<TemporalScheduleListResponse> {
-    return this.get(
-      SCHEDULES_PATH + queryString({ namespace: options?.namespace }),
-    );
+  listSchedules(): Promise<TemporalScheduleListResponse> {
+    return this.get(SCHEDULES_PATH);
   }
 
   listEntitySchedules(

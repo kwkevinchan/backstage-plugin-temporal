@@ -84,12 +84,10 @@ export interface TemporalApi {
   }): Promise<WorkflowListResponse>;
 
   /**
-   * Schedules of a namespace (default namespace when omitted). Needs
-   * `temporal.workflow.list` without conditions.
+   * Schedules of the default namespace. Needs `temporal.workflow.list`
+   * without conditions.
    */
-  listSchedules(options?: {
-    namespace?: string;
-  }): Promise<TemporalScheduleListResponse>;
+  listSchedules(): Promise<TemporalScheduleListResponse>;
 
   /** Schedules that start the workflow types of an entity. */
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;

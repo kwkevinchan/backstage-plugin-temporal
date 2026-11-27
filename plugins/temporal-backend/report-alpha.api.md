@@ -26,6 +26,16 @@ export const createTemporalWorkflowConditionalDecision: (
 ) => ConditionalPolicyDecision;
 
 // @alpha
+export function inCondition(
+  field: string,
+  values: string[],
+  isValid: (value: string) => boolean,
+): string;
+
+// @alpha
+export function quote(value: string): string;
+
+// @alpha
 export interface TemporalAccessibleWorkflow {
   context?: TemporalEntityContext;
   matchedEntityRef?: string;

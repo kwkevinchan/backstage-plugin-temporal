@@ -352,18 +352,39 @@ runs that continued as new are left out, as in the run lists.
 
 The tab reads Temporal one page at a time: the numbers of a page come in one
 request to the backend (`POST /api/temporal/workflow-types/overview`, at most
-25 entities). For each entity the backend makes at most three visibility calls:
+25 entities). For each entity the backend makes at most three visibility calls
+(50 to 75 calls for an uncached page of 25 rows):
 one count grouped by status, one list of the 50 most recent runs, and, only when
 the failures of the 7 days are not among those runs, one list of the last
 failure. A server that cannot group (before Temporal 1.22) refuses the grouped
 count, and three counts without grouping follow: at most six calls. At most 4
-of these calls are in flight in a namespace, for all users together, each with the
-deadline of a list (15 seconds). The result is kept for 60 seconds by namespace
-and visibility query; the permission is checked on every request. When Temporal
+of these calls are in flight in a namespace, and at most
+`temporal.overview.maxVisibilityCallsPerSecond` (default `5`) calls start per
+second in a namespace, for all users together on each backend process. The
+calls wait in a queue, the one with the earliest deadline first, so the rows
+of the request that came first are served first. The 15 seconds of a list
+deadline are counted from the start of the row, and the queue time is part of
+them; a call that has started also has its own 15 seconds, so a row can take
+up to about 30 seconds. At the default rate an uncached page of 25 rows needs
+10 to 15 seconds to load (50 to 75 calls at 5 per second). Rows whose calls do
+not start within 15 seconds show `Temporal did not answer in time`, although
+no call to Temporal was made for them; the backend writes one warning for
+each request that has such rows. The result is kept for 60 seconds by
+namespace and visibility query; the permission is checked on every request.
+Concurrency, the rate limit and the cache are per backend process, so `N`
+replicas can start up to `N × maxVisibilityCallsPerSecond` calls per second.
+Temporal limits visibility calls by itself: `frontend.namespaceRPS.visibility`
+defaults to 10 per second for each frontend instance and namespace (burst
+ratio `frontend.namespaceBurstRatio.visibility` is 1), and
+`frontend.globalNamespaceRPS.visibility`, when set, is a limit for the whole
+cluster that replaces the per-instance one. Keep the sum of all callers of the
+namespace under it: lower `temporal.overview.maxVisibilityCallsPerSecond` in
+proportion to the number of replicas, or raise the Temporal settings. When Temporal
 rate limits the backend (`RESOURCE_EXHAUSTED`), the rows it refused show `—`
 with the reason and a retry button, the page says so, and nothing is retried on
 its own. Sorting by the latest run needs the numbers of every row, so it is
-offered for 50 workflows or fewer (two requests).
+offered for 50 workflows or fewer (two requests, up to 100 to 150 calls when
+uncached).
 
 ## Workflow details
 
@@ -444,8 +465,30 @@ which signal or update handler the workflow waits for.
 Limits: Temporal records only the last attempt of an activity and the
 failure of the attempt before it, so earlier attempts are not listed.
 Updates rejected by a validator are not written to the history. The backend
-reads at most 5000 events per run; the graph of a longer history shows its
-start and says so.
+reads at most 5000 events per run for the graph and for the records of model
+calls (`GET .../llm-calls/:eventId`); the graph of a longer history shows its
+start and says so. The backend does not cache these histories: every request
+reads them again. To bound that load, use Backstage's rate limit for the
+Temporal plugin only:
+
+```yaml
+backend:
+  rateLimit:
+    global: false
+    plugin:
+      temporal:
+        window: 1m
+        incomingRequestLimit: 300 # an example: choose it for your traffic
+```
+
+Do not set `backend.rateLimit: true`: that limits the whole Backstage backend
+with the defaults, 5 requests per minute for each IP address. The same
+defaults apply to `plugin.temporal` for a value you leave out
+(`window: 1m`, `incomingRequestLimit: 5`), which is too low for the pages of
+this plugin, so set both. The limit applies to every route of the Temporal
+plugin, not only to these two. It counts the requests of one IP address in
+the window, not the reads that run at the same time. Requests from
+`127.0.0.1` and `::1` are not counted (`ipAllowList`).
 
 The details page always shows one run: its address has the run ID
 (`…/namespaces/:namespace/workflows/:workflowId/runs/:runId`) and it stays on
@@ -552,6 +595,10 @@ Known limits:
 - a payload codec (for example encryption) encodes the inputs and results:
   the backend cannot read them, and the model calls are plain steps.
 - tool links of tools that record no tool call ID are inferred (above).
+  The backend infers links for at most 500 such tool requests in one model
+  call and 2000 in one run. When one model call asks for more than 500, or
+  the run has more than 2000, it infers none of them for the whole run: the
+  tool steps are plain steps.
 - the backend does not read payloads in External Storage. A model call
   whose result is stored there is drawn without its model and tokens, and
   its panel says where the record is. When only the input is stored there,
@@ -799,25 +846,26 @@ temporal:
     allowServiceWrites: false
 ```
 
-| Key                             | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `connection.address`            | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                                                                                                                                                                                                           |
-| `connection.namespaces`         | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                                                                                                                                                                                                 |
-| `connection.defaultNamespace`   | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                                                                                                                                                                                                        |
-| `connection.tls`                | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).                                                                                                                                                                                         |
-| `connection.auth.type`          | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                                                                                                                                                                                                      |
-| `connection.auth.token`         |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                                                                                                                                                                                               |
-| `webUi.baseUrl`                 |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                                                                                                                                                                                                |
-| `searchAttributes.entityRef`    |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                                                                                                                                                                                                 |
-| `searchAttributes.initiator`    |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                                                                                                                                                                                                          |
-| `control.enabled`               | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).                                                                                                                                                                                           |
-| `control.allowedSignals`        | (all)                | Signal names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
-| `control.allowedUpdates`        | (all)                | Update names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
-| `externalStorage.objectUrl`     |                      | Template of the link to a stored payload; `{bucket}` and `{key}` are replaced with the URL-encoded values. Only `https:` templates with a fixed trusted domain (at least two fixed domain labels after `{bucket}`/`{key}`) are used; templates using `{bucket}` as the host warn once in the console and produce no link. See [Large payloads](#large-payloads-external-storage). |
-| `definitions.allow`             | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration (otherwise startup logs a warning).                                                                                                        |
-| `definitions.maxBytes`          | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                                                                                                           |
-| `definitions.readFileLocations` | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |
-| `actions.allowServiceWrites`    | `false`              | Actions module: allow service principals (for example static `backend.auth.externalAccess` tokens) to call write actions (`start-workflow`, `signal-workflow`, `update-workflow`). Read actions remain available regardless of this setting.                                                                                                                                      |
+| Key                                    | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `connection.address`                   | (required)           | Temporal frontend service, `host:port`.                                                                                                                                                                                                                                                                                                                                           |
+| `connection.namespaces`                | `[defaultNamespace]` | Namespaces the plugin may read; `connection.defaultNamespace` is always added to the list. The UI uses one namespace per entity; the API takes it as a parameter.                                                                                                                                                                                                                 |
+| `connection.defaultNamespace`          | `default`            | Namespace of entities without `temporal.io/namespace` or `spec.namespace`.                                                                                                                                                                                                                                                                                                        |
+| `connection.tls`                       | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).                                                                                                                                                                                         |
+| `connection.auth.type`                 | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                                                                                                                                                                                                      |
+| `connection.auth.token`                |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                                                                                                                                                                                               |
+| `webUi.baseUrl`                        |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                                                                                                                                                                                                |
+| `searchAttributes.entityRef`           |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                                                                                                                                                                                                 |
+| `searchAttributes.initiator`           |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                                                                                                                                                                                                          |
+| `control.enabled`                      | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).                                                                                                                                                                                           |
+| `control.allowedSignals`               | (all)                | Signal names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
+| `control.allowedUpdates`               | (all)                | Update names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
+| `externalStorage.objectUrl`            |                      | Template of the link to a stored payload; `{bucket}` and `{key}` are replaced with the URL-encoded values. Only `https:` templates with a fixed trusted domain (at least two fixed domain labels after `{bucket}`/`{key}`) are used; templates using `{bucket}` as the host warn once in the console and produce no link. See [Large payloads](#large-payloads-external-storage). |
+| `overview.maxVisibilityCallsPerSecond` | `5`                  | Maximum visibility calls per second that `POST /api/temporal/workflow-types/overview` starts in each namespace, per backend process (with at most 4 in flight). Rows whose calls wait longer than 15 seconds show `Temporal did not answer in time`, as described for the Workflows tab.                                                                                          |
+| `definitions.allow`                    | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration (otherwise startup logs a warning).                                                                                                        |
+| `definitions.maxBytes`                 | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                                                                                                           |
+| `definitions.readFileLocations`        | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |
+| `actions.allowServiceWrites`           | `false`              | Actions module: allow service principals (for example static `backend.auth.externalAccess` tokens) to call write actions (`start-workflow`, `signal-workflow`, `update-workflow`). Read actions remain available regardless of this setting.                                                                                                                                      |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi`, `control` and `externalStorage.objectUrl`; the token stays in the
@@ -1379,7 +1427,11 @@ or updates with the actions of
 and let the user pick a workflow with the `TemporalWorkflowPicker` field of
 [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal).
 The actions run as the user who runs the template, through the plugin's own
-routes, so the same permissions and audit records apply. Other plugins can
+routes, so the same permissions and audit records apply. `start` and `signal`
+refuse a task that does not run as a user (for example one started with a
+static token) unless `temporal.scaffolder.allowServiceWrites` is `true`, since
+the permission framework does not apply the policy to service principals;
+`wait` only reads and accepts any initiator. Other plugins can
 do the same from the frontend with `temporalApiRef`.
 
 ## Extending
@@ -1623,10 +1675,12 @@ warning; it does not fail the lint.
     hosts** (at startup `DefinitionReader.fromConfig` logs a warning if an
     integration-backed entry omits `paths`). `format: source` displays any readable file within the allowed
     scope (the entity's repository/folder for relative targets, or the allowed
-    `host` and `paths` for absolute URLs) up to `maxBytes`. `file:` targets
-    (`definitions.readFileLocations: true`) are resolved with `path.resolve`
-    without resolving symlinks; keep `readFileLocations: false` outside local
-    development and avoid symlinks pointing outside catalog folders. HTTP
+    `host` and `paths` for absolute URLs) up to `maxBytes`.
+    `format: serverless-workflow` reads only `.yaml` and `.yml` files and
+    returns their text only when they are valid definitions. `file:` targets
+    (`definitions.readFileLocations: true`) must be regular files in the
+    folder of the entity file, also after symlinks are resolved; keep
+    `readFileLocations: false` outside local development. HTTP
     redirects are governed by Backstage's `UrlReader` rather than
     re-checking `temporal.definitions.allow` (`@backstage/backend-defaults@0.18.1`:
     `FetchUrlReader` validates up to 5 redirects against

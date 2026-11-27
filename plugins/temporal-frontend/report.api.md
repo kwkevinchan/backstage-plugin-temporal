@@ -135,9 +135,7 @@ export interface TemporalApi {
     },
   ): Promise<WorkflowListResponse>;
   // Warning: (ae-forgotten-export) The symbol "TemporalScheduleListResponse" needs to be exported by the entry point index.d.ts
-  listSchedules(options?: {
-    namespace?: string;
-  }): Promise<TemporalScheduleListResponse>;
+  listSchedules(): Promise<TemporalScheduleListResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point index.d.ts
   listWorkflowRuns(
     ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
@@ -318,9 +316,7 @@ export class TemporalClient implements TemporalApi {
     },
   ): Promise<WorkflowListResponse>;
   // (undocumented)
-  listSchedules(options?: {
-    namespace?: string;
-  }): Promise<TemporalScheduleListResponse>;
+  listSchedules(): Promise<TemporalScheduleListResponse>;
   // (undocumented)
   listWorkflowRuns(
     ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,

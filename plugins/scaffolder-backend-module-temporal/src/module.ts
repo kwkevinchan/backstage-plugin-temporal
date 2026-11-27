@@ -30,9 +30,12 @@ import {
 /**
  * Scaffolder module with the Temporal template actions:
  * `temporal:workflow:start`, `temporal:workflow:wait` and
- * `temporal:workflow:signal`. They call the Temporal backend plugin as the
- * user who runs the template; starting, signals and updates need its
- * operations (`temporal.control.enabled`, on by default).
+ * `temporal:workflow:signal`. They call the Temporal backend plugin with the
+ * credentials of the task's initiator; starting, signals and updates need its
+ * operations (`temporal.control.enabled`, on by default). `start` and
+ * `signal` refuse a task that does not run as a user, unless
+ * `temporal.scaffolder.allowServiceWrites` is true; `wait` only reads and
+ * accepts any initiator.
  *
  * @public
  */
@@ -51,6 +54,11 @@ export const scaffolderTemporalModule = createBackendModule({
       async init({ scaffolder, discovery, auth, config, catalog }) {
         const options = {
           client: new TemporalPluginClient(discovery, auth),
+          auth,
+          allowServiceWrites:
+            config.getOptionalBoolean(
+              'temporal.scaffolder.allowServiceWrites',
+            ) ?? false,
           catalog,
           appBaseUrl: config.getString('app.baseUrl'),
           // As the Temporal backend plugin reads it.

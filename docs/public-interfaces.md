@@ -72,7 +72,7 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 117, of which 103 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 117, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 28 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 117, of which 103 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 117, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
@@ -82,7 +82,7 @@ the tables below say what each name is for.
 | ------------------------------------ | ---------- | ----: | -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |     3 | `@public`                  | Installing the backend                                | [`report.api.md`](../plugins/temporal-backend/report.api.md)                       |
 |                                      | `./node`   |     8 | `@public`                  | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |    26 | `@alpha`                   | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./alpha`  |    28 | `@alpha`                   | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |   117 | `@public` 103, `@alpha` 14 | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |    25 | `@public`                  | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |     6 | `@alpha`                   | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
@@ -123,6 +123,7 @@ it from the package of your side. The entry points for modules (`./node`,
 | `temporalWorkflowPermissionResourceRef`, `TemporalWorkflowFilter`                                                                                                                         | `./alpha` | The `temporal-workflow` permission resource and what a rule turns into for lists                         | You add permission rules                                                      |
 | `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | The four rules of that resource                                                                          | You build conditions with other helpers                                       |
 | `temporalWorkflowConditions`, `createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | Conditions and conditional decisions for the list permission                                             | Your permission policy                                                        |
+| `inCondition`, `quote`                                                                                                                                                                    | `./alpha` | Build a condition of a visibility query from checked values; both refuse unsafe values                   | The `toQuery` of your permission rule                                         |
 
 ### `./common` (both core packages)
 
@@ -322,7 +323,9 @@ Tool calls are linked by the backend: a step whose adapter returns a
 `toolCallId` is linked to the model call that asked for that ID; other
 steps scheduled after the model call and before the next call of the agent
 are matched by the tool name and the arguments, and marked `inferred`
-(`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The graph gets names and
+(`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The backend infers links for at
+most 500 such tool requests in one model call and 2000 in one run; above
+either limit it infers none for the whole run. The graph gets names and
 numbers only (`WorkflowLlmSummary`, with the error type but not the error
 message); the records come from
 `GET /:wf/llm-calls/:eventId`, with the same permission. [Example](#add-an-llm-adapter).
@@ -598,7 +601,13 @@ running workflow, because later steps are unknown until they run). When
 for `/graph` and 1,000 events for `/progress`), so counts cover only the first
 events read. `GET /:wf/llm-calls/:eventId` uses the same 5,000-event limit and
 answers `404` explaining that the history was truncated when `eventId` lies
-beyond the events read.
+beyond the events read. Neither endpoint caches histories: every request reads
+them again. To bound the load, set a rate limit for the Temporal plugin only
+(`backend.rateLimit.global: false` and `backend.rateLimit.plugin.temporal` with
+`window` and `incomingRequestLimit`; see the [README](../README.md)). Do not set
+`backend.rateLimit: true`: it limits the whole backend, by default to 5
+requests per minute for each IP address. The limit counts the requests of one
+IP address in the window and applies to every route of the plugin.
 
 The run list of a workflow ID has the runs that continued as new. Its order
 is the one of Temporal's visibility store: the plugin asks for none (SQL
@@ -695,8 +704,11 @@ A module of the plugin adds rules with
 `coreServices.permissionsRegistry.addPermissionRules` and
 `temporalWorkflowPermissionResourceRef`; a rule's `toQuery` returns a
 `TemporalWorkflowFilter` (a visibility query, or `{ namespaces }` or
-`{ initiators }`). The permission of a custom action is a `catalog-entity`
-permission, usually one of these.
+`{ initiators }`). A string returned by `toQuery` is placed directly into the
+Temporal visibility query — always build it with `inCondition` and `quote`
+exported from `./alpha` instead of concatenating raw values (the plugin
+rejects empty strings, unclosed quotes, comments and unbalanced parentheses). The permission of a
+custom action is a `catalog-entity` permission, usually one of these.
 
 In the plugin's code, a standalone "query" is a Temporal Query (the
 operation that runs a query handler on a worker). Conditions used to search
@@ -729,6 +741,7 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `control.enabled`                                                            | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
 | `control.allowedSignals`, `control.allowedUpdates`                           | backend (rejects), frontend (offers)                                | yes                    |
 | `externalStorage.objectUrl`                                                  | frontend                                                            | yes                    |
+| `overview.maxVisibilityCallsPerSecond`                                       | backend (per process, default `5` calls/s per namespace)            |                        |
 | `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations` | Zigflow backend module                                              |                        |
 | `actions.allowServiceWrites`                                                 | Actions registry backend module                                     |                        |
 
@@ -935,8 +948,9 @@ in the [module README](../plugins/temporal-backend-module-actions/README.md).
 `entity-content:temporal/definition` in the new one). Always configure `paths`
 under `temporal.definitions.allow` on hosts with a Backstage integration so
 entity authors cannot reach arbitrary repositories readable by that integration;
-`format: source` returns any file in the allowed scope, `file:` checks use
-`path.resolve` without resolving symlinks, and HTTP redirects follow
+`format: source` returns any file in the allowed scope, `file:` targets must
+be regular files in the folder of the entity file after symlinks are
+resolved, and HTTP redirects follow
 Backstage's `UrlReader` rules rather than re-checking `temporal.definitions.allow`.
 The response of the
 route (`WorkflowDefinitionResponse`) is not exported: the two modules are

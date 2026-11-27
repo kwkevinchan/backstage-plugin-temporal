@@ -61,9 +61,11 @@ export interface WorkflowDefinitionTask {
 /**
  * Why a definition could not be shown.
  *
- * - `read`: the file could not be read (not found, host not allowed).
+ * - `read`: the file could not be read (not found, host or file type not
+ *   allowed).
  * - `tooLarge`: the file is larger than the limit.
- * - `parse`: the file is not valid YAML, or uses too many aliases.
+ * - `parse`: the file is not valid YAML, or uses too many aliases, is nested
+ *   too deeply or expands to too much data.
  * - `format`: the file is YAML, but not a workflow of the format.
  *
  * @public
@@ -97,7 +99,10 @@ export interface WorkflowDefinitionResponse {
   target: string;
   /** The URL the file was read from. */
   url?: string;
-  /** The text of the file; absent when it could not be read. */
+  /**
+   * The text of the file; absent when it could not be read, and for a
+   * `serverless-workflow` file with an error.
+   */
   content?: string;
   /** Size of the file in bytes. */
   size?: number;
