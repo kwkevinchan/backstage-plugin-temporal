@@ -53,6 +53,18 @@ export const RULES = [
     pattern: /\/mnt\/[a-z]\//g,
   },
   {
+    // `runner` is the CI user on GitHub-hosted Linux runners.
+    id: 'linux-home-path',
+    description: 'Linux home directory path',
+    pattern: /(?<![\w.-])\/home\/(?!runner\/)[^/\s'"`]+\//g,
+  },
+  {
+    // `Shared` is the macOS directory shared by all users.
+    id: 'macos-home-path',
+    description: 'macOS home directory path',
+    pattern: /(?<![\w.-])\/Users\/(?!Shared\/)[^/\s'"`]+\//g,
+  },
+  {
     id: 'private-key',
     description: 'Private key block',
     pattern: /-{5}BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-{5}/g,
@@ -110,7 +122,6 @@ export function parseDenylist(text) {
         description: 'Denylisted term',
         pattern: new RegExp(source, 'gi'),
         redact: true,
-        hidden: true,
       });
     }
   }

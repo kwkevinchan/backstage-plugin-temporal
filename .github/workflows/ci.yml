@@ -17,11 +17,11 @@ jobs:
     name: Boundaries and secrets
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24.x
 
@@ -57,27 +57,23 @@ jobs:
           node scripts/check-boundaries.mjs --range "$BASE_SHA..$HEAD_SHA"
 
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   verify:
-    name: Verify (Backstage ${{ matrix.backstage }})
+    # The Backstage main line pinned in backstage.json.
+    name: Verify (Backstage 1.56)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # The main line pinned in backstage.json.
-        backstage: ['1.56']
     env:
       CI: true
       NODE_OPTIONS: --max-old-space-size=8192
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24.x
 
@@ -85,7 +81,7 @@ jobs:
         run: corepack enable
 
       - name: Cache yarn
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -156,9 +152,9 @@ jobs:
 
       - name: Upload coverage report
         if: always() && steps.test.outputs.scope != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-${{ matrix.backstage }}-${{ steps.test.outputs.scope }}
+          name: coverage-1.56-${{ steps.test.outputs.scope }}
           path: coverage/
           if-no-files-found: ignore
           retention-days: 7
@@ -200,9 +196,9 @@ jobs:
       # The link to a stored payload; the payload test checks it.
       APP_CONFIG_temporal_externalStorage_objectUrl: 'https://s3-console.example.test/{bucket}?prefix={key}'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24.x
 
@@ -210,7 +206,7 @@ jobs:
         run: corepack enable
 
       - name: Cache yarn
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.yarn/berry/cache
           key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -221,10 +217,21 @@ jobs:
         env:
           HUSKY: 0
 
+      # A fixed release from the official repository. The checksum is the
+      # linux_amd64 entry of the release's checksums.txt.
       - name: Install Temporal CLI
+        env:
+          TEMPORAL_CLI_VERSION: 1.10.1
+          TEMPORAL_CLI_SHA256: 4c1500e2ce2d4de136e5fe8852d9b7f82eb62f19b6b383b3e0c040519a9d20b1
         run: |
-          curl -sSf https://temporal.download/cli.sh | sh
+          archive="temporal_cli_${TEMPORAL_CLI_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/temporalio/cli/releases/download/v${TEMPORAL_CLI_VERSION}/$archive"
+          echo "$TEMPORAL_CLI_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check -
+          mkdir -p "$HOME/.temporalio/bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$HOME/.temporalio/bin" temporal
           echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
+          "$HOME/.temporalio/bin/temporal" --version
 
       - name: Start Temporal development server
         run: |
@@ -326,7 +333,7 @@ jobs:
 
       - name: Upload screenshots and report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: smoke-${{ matrix.app }}
           path: |
