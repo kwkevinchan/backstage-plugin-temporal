@@ -934,8 +934,9 @@ in the [module README](../plugins/temporal-backend-module-actions/README.md).
 `entity-content:temporal/definition` in the new one). Always configure `paths`
 under `temporal.definitions.allow` on hosts with a Backstage integration so
 entity authors cannot reach arbitrary repositories readable by that integration;
-`format: source` returns any file in the allowed scope, `file:` checks use
-`path.resolve` without resolving symlinks, and HTTP redirects follow
+`format: source` returns any file in the allowed scope, `file:` targets must
+be regular files in the folder of the entity file after symlinks are
+resolved, and HTTP redirects follow
 Backstage's `UrlReader` rules rather than re-checking `temporal.definitions.allow`.
 The response of the
 route (`WorkflowDefinitionResponse`) is not exported: the two modules are

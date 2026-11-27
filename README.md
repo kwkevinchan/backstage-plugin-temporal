@@ -1627,10 +1627,12 @@ warning; it does not fail the lint.
     hosts** (at startup `DefinitionReader.fromConfig` logs a warning if an
     integration-backed entry omits `paths`). `format: source` displays any readable file within the allowed
     scope (the entity's repository/folder for relative targets, or the allowed
-    `host` and `paths` for absolute URLs) up to `maxBytes`. `file:` targets
-    (`definitions.readFileLocations: true`) are resolved with `path.resolve`
-    without resolving symlinks; keep `readFileLocations: false` outside local
-    development and avoid symlinks pointing outside catalog folders. HTTP
+    `host` and `paths` for absolute URLs) up to `maxBytes`.
+    `format: serverless-workflow` reads only `.yaml` and `.yml` files and
+    returns their text only when they are valid definitions. `file:` targets
+    (`definitions.readFileLocations: true`) must be regular files in the
+    folder of the entity file, also after symlinks are resolved; keep
+    `readFileLocations: false` outside local development. HTTP
     redirects are governed by Backstage's `UrlReader` rather than
     re-checking `temporal.definitions.allow` (`@backstage/backend-defaults@0.18.1`:
     `FetchUrlReader` validates up to 5 redirects against
