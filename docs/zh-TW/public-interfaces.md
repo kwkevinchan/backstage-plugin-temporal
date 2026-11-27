@@ -412,7 +412,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 | `IN_NAMESPACE`      | `inNamespace`     | `namespaces`    |
 | `IS_INITIATOR`      | `isInitiator`     | `claims`        |
 
-外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
+外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。**注意**：`toQuery` 回傳的字串會直接接進 Temporal visibility 查詢，請用 `./alpha` 匯出的 `inCondition` 和 `quote` 組字串，不要直接拼接未檢查的值（空字串、未閉合的引號、或括號不成對的字串都會被拒絕）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
 
 在外掛的程式裡，單獨出現的 query 指 Temporal 的 Query（由 worker 執行 query handler 的那個操作）。搜尋或列出流程用的條件一律叫 visibility 查詢或 filter，例如 `TemporalWorkflowFilter`、`buildEntityVisibilityQuery`。兩個例外：網址的查詢參數（`req.query`、`queryString`）沿用框架用語，權限規則的 `toQuery` 則是 Backstage 權限框架規定的名字。
 

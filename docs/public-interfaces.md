@@ -695,8 +695,11 @@ A module of the plugin adds rules with
 `coreServices.permissionsRegistry.addPermissionRules` and
 `temporalWorkflowPermissionResourceRef`; a rule's `toQuery` returns a
 `TemporalWorkflowFilter` (a visibility query, or `{ namespaces }` or
-`{ initiators }`). The permission of a custom action is a `catalog-entity`
-permission, usually one of these.
+`{ initiators }`). A string returned by `toQuery` is placed directly into the
+Temporal visibility query — always build it with `inCondition` and `quote`
+exported from `./alpha` instead of concatenating raw values (empty strings,
+unclosed quotes, and unbalanced parentheses are rejected). The permission of a
+custom action is a `catalog-entity` permission, usually one of these.
 
 In the plugin's code, a standalone "query" is a Temporal Query (the
 operation that runs a query handler on a worker). Conditions used to search

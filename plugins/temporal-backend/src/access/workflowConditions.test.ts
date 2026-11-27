@@ -305,4 +305,43 @@ describe('criteriaToVisibilityQuery', () => {
       'cannot be applied',
     );
   });
+
+  it('rejects empty and whitespace-only string queries', () => {
+    expect(() => criteriaToVisibilityQuery('', scope)).toThrow(
+      'empty visibility query',
+    );
+    expect(() => criteriaToVisibilityQuery('   \t\n ', scope)).toThrow(
+      'empty visibility query',
+    );
+    expect(() =>
+      criteriaToVisibilityQuery({ allOf: ["A = 'a'", '  '] }, scope),
+    ).toThrow('empty visibility query');
+  });
+
+  it('rejects unbalanced parentheses and unclosed quotes outside quoted literals', () => {
+    expect(() =>
+      criteriaToVisibilityQuery("A = 'a') OR (1 = 1", scope),
+    ).toThrow('unbalanced parentheses');
+    expect(() => criteriaToVisibilityQuery("(A = 'a'", scope)).toThrow(
+      'unbalanced parentheses',
+    );
+    expect(() => criteriaToVisibilityQuery("A = 'a')", scope)).toThrow(
+      'unbalanced parentheses',
+    );
+    expect(() => criteriaToVisibilityQuery("A = 'unterminated", scope)).toThrow(
+      'unclosed quote',
+    );
+  });
+
+  it('accepts valid string queries including parentheses inside quoted literals', () => {
+    expect(criteriaToVisibilityQuery("  WorkflowType = 'order'  ", scope)).toBe(
+      "WorkflowType = 'order'",
+    );
+    expect(
+      criteriaToVisibilityQuery(
+        "(WorkflowType = 'a' OR WorkflowId = 'x)y(z')",
+        scope,
+      ),
+    ).toBe("(WorkflowType = 'a' OR WorkflowId = 'x)y(z')");
+  });
 });
