@@ -20,7 +20,7 @@ backend:
     origin: http://localhost:3000
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
-  # Local development only; app-config.production.yaml uses PostgreSQL.
+  # Local development only.
   database:
     client: better-sqlite3
     connection: ':memory:'
