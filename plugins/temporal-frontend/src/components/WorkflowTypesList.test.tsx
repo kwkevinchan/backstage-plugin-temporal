@@ -316,108 +316,50 @@ describe('Workflows tab of the Temporal page', () => {
     );
   });
 
-  it('sorts by the latest run with 50 rows or fewer, after reading every row', async () => {
+  it('keeps the error of a request that failed and lets each row retry', async () => {
     const api = mockTemporalApi();
-    const entities = Array.from({ length: 30 }, (_, i) =>
+    api.getWorkflowTypeOverview.mockRejectedValueOnce(new Error('No backend'));
+    api.getWorkflowTypeOverview.mockImplementation(async refs => ({
+      items: refs.map(ref => overview(ref)),
+    }));
+    const catalog = mockCatalog([workflowEntity('orders')]);
+    await render({ api, catalog });
+    const table = await grid();
+    const failed = await within(table).findByTestId('overview-error');
+    expect(failed).toHaveAttribute('title', 'No backend');
+    expect(within(table).queryByTestId('overview-counts')).toBeNull();
+    expect(screen.getByTestId('temporal-error')).toHaveTextContent(
+      'No backend',
+    );
+    await userEvent.click(
+      within(table).getByRole('button', { name: 'Retry orders' }),
+    );
+    expect(
+      await within(table).findByTestId('overview-counts'),
+    ).toHaveTextContent('3 / 120 / 2');
+    expect(screen.queryByTestId('temporal-error')).toBeNull();
+  });
+
+  it('sorts by name only and pages the catalog, whatever the number of rows', async () => {
+    const api = mockTemporalApi();
+    const entities = Array.from({ length: 60 }, (_, i) =>
       workflowEntity(`type-${String(i).padStart(2, '0')}`),
     );
-    // type-07 ran last, type-00 first.
-    api.getWorkflowTypeOverview.mockImplementation(async refs => ({
-      items: refs.map(ref => {
-        const n = Number(ref.slice(-2));
-        const hour = String(n === 7 ? 23 : n % 20).padStart(2, '0');
-        return overview(ref, {
-          latestRun: {
-            namespace: 'default',
-            workflowId: `wf-${n}`,
-            runId: 'r',
-            status: 'Completed',
-            startTime: `2026-11-20T${hour}:00:00Z`,
-          },
-        });
-      }),
-    }));
     const catalog = mockCatalog(entities);
     await render({ api, catalog });
     await grid();
-    const header = screen.getByRole('columnheader', { name: 'Latest run' });
-    expect(header).toHaveAttribute('aria-sort', 'none');
-    await userEvent.click(header);
-    await waitFor(() =>
-      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
-        expect.objectContaining({ limit: 50 }),
-      ),
-    );
-    // Two batches of the backend's limit: 25, then 5.
-    await waitFor(() =>
-      expect(
-        api.getWorkflowTypeOverview.mock.calls.map(c => c[0].length),
-      ).toEqual([25, 5]),
-    );
-    const table = await grid();
-    await waitFor(() =>
-      expect(within(table).getAllByRole('row')).toHaveLength(26),
-    );
-    const firstRow = within(table).getAllByRole('row')[1];
-    expect(firstRow).toHaveTextContent('Title of type-00');
-    await userEvent.click(header);
-    await waitFor(() =>
-      expect(within(table).getAllByRole('row')[1]).toHaveTextContent(
-        'Title of type-07',
-      ),
-    );
-  }, 20_000);
-
-  it('goes back to the name order when the filters bring more than 50 rows', async () => {
-    const api = mockTemporalApi();
-    const few = [workflowEntity('few-0'), workflowEntity('few-1')];
-    const many = Array.from({ length: 51 }, (_, i) =>
-      workflowEntity(`many-${String(i).padStart(2, '0')}`),
-    );
-    const catalog = mockCatalog(few);
-    catalog.queryEntities.mockImplementation(async (request: any) => {
-      const entities = request.fullTextFilter ? many : few;
-      const start = request.cursor ? Number(request.cursor) : 0;
-      const next = start + request.limit;
-      return {
-        items: entities.slice(start, next),
-        totalItems: entities.length,
-        pageInfo: {
-          nextCursor: next < entities.length ? String(next) : undefined,
-        },
-      };
-    });
-    await render({ api, catalog });
-    await grid();
-    await userEvent.click(
+    expect(
       screen.getByRole('columnheader', { name: 'Latest run' }),
-    );
-    await waitFor(() =>
-      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
-        expect.objectContaining({ limit: 50 }),
-      ),
-    );
-    const search = screen.getByRole('searchbox', { name: 'Name' });
-    await userEvent.click(search);
-    await userEvent.paste('many');
-    await userEvent.keyboard('{Enter}');
-    // Back to pages of 25 by name, with a next page for the rest.
-    await waitFor(() =>
-      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          limit: 25,
-          orderFields: { field: 'metadata.name', order: 'asc' },
-          fullTextFilter: expect.objectContaining({ term: 'many' }),
-        }),
-      ),
-    );
-    await waitFor(() =>
-      expect(
-        screen.getByRole('columnheader', { name: 'Latest run' }),
-      ).not.toHaveAttribute('aria-sort'),
-    );
+    ).not.toHaveAttribute('aria-sort');
+    expect(
+      screen.getByRole('columnheader', { name: 'Workflow' }),
+    ).toHaveAttribute('aria-sort', 'ascending');
+    expect(screen.getByText('Latest run')).not.toHaveAttribute('title');
     expect(screen.getByRole('button', { name: 'Next page' })).toBeEnabled();
-  }, 20_000);
+    expect(catalog.queryEntities).toHaveBeenLastCalledWith(
+      expect.objectContaining({ limit: 25 }),
+    );
+  });
 
   it('adds the numbers in StrictMode', async () => {
     const api = mockTemporalApi();
@@ -433,24 +375,6 @@ describe('Workflows tab of the Temporal page', () => {
     expect(
       await within(table).findByTestId('overview-counts'),
     ).toHaveTextContent('3 / 120 / 2');
-  });
-
-  it('cannot sort by the latest run with more than 50 rows', async () => {
-    const api = mockTemporalApi();
-    const entities = Array.from({ length: 51 }, (_, i) =>
-      workflowEntity(`type-${i}`),
-    );
-    await render({ api, catalog: mockCatalog(entities) });
-    await grid();
-    await waitFor(() =>
-      expect(
-        screen.getByRole('columnheader', { name: 'Latest run' }),
-      ).not.toHaveAttribute('aria-sort'),
-    );
-    expect(screen.getByText('Latest run')).toHaveAttribute(
-      'title',
-      expect.stringContaining('50 workflows or fewer'),
-    );
   });
 
   it('opens the entity when a row is clicked', async () => {

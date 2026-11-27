@@ -18,7 +18,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { WorkflowProgressResponse, WorkflowSummary } from '../common';
 import { temporalApiRef } from '../extensions';
-import { Skeleton } from '@backstage/ui';
+import { ButtonIcon, Skeleton } from '@backstage/ui';
+import { RiRefreshLine } from '@remixicon/react';
 import { deadlineText } from './format';
 import { statusTone } from './WorkflowStatusLabel';
 import { tp } from './styles';
@@ -122,17 +123,34 @@ export function progressText(progress: WorkflowProgressResponse): string {
 /**
  * Progress of one run in a list. It is loaded only when the row is on
  * screen, with a few requests at a time; the backend caches closed runs.
+ * It is loaded again when `refreshToken` changes (the Refresh button of the
+ * list) and when the failed request is retried; a result of another run is
+ * never shown.
  */
 export function WorkflowProgress(props: {
   workflow: WorkflowSummary;
   entityRef?: string;
+  refreshToken?: number;
 }) {
-  const { workflow, entityRef } = props;
+  const { workflow, entityRef, refreshToken } = props;
   const temporalApi = useApi(temporalApiRef);
   const ref = useRef<HTMLDivElement>(null);
   const seen = useSeen(ref);
-  const [progress, setProgress] = useState<WorkflowProgressResponse>();
-  const [failed, setFailed] = useState(false);
+  const key = JSON.stringify([
+    workflow.namespace,
+    workflow.workflowId,
+    workflow.runId,
+    entityRef,
+  ]);
+  const [result, setResult] = useState<{
+    key: string;
+    progress?: WorkflowProgressResponse;
+    failed?: boolean;
+  }>();
+  const [attempt, setAttempt] = useState(0);
+  const current = result?.key === key ? result : undefined;
+  const progress = current?.progress;
+  const failed = current?.failed;
 
   useEffect(() => {
     if (!seen) return undefined;
@@ -148,8 +166,8 @@ export function WorkflowProgress(props: {
       ),
     );
     promise.then(
-      value => !cancelled && setProgress(value),
-      () => !cancelled && setFailed(true),
+      value => !cancelled && setResult({ key, progress: value }),
+      () => !cancelled && setResult({ key, failed: true }),
     );
     return () => {
       cancelled = true;
@@ -162,11 +180,28 @@ export function WorkflowProgress(props: {
     workflow.workflowId,
     workflow.runId,
     entityRef,
+    key,
+    refreshToken,
+    attempt,
   ]);
 
   let content;
   if (failed) {
-    content = <span className={tp('tp-progress-text')}>—</span>;
+    content = (
+      <div className={tp('tp-progress-failed')}>
+        <span className={tp('tp-progress-text')}>—</span>
+        <ButtonIcon
+          size="small"
+          variant="tertiary"
+          icon={<RiRefreshLine aria-hidden />}
+          aria-label="Retry progress"
+          onPress={() => {
+            setResult(undefined);
+            setAttempt(n => n + 1);
+          }}
+        />
+      </div>
+    );
   } else if (!progress) {
     content = <Skeleton width={120} height={12} />;
   } else {

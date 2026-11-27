@@ -86,26 +86,19 @@ import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /** Rows on one page of the Workflows tab. */
 export const WORKFLOW_TYPES_PAGE_SIZE = 25;
-/**
- * Most rows that can be sorted by the latest run: the numbers of every row
- * are loaded first, in batches of {@link MAX_WORKFLOW_TYPE_OVERVIEW_REFS}.
- */
-export const MAX_ROWS_SORTED_BY_LATEST_RUN = 50;
 /** Numbers older than this are read again when their row comes back. */
 const NUMBERS_MAX_AGE_MS = 60_000;
 
 export const COUNTS_HELP =
   'Running now / completed in the last 7 days / failed, timed out or terminated in the last 7 days. ' +
   "Approximate: Temporal's visibility store is eventually consistent, and the numbers are up to a minute old.";
-const LATEST_RUN_SORT_HELP = `Sorting by the latest run needs ${MAX_ROWS_SORTED_BY_LATEST_RUN} workflows or fewer: narrow the filters.`;
 
 const MINE = 'mine';
 const ALL = 'all';
 const ANY = 'any';
 
-type SortColumn = 'name' | 'latestRun';
 interface Sort {
-  column: SortColumn;
+  column: 'name';
   direction: 'ascending' | 'descending';
 }
 
@@ -117,8 +110,31 @@ const OPTIONAL_COLUMNS: { id: Optional; title: string }[] = [
   { id: 'tags', title: 'Tags' },
 ];
 
-/** The numbers of a row: loading, read (maybe with an error), or not readable. */
-type RowNumbers = WorkflowTypeOverview | 'loading' | 'missing';
+/** A request of numbers that failed as a whole, for each row it asked for. */
+interface RowFailure {
+  failure: { error: Error; at: number };
+}
+
+/**
+ * The numbers of a row: loading, read (maybe with an error of that row),
+ * not readable, or the whole request failed.
+ */
+type RowNumbers = WorkflowTypeOverview | RowFailure | 'loading' | 'missing';
+
+function isOverview(n: RowNumbers | undefined): n is WorkflowTypeOverview {
+  return typeof n === 'object' && 'entityRef' in n;
+}
+
+function isFailure(n: RowNumbers | undefined): n is RowFailure {
+  return typeof n === 'object' && 'failure' in n;
+}
+
+/** When the numbers of a row were read (ms), if they were. */
+function readAt(n: RowNumbers | undefined): number | undefined {
+  if (isOverview(n)) return Date.parse(n.updatedAt);
+  if (isFailure(n)) return n.failure.at;
+  return undefined;
+}
 
 const ENTITY_FIELDS = [
   'kind',
@@ -272,8 +288,6 @@ export function WorkflowTypesList() {
   const [columns, setColumns] = useState<Set<Optional>>(new Set());
   /** Cursors of the pages before the current one, and the current one. */
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
-  /** The page shown when every row is loaded (sorted by the latest run). */
-  const [localPage, setLocalPage] = useState(0);
 
   const facets = useAsync(
     () =>
@@ -291,12 +305,10 @@ export function WorkflowTypesList() {
     lifecycle,
     name,
   ]);
-  const byLatestRun = sort.column === 'latestRun';
   useEffect(() => {
     setCursors([undefined]);
-    setLocalPage(0);
-  }, [filterKey, sort.column, sort.direction]);
-  const cursor = byLatestRun ? undefined : cursors[cursors.length - 1];
+  }, [filterKey, sort.direction]);
+  const cursor = cursors[cursors.length - 1];
 
   const entities = useAsyncRetry(async () => {
     if (groups.loading) return undefined;
@@ -316,37 +328,19 @@ export function WorkflowTypesList() {
     if (lifecycle) filter['spec.lifecycle'] = lifecycle;
     return catalogApi.queryEntities({
       filter,
-      limit: byLatestRun
-        ? MAX_ROWS_SORTED_BY_LATEST_RUN
-        : WORKFLOW_TYPES_PAGE_SIZE,
+      limit: WORKFLOW_TYPES_PAGE_SIZE,
       orderFields: {
         field: 'metadata.name',
-        order: !byLatestRun && sort.direction === 'descending' ? 'desc' : 'asc',
+        order: sort.direction === 'descending' ? 'desc' : 'asc',
       },
       fullTextFilter: name
         ? { term: name, fields: ['metadata.name', 'metadata.title'] }
         : undefined,
       fields: ENTITY_FIELDS,
     });
-  }, [
-    catalogApi,
-    groups.loading,
-    filterKey,
-    byLatestRun,
-    sort.direction,
-    cursor,
-  ]);
+  }, [catalogApi, groups.loading, filterKey, sort.direction, cursor]);
 
   const loaded = useMemo(() => entities.value?.items ?? [], [entities.value]);
-  const totalItems = entities.value?.totalItems ?? 0;
-  const latestRunSortable = totalItems <= MAX_ROWS_SORTED_BY_LATEST_RUN;
-  // Filters that bring more rows than can be sorted by the latest run go
-  // back to the name order, or the rows past the limit would be missing.
-  const tooManyToSort =
-    byLatestRun && Boolean(entities.value) && !latestRunSortable;
-  useEffect(() => {
-    if (tooManyToSort) setSort({ column: 'name', direction: 'ascending' });
-  }, [tooManyToSort]);
 
   const [numbers, setNumbers] = useState<Record<string, RowNumbers>>({});
   const refsToRead = useMemo(
@@ -354,8 +348,6 @@ export function WorkflowTypesList() {
     [loaded],
   );
 
-  /** The error of the last request of numbers that failed as a whole. */
-  const [requestError, setRequestError] = useState<Error>();
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -376,31 +368,14 @@ export function WorkflowTypesList() {
           result = Object.fromEntries(
             batch.map(ref => [ref, byRef.get(ref) ?? 'missing']),
           );
-          if (mounted.current) setRequestError(undefined);
         } catch (error) {
-          if (mounted.current) {
-            setRequestError(
-              error instanceof Error ? error : new Error(String(error)),
-            );
-          }
-          const message =
-            error instanceof Error ? error.message : String(error);
-          const updatedAt = new Date().toISOString();
-          result = Object.fromEntries(
-            batch.map(ref => [
-              ref,
-              {
-                entityRef: ref,
-                running: 0,
-                completed: 0,
-                failed: 0,
-                windowDays: 7,
-                sampleSize: 0,
-                updatedAt,
-                error: { message },
-              },
-            ]),
-          );
+          const failure: RowFailure = {
+            failure: {
+              error: error instanceof Error ? error : new Error(String(error)),
+              at: Date.now(),
+            },
+          };
+          result = Object.fromEntries(batch.map(ref => [ref, failure]));
         }
         if (!mounted.current) return;
         setNumbers(current => ({ ...current, ...result }));
@@ -415,10 +390,7 @@ export function WorkflowTypesList() {
     const stale = Date.now() - NUMBERS_MAX_AGE_MS;
     const missing = refsToRead.filter(ref => {
       const n = numbers[ref];
-      return (
-        n === undefined ||
-        (typeof n === 'object' && Date.parse(n.updatedAt) < stale)
-      );
+      return n === undefined || (readAt(n) ?? Infinity) < stale;
     });
     if (missing.length === 0) return;
     setNumbers(current => ({
@@ -439,39 +411,16 @@ export function WorkflowTypesList() {
   const readable = loaded.filter(
     e => numbers[stringifyEntityRef(e)] !== 'missing',
   );
-  const allRead = readable.every(e => {
-    const n = numbers[stringifyEntityRef(e)];
-    return n !== undefined && n !== 'loading';
-  });
-  let rows = readable;
-  if (byLatestRun) {
-    const startOf = (e: Entity) => {
-      const n = numbers[stringifyEntityRef(e)];
-      const time =
-        typeof n === 'object' && n.latestRun?.startTime
-          ? Date.parse(n.latestRun.startTime)
-          : NaN;
-      return Number.isFinite(time) ? time : undefined;
-    };
-    const sign = sort.direction === 'ascending' ? 1 : -1;
-    rows = [...readable].sort((a, b) => {
-      const ta = startOf(a);
-      const tb = startOf(b);
-      if (ta === undefined || tb === undefined) {
-        // Rows without a run go last either way.
-        return (ta === undefined ? 1 : 0) - (tb === undefined ? 1 : 0);
-      }
-      return (ta - tb) * sign;
-    });
-    rows = rows.slice(
-      localPage * WORKFLOW_TYPES_PAGE_SIZE,
-      (localPage + 1) * WORKFLOW_TYPES_PAGE_SIZE,
-    );
-  }
+  const rows = readable;
 
   const shown = rows
     .map(e => numbers[stringifyEntityRef(e)])
-    .filter((n): n is WorkflowTypeOverview => typeof n === 'object');
+    .filter(isOverview);
+  // The error of the first row whose request failed as a whole; a later
+  // batch that works does not hide it.
+  const requestError = rows
+    .map(e => numbers[stringifyEntityRef(e)])
+    .find(isFailure)?.failure.error;
   const rateLimited = shown.some(n => n.error?.rateLimited);
   const oldest = shown
     .filter(n => !n.error)
@@ -493,7 +442,7 @@ export function WorkflowTypesList() {
     if (numbersOf === undefined || numbersOf === 'loading') {
       return <Skeleton width={width} height={12} />;
     }
-    if (numbersOf === 'missing') return null;
+    if (numbersOf === 'missing' || isFailure(numbersOf)) return null;
     if (numbersOf.error) return null;
     return render(numbersOf);
   };
@@ -550,10 +499,13 @@ export function WorkflowTypesList() {
       help: COUNTS_HELP,
       cell: (entity, n) => {
         const ref = stringifyEntityRef(entity);
-        if (typeof n === 'object' && n.error) {
+        const rowError = isFailure(n)
+          ? n.failure.error.message
+          : isOverview(n) && n.error?.message;
+        if (rowError) {
           return (
             <Flex align="center" gap="1">
-              <span title={n.error.message} data-testid="overview-error">
+              <span title={rowError} data-testid="overview-error">
                 —
               </span>
               <Inner>
@@ -574,8 +526,6 @@ export function WorkflowTypesList() {
     {
       id: 'latestRun',
       title: 'Latest run',
-      help: latestRunSortable ? undefined : LATEST_RUN_SORT_HELP,
-      sortable: latestRunSortable,
       cell: (_entity, n) =>
         numbersCell(n, o =>
           o.latestRun ? (
@@ -752,12 +702,7 @@ export function WorkflowTypesList() {
     </Flex>
   );
 
-  const pageCount = Math.max(
-    1,
-    Math.ceil(readable.length / WORKFLOW_TYPES_PAGE_SIZE),
-  );
-  const pending =
-    groups.loading || entities.loading || (byLatestRun && !allRead);
+  const pending = groups.loading || entities.loading;
 
   return (
     <PanelCard
@@ -813,7 +758,7 @@ export function WorkflowTypesList() {
             sortDescriptor={sort}
             onSortChange={descriptor =>
               setSort({
-                column: descriptor.column as SortColumn,
+                column: 'name',
                 direction: descriptor.direction,
               })
             }
@@ -832,7 +777,7 @@ export function WorkflowTypesList() {
               )}
             </TableHeader>
             <TableBody
-              items={(byLatestRun && !allRead ? [] : rows).map(entity => ({
+              items={rows.map(entity => ({
                 id: stringifyEntityRef(entity),
                 entity,
               }))}
@@ -861,28 +806,17 @@ export function WorkflowTypesList() {
           </TableRoot>
         </div>
       )}
-      {byLatestRun ? (
-        <Pager
-          page={localPage + 1}
-          hasPrevious={localPage > 0}
-          hasNext={localPage + 1 < pageCount}
-          disabled={pending}
-          onPrevious={() => setLocalPage(p => Math.max(0, p - 1))}
-          onNext={() => setLocalPage(p => p + 1)}
-        />
-      ) : (
-        <Pager
-          page={cursors.length}
-          hasPrevious={cursors.length > 1}
-          hasNext={Boolean(entities.value?.pageInfo.nextCursor)}
-          disabled={pending}
-          onPrevious={() => setCursors(c => c.slice(0, -1))}
-          onNext={() => {
-            const next = entities.value?.pageInfo.nextCursor;
-            if (next) setCursors(c => [...c, next]);
-          }}
-        />
-      )}
+      <Pager
+        page={cursors.length}
+        hasPrevious={cursors.length > 1}
+        hasNext={Boolean(entities.value?.pageInfo.nextCursor)}
+        disabled={pending}
+        onPrevious={() => setCursors(c => c.slice(0, -1))}
+        onNext={() => {
+          const next = entities.value?.pageInfo.nextCursor;
+          if (next) setCursors(c => [...c, next]);
+        }}
+      />
     </PanelCard>
   );
 }

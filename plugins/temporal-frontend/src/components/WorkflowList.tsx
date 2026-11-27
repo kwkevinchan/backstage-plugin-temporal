@@ -156,6 +156,7 @@ export function WorkflowList(props: {
           <WorkflowRunsTable
             label="Workflow executions"
             items={value?.items ?? []}
+            refreshToken={refresh.count}
             entityRef={entityRef}
             hideType={isWorkflowTypeEntity}
             pending={loading}

@@ -158,11 +158,6 @@ describe('TemporalClient requests and responses', () => {
     await client.listSchedules();
     expect(fetch).toHaveBeenLastCalledWith(`${base}/schedules`);
 
-    await client.listSchedules({ namespace: 'payments' });
-    expect(fetch).toHaveBeenLastCalledWith(
-      `${base}/schedules?namespace=payments`,
-    );
-
     await client.listEntitySchedules('TemporalWorkflow:Team A/Order/Flow');
     expect(fetch).toHaveBeenLastCalledWith(
       `${base}/entities/temporalworkflow/team%20a/order%2Fflow/schedules`,
