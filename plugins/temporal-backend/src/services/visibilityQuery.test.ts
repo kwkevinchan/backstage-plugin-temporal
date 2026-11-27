@@ -22,9 +22,11 @@ import {
 import {
   buildEntityVisibilityQuery,
   buildNamespaceVisibilityQuery,
+  inCondition,
   matchedWorkflowEntity,
   matchingWorkflowEntity,
   parseStatus,
+  quote,
   scheduleBelongsToSources,
   workflowBelongsToEntity,
   workflowIdCondition,
@@ -70,6 +72,15 @@ describe('buildEntityVisibilityQuery', () => {
     ).toBe(
       "((WorkflowType = 'orderWorkflow') OR (BackstageEntityRef = 'component:default/orders')) AND ExecutionStatus = 'Failed'",
     );
+  });
+
+  it('refuses an empty permission filter', () => {
+    expect(() =>
+      buildNamespaceVisibilityQuery({ permissionFilter: '' }),
+    ).toThrow('empty visibility query');
+    expect(() =>
+      buildNamespaceVisibilityQuery({ permissionFilter: '  ' }),
+    ).toThrow('empty visibility query');
   });
 
   it('lists only the latest run of a workflow that continues as new', () => {
@@ -448,4 +459,36 @@ describe('workflowIdCondition', () => {
   ])('refuses an ID with %s, asking for the run ID', (_name, id) => {
     expect(() => workflowIdCondition(id)).toThrow(/open the run by its run ID/);
   });
+});
+
+describe('inCondition and quote', () => {
+  const valid = (value: string) => /^[a-z]+$/.test(value);
+
+  it('builds an equality or an IN list from checked values', () => {
+    expect(inCondition('WorkflowType', ['a'], valid)).toBe(
+      "WorkflowType = 'a'",
+    );
+    expect(inCondition('WorkflowType', ['a', 'b'], valid)).toBe(
+      "WorkflowType IN ('a', 'b')",
+    );
+  });
+
+  it('refuses an empty list of values', () => {
+    expect(() => inCondition('WorkflowType', [], valid)).toThrow(
+      'No values for WorkflowType',
+    );
+  });
+
+  it('refuses a value that the check does not accept', () => {
+    expect(() => inCondition('WorkflowType', ['a', 'B'], valid)).toThrow(
+      'Invalid value for WorkflowType',
+    );
+  });
+
+  it.each(["a'b", 'a"b', 'a\\b', 'a b', 'a(b', 'a)b', 'a\nb'])(
+    'quote refuses %j',
+    value => {
+      expect(() => quote(value)).toThrow('not allowed');
+    },
+  );
 });

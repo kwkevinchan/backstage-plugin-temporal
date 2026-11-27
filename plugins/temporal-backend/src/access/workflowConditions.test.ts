@@ -47,6 +47,16 @@ const isOrderWorkflow = createPermissionRule({
   toQuery: () => "WorkflowType = 'orderWorkflow'",
 });
 
+/** A rule whose query hides brackets in comments, to leave the surrounding AND. */
+const commentBypass = createPermissionRule({
+  name: 'COMMENT_BYPASS',
+  description: 'A query that closes the bracket of the plugin',
+  resourceRef: temporalWorkflowPermissionResourceRef,
+  apply: () => true,
+  toQuery: () =>
+    "WorkflowType = 'a' /*(*/) OR (ExecutionStatus = 'Running' /*)*/",
+});
+
 const rulesModule = createBackendModule({
   pluginId: 'temporal',
   moduleId: 'test-rules',
@@ -54,7 +64,7 @@ const rulesModule = createBackendModule({
     reg.registerInit({
       deps: { registry: coreServices.permissionsRegistry },
       async init({ registry }) {
-        registry.addPermissionRules([isOrderWorkflow]);
+        registry.addPermissionRules([isOrderWorkflow, commentBypass]);
       },
     });
   },
@@ -137,6 +147,15 @@ describe('conditional temporal-workflow decisions', () => {
     const { server } = await start(condition('NO_SUCH_RULE'));
     const res = await request(server).get('/api/temporal/workflows');
     expect(res.status).toBe(403);
+  });
+
+  it('answers a condition with an unsafe query with 403 and lists nothing', async () => {
+    const { server, workflowService } = await start(
+      condition('COMMENT_BYPASS'),
+    );
+    const res = await request(server).get('/api/temporal/workflows');
+    expect(res.status).toBe(403);
+    expect(workflowService.listWorkflowExecutions).not.toHaveBeenCalled();
   });
 
   it('refuses a not condition for the list', async () => {
@@ -304,5 +323,82 @@ describe('criteriaToVisibilityQuery', () => {
     expect(() => criteriaToVisibilityQuery({ not: "A = 'a'" }, scope)).toThrow(
       'cannot be applied',
     );
+  });
+
+  it('rejects empty and whitespace-only string queries', () => {
+    expect(() => criteriaToVisibilityQuery('', scope)).toThrow(
+      'empty visibility query',
+    );
+    expect(() => criteriaToVisibilityQuery('   \t\n ', scope)).toThrow(
+      'empty visibility query',
+    );
+    expect(() =>
+      criteriaToVisibilityQuery({ allOf: ["A = 'a'", '  '] }, scope),
+    ).toThrow('empty visibility query');
+  });
+
+  it('rejects unbalanced parentheses and unclosed quotes outside quoted literals', () => {
+    expect(() =>
+      criteriaToVisibilityQuery("A = 'a') OR (1 = 1", scope),
+    ).toThrow('unbalanced parentheses');
+    expect(() => criteriaToVisibilityQuery("(A = 'a'", scope)).toThrow(
+      'unbalanced parentheses',
+    );
+    expect(() => criteriaToVisibilityQuery("A = 'a')", scope)).toThrow(
+      'unbalanced parentheses',
+    );
+    expect(() => criteriaToVisibilityQuery("A = 'unterminated", scope)).toThrow(
+      'unclosed quote',
+    );
+  });
+
+  it('accepts valid string queries including parentheses inside quoted literals', () => {
+    expect(criteriaToVisibilityQuery("  WorkflowType = 'order'  ", scope)).toBe(
+      "WorkflowType = 'order'",
+    );
+    expect(
+      criteriaToVisibilityQuery(
+        "(WorkflowType = 'a' OR WorkflowId = 'x)y(z')",
+        scope,
+      ),
+    ).toBe("(WorkflowType = 'a' OR WorkflowId = 'x)y(z')");
+  });
+
+  it('rejects comments outside quotes', () => {
+    const bypasses = [
+      "WorkflowType = 'a' /*(*/) OR (ExecutionStatus = 'Running' /*)*/",
+      "WorkflowType = 'a' /*'*/) OR (ExecutionStatus = 'Running' /*'*/",
+      "WorkflowType = 'a' -- )\n",
+      "WorkflowType = 'a' # )",
+      "WorkflowType = 'a' // )",
+      "WorkflowType = 'a' /* never closed",
+    ];
+    for (const query of bypasses) {
+      expect(() => criteriaToVisibilityQuery(query, scope)).toThrow('comment');
+    }
+  });
+
+  it('accepts comment characters inside quoted literals and identifiers', () => {
+    const queries = [
+      "WorkflowId = 'a--b'",
+      "WorkflowId = 'a#b' AND WorkflowType = 'x//y'",
+      'WorkflowId = "/*(*/"',
+      "WorkflowId = 'it''s (x'",
+      'WorkflowId = "a"")"',
+      "`My(Attr` = 'x'",
+      "`a--b` = 'x'",
+    ];
+    for (const query of queries) {
+      expect(criteriaToVisibilityQuery(query, scope)).toBe(query);
+    }
+  });
+
+  it('rejects a bracket that a quote escape does not hide', () => {
+    expect(() =>
+      criteriaToVisibilityQuery("WorkflowId = 'a\\') OR (1 = 1", scope),
+    ).toThrow('unclosed quote');
+    expect(() =>
+      criteriaToVisibilityQuery("`a` = 'x') OR (`b` = 'y'", scope),
+    ).toThrow('unbalanced parentheses');
   });
 });

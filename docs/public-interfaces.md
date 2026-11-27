@@ -72,7 +72,7 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 26 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 117, of which 103 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 117, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 28 alpha (report-alpha.api.md), ./node 8 public (report-node.api.md), ./common 117, of which 103 public and 14 experimental alpha (report-common.api.md). temporal-frontend: . 25 public, ./alpha 6 alpha, ./common the same 117, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
@@ -82,7 +82,7 @@ the tables below say what each name is for.
 | ------------------------------------ | ---------- | ----: | -------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |     3 | `@public`                  | Installing the backend                                | [`report.api.md`](../plugins/temporal-backend/report.api.md)                       |
 |                                      | `./node`   |     8 | `@public`                  | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |    26 | `@alpha`                   | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./alpha`  |    28 | `@alpha`                   | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |   117 | `@public` 103, `@alpha` 14 | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |    25 | `@public`                  | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |     6 | `@alpha`                   | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
@@ -123,6 +123,7 @@ it from the package of your side. The entry points for modules (`./node`,
 | `temporalWorkflowPermissionResourceRef`, `TemporalWorkflowFilter`                                                                                                                         | `./alpha` | The `temporal-workflow` permission resource and what a rule turns into for lists                         | You add permission rules                                                      |
 | `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | The four rules of that resource                                                                          | You build conditions with other helpers                                       |
 | `temporalWorkflowConditions`, `createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | Conditions and conditional decisions for the list permission                                             | Your permission policy                                                        |
+| `inCondition`, `quote`                                                                                                                                                                    | `./alpha` | Build a condition of a visibility query from checked values; both refuse unsafe values                   | The `toQuery` of your permission rule                                         |
 
 ### `./common` (both core packages)
 
@@ -695,8 +696,11 @@ A module of the plugin adds rules with
 `coreServices.permissionsRegistry.addPermissionRules` and
 `temporalWorkflowPermissionResourceRef`; a rule's `toQuery` returns a
 `TemporalWorkflowFilter` (a visibility query, or `{ namespaces }` or
-`{ initiators }`). The permission of a custom action is a `catalog-entity`
-permission, usually one of these.
+`{ initiators }`). A string returned by `toQuery` is placed directly into the
+Temporal visibility query — always build it with `inCondition` and `quote`
+exported from `./alpha` instead of concatenating raw values (the plugin
+rejects empty strings, unclosed quotes, comments and unbalanced parentheses). The permission of a
+custom action is a `catalog-entity` permission, usually one of these.
 
 In the plugin's code, a standalone "query" is a Temporal Query (the
 operation that runs a query handler on a worker). Conditions used to search
