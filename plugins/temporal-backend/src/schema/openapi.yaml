@@ -1115,6 +1115,31 @@ components:
             - 'null'
           description: The arguments of the message, sent as JSON payloads. `null` is treated as if `args` was omitted.
           items: {}
+    WorkflowUpdateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '^.*\S.*$'
+          description: The update name; it is trimmed, and cannot be blank.
+        args:
+          type:
+            - array
+            - 'null'
+          description: The arguments of the update, sent as JSON payloads. `null` is treated as if `args` was omitted.
+          items: {}
+        updateId:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 200
+          pattern: '^.*\S.*$'
+          description: The ID of the update; it is trimmed. Sending the same ID again, for example after the request timed out, does not run the update a second time. The backend makes an ID when there is none. `null` is treated as if `updateId` was omitted.
     WorkflowMessageResponse:
       type: object
       properties:
@@ -2093,7 +2118,7 @@ paths:
       operationId: updateWorkflowRun
       summary: Send an update to the workflow's execution chain and wait for its result
       description: |-
-        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the chain has ended or the workflow ID now belongs to a different chain; when the Temporal server does not report the chain ID, the request is locked to the opened run; 503 when the update does not finish in time.
+        Operates on the execution chain of the opened run (passing `firstExecutionRunId` without `runId` to Temporal), targeting whichever run in the chain is currently running. The name must be allowed by `temporal.control.allowedUpdates` when it is set. 409 when the chain has ended or the workflow ID now belongs to a different chain; when the Temporal server does not report the chain ID, the request is locked to the opened run; 503 when the update does not finish in time. With `updateId`, sending the same request again after a timeout does not run the update a second time.
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given. Then `temporal.workflow.update` on the opened run's entity (assuming runs in a chain belong to the same entity; for a workflow without one, the permission must be allowed without conditions).
 
@@ -2115,7 +2140,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/WorkflowMessageRequest'
+              $ref: '#/components/schemas/WorkflowUpdateRequest'
       responses:
         '200':
           description: OK

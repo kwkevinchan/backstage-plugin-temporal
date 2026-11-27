@@ -147,7 +147,8 @@ unless the list permission allows every workflow; a caller that no
 permission could allow gets 403.
 
 Bodies are JSON: `{ name, args }` for signal, update and query (`args` is
-the list of arguments), `{ reason }` for terminate, `{ workflowId? }` for
+the list of arguments; an update also takes an optional `updateId`, and the
+same ID sent again does not run the update a second time), `{ reason }` for terminate, `{ workflowId? }` for
 rerun, `{ workflowType?, taskQueue?, args?, workflowId? }` for start (plus
 `namespace` on `/workflows`). Update, query and actions answer `{ result }`;
 start and rerun answer the new `{ namespace, workflowId, runId }`. Signal

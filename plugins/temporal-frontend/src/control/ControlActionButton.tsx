@@ -34,12 +34,10 @@ import {
   ControlError,
   controlError,
   ControlErrorAlert,
-  useControlPermission,
-  WithReason,
+  PermissionButton,
 } from '../components/messages/shared';
 import { JsonView } from '../components/PayloadView';
 import { tp } from '../components/styles';
-import type { WorkflowDetail } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
 import { useControlEnabled } from './config';
 
@@ -58,8 +56,6 @@ export interface TemporalControlActionButtonOptions {
   label: string;
   /** When set, the page asks for confirmation with this text first. */
   confirm?: string;
-  /** The JSON body sent to the action. Defaults to no body. */
-  body?: (workflow: WorkflowDetail) => JsonValue | undefined;
   /**
    * The permission of the backend action. When set, the button is disabled
    * for users who do not have it on the workflow's entity.
@@ -68,30 +64,6 @@ export interface TemporalControlActionButtonOptions {
 }
 
 type Outcome = { result?: JsonValue } | { error: ControlError };
-
-function PermissionGate(props: {
-  permission: ResourcePermission<'catalog-entity'>;
-  resourceRef?: string;
-  additionalResourceRef?: string;
-  children(allowed: boolean): JSX.Element;
-}) {
-  const { allowed, loading } = useControlPermission(
-    props.permission,
-    props.resourceRef,
-    props.additionalResourceRef,
-  );
-  return (
-    <WithReason
-      reason={
-        !allowed && !loading
-          ? `You do not have permission for this action (${props.permission.name})`
-          : undefined
-      }
-    >
-      {props.children(allowed)}
-    </WithReason>
-  );
-}
 
 /**
  * A button that runs a custom action of the backend and shows its result.
@@ -119,7 +91,7 @@ function ControlActionButtonContent(
           runId: workflow.runId,
         },
         action.actionId,
-        action.body?.(workflow),
+        undefined,
         { entityRef },
       );
       setOutcome({ result: response.result });
@@ -132,29 +104,25 @@ function ControlActionButtonContent(
     }
   };
 
-  const button = (allowed: boolean) => (
-    <Button
-      variant="secondary"
-      isPending={pending}
-      isDisabled={!allowed}
-      onPress={() => (action.confirm ? setConfirming(true) : run())}
-    >
-      {action.label}
-    </Button>
-  );
+  const press = () => (action.confirm ? setConfirming(true) : run());
 
   return (
     <>
       {action.permission ? (
-        <PermissionGate
+        <PermissionButton
+          label={action.label}
+          action="run"
+          noun="this action"
           permission={action.permission}
           resourceRef={entityRef ?? workflow.entityRef}
           additionalResourceRef={workflow.workflowEntityRef}
-        >
-          {button}
-        </PermissionGate>
+          isPending={pending}
+          onPress={press}
+        />
       ) : (
-        button(true)
+        <Button variant="secondary" isPending={pending} onPress={press}>
+          {action.label}
+        </Button>
       )}
       {confirming && (
         <Dialog isOpen onOpenChange={open => !open && setConfirming(false)}>

@@ -111,6 +111,9 @@ function createControlWorkflowService(
                 indexedFields: {
                   BackstageEntityRef: json('component:default/orders'),
                   BackstageInitiator: json('user:default/someone'),
+                  TemporalScheduledById: json('nightly'),
+                  TemporalScheduledStartTime: json('2026-01-01T00:00:00Z'),
+                  TemporalChangeVersion: json(['patch-1']),
                 },
               },
             },
@@ -369,6 +372,64 @@ describe('workflow controls', () => {
       .post(`${wf}/update${withEntity}`)
       .send({ name: 'setPriority' });
     expect(res.body).toEqual({ result: 7 });
+  });
+
+  it('sends the update ID of the request and polls with it', async () => {
+    const { server, workflowService } = await start();
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({} as any);
+    workflowService.pollWorkflowExecutionUpdate.mockResolvedValueOnce({
+      outcome: { success: { payloads: [json(1)] } },
+    } as any);
+    await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority', updateId: ' retry-1 ' })
+      .expect(200);
+    expect(
+      workflowService.updateWorkflowExecution.mock.calls[0][0].request.meta
+        .updateId,
+    ).toBe('retry-1');
+    expect(
+      workflowService.pollWorkflowExecutionUpdate.mock.calls[0][0].updateRef
+        .updateId,
+    ).toBe('retry-1');
+  });
+
+  it('makes an update ID when the request has none', async () => {
+    const { server, workflowService } = await start();
+    await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority', updateId: null })
+      .expect(200);
+    expect(
+      workflowService.updateWorkflowExecution.mock.calls[0][0].request.meta
+        .updateId,
+    ).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it.each([[''], ['   '], [7], ['x'.repeat(201)]])(
+    'answers 400 for the update ID %p',
+    async updateId => {
+      const { server, workflowService } = await start();
+      const res = await request(server)
+        .post(`${wf}/update${withEntity}`)
+        .send({ name: 'setPriority', updateId });
+      expect(res.status).toBe(400);
+      expect(workflowService.updateWorkflowExecution).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers 409 when the chain has ended while an update is polled', async () => {
+    const { server, workflowService } = await start();
+    workflowService.updateWorkflowExecution.mockResolvedValueOnce({} as any);
+    workflowService.pollWorkflowExecutionUpdate.mockRejectedValueOnce(
+      Object.assign(new Error('workflow execution already completed'), {
+        code: 5,
+      }),
+    );
+    const res = await request(server)
+      .post(`${wf}/update${withEntity}`)
+      .send({ name: 'setPriority' });
+    expect(res.status).toBe(409);
   });
 
   it('polls a chain update against the run ID returned by Temporal', async () => {
@@ -675,7 +736,7 @@ describe('workflow controls', () => {
     }
   });
 
-  it('does not map a missing update during polling to another chain', async () => {
+  it('answers 409 for a missing update during polling, like the update call', async () => {
     const { server, workflowService } = await start();
     workflowService.updateWorkflowExecution.mockResolvedValueOnce({
       updateRef: {
@@ -689,8 +750,7 @@ describe('workflow controls', () => {
     const res = await request(server)
       .post(`${wf}/update${withEntity}`)
       .send({ name: 'setPriority' });
-    expect(res.status).toBe(404);
-    expect(res.body.error.message).not.toMatch(/different execution chain/);
+    expect(res.status).toBe(409);
   });
 
   it('answers 409 for a rerun of a run that is still running', async () => {
@@ -728,6 +788,33 @@ describe('workflow controls', () => {
     expect(decode(call.searchAttributes.indexedFields.BackstageInitiator)).toBe(
       'user:default/mock',
     );
+  });
+
+  it('does not copy the search attributes of Temporal to a rerun', async () => {
+    const { server, workflowService } = await start({ status: 'FAILED' });
+    await request(server).post(`${wf}/rerun${withEntity}`).send({}).expect(201);
+    const { indexedFields } =
+      workflowService.startWorkflowExecution.mock.calls[0][0].searchAttributes;
+    expect(Object.keys(indexedFields).sort()).toEqual([
+      'BackstageEntityRef',
+      'BackstageInitiator',
+    ]);
+  });
+
+  it('keeps the ID of a rerun within 1000 characters and its -rerun mark', async () => {
+    const { server, workflowService } = await start({ status: 'FAILED' });
+    const longId = 'w'.repeat(995);
+    const res = await request(server)
+      .post(
+        `/api/temporal/namespaces/default/workflows/${longId}/runs/run-1/rerun${withEntity}`,
+      )
+      .send({})
+      .expect(201);
+    expect(res.body.workflowId).toHaveLength(1000);
+    expect(res.body.workflowId).toMatch(/^w+-rerun-[a-z0-9]+$/);
+    expect(
+      workflowService.startWorkflowExecution.mock.calls[0][0].workflowId,
+    ).toBe(res.body.workflowId);
   });
 
   it('starts a workflow of a TemporalWorkflow entity with its spec', async () => {

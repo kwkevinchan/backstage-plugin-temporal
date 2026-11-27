@@ -34,8 +34,7 @@ import {
   controlError,
   JsonArgsField,
   parseArgs,
-  useControlPermission,
-  WithReason,
+  PermissionButton,
 } from '../components/messages/shared';
 import { ErrorAlert } from '../components/feedback';
 import {
@@ -76,15 +75,19 @@ function StartWorkflowDialog(props: {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error>();
   const parsed = parseArgs(args);
+  // The entity gives what it names; the dialog asks for the rest: both for
+  // the Temporal page, or for an entity whose source cannot be read, the
+  // task queue for an entity that names none.
+  const askType = !spec;
+  const askQueue = !spec?.taskQueue;
   const typeError =
-    !entity && workflowType !== '' && !isValidWorkflowTypeName(workflowType);
+    askType && workflowType !== '' && !isValidWorkflowTypeName(workflowType);
   const queueError =
-    !entity && taskQueue !== '' && !isValidTaskQueueName(taskQueue);
+    askQueue && taskQueue !== '' && !isValidTaskQueueName(taskQueue);
   const ready =
     !('error' in parsed) &&
-    (entity
-      ? true
-      : workflowType !== '' && taskQueue !== '' && !typeError && !queueError);
+    (!askType || (workflowType !== '' && !typeError)) &&
+    (!askQueue || (taskQueue !== '' && !queueError));
 
   const start = async () => {
     if (!ready || 'error' in parsed) return;
@@ -94,8 +97,8 @@ function StartWorkflowDialog(props: {
       const started = await api.startWorkflow(
         {
           workflowId: workflowId.trim() || undefined,
-          workflowType: entity ? undefined : workflowType,
-          taskQueue: entity ? undefined : taskQueue,
+          workflowType: askType ? workflowType : undefined,
+          taskQueue: askQueue ? taskQueue : undefined,
           args: parsed.args,
         },
         { entityRef: entity ? stringifyEntityRef(entity) : undefined },
@@ -112,28 +115,32 @@ function StartWorkflowDialog(props: {
       <DialogHeader>Start workflow</DialogHeader>
       <DialogBody>
         <Flex direction="column" gap="3">
-          {spec ? (
+          {spec && (
             <Text variant="body-small" color="secondary">
               Starts {spec.workflowTypes[0]}
               {spec.taskQueue ? ` on task queue ${spec.taskQueue}` : ''}.
             </Text>
-          ) : (
-            <>
-              <TextField
-                label="Workflow type"
-                value={workflowType}
-                onChange={setWorkflowType}
-                isRequired
-                isInvalid={typeError}
-              />
-              <TextField
-                label="Task queue"
-                value={taskQueue}
-                onChange={setTaskQueue}
-                isRequired
-                isInvalid={queueError}
-              />
-            </>
+          )}
+          {askType && (
+            <TextField
+              label="Workflow type"
+              value={workflowType}
+              onChange={setWorkflowType}
+              isRequired
+              isInvalid={typeError}
+            />
+          )}
+          {askQueue && (
+            <TextField
+              label="Task queue"
+              description={
+                spec ? 'The workflow does not name a task queue.' : undefined
+              }
+              value={taskQueue}
+              onChange={setTaskQueue}
+              isRequired
+              isInvalid={queueError}
+            />
           )}
           <TextField
             label="Workflow ID"
@@ -164,38 +171,27 @@ function StartWorkflowDialog(props: {
 
 /**
  * "Start workflow" with its dialog. With a `TemporalWorkflow` entity it
- * starts that workflow, with the example input of the entity filled in;
- * without one (the Temporal page) the workflow type and task queue are
- * asked for. Opens the new workflow once it has started. A list action:
+ * starts that workflow, with the example input of the entity filled in; the
+ * task queue is asked for when the entity names none. Without an entity (the
+ * Temporal page) the workflow type and task queue are asked for. Opens the new workflow once it has started. A list action:
  * the list of a `TemporalWorkflow` entity and the Temporal page show it.
  */
 function StartWorkflowButtonContent(props: TemporalWorkflowListActionProps) {
   const { entity } = props;
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const { allowed, loading } = useControlPermission(
-    temporalWorkflowStartPermission,
-    entity ? stringifyEntityRef(entity) : undefined,
-  );
   return (
     <>
-      <WithReason
-        reason={
-          !allowed && !loading
-            ? `You do not have permission to start this workflow (${temporalWorkflowStartPermission.name})`
-            : undefined
-        }
-      >
-        <Button
-          variant="primary"
-          size="small"
-          iconStart={<RiPlayLine />}
-          isDisabled={!allowed}
-          onPress={() => setOpen(true)}
-        >
-          Start workflow
-        </Button>
-      </WithReason>
+      <PermissionButton
+        label="Start workflow"
+        action="start"
+        permission={temporalWorkflowStartPermission}
+        resourceRef={entity ? stringifyEntityRef(entity) : undefined}
+        variant="primary"
+        size="small"
+        iconStart={<RiPlayLine />}
+        onPress={() => setOpen(true)}
+      />
       {open && (
         <StartWorkflowDialog
           entity={entity}
