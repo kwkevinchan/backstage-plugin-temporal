@@ -48,7 +48,6 @@ import {
   resultFromCloseEvent,
 } from './convert';
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
-import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { matchedWorkflowEntity, workflowIdCondition } from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
@@ -100,9 +99,6 @@ const describedCloseEvents = new WeakMap<WorkflowDetail, unknown>();
  * Temporal through {@link TemporalReadRepository}.
  */
 export class WorkflowQueries {
-  /** The LLM adapters; `AiWorkflowQueries` reads them too. */
-  readonly llmAdapters: LlmAdapters;
-
   constructor(
     private readonly temporal: TemporalService,
     private readonly enrichers: TemporalWorkflowEnricher[],
@@ -112,13 +108,7 @@ export class WorkflowQueries {
       temporal,
       logger,
     ),
-    options: {
-      /** The LLM adapters that read model calls; the built-in ones by default. */
-      llmAdapters?: LlmAdapters;
-    } = {},
-  ) {
-    this.llmAdapters = options.llmAdapters ?? builtInOnlyLlmAdapters();
-  }
+  ) {}
 
   /** The conversion options of a namespace; the list queries use them too. */
   convertOptions(namespace: string): ConvertOptions {
@@ -341,7 +331,6 @@ export class WorkflowQueries {
       searchAttributes: workflow.searchAttributes,
       failure: workflow.failure,
       closeEvent,
-      llmAdapters: this.llmAdapters,
       onEdgesCapped: () =>
         this.logger
           .child({

@@ -21,7 +21,7 @@ import type {
   WorkflowLlmRecord,
   WorkflowLlmUsage,
 } from '../../common';
-import type { TemporalLlmAdapter } from '../../node/alpha';
+import type { LlmAdapter } from './LlmAdapters';
 import { int, isObject, Json, str, structured } from './json';
 
 /*
@@ -200,7 +200,6 @@ function readRecord(input: CallInput | undefined, response: CallResponse) {
       : (request?.input ?? []).filter(isObject);
   const output = response.output.map(toMessage);
   const record: WorkflowLlmRecord = {
-    operation: 'chat',
     usage: usageOf(response),
     systemInstructions: str(request?.systemInstructions)
       ? [{ type: 'text', content: request!.systemInstructions! }]
@@ -210,7 +209,6 @@ function readRecord(input: CallInput | undefined, response: CallResponse) {
     outputMessages: [
       { role: 'assistant', parts: output.flatMap(m => m.parts) },
     ],
-    toolExecutions: [],
     finishReasons: [
       response.output.some(i => i.type === 'function_call')
         ? 'tool-calls'
@@ -233,25 +231,23 @@ function readRecord(input: CallInput | undefined, response: CallResponse) {
 }
 
 /** The built-in adapter of `@temporalio/openai-agents`. */
-export const openaiAgentsAdapter: TemporalLlmAdapter = {
+export const openaiAgentsAdapter: LlmAdapter = {
   id: 'openai-agents',
   isModelCall(step) {
-    return step.kind === 'activity' && MODEL_CALL_TYPES.has(step.activityType);
+    return MODEL_CALL_TYPES.has(step.activityType);
   },
-  readModelCalls(_step, payloads) {
+  readModelCall(_step, payloads) {
     const value = payloads.input?.[0];
     const result = payloads.result;
-    if (value !== undefined && !isCallInput(value)) return [];
+    if (value !== undefined && !isCallInput(value)) return undefined;
     const input = value as CallInput | undefined;
     const response = result === undefined ? undefined : responseOf(result);
-    if (result !== undefined && !response) return [];
-    if (input === undefined && result === undefined) return [];
-    if (!response) return [{}];
-    return [
-      {
-        record: readRecord(input, response),
-        raw: { input: input ?? null, result: result ?? null } as JsonValue,
-      },
-    ];
+    if (result !== undefined && !response) return undefined;
+    if (input === undefined && result === undefined) return undefined;
+    if (!response) return {};
+    return {
+      record: readRecord(input, response),
+      raw: { input: input ?? null, result: result ?? null } as JsonValue,
+    };
   },
 };
