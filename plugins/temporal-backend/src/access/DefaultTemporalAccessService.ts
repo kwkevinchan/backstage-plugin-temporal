@@ -61,7 +61,6 @@ import {
 import {
   inCondition,
   isValidEntityRefValue,
-  validatePermissionVisibilityQuery,
 } from '../services/visibilityQuery';
 import {
   EntityWorkflowSources,
@@ -119,9 +118,7 @@ export function criteriaToVisibilityQuery(
       'A "not" condition cannot be applied to the workflow list',
     );
   }
-  if (typeof criteria === 'string') {
-    return validatePermissionVisibilityQuery(criteria);
-  }
+  if (typeof criteria === 'string') return criteria;
   if ('namespaces' in criteria) {
     return criteria.namespaces.includes(scope.namespace);
   }

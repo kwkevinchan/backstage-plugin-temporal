@@ -57,8 +57,6 @@ describe('entry points for backend modules', () => {
       );
       expect(Object.keys(alpha).sort()).toEqual([
         'createTemporalWorkflowConditionalDecision',
-        'inCondition',
-        'quote',
         'temporalAccessServiceFactory',
         'temporalAccessServiceRef',
         'temporalControlExtensionPoint',

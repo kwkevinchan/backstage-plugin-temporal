@@ -1197,4 +1197,10 @@ export interface WorkflowTypeOverviewRun {
   // (undocumented)
   workflowId: string;
 }
+
+// @public
+export interface WorkflowUpdateRequest extends WorkflowMessageRequest {
+  // (undocumented)
+  updateId?: string;
+}
 ```

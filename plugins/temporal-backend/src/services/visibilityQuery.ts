@@ -58,13 +58,7 @@ export function trueAttributeCondition(name: string): string {
   return `${name} = true`;
 }
 
-/**
- * Quotes a validated value for a visibility query. The value is wrapped in
- * single quotes. A value with a single or double quote, a backslash, a
- * whitespace character or a parenthesis is refused with an InputError.
- *
- * @alpha
- */
+/** Quotes a validated value for a visibility query. */
 export function quote(value: string): string {
   // Values are validated before they get here; this is a second guard.
   if (/['"\\\s()]/.test(value)) {
@@ -89,20 +83,12 @@ export function workflowIdCondition(workflowId: string): string {
   return `WorkflowId = '${workflowId}'`;
 }
 
-/**
- * `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. An
- * empty list of values is refused with an InputError.
- *
- * @alpha
- */
+/** `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. */
 export function inCondition(
   field: string,
   values: string[],
   isValid: (value: string) => boolean,
 ): string {
-  if (values.length === 0) {
-    throw new InputError(`No values for ${field} in a condition`);
-  }
   for (const value of values) {
     if (!isValid(value)) {
       throw new InputError(`Invalid value for ${field} in a condition`);
@@ -111,73 +97,6 @@ export function inCondition(
   return values.length === 1
     ? `${field} = ${quote(values[0])}`
     : `${field} IN (${values.map(quote).join(', ')})`;
-}
-
-/**
- * Validates a visibility query string returned by a custom permission rule's
- * `toQuery`: rejects empty/whitespace-only strings, unclosed quotes, comments
- * and unbalanced parentheses outside quoted literals (which could break out of
- * the surrounding `AND (...)`). Temporal's query parser skips comments (a
- * block comment, `--`, `#` and `//`), so a bracket inside a comment would be
- * counted here but dropped there; a comment outside quotes is refused.
- */
-export function validatePermissionVisibilityQuery(query: string): string {
-  const trimmed = query.trim();
-  if (!trimmed) {
-    throw new InputError('Permission rule returned an empty visibility query');
-  }
-  let depth = 0;
-  let inQuote: "'" | '"' | '`' | undefined;
-  for (let i = 0; i < trimmed.length; i += 1) {
-    const ch = trimmed[i];
-    if (inQuote) {
-      if (ch === '\\' && inQuote !== '`') {
-        i += 1;
-        continue;
-      }
-      if (ch === inQuote) {
-        if (trimmed[i + 1] === inQuote) {
-          i += 1;
-          continue;
-        }
-        inQuote = undefined;
-      }
-      continue;
-    }
-    const next = trimmed[i + 1];
-    if (
-      ch === '#' ||
-      (ch === '-' && next === '-') ||
-      (ch === '/' && (next === '/' || next === '*'))
-    ) {
-      throw new InputError(
-        'Permission rule returned a visibility query with a comment',
-      );
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      inQuote = ch;
-    } else if (ch === '(') {
-      depth += 1;
-    } else if (ch === ')') {
-      depth -= 1;
-      if (depth < 0) {
-        throw new InputError(
-          'Permission rule returned a visibility query with unbalanced parentheses',
-        );
-      }
-    }
-  }
-  if (inQuote) {
-    throw new InputError(
-      'Permission rule returned a visibility query with an unclosed quote',
-    );
-  }
-  if (depth !== 0) {
-    throw new InputError(
-      'Permission rule returned a visibility query with unbalanced parentheses',
-    );
-  }
-  return trimmed;
 }
 
 /** Workflows of a `TemporalWorkflow` entity that the entity depends on. */
@@ -407,11 +326,7 @@ export function buildNamespaceVisibilityQuery(
   } else if (filter.allRuns === false) {
     parts.push(LATEST_RUNS);
   }
-  if (filter.permissionFilter !== undefined) {
-    parts.push(
-      `(${validatePermissionVisibilityQuery(filter.permissionFilter)})`,
-    );
-  }
+  if (filter.permissionFilter) parts.push(`(${filter.permissionFilter})`);
   return parts.join(' AND ');
 }
 

@@ -64,6 +64,7 @@ import {
   parseArgs,
   parseEntityRefParam,
   parseMessageBody,
+  parseUpdateBody,
   requestBody,
 } from './params';
 import {
@@ -301,7 +302,7 @@ export function createControlRouter(
           temporalWorkflowUpdatePermission,
           loaded,
         );
-        const { name, args } = parseMessageBody(req);
+        const { name, args, updateId } = parseUpdateBody(req);
         const chain = chainRef(loaded.workflow);
         setMeta(
           workflowMeta(loaded.workflow, entityRef, {
@@ -315,6 +316,7 @@ export function createControlRouter(
           name,
           args,
           identityOf(loaded.credentials),
+          updateId,
         );
       },
     );

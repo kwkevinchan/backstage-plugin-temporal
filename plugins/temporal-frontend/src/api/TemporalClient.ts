@@ -24,6 +24,7 @@ import {
   buildWorkflowOperationPath,
   WorkflowMessageDefinitionsResponse,
   WorkflowMessageResponse,
+  WorkflowUpdateRequest,
   buildEntityWorkflowsPath,
   buildLlmCallPath,
   buildWorkflowPath,
@@ -346,7 +347,7 @@ export class TemporalClient implements TemporalApi {
 
   updateWorkflow(
     ref: WorkflowRunRef,
-    request: { name: string; args?: JsonValue[] },
+    request: WorkflowUpdateRequest,
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
     return this.operate(

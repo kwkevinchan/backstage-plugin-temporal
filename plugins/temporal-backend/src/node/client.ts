@@ -90,13 +90,10 @@ async function hasErrorBody(response: Response): Promise<boolean> {
 }
 
 /**
- * Calls the routes of the Temporal backend plugin with the credentials of the
- * caller, so that its permission checks, audit records and search attributes
- * apply to that caller. For a user they apply as when the user uses the
- * pages; a service principal passes the permission check without a policy
- * decision, so modules that call it should refuse service callers for writes
- * unless the deployment allows them. For backend modules that act for a
- * caller, for example scaffolder actions and actions of the actions registry.
+ * Calls the routes of the Temporal backend plugin on behalf of a user, so
+ * that its permission checks, audit records and search attributes apply as
+ * when the user uses the pages. For backend modules that act for a user, for
+ * example scaffolder actions and actions of the actions registry.
  *
  * @public
  */

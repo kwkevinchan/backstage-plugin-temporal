@@ -168,27 +168,12 @@ export const temporalPlugin = createBackendPlugin({
           temporalReads,
           { llmAdapters: adapters },
         );
-        const overviewRatePerSecond = config.getOptionalNumber(
-          'temporal.overview.maxVisibilityCallsPerSecond',
-        );
-        if (
-          overviewRatePerSecond !== undefined &&
-          (!Number.isFinite(overviewRatePerSecond) ||
-            overviewRatePerSecond <= 0)
-        ) {
-          throw new Error(
-            'temporal.overview.maxVisibilityCallsPerSecond must be a positive number',
-          );
-        }
         const lists = new WorkflowListQueries(
           temporal,
           temporalReads,
           sources,
           queries,
           logger,
-          overviewRatePerSecond !== undefined
-            ? { overviewRatePerSecond }
-            : undefined,
         );
         const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permission.

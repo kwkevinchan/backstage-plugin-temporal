@@ -53,7 +53,7 @@ import {
   quote,
   scheduleBelongsToSources,
 } from './visibilityQuery';
-import { KeyedConcurrencyLimit, QueueDeadlineError } from './concurrencyLimit';
+import { KeyedConcurrencyLimit } from './concurrencyLimit';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
 
@@ -82,8 +82,6 @@ export const OVERVIEW_CACHE_TTL_MS = 60_000;
 export const OVERVIEW_CACHE_SIZE = 1000;
 /** Visibility calls of the overview in flight at once, in each namespace. */
 export const OVERVIEW_CONCURRENCY = 4;
-/** Default maximum visibility calls started per second by the overview, per namespace. */
-export const OVERVIEW_RATE_PER_SECOND = 5;
 
 const FAILURE_CONDITION = `ExecutionStatus IN (${CLOSED_WITH_FAILURE.map(
   quote,
@@ -103,15 +101,6 @@ function averageDurationMs(items: WorkflowSummary[]): number | undefined {
     }
   }
   return count > 0 ? Math.round(sum / count) : undefined;
-}
-
-/**
- * What the overview of the entities of one request counts, for the caller to
- * log once for the request.
- */
-export interface OverviewRequestStats {
-  /** Entities whose calls waited in the queue until their deadline. */
-  queueTimeouts: number;
 }
 
 /** The messages of `failedOverview`: fixed text, whatever the error says. */
@@ -167,20 +156,13 @@ function overviewRun(item: WorkflowSummary): WorkflowTypeOverviewRun {
  * Callers check permissions first (see `access/`).
  */
 export class WorkflowListQueries {
-  private readonly overviewLimit: KeyedConcurrencyLimit;
-
   constructor(
     private readonly temporal: TemporalService,
     private readonly temporalReads: TemporalReadRepository,
     private readonly sources: EntityWorkflowSources,
     private readonly queries: WorkflowQueries,
     private readonly logger: LoggerService,
-    options: { overviewRatePerSecond?: number } = {},
-  ) {
-    this.overviewLimit = new KeyedConcurrencyLimit(OVERVIEW_CONCURRENCY, {
-      maxPerSecond: options.overviewRatePerSecond ?? OVERVIEW_RATE_PER_SECOND,
-    });
-  }
+  ) {}
 
   /**
    * The schedules of a namespace, the first MAX_SCHEDULES of them; with
@@ -400,6 +382,10 @@ export class WorkflowListQueries {
     };
   }
 
+  private readonly overviewLimit = new KeyedConcurrencyLimit(
+    OVERVIEW_CONCURRENCY,
+  );
+
   private readonly overviewCache = new Map<
     string,
     { expiresAt: number; overview: WorkflowTypeOverview }
@@ -417,7 +403,6 @@ export class WorkflowListQueries {
    */
   async overview(
     context: TemporalEntityContext,
-    request?: OverviewRequestStats,
   ): Promise<WorkflowTypeOverview> {
     const now = Date.now();
     try {
@@ -441,9 +426,6 @@ export class WorkflowListQueries {
       });
       return overview;
     } catch (error) {
-      if (error instanceof QueueDeadlineError && request) {
-        request.queueTimeouts += 1;
-      }
       // A failed call to Temporal is logged by `callTemporal`; a limit hit by
       // many entities would otherwise write two lines for each of them.
       this.logger
@@ -459,9 +441,8 @@ export class WorkflowListQueries {
     now: number,
   ): Promise<WorkflowTypeOverview> {
     const { namespace } = context;
-    const deadlineAt = this.overviewLimit.clock() + TEMPORAL_DEADLINES.list;
     const limited = <T>(call: () => Promise<T>) =>
-      this.overviewLimit.run(namespace, call, { deadlineAt });
+      this.overviewLimit.run(namespace, call);
     const since = new Date(
       now - OVERVIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString();

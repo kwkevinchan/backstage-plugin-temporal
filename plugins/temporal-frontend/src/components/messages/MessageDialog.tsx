@@ -16,7 +16,6 @@
 
 import { ComponentType, useEffect, useState } from 'react';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
-import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
 import {
   exampleArgs,
@@ -48,8 +47,6 @@ import {
   ControlErrorAlert,
   JsonArgsField,
   parseArgs,
-  useControlPermission,
-  WithReason,
 } from './shared';
 
 const NO_MESSAGE_DEFINITIONS: WorkflowMessageDefinitionsResponse = {
@@ -225,7 +222,13 @@ export function MessageDialog(props: {
   >({ args: [] });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<ControlError>();
-  const [done, setDone] = useState<{ result?: JsonValue }>();
+  const [done, setDone] = useState<{ result?: JsonValue; name: string }>();
+
+  // The result is of the name it was sent for.
+  const changeName = (value: string) => {
+    setName(value);
+    setDone(undefined);
+  };
 
   const submit = async () => {
     if (!name.trim() || 'error' in parsed) return;
@@ -233,7 +236,9 @@ export function MessageDialog(props: {
     setError(undefined);
     setDone(undefined);
     try {
-      setDone(await props.send({ name: name.trim(), args: parsed.args }));
+      const sent = name.trim();
+      const { result } = await props.send({ name: sent, args: parsed.args });
+      setDone({ result, name: sent });
     } catch (e) {
       setError(controlError(e));
     } finally {
@@ -258,8 +263,8 @@ export function MessageDialog(props: {
             }))}
             allowsCustomValue={props.allowsCustomValue}
             inputValue={name}
-            onInputChange={setName}
-            onSelectionChange={key => key !== null && setName(String(key))}
+            onInputChange={changeName}
+            onSelectionChange={key => key !== null && changeName(String(key))}
             isRequired
           />
           <ArgsField
@@ -281,7 +286,7 @@ export function MessageDialog(props: {
               <Alert
                 status="success"
                 icon
-                title={`${text.done} ${name}${text.doneSuffix}`}
+                title={`${text.done} ${done.name}${text.doneSuffix}`}
               />
               {props.showResult !== false && (
                 <div className={tp('tp-dialog-result')}>
@@ -315,44 +320,6 @@ export function MessageDialog(props: {
         </Button>
       </DialogFooter>
     </Dialog>
-  );
-}
-
-/**
- * A secondary button for an operation on a workflow. It is disabled, with
- * the reason as a tooltip, when the user does not have `permission` on the
- * entity `resourceRef` (or `additionalResourceRef`, when set).
- */
-export function PermissionButton(props: {
-  label: string;
-  permission: ResourcePermission<'catalog-entity'>;
-  resourceRef?: string;
-  additionalResourceRef?: string;
-  onPress(): void;
-  destructive?: boolean;
-}) {
-  const { allowed, loading } = useControlPermission(
-    props.permission,
-    props.resourceRef,
-    props.additionalResourceRef,
-  );
-  const reason =
-    !allowed && !loading
-      ? `You do not have permission to ${props.label
-          .replace(/…$/, '')
-          .toLocaleLowerCase('en-US')} this workflow (${props.permission.name})`
-      : undefined;
-  return (
-    <WithReason reason={reason}>
-      <Button
-        variant="secondary"
-        destructive={props.destructive}
-        isDisabled={!allowed}
-        onPress={props.onPress}
-      >
-        {props.label}
-      </Button>
-    </WithReason>
   );
 }
 

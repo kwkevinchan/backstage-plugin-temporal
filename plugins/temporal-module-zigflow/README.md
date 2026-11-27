@@ -159,8 +159,7 @@ also show above the source.
   and `paths` prefix match `temporal.definitions.allow`. When `paths` is omitted
   on a host with a configured Backstage integration, entity authors can read
   any repository accessible to that integration's credentials, so `paths` must
-  be configured on integration-backed hosts. URLs with a user name or
-  password and other URL schemes are rejected.
+  be configured on integration-backed hosts. Other URL schemes are rejected.
 - The backend reads remote URLs through Backstage's URL reader, so the
   host must also be allowed by a configured integration (or
   `backend.reading.allow`). `temporal.definitions.allow` checks only the initial
@@ -170,18 +169,14 @@ also show above the source.
   integration readers follow default `fetch` redirects).
 - Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
   are not read; the backend stops reading at the limit.
-- A `serverless-workflow` target must be a `.yaml` or `.yml` file.
 - The YAML is parsed without running anything: YAML 1.2 core schema, no
-  custom tags, no merge keys, unique keys, at most 20 aliases, at most 64
-  levels of nesting, and data at most four times the size of the file, so
-  "billion laughs" files fail instead of filling the memory. A file with an
-  error is not shown: the page shows the error, with its line for invalid
-  YAML.
+  custom tags, no merge keys, unique keys, and at most 100 aliases, so
+  "billion laughs" files fail instead of filling the memory. A file that is
+  not valid YAML is still shown, with the line of the error.
 - Entities from `file:` locations (a development catalog) are read only with
-  `temporal.definitions.readFileLocations: true`. The target must stay in the
-  folder of the entity file or below it, also after symlinks are resolved,
-  and must be a regular file (not a directory, device or FIFO). Keep
-  `readFileLocations` off outside local development.
+  `temporal.definitions.readFileLocations: true`, and checked with `path.resolve`
+  to stay in the folder of the entity file or below it (symlinks are not
+  resolved, so keep `readFileLocations` off outside local development).
 - The route is `GET /entities/:kind/:namespace/:name/definition` and needs
   `temporal.workflow.read` on the entity, like the workflow list: a
   definition describes the workflow, without inputs or results.

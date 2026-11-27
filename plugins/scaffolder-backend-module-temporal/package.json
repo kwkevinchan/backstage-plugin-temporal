@@ -54,8 +54,6 @@
     "@backstage/plugin-scaffolder-node-test-utils": "backstage:^"
   },
   "files": [
-    "dist",
-    "config.d.ts"
-  ],
-  "configSchema": "config.d.ts"
+    "dist"
+  ]
 }

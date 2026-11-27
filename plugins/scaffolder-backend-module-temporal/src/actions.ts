@@ -14,15 +14,10 @@
  * limitations under the License.
  */
 
-import type {
-  AuthService,
-  BackstageCredentials,
-} from '@backstage/backend-plugin-api';
 import { parseEntityRef } from '@backstage/catalog-model';
 import {
   ConflictError,
   InputError,
-  NotAllowedError,
   NotFoundError,
   ResponseError,
 } from '@backstage/errors';
@@ -43,14 +38,6 @@ import {
 /** Options of the Temporal template actions. */
 export interface TemporalActionsOptions {
   client: TemporalPluginClient;
-  auth: AuthService;
-  /**
-   * Lets a task that does not run as a user (for example one started with a
-   * static token from `backend.auth.externalAccess`) start workflows and send
-   * signals and updates. Defaults to false
-   * (`temporal.scaffolder.allowServiceWrites`).
-   */
-  allowServiceWrites?: boolean;
   /** Reads the entity whose namespace wait and signal follow. */
   catalog: CatalogService;
   /** `app.baseUrl`, for the link to the workflow. */
@@ -62,27 +49,6 @@ export interface TemporalActionsOptions {
    * given one, else the namespace of the entity, else this one.
    */
   defaultNamespace: string;
-}
-
-/**
- * Refuses a workflow-changing action when the task does not run as a user.
- * The permission framework allows a service principal that has no access
- * restrictions without asking the policy, so per-user permissions would not
- * apply to it.
- */
-function assertMayWrite(
-  options: TemporalActionsOptions,
-  credentials: BackstageCredentials,
-  actionId: string,
-): void {
-  if (
-    !options.allowServiceWrites &&
-    !options.auth.isPrincipal(credentials, 'user')
-  ) {
-    throw new NotAllowedError(
-      `${actionId} needs a task that runs as a signed-in user, so that per-user permissions apply. Set temporal.scaffolder.allowServiceWrites: true to allow other callers.`,
-    );
-  }
 }
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -137,8 +103,7 @@ const workflowInput = {
 
 /**
  * `temporal:workflow:start`: starts a workflow as the user who runs the
- * template. A task that does not run as a user is refused unless
- * `temporal.scaffolder.allowServiceWrites` is true.
+ * template.
  */
 export function createTemporalWorkflowStartAction(
   options: TemporalActionsOptions,
@@ -146,7 +111,7 @@ export function createTemporalWorkflowStartAction(
   return createTemplateAction({
     id: 'temporal:workflow:start',
     description:
-      'Starts a Temporal workflow: the workflow of an entity (a TemporalWorkflow entity, or one with the Temporal annotations), or any workflow type with its task queue. Checked with temporal.workflow.start as the user who runs the template; a task that does not run as a user is refused by default.',
+      'Starts a Temporal workflow: the workflow of an entity (a TemporalWorkflow entity, or one with the Temporal annotations), or any workflow type with its task queue. Checked with temporal.workflow.start as the user who runs the template.',
     examples: [
       {
         description: 'Start the workflow of a TemporalWorkflow entity',
@@ -235,7 +200,6 @@ export function createTemporalWorkflowStartAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      assertMayWrite(options, credentials, 'temporal:workflow:start');
       // Without a workflow ID, build one from the task and the step and send
       // REJECT_DUPLICATE: a retry that runs again after the start (even if
       // that first workflow has already closed) is refused by Temporal instead
@@ -292,8 +256,7 @@ export function createTemporalWorkflowStartAction(
 
 /**
  * `temporal:workflow:wait`: waits until a workflow closes, or until a Bool
- * search attribute of it is true (for example `ApprovalPending`). It only
- * reads, so it accepts any initiator.
+ * search attribute of it is true (for example `ApprovalPending`).
  */
 export function createTemporalWorkflowWaitAction(
   options: TemporalActionsOptions,
@@ -301,7 +264,7 @@ export function createTemporalWorkflowWaitAction(
   return createTemplateAction({
     id: 'temporal:workflow:wait',
     description:
-      'Waits until a Temporal workflow closes, or until a Bool search attribute of it is true (for example ApprovalPending, to stop once the workflow waits for someone). Reads the workflow with the credentials of the task initiator.',
+      'Waits until a Temporal workflow closes, or until a Bool search attribute of it is true (for example ApprovalPending, to stop once the workflow waits for someone). Reads the workflow as the user who runs the template.',
     schema: {
       input: {
         ...workflowInput,
@@ -488,8 +451,7 @@ export function createTemporalWorkflowWaitAction(
 
 /**
  * `temporal:workflow:signal`: sends a signal or an update to a running
- * workflow. A task that does not run as a user is refused unless
- * `temporal.scaffolder.allowServiceWrites` is true.
+ * workflow.
  */
 export function createTemporalWorkflowSignalAction(
   options: TemporalActionsOptions,
@@ -497,7 +459,7 @@ export function createTemporalWorkflowSignalAction(
   return createTemplateAction({
     id: 'temporal:workflow:signal',
     description:
-      'Sends a signal, or an update and outputs its result, to a running Temporal workflow, as the user who runs the template (temporal.workflow.signal or temporal.workflow.update); a task that does not run as a user is refused by default.',
+      'Sends a signal, or an update and outputs its result, to a running Temporal workflow, as the user who runs the template (temporal.workflow.signal or temporal.workflow.update).',
     schema: {
       input: {
         ...workflowInput,
@@ -535,7 +497,6 @@ export function createTemporalWorkflowSignalAction(
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
-      assertMayWrite(options, credentials, 'temporal:workflow:signal');
       // A retried task does not send it again, nor read the entity or the
       // run again; the result is kept.
       const sent = await ctx.checkpoint<{ result: JsonValue; runId: string }>({

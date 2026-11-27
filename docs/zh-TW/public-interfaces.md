@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 28 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 117 個，其中 103 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 117 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 26 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 117 個，其中 103 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 117 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -60,7 +60,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | ------------------------------------ | ---------- | -----: | -------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |      3 | `@public`                  | 安裝後端                           | [`report.api.md`](../../plugins/temporal-backend/report.api.md)                       |
 |                                      | `./node`   |      8 | `@public`                  | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |     28 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./alpha`  |     26 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |    117 | `@public` 103、`@alpha` 14 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |     25 | `@public`                  | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |      6 | `@alpha`                   | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
@@ -98,7 +98,6 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporalWorkflowPermissionResourceRef`、`TemporalWorkflowFilter`                                                                                                                         | `./alpha` | `temporal-workflow` 權限 resource，以及規則在列表時轉成什麼                                           | 加權限規則                                             |
 | `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | 這個 resource 的四條規則                                                                              | 用其他工具組條件                                       |
 | `temporalWorkflowConditions`、`createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | list 權限的條件和條件式決定                                                                           | 你的權限政策                                           |
-| `inCondition`、`quote`                                                                                                                                                                    | `./alpha` | 用檢查過的值組 visibility 查詢的條件；遇到不安全的值會拒絕                                            | 你的權限規則的 `toQuery`                               |
 
 ### `./common`（兩個核心套件都有）
 
@@ -108,7 +107,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | 流程（`types.ts`，21）                             | `WorkflowRef`、`WorkflowRunRef`、`WorkflowSummary`、`WorkflowDetail`、`WorkflowStatus`、`WORKFLOW_STATUSES`、`WorkflowFailure`、`PendingActivity`、`RelatedWorkflows`、`WorkflowListResponse`、`WorkflowStatsResponse`、`WorkflowTypeOverview`、`WorkflowTypeOverviewRun`、`WorkflowTypeOverviewRequest`、`WorkflowTypeOverviewResponse`、`MAX_WORKFLOW_TYPE_OVERVIEW_REFS`、`WorkflowHistoryEvent`、`WorkflowHistoryResponse`、`WorkflowResultResponse`、`DecodedPayload`、`ExternalPayload` | HTTP API 的呼叫端、enricher、自訂操作                                           |
 | 步驟圖和進度（`graph.ts`，10）                     | `WorkflowGraphResponse`、`WorkflowGraphNode`、`WorkflowGraphEdge`、`WorkflowNodeKind`、`WorkflowNodeStatus`、`WorkflowNodeAttempt`、`WorkflowNodeEvent`、`WorkflowDeadline`、`WorkflowRunChain`、`WorkflowProgressResponse`                                                                                                                                                                                                                                                                   | `…/graph`、`…/progress` 的呼叫端                                                |
-| 操作（`controls.ts`，11）                          | `WorkflowControlOperation`、`WorkflowMessageRequest`、`WorkflowMessageResponse`、`WorkflowIdReusePolicy`、`WorkflowStartRequest`、`WorkflowStartResponse`、`WorkflowMessageDefinition`、`WorkflowMessageDefinitionsResponse`、`buildWorkflowOperationPath`、`buildWorkflowActionPath`、`buildWorkflowMessageDefinitionsPath`                                                                                                                                                                  | 操作流程的呼叫端                                                                |
+| 操作（`controls.ts`，12）                          | `WorkflowControlOperation`、`WorkflowMessageRequest`、`WorkflowUpdateRequest`、`WorkflowMessageResponse`、`WorkflowIdReusePolicy`、`WorkflowStartRequest`、`WorkflowStartResponse`、`WorkflowMessageDefinition`、`WorkflowMessageDefinitionsResponse`、`buildWorkflowOperationPath`、`buildWorkflowActionPath`、`buildWorkflowMessageDefinitionsPath`                                                                                                                                         | 操作流程的呼叫端                                                                |
 | 排程（`schedules.ts`，8）                          | `TemporalSchedule`、`TemporalScheduleAction`、`TemporalScheduleListResponse`、`TemporalScheduleNoteRequest`、`TemporalScheduleOperation`、`SCHEDULES_PATH`、`buildEntitySchedulesPath`、`buildScheduleOperationPath`                                                                                                                                                                                                                                                                          | 排程路由的呼叫端                                                                |
 | 路徑（`paths.ts`，6）                              | `buildWorkflowPath`、`buildWorkflowRunPath`、`buildEntityWorkflowsPath`、`buildEntityWorkflowStatsPath`、`WORKFLOWS_PATH`、`WORKFLOW_TYPE_OVERVIEW_PATH`                                                                                                                                                                                                                                                                                                                                      | 組 HTTP API 路徑                                                                |
 | 權限（`permissions.ts`，14）                       | 9 個權限（`temporalWorkflowReadPermission` … `temporalWorkflowRerunPermission`，見[權限](#權限)）、`temporalPermissions`、`temporalControlPermissions`、`RESOURCE_TYPE_TEMPORAL_WORKFLOW`、`parseTemporalWorkflowResourceRef`、`stringifyTemporalWorkflowResourceRef`                                                                                                                                                                                                                         | 權限政策、自訂操作、按鈕                                                        |
@@ -223,7 +222,7 @@ enricher 拿到完整的流程，含失敗內容；放進 `extensions` 的內容
 
 模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別或不是單純的 JSON（循環結構、函式、class 實例）時，那個步驟就是一般步驟，並記一筆警告，只含轉接器 id、事件 id 和錯誤名稱，每讀一次 run 每個轉接器一筆；錯誤訊息不會被記錄，也不會傳回去。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
 
-tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。推測連結有上限：一次模型呼叫最多 500 個、整個 run 最多 2000 個沒有 ID 的 tool 要求；超過任一個上限，整個 run 都不推測連結。流程圖只拿到名稱和數字（`WorkflowLlmSummary`，有錯誤類型、沒有錯誤訊息）；完整紀錄從 `GET /:wf/llm-calls/:eventId` 取得，權限相同。[範例](#加一個-llm-轉接器)。
+tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。流程圖只拿到名稱和數字（`WorkflowLlmSummary`，有錯誤類型、沒有錯誤訊息）；完整紀錄從 `GET /:wf/llm-calls/:eventId` 取得，權限相同。[範例](#加一個-llm-轉接器)。
 
 ### Feature loader 和 catalog 模組
 
@@ -256,7 +255,7 @@ tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，�
 | `TemporalWorkflowListActionBlueprint` | `temporal-workflow-list-action` |
 | `TemporalScheduleActionBlueprint`     | `temporal-schedule-action`      |
 
-`TemporalControlActionBlueprint`（舊系統是 `createTemporalControlActionDef`）是做好的 action：一個按鈕，替後端的操作呼叫 `runWorkflowAction()`。參數是 `TemporalControlActionButtonOptions`（`actionId`、`label`、`confirm?`、`body?(workflow)`、`permission?`）加上 `filter?`。給了 `permission`，沒有這個權限的使用者看到的按鈕會停用。
+`TemporalControlActionBlueprint`（舊系統是 `createTemporalControlActionDef`）是做好的 action：一個按鈕，替後端的操作呼叫 `runWorkflowAction()`。參數是 `TemporalControlActionButtonOptions`（`actionId`、`label`、`confirm?`、`permission?`）加上 `filter?`。給了 `permission`，沒有這個權限的使用者看到的按鈕會停用。
 
 ### `TemporalWorkflowExtensionProps`
 
@@ -360,7 +359,7 @@ read 照[流程在哪個實體上檢查權限](#流程在哪個實體上檢查�
 
 失敗一律是完整的 `WorkflowFailure`，含 `source`、`stackTrace`、`nonRetryable` 和 `cause` 原因鏈：`WorkflowDetail.failure` 和其中 pending activity 的 `lastFailure`（`GET /:wf`）、流程圖節點和各次嘗試的 `failure`（`GET /:wf/graph`）、`GET /:wf/result`，以及模型呼叫的紀錄（`GET /:wf/llm-calls/:eventId`）。流程圖和 `GET /:wf/progress` 的 `current` 文字只用最外層的訊息；`WorkflowLlmSummary.error` 是模型呼叫的錯誤類型，紀錄沒有類型時是 `error`。清單不含失敗。變更流程的路由在流程拒絕 update 時，回應裡帶拒絕的訊息和它的原因（`400`），和 update 成功時的結果一樣。訊息是 SDK 記錄的那一則；有些 SDK 會把原因串進這則訊息。
 
-`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。`GET /:wf/llm-calls/:eventId` 使用相同的 5,000 個事件上限；若請求的 `eventId` 在截斷點之後，會回 `404` 並在訊息說明事件紀錄已截斷。這兩個端點都不快取事件紀錄，每次請求都重新讀一次。要限制負載，只對 Temporal 外掛設限流（`backend.rateLimit.global: false`，加上 `backend.rateLimit.plugin.temporal` 的 `window` 和 `incomingRequestLimit`；範例見 [README](../../README.md)）。不要設 `backend.rateLimit: true`：那會限制整個後端，預設每個 IP 每分鐘只能 5 個請求。限制是計算同一個 IP 在時間窗內的請求數，套用在外掛的所有路由，不是限制同時進行的讀取數。
+`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。`GET /:wf/llm-calls/:eventId` 使用相同的 5,000 個事件上限；若請求的 `eventId` 在截斷點之後，會回 `404` 並在訊息說明事件紀錄已截斷。
 
 workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序是 Temporal visibility store 回傳的順序：外掛不指定排序（SQL visibility 不接受 `ORDER BY`；它先列執行中的 run，再列已結束的，最後結束的在前）。超過 namespace 保留期限的 run 不會列出。帶 `entityRef` 時，實體流程的子流程不會列出，雖然用這個實體打得開它們的 run。workflow ID 含引號、反斜線或控制字元時無法列出（`400`）：請用 run ID 打開那次執行。
 
@@ -371,7 +370,7 @@ workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序�
 | `POST /entities/:kind/:namespace/:name/workflows`                             | 實體上的 `temporal.workflow.start`（不檢查 read）；只能是它的 workflow type 和 task queue                                                                         | `WorkflowStartRequest`                          | `201` `WorkflowStartResponse`                     |
 | `POST /workflows`                                                             | `temporal.workflow.list` 和 `temporal.workflow.start`，都要無條件（不檢查 read）                                                                                  | `WorkflowStartRequest`                          | `201` `WorkflowStartResponse`                     |
 | `POST /:wf/signal`                                                            | read 加 `temporal.workflow.signal`；只限打開的那個執行中 run                                                                                                      | `WorkflowMessageRequest`                        | `202` `{}`                                        |
-| `POST /:wf/update`                                                            | read 加 `temporal.workflow.update`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）                                                                  | `WorkflowMessageRequest`                        | `WorkflowMessageResponse`                         |
+| `POST /:wf/update`                                                            | read 加 `temporal.workflow.update`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）                                                                  | `WorkflowUpdateRequest`                         | `WorkflowMessageResponse`                         |
 | `POST /:wf/cancel`                                                            | read 加 `temporal.workflow.cancel`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）                                                                  |                                                 | `202` `{}`                                        |
 | `POST /:wf/terminate`                                                         | read 加 `temporal.workflow.terminate`；對同一條執行鏈操作（送 `firstExecutionRunId`、不帶 `runId`）                                                               | `{ reason? }`                                   | `{}`                                              |
 | `POST /:wf/rerun`                                                             | read 加 `temporal.workflow.rerun`；只限已結束                                                                                                                     | `{ workflowId? }`                               | `201` `WorkflowStartResponse`                     |
@@ -413,7 +412,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 | `IN_NAMESPACE`      | `inNamespace`     | `namespaces`    |
 | `IS_INITIATOR`      | `isInitiator`     | `claims`        |
 
-外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。**注意**：`toQuery` 回傳的字串會直接接進 Temporal visibility 查詢，請用 `./alpha` 匯出的 `inCondition` 和 `quote` 組字串，不要直接拼接未檢查的值（空字串、未閉合的引號、註解、或括號不成對的字串都會被拒絕）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
+外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
 
 在外掛的程式裡，單獨出現的 query 指 Temporal 的 Query（由 worker 執行 query handler 的那個操作）。搜尋或列出流程用的條件一律叫 visibility 查詢或 filter，例如 `TemporalWorkflowFilter`、`buildEntityVisibilityQuery`。兩個例外：網址的查詢參數（`req.query`、`queryString`）沿用框架用語，權限規則的 `toQuery` 則是 Backstage 權限框架規定的名字。
 
@@ -421,20 +420,19 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
 
-| 鍵                                                                           | 誰讀                                               | 瀏覽器看得到 |
-| ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------ |
-| `connection.address`                                                         | 後端（`temporalServiceRef`）                       |              |
-| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                               |              |
-| `connection.auth.token`                                                      | 後端；secret                                       |              |
-| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組                    | 是           |
-| `webUi.baseUrl`                                                              | 後端、前端                                         | 是           |
-| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                               |              |
-| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕）             | 是           |
-| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）                     | 是           |
-| `externalStorage.objectUrl`                                                  | 前端                                               | 是           |
-| `overview.maxVisibilityCallsPerSecond`                                       | 後端（每個 process、每個 namespace 預設每秒 5 次） |              |
-| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                                   |              |
-| `actions.allowServiceWrites`                                                 | Actions registry 後端模組                          |              |
+| 鍵                                                                           | 誰讀                                   | 瀏覽器看得到 |
+| ---------------------------------------------------------------------------- | -------------------------------------- | ------------ |
+| `connection.address`                                                         | 後端（`temporalServiceRef`）           |              |
+| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                   |              |
+| `connection.auth.token`                                                      | 後端；secret                           |              |
+| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組        | 是           |
+| `webUi.baseUrl`                                                              | 後端、前端                             | 是           |
+| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                   |              |
+| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕） | 是           |
+| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）         | 是           |
+| `externalStorage.objectUrl`                                                  | 前端                                   | 是           |
+| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                       |              |
+| `actions.allowServiceWrites`                                                 | Actions registry 後端模組              |              |
 
 Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
 
@@ -469,7 +467,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 其他系統會讀這些，所以它們也是接口：
 
-- **Search attribute。** 從 Backstage（頁面、API、Scaffolder）啟動或重跑的流程，在設定了對應鍵時，`temporal.searchAttributes.entityRef` 會寫入實體 reference（從實體啟動時），`temporal.searchAttributes.initiator` 會寫入使用者。兩者都必須是 Temporal 裡註冊好的 `Keyword` 屬性。重跑保留原本那次執行的屬性，並設定 initiator。
+- **Search attribute。** 從 Backstage（頁面、API、Scaffolder）啟動或重跑的流程，在設定了對應鍵時，`temporal.searchAttributes.entityRef` 會寫入實體 reference（從實體啟動時），`temporal.searchAttributes.initiator` 會寫入使用者。兩者都必須是 Temporal 裡註冊好的 `Keyword` 屬性。重跑保留原本那次執行的屬性（Temporal 自己設定、名稱以 `Temporal` 開頭的除外），並設定 initiator。
 
   外掛對**每個**流程都會讀這兩個屬性，不管是誰寫的：實體 reference 會把流程加進那個實體的列表，並決定權限在哪個實體上檢查；initiator 是 `IS_INITIATOR` 規則比對的對象。這兩個屬性的可信度等同於能在對應 Temporal namespace 啟動流程或寫入 search attribute 的呼叫端，請限制 namespace 的寫入權限，或在外部寫入者不應影響歸屬與 `IS_INITIATOR` 時不要設定這兩個鍵。
 
@@ -515,7 +513,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Zigflow
 
-`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；`format: source` 會回傳允許範圍內的任何檔案，`file:` 目標必須是實體檔所在資料夾內的一般檔案（解析 symlink 之後也一樣），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
+`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；`format: source` 會回傳允許範圍內的任何檔案，`file:` 檢查使用 `path.resolve`（不解析 symlink），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
 
 ## 實驗性：模型呼叫和 Event Groups
 

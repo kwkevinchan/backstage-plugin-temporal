@@ -92,9 +92,27 @@ function failureMessage(failure: any): string {
 /** Suffix of the workflow IDs made by rerun. */
 const RERUN_SUFFIX = /-rerun-[a-z0-9]+$/;
 
-/** A new workflow ID from a prefix: `<prefix>-<time>`. */
-function newWorkflowId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}${randomUUID().slice(0, 4)}`;
+/** Longest workflow ID Temporal accepts by default. */
+const MAX_WORKFLOW_ID_LENGTH = 1000;
+
+/**
+ * A new workflow ID from a prefix: `<prefix><infix>-<time>`. The prefix is
+ * cut so that the ID stays within Temporal's limit; the infix is kept.
+ */
+function newWorkflowId(prefix: string, infix = ''): string {
+  const suffix = `${infix}-${Date.now().toString(36)}${randomUUID().slice(
+    0,
+    4,
+  )}`;
+  return `${prefix.slice(0, MAX_WORKFLOW_ID_LENGTH - suffix.length)}${suffix}`;
+}
+
+/**
+ * Search attribute names Temporal keeps for itself (for example
+ * `TemporalScheduledById`): a new workflow does not take them from another.
+ */
+function isSystemSearchAttribute(name: string): boolean {
+  return name.startsWith('Temporal');
 }
 
 /** Most times an update that is not finished yet is polled for its result. */
@@ -291,10 +309,15 @@ export class WorkflowCommands {
     name: string,
     args: JsonValue[] | undefined,
     identity: string,
+    /**
+     * The ID of the update. Sending the same ID again does not run the
+     * update a second time: Temporal answers with the outcome of the first.
+     */
+    requestedUpdateId?: string,
   ): Promise<JsonValue | undefined> {
     this.checkUpdate(name);
+    const updateId = requestedUpdateId ?? randomUUID();
     const { workflowExecution } = chainTarget(ref);
-    const updateId = randomUUID();
     const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
     // Each call has its own deadline: a slow update that finishes within
     // the polls is not cut short.
@@ -326,9 +349,9 @@ export class WorkflowCommands {
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
     for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await this.call(
+      response = await this.callChain(
         'pollWorkflowExecutionUpdate',
-        ref.namespace,
+        ref,
         TEMPORAL_DEADLINES.update,
         c =>
           c.workflowService.pollWorkflowExecutionUpdate({
@@ -436,7 +459,8 @@ export class WorkflowCommands {
    * Starts a closed run again under a new workflow ID: the input,
    * timeouts, retry policy, memo, header and search attributes of its start
    * event, with `searchAttributes` set on top. The input is copied as it
-   * is, so payloads the backend cannot decode are kept.
+   * is, so payloads the backend cannot decode are kept. The search
+   * attributes Temporal sets itself (`Temporal...`) are not copied.
    */
   async rerun(
     workflow: WorkflowDetail,
@@ -464,7 +488,7 @@ export class WorkflowCommands {
     }
     const workflowId =
       options.workflowId ||
-      newWorkflowId(`${workflow.workflowId.replace(RERUN_SUFFIX, '')}-rerun`);
+      newWorkflowId(workflow.workflowId.replace(RERUN_SUFFIX, ''), '-rerun');
     const response = await this.call(
       'startWorkflowExecution',
       workflow.namespace,
@@ -490,7 +514,11 @@ export class WorkflowCommands {
           requestId: randomUUID(),
           searchAttributes: {
             indexedFields: {
-              ...(started.searchAttributes?.indexedFields ?? {}),
+              ...Object.fromEntries(
+                Object.entries(
+                  started.searchAttributes?.indexedFields ?? {},
+                ).filter(([name]) => !isSystemSearchAttribute(name)),
+              ),
               ...keywordAttributes(options.searchAttributes),
             },
           },

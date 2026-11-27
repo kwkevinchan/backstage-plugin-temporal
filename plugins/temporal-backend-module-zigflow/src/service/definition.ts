@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { constants, open, realpath, stat } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import type {
@@ -30,14 +30,7 @@ import {
 import type { Config } from '@backstage/config';
 import { ScmIntegrations } from '@backstage/integration';
 import type { JsonObject } from '@backstage/types';
-import {
-  isMap,
-  isScalar,
-  isSeq,
-  LineCounter,
-  parseDocument,
-  visit as visitYaml,
-} from 'yaml';
+import { isMap, isSeq, LineCounter, parseDocument } from 'yaml';
 import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import {
   findSymbolLines,
@@ -53,44 +46,17 @@ export const DEFAULT_DEFINITION_MAX_BYTES = 1024 * 1024;
 /** Upper limit of `temporal.definitions.maxBytes`: 8 MiB. */
 const MAX_DEFINITION_MAX_BYTES = 8 * 1024 * 1024;
 /**
- * Most aliases in a definition file, and most copies of one anchor (the
- * anchor and its aliases, with the aliases inside it; `maxAliasCount` of the
- * `yaml` package). The `yaml` package looks up the anchor of each alias in a
- * scan of the whole document, so the time to turn a file into data grows
- * with aliases times nodes; a small limit keeps it linear.
+ * Most aliases resolved while a definition is turned into data. A few
+ * aliases are fine; "billion laughs" files that expand aliases of aliases
+ * fail instead of filling the memory.
  */
-export const MAX_ALIAS_COUNT = 20;
-/**
- * Most levels of nested maps and lists in the data of a definition. The data
- * is copied and walked recursively, so the limit also keeps the stack small.
- */
-const MAX_DEFINITION_DEPTH = 64;
-/**
- * The data of a definition may be at most this many times the size of the
- * file, counted as one per value plus one per character of strings and keys.
- * A file without aliases stays well below it; aliases that copy large blocks
- * many times ("billion laughs") fail instead of filling the memory.
- */
-const MAX_DATA_PER_FILE_SIZE = 4;
+export const MAX_ALIAS_COUNT = 100;
 
 /** Thrown when a file is larger than the limit. */
 class TooLargeError extends Error {}
 
 /** A target that is not allowed, or a location it cannot be resolved from. */
 class TargetError extends Error {}
-
-/** Data of a definition that cannot be returned as JSON. */
-class DataError extends Error {}
-
-/** Where a definition is read from. */
-type DefinitionLocation =
-  | { type: 'url'; target: string }
-  | {
-      type: 'file';
-      target: string;
-      /** The folder of the entity file; the file must stay in it. */
-      root: string;
-    };
 
 /** One host (and optional path prefix) entry in `temporal.definitions.allow`. */
 export interface DefinitionAllowRule {
@@ -128,9 +94,6 @@ interface CompiledAllowRule {
 
 const SAME_REPO_MESSAGE =
   'Relative definition targets must stay in the repository of the entity; to read from another repository or host, use an absolute URL and allow it in temporal.definitions.allow';
-
-const FILE_FOLDER_MESSAGE =
-  'A target next to a file location must stay in the folder of the entity file';
 
 const SAME_FOLDER_MESSAGE =
   'On this host, relative definition targets must stay in the folder of the entity file or below it; to read another file, use an absolute URL and allow it in temporal.definitions.allow';
@@ -320,9 +283,7 @@ interface ParsedRepoUrl {
 
 /** True for AWS S3 path-style hosts, where the first path segment is the bucket. */
 function isS3PathStyleHost(hostname: string): boolean {
-  // Labels exclude both separators, so each hostname splits in one way only
-  // and a long run of "-" cannot make the match backtrack exponentially.
-  return /^s3(?:[.-][^.-]+)*\.amazonaws\.com(?:\.cn)?$/i.test(hostname);
+  return /^s3([.-][^.]+)*\.amazonaws\.com(\.cn)?$/i.test(hostname);
 }
 
 /**
@@ -551,57 +512,13 @@ async function readLimited(stream: Readable, maxBytes: number) {
   return Buffer.concat(chunks);
 }
 
-/** True when `path` is `root` or a path below it. */
-function isInside(root: string, path: string): boolean {
-  const inside = relative(root, path);
-  return (
-    inside !== '' &&
-    inside !== '..' &&
-    !inside.startsWith(`..${sep}`) &&
-    !isAbsolute(inside)
-  );
-}
-
-/**
- * Reads a regular file in the folder `root`, failing when it is larger than
- * `maxBytes`. Symlinks may point only to files in the real folder of `root`.
- */
-async function readFileLimited(path: string, root: string, maxBytes: number) {
-  // Without O_NONBLOCK, opening a FIFO waits until another process writes.
-  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+/** Reads a local file, failing when it is larger than `maxBytes`. */
+async function readFileLimited(path: string, maxBytes: number) {
+  const handle = await open(path, 'r');
   try {
-    const opened = await handle.stat();
-    if (!opened.isFile()) {
-      throw new TargetError('The target is not a regular file');
-    }
-    const [realRoot, realFile] = await Promise.all([
-      realpath(root),
-      realpath(path),
-    ]);
-    // The opened file must be the checked one: a link that changes between
-    // `open` and `realpath` gives another device or inode.
-    const checked = await stat(realFile);
-    if (
-      !isInside(realRoot, realFile) ||
-      checked.dev !== opened.dev ||
-      checked.ino !== opened.ino
-    ) {
-      throw new TargetError(FILE_FOLDER_MESSAGE);
-    }
-    if (opened.size > maxBytes) throw new TooLargeError();
-    // Read up to one byte past the limit: some files (such as those in
-    // /proc) report a size of 0 or change after `stat`.
-    const chunks: Buffer[] = [];
-    let size = 0;
-    for (;;) {
-      const chunk = Buffer.alloc(Math.min(64 * 1024, maxBytes + 1 - size));
-      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
-      if (bytesRead === 0) break;
-      size += bytesRead;
-      if (size > maxBytes) throw new TooLargeError();
-      chunks.push(chunk.subarray(0, bytesRead));
-    }
-    return Buffer.concat(chunks);
+    const { size } = await handle.stat();
+    if (size > maxBytes) throw new TooLargeError();
+    return await handle.readFile();
   } finally {
     await handle.close();
   }
@@ -620,68 +537,9 @@ function lastLine(
 }
 
 /**
- * Copies the data of a YAML document into plain JSON values. Aliases make
- * the same object appear more than once, or inside itself; the copy expands
- * them, so it fails on a cycle, on deep nesting and past `maxSize` (one per
- * value plus one per character of strings and keys).
- */
-function copyAsJson(root: unknown, maxSize: number): unknown {
-  let size = 0;
-  const grow = (amount: number) => {
-    size += amount;
-    if (size > maxSize) {
-      throw new DataError(
-        'The file expands to too much data through its aliases',
-      );
-    }
-  };
-  const ancestors = new Set<object>();
-  const copy = (value: unknown, depth: number): unknown => {
-    grow(1);
-    if (typeof value === 'string') {
-      grow(value.length);
-      return value;
-    }
-    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-    if (typeof value === 'boolean') return value;
-    if (value === null || typeof value !== 'object') return null;
-    if (depth >= MAX_DEFINITION_DEPTH) {
-      throw new DataError(
-        `The file is nested more than ${MAX_DEFINITION_DEPTH} levels deep`,
-      );
-    }
-    if (ancestors.has(value)) {
-      throw new DataError('The file has an alias inside its own anchor');
-    }
-    ancestors.add(value);
-    try {
-      if (Array.isArray(value)) {
-        return value.map(item => copy(item, depth + 1));
-      }
-      const result: Record<string, unknown> = {};
-      for (const [key, item] of Object.entries(value)) {
-        grow(key.length);
-        // defineProperty keeps a "__proto__" key as data.
-        Object.defineProperty(result, key, {
-          value: copy(item, depth + 1),
-          enumerable: true,
-          writable: true,
-          configurable: true,
-        });
-      }
-      return result;
-    } finally {
-      ancestors.delete(value);
-    }
-  };
-  return copy(root, 0);
-}
-
-/**
  * Parses a definition file without running anything: plain YAML 1.2 (core
- * schema, no custom tags), unique keys, limits on aliases, nesting and the
- * size of the data. Returns the data, the tasks with their lines, and an
- * error for invalid files.
+ * schema, no custom tags), unique keys, a limit on aliases. Returns the data,
+ * the tasks with their lines, and an error for invalid files.
  */
 export function parseDefinition(text: string): {
   document?: JsonObject;
@@ -689,94 +547,49 @@ export function parseDefinition(text: string): {
   error?: WorkflowDefinitionError;
 } {
   const lineCounter = new LineCounter();
-  // Unique keys are checked below: the check of the `yaml` package compares
-  // each key with every earlier key of its map.
   const doc = parseDocument(text, {
     lineCounter,
     prettyErrors: false,
     schema: 'core',
     merge: false,
-    uniqueKeys: false,
+    uniqueKeys: true,
     strict: true,
-  });
-  const parseError = (
-    message: string,
-    pos?: { line: number; col: number },
-  ) => ({
-    tasks: [],
-    error: {
-      kind: 'parse' as const,
-      message,
-      ...(pos ? { line: pos.line, column: pos.col } : {}),
-    },
   });
   if (doc.errors.length > 0) {
     const first = doc.errors[0];
-    return parseError(
-      first.message.split('\n')[0],
-      first.linePos?.[0] ?? lineCounter.linePos(first.pos[0]),
-    );
-  }
-  let duplicate: number | undefined;
-  let aliases = 0;
-  try {
-    visitYaml(doc, {
-      Alias() {
-        aliases += 1;
-        return aliases > MAX_ALIAS_COUNT ? visitYaml.BREAK : undefined;
+    const pos = first.linePos?.[0] ?? lineCounter.linePos(first.pos[0]);
+    return {
+      tasks: [],
+      error: {
+        kind: 'parse',
+        message: first.message.split('\n')[0],
+        line: pos?.line,
+        column: pos?.col,
       },
-      Map(_, map) {
-        const keys = new Set<unknown>();
-        for (const pair of map.items) {
-          // Like the `yaml` package, only scalar keys are compared.
-          if (!isScalar(pair.key)) continue;
-          if (keys.has(pair.key.value)) {
-            duplicate = pair.key.range?.[0] ?? 0;
-            return visitYaml.BREAK;
-          }
-          keys.add(pair.key.value);
-        }
-        return undefined;
-      },
-    });
-  } catch (error) {
-    if (error instanceof RangeError) {
-      return parseError('The file is nested too deeply');
-    }
-    throw error;
+    };
   }
-  if (duplicate !== undefined) {
-    return parseError(
-      'Map keys must be unique',
-      lineCounter.linePos(duplicate),
-    );
-  }
-  const tooManyAliases = `The file uses too many aliases (more than ${MAX_ALIAS_COUNT})`;
-  if (aliases > MAX_ALIAS_COUNT) return parseError(tooManyAliases);
-  let document: JsonObject;
+  let data: unknown;
   try {
-    const data = doc.toJS({ maxAliasCount: MAX_ALIAS_COUNT });
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      return {
-        tasks: [],
-        error: { kind: 'format', message: 'The file is not a YAML object' },
-      };
-    }
-    document = copyAsJson(
-      data,
-      MAX_DATA_PER_FILE_SIZE * text.length + 1024,
-    ) as JsonObject;
+    data = doc.toJS({ maxAliasCount: MAX_ALIAS_COUNT });
   } catch (error) {
-    if (error instanceof DataError) return parseError(error.message);
-    if (error instanceof RangeError) {
-      return parseError('The file is nested too deeply');
-    }
-    return parseError(
-      error instanceof Error && /alias/i.test(error.message)
-        ? tooManyAliases
-        : 'The file could not be read as YAML',
-    );
+    return {
+      tasks: [],
+      error: {
+        kind: 'parse',
+        message:
+          error instanceof Error && /alias/i.test(error.message)
+            ? `The file uses too many aliases (more than ${MAX_ALIAS_COUNT})`
+            : 'The file could not be read as YAML',
+      },
+    };
   }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return {
+      tasks: [],
+      error: { kind: 'format', message: 'The file is not a YAML object' },
+    };
+  }
+  const document = JSON.parse(JSON.stringify(data)) as JsonObject;
   if (!Array.isArray(document.do)) {
     return {
       document,
@@ -814,6 +627,11 @@ export function parseDefinition(text: string): {
   return { document, tasks };
 }
 
+/**
+ * Reads the definition files of `TemporalWorkflow` entities with the
+ * backend's URL reader, so only configured integrations (and
+ * `backend.reading.allow`) are read.
+ */
 /** The workflow type of a `TemporalWorkflow` entity (`spec.workflowType`). */
 function workflowTypeOf(entity: Entity): string | undefined {
   const type = (entity.spec as { workflowType?: unknown } | undefined)
@@ -821,14 +639,6 @@ function workflowTypeOf(entity: Entity): string | undefined {
   return typeof type === 'string' ? type : undefined;
 }
 
-/**
- * Reads the definition files of `TemporalWorkflow` entities. URLs are read
- * with the backend's URL reader, so only configured integrations (and
- * `backend.reading.allow`) are read; absolute URLs must also match
- * `temporal.definitions.allow`. Files next to entities from `file:`
- * locations are read from the disk only with
- * `temporal.definitions.readFileLocations`.
- */
 export class DefinitionReader {
   readonly maxBytes: number;
   private readonly reader: UrlReaderService;
@@ -894,45 +704,14 @@ export class DefinitionReader {
 
   /**
    * Resolves a target: an absolute `http(s)` URL must match
-   * `temporal.definitions.allow` and has no user name or password, while a
-   * relative path must stay inside the repository of the entity's
-   * `backstage.io/managed-by-location` (or inside the entity folder for
-   * allowed `file:` locations). A `serverless-workflow` target must be a
-   * `.yaml` or `.yml` file.
+   * `temporal.definitions.allow`, while a relative path must stay inside the
+   * repository of the entity's `backstage.io/managed-by-location` (or inside
+   * the entity folder for allowed `file:` locations).
    */
   resolve(
     entity: Entity,
     rawTarget: string,
-    format: TemporalWorkflowDefinitionSpec['format'],
-  ): DefinitionLocation {
-    const where = this.resolveLocation(entity, rawTarget);
-    if (format === 'serverless-workflow' && !this.isYamlFile(where)) {
-      throw new TargetError(
-        'A serverless-workflow definition must be a .yaml or .yml file',
-      );
-    }
-    return where;
-  }
-
-  /** True when the file of a location is named `*.yaml` or `*.yml`. */
-  private isYamlFile(where: DefinitionLocation): boolean {
-    const isYaml = (path: string) => /\.ya?ml$/i.test(path);
-    if (where.type === 'file') return isYaml(where.target);
-    const url = new URL(where.target);
-    if (isYaml(decodeFully(url.pathname))) return true;
-    // Azure DevOps names the file in the `path` query parameter.
-    const queryPath = url.searchParams.get('path');
-    return (
-      this.integrations.byUrl(where.target)?.type === 'azure' &&
-      queryPath !== null &&
-      isYaml(decodeFully(queryPath))
-    );
-  }
-
-  private resolveLocation(
-    entity: Entity,
-    rawTarget: string,
-  ): DefinitionLocation {
+  ): { type: 'url' | 'file'; target: string } {
     // Reject controls in the raw target and its fully decoded form first,
     // including the edges. Trimming them off before the check would hide
     // "\thttps://..." and "%0ahttps://...", and URL parsers also delete
@@ -951,11 +730,6 @@ export class DefinitionReader {
       }
       if (url.protocol !== 'https:' && url.protocol !== 'http:') {
         throw new TargetError('Only http and https URLs are read');
-      }
-      if (url.username || url.password) {
-        throw new TargetError(
-          'Absolute definition URLs must not contain a user name or password',
-        );
       }
       const decodedPath = decodeFully(url.pathname);
       if (
@@ -1089,21 +863,27 @@ export class DefinitionReader {
       }
       const base = dirname(location.target);
       const file = resolve(base, target);
-      // Only files in the folder of the entity file or below it; symlinks
-      // are checked when the file is read.
-      if (!isInside(base, file)) {
-        throw new TargetError(FILE_FOLDER_MESSAGE);
+      const inside = relative(base, file);
+      // Only files in the folder of the entity file or below it.
+      if (
+        inside.startsWith(`..${sep}`) ||
+        inside === '..' ||
+        isAbsolute(inside)
+      ) {
+        throw new TargetError(
+          'A target next to a file location must stay in the folder of the entity file',
+        );
       }
-      return { type: 'file', target: file, root: base };
+      return { type: 'file', target: file };
     }
     throw new TargetError(
       `Locations of type ${location.type} are not supported; use an absolute URL and allow it in temporal.definitions.allow`,
     );
   }
 
-  private async fetch(where: DefinitionLocation) {
+  private async fetch(where: { type: 'url' | 'file'; target: string }) {
     if (where.type === 'file') {
-      return readFileLimited(where.target, where.root, this.maxBytes);
+      return readFileLimited(where.target, this.maxBytes);
     }
     const response = await this.reader.readUrl(where.target);
     if (response.stream) {
@@ -1126,9 +906,9 @@ export class DefinitionReader {
       maxBytes: this.maxBytes,
       tasks: [],
     };
-    let where: DefinitionLocation;
+    let where: { type: 'url' | 'file'; target: string };
     try {
-      where = this.resolve(entity, spec.target, spec.format);
+      where = this.resolve(entity, spec.target);
     } catch (error) {
       this.logger
         ?.child({ entityRef: base.entityRef })
@@ -1158,13 +938,6 @@ export class DefinitionReader {
             kind: 'tooLarge',
             message: `The file is larger than ${this.maxBytes} bytes`,
           },
-        };
-      }
-      if (error instanceof TargetError) {
-        return {
-          ...base,
-          url,
-          error: { kind: 'read', message: error.message },
         };
       }
       const name = error instanceof Error ? error.name : '';
@@ -1205,15 +978,12 @@ export class DefinitionReader {
       }
       return result;
     }
-    const parsed = parseDefinition(content);
-    // A file that is not a valid definition may be another file of the
-    // repository: its text is not returned.
     return {
       ...base,
       url,
-      ...(parsed.error ? {} : { content }),
+      content,
       size: buffer.length,
-      ...parsed,
+      ...parseDefinition(content),
     };
   }
 }
