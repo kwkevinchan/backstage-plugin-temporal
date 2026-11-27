@@ -323,7 +323,9 @@ Tool calls are linked by the backend: a step whose adapter returns a
 `toolCallId` is linked to the model call that asked for that ID; other
 steps scheduled after the model call and before the next call of the agent
 are matched by the tool name and the arguments, and marked `inferred`
-(`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The graph gets names and
+(`WorkflowToolLink`, `WorkflowLlmToolCallRef`). The backend infers links for at
+most 500 such tool requests in one model call and 2000 in one run; above
+either limit it infers none for the whole run. The graph gets names and
 numbers only (`WorkflowLlmSummary`, with the error type but not the error
 message); the records come from
 `GET /:wf/llm-calls/:eventId`, with the same permission. [Example](#add-an-llm-adapter).
@@ -599,7 +601,13 @@ running workflow, because later steps are unknown until they run). When
 for `/graph` and 1,000 events for `/progress`), so counts cover only the first
 events read. `GET /:wf/llm-calls/:eventId` uses the same 5,000-event limit and
 answers `404` explaining that the history was truncated when `eventId` lies
-beyond the events read.
+beyond the events read. Neither endpoint caches histories: every request reads
+them again. To bound the load, set a rate limit for the Temporal plugin only
+(`backend.rateLimit.global: false` and `backend.rateLimit.plugin.temporal` with
+`window` and `incomingRequestLimit`; see the [README](../README.md)). Do not set
+`backend.rateLimit: true`: it limits the whole backend, by default to 5
+requests per minute for each IP address. The limit counts the requests of one
+IP address in the window and applies to every route of the plugin.
 
 The run list of a workflow ID has the runs that continued as new. Its order
 is the one of Temporal's visibility store: the plugin asks for none (SQL

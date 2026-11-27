@@ -223,7 +223,7 @@ enricher 拿到完整的流程，含失敗內容；放進 `extensions` 的內容
 
 模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別或不是單純的 JSON（循環結構、函式、class 實例）時，那個步驟就是一般步驟，並記一筆警告，只含轉接器 id、事件 id 和錯誤名稱，每讀一次 run 每個轉接器一筆；錯誤訊息不會被記錄，也不會傳回去。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
 
-tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。流程圖只拿到名稱和數字（`WorkflowLlmSummary`，有錯誤類型、沒有錯誤訊息）；完整紀錄從 `GET /:wf/llm-calls/:eventId` 取得，權限相同。[範例](#加一個-llm-轉接器)。
+tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。推測連結有上限：一次模型呼叫最多 500 個、整個 run 最多 2000 個沒有 ID 的 tool 要求；超過任一個上限，整個 run 都不推測連結。流程圖只拿到名稱和數字（`WorkflowLlmSummary`，有錯誤類型、沒有錯誤訊息）；完整紀錄從 `GET /:wf/llm-calls/:eventId` 取得，權限相同。[範例](#加一個-llm-轉接器)。
 
 ### Feature loader 和 catalog 模組
 
@@ -360,7 +360,7 @@ read 照[流程在哪個實體上檢查權限](#流程在哪個實體上檢查�
 
 失敗一律是完整的 `WorkflowFailure`，含 `source`、`stackTrace`、`nonRetryable` 和 `cause` 原因鏈：`WorkflowDetail.failure` 和其中 pending activity 的 `lastFailure`（`GET /:wf`）、流程圖節點和各次嘗試的 `failure`（`GET /:wf/graph`）、`GET /:wf/result`，以及模型呼叫的紀錄（`GET /:wf/llm-calls/:eventId`）。流程圖和 `GET /:wf/progress` 的 `current` 文字只用最外層的訊息；`WorkflowLlmSummary.error` 是模型呼叫的錯誤類型，紀錄沒有類型時是 `error`。清單不含失敗。變更流程的路由在流程拒絕 update 時，回應裡帶拒絕的訊息和它的原因（`400`），和 update 成功時的結果一樣。訊息是 SDK 記錄的那一則；有些 SDK 會把原因串進這則訊息。
 
-`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。`GET /:wf/llm-calls/:eventId` 使用相同的 5,000 個事件上限；若請求的 `eventId` 在截斷點之後，會回 `404` 並在訊息說明事件紀錄已截斷。
+`WorkflowGraphResponse` 和 `WorkflowProgressResponse` 的 `totalSteps` 是目前已讀到的事件裡出現過的步驟數（執行中的流程這不是總數，因為後面還會跑幾步要等跑到才知道）。`truncated` 為 true 時表示事件超過後端讀取上限（`GET /:wf/graph` 為 5,000 個事件，`GET /:wf/progress` 為 1,000 個事件），數字只反映前段讀到的事件。`GET /:wf/llm-calls/:eventId` 使用相同的 5,000 個事件上限；若請求的 `eventId` 在截斷點之後，會回 `404` 並在訊息說明事件紀錄已截斷。這兩個端點都不快取事件紀錄，每次請求都重新讀一次。要限制負載，只對 Temporal 外掛設限流（`backend.rateLimit.global: false`，加上 `backend.rateLimit.plugin.temporal` 的 `window` 和 `incomingRequestLimit`；範例見 [README](../../README.md)）。不要設 `backend.rateLimit: true`：那會限制整個後端，預設每個 IP 每分鐘只能 5 個請求。限制是計算同一個 IP 在時間窗內的請求數，套用在外掛的所有路由，不是限制同時進行的讀取數。
 
 workflow ID 的 run 清單包含已接續（continue-as-new）的 run。順序是 Temporal visibility store 回傳的順序：外掛不指定排序（SQL visibility 不接受 `ORDER BY`；它先列執行中的 run，再列已結束的，最後結束的在前）。超過 namespace 保留期限的 run 不會列出。帶 `entityRef` 時，實體流程的子流程不會列出，雖然用這個實體打得開它們的 run。workflow ID 含引號、反斜線或控制字元時無法列出（`400`）：請用 run ID 打開那次執行。
 
