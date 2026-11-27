@@ -420,20 +420,20 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
 
-| 鍵                                                                           | 誰讀                                                                                                                                                                                                        | 瀏覽器看得到 |
-| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `connection.address`                                                         | 後端（`temporalServiceRef`）                                                                                                                                                                                |              |
-| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                                                                                                                                                                                        |              |
-| `connection.auth.token`                                                      | 後端；secret                                                                                                                                                                                                |              |
-| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組                                                                                                                                                                             | 是           |
-| `webUi.baseUrl`                                                              | 後端、前端                                                                                                                                                                                                  | 是           |
-| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                                                                                                                                                                                        |              |
-| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕）                                                                                                                                                                      | 是           |
-| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）                                                                                                                                                                              | 是           |
-| `externalStorage.objectUrl`                                                  | 前端                                                                                                                                                                                                        | 是           |
-| `overview.maxVisibilityCallsPerSecond`                                       | 後端（單一 process、每個 namespace 預設每秒 5 次；多副本時為 `N × 設定值`，一頁 25 列未快取約 50–75 次呼叫，排隊時間算入 15 秒期限，建議配合 Temporal `frontend.namespaceRPS.visibility` 預設 10 RPS 調整） |              |
-| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                                                                                                                                                                                            |              |
-| `actions.allowServiceWrites`                                                 | Actions registry 後端模組                                                                                                                                                                                   |              |
+| 鍵                                                                           | 誰讀                                               | 瀏覽器看得到 |
+| ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------ |
+| `connection.address`                                                         | 後端（`temporalServiceRef`）                       |              |
+| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                               |              |
+| `connection.auth.token`                                                      | 後端；secret                                       |              |
+| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組                    | 是           |
+| `webUi.baseUrl`                                                              | 後端、前端                                         | 是           |
+| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                               |              |
+| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕）             | 是           |
+| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）                     | 是           |
+| `externalStorage.objectUrl`                                                  | 前端                                               | 是           |
+| `overview.maxVisibilityCallsPerSecond`                                       | 後端（每個 process、每個 namespace 預設每秒 5 次） |              |
+| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                                   |              |
+| `actions.allowServiceWrites`                                                 | Actions registry 後端模組                          |              |
 
 Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
 

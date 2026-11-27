@@ -358,17 +358,28 @@ one count grouped by status, one list of the 50 most recent runs, and, only when
 the failures of the 7 days are not among those runs, one list of the last
 failure. A server that cannot group (before Temporal 1.22) refuses the grouped
 count, and three counts without grouping follow: at most six calls. At most 4
-of these calls are in flight in a namespace and at most
+of these calls are in flight in a namespace, and at most
 `temporal.overview.maxVisibilityCallsPerSecond` (default `5`) calls start per
-second per namespace, for all users together on each backend process, with
-waiting time counted toward the list deadline (15 seconds). The result is kept
-for 60 seconds by namespace and visibility query; the permission is checked on
-every request. Concurrency, rate limiting and the cache are per backend process
-(so `N` replicas can issue up to `N × maxVisibilityCallsPerSecond` calls/s).
-Temporal's default `frontend.namespaceRPS.visibility` is 10 RPS per frontend
-instance per namespace; in multi-replica deployments, either lower
-`temporal.overview.maxVisibilityCallsPerSecond` proportionally or raise
-`frontend.namespaceRPS.visibility` on Temporal. When Temporal
+second in a namespace, for all users together on each backend process. The
+calls wait in a queue, the one with the earliest deadline first, so the rows
+of the request that came first are served first. The 15 seconds of a list
+deadline are counted from the start of the row, and the queue time is part of
+them; a call that has started also has its own 15 seconds, so a row can take
+up to about 30 seconds. At the default rate an uncached page of 25 rows needs
+10 to 15 seconds to load (50 to 75 calls at 5 per second). Rows whose calls do
+not start within 15 seconds show `Temporal did not answer in time`, although
+no call to Temporal was made for them; the backend writes one warning for
+each request that has such rows. The result is kept for 60 seconds by
+namespace and visibility query; the permission is checked on every request.
+Concurrency, the rate limit and the cache are per backend process, so `N`
+replicas can start up to `N × maxVisibilityCallsPerSecond` calls per second.
+Temporal limits visibility calls by itself: `frontend.namespaceRPS.visibility`
+defaults to 10 per second for each frontend instance and namespace (burst
+ratio `frontend.namespaceBurstRatio.visibility` is 1), and
+`frontend.globalNamespaceRPS.visibility`, when set, is a limit for the whole
+cluster that replaces the per-instance one. Keep the sum of all callers of the
+namespace under it: lower `temporal.overview.maxVisibilityCallsPerSecond` in
+proportion to the number of replicas, or raise the Temporal settings. When Temporal
 rate limits the backend (`RESOURCE_EXHAUSTED`), the rows it refused show `—`
 with the reason and a retry button, the page says so, and nothing is retried on
 its own. Sorting by the latest run needs the numbers of every row, so it is
@@ -824,7 +835,7 @@ temporal:
 | `control.allowedSignals`               | (all)                | Signal names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
 | `control.allowedUpdates`               | (all)                | Update names that may be sent.                                                                                                                                                                                                                                                                                                                                                    |
 | `externalStorage.objectUrl`            |                      | Template of the link to a stored payload; `{bucket}` and `{key}` are replaced with the URL-encoded values. Only `https:` templates with a fixed trusted domain (at least two fixed domain labels after `{bucket}`/`{key}`) are used; templates using `{bucket}` as the host warn once in the console and produce no link. See [Large payloads](#large-payloads-external-storage). |
-| `overview.maxVisibilityCallsPerSecond` | `5`                  | Maximum visibility calls per second started by `POST /api/temporal/workflow-types/overview` in each namespace, per backend process (combined with concurrency 4). Waiting time counts toward the 15-second list deadline.                                                                                                                                                         |
+| `overview.maxVisibilityCallsPerSecond` | `5`                  | Maximum visibility calls per second that `POST /api/temporal/workflow-types/overview` starts in each namespace, per backend process (with at most 4 in flight). Rows whose calls wait longer than 15 seconds show `Temporal did not answer in time`, as described for the Workflows tab.                                                                                          |
 | `definitions.allow`                    | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration (otherwise startup logs a warning).                                                                                                        |
 | `definitions.maxBytes`                 | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                                                                                                           |
 | `definitions.readFileLocations`        | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |

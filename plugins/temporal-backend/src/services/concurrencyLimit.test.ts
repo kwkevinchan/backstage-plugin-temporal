@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KeyedConcurrencyLimit } from './concurrencyLimit';
+import { KeyedConcurrencyLimit, QueueDeadlineError } from './concurrencyLimit';
 
 /** A task that runs until `finish` is called. */
 function pending() {
@@ -155,6 +155,70 @@ describe('KeyedConcurrencyLimit', () => {
       expect(ran).toEqual(['first', 'third']);
     });
 
+    it('starts the task with the earliest deadline first, then in the order they came', async () => {
+      const limit = new KeyedConcurrencyLimit(1);
+      const first = pending();
+      const started: string[] = [];
+      const base = limit.clock();
+      const queue = (name: string, deadlineAt?: number) =>
+        limit.run(
+          'default',
+          async () => {
+            started.push(name);
+          },
+          deadlineAt === undefined ? undefined : { deadlineAt },
+        );
+
+      const runs = [
+        limit.run('default', () => first.task()),
+        queue('late', base + 3000),
+        queue('none-1'),
+        queue('early', base + 1000),
+        queue('middle', base + 2000),
+        queue('early-2', base + 1000),
+        queue('none-2'),
+      ];
+      await Promise.resolve();
+      first.finish();
+      await Promise.all(runs);
+      expect(started).toEqual([
+        'early',
+        'early-2',
+        'middle',
+        'late',
+        'none-1',
+        'none-2',
+      ]);
+    });
+
+    it('finishes the rows of the first request when two requests share a slow queue', async () => {
+      // Two requests of 4 rows each, read at the same time. A row makes a
+      // call, then a second one after it; both have the deadline of the row.
+      // At 1 call per second and 10 seconds, about 11 calls get through.
+      const limit = new KeyedConcurrencyLimit(4, { maxPerSecond: 1 });
+      const row = async (deadlineAt: number) => {
+        const call = () => limit.run('default', async () => {}, { deadlineAt });
+        try {
+          await call();
+          await call();
+          return 'ok';
+        } catch (error) {
+          return error instanceof QueueDeadlineError ? 'deadline' : 'other';
+        }
+      };
+      const rows: Array<Promise<string>> = [];
+      for (let i = 0; i < 8; i += 1) {
+        rows.push(row(limit.clock() + 10_000));
+        // The rows start one after the other, so their deadlines differ.
+        await jest.advanceTimersByTimeAsync(1);
+      }
+      await jest.advanceTimersByTimeAsync(11_000);
+      const results = await Promise.all(rows);
+      expect(results.slice(0, 4)).toEqual(['ok', 'ok', 'ok', 'ok']);
+      expect(results.filter(r => r === 'ok').length).toBeGreaterThanOrEqual(5);
+      expect(results[7]).toBe('deadline');
+    });
+
     it('rejects immediately when deadlineAt has already passed', async () => {
       const limit = new KeyedConcurrencyLimit(4, { maxPerSecond: 5 });
       const fn = jest.fn();
@@ -162,6 +226,9 @@ describe('KeyedConcurrencyLimit', () => {
         limit.run('default', fn, { deadlineAt: limit.clock() }),
       ).rejects.toThrow('Temporal did not answer in time');
       expect(fn).not.toHaveBeenCalled();
+      await expect(
+        limit.run('default', fn, { deadlineAt: limit.clock() }),
+      ).rejects.toBeInstanceOf(QueueDeadlineError);
     });
   });
 });

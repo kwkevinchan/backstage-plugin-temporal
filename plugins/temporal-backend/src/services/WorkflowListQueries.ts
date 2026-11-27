@@ -53,7 +53,7 @@ import {
   quote,
   scheduleBelongsToSources,
 } from './visibilityQuery';
-import { KeyedConcurrencyLimit } from './concurrencyLimit';
+import { KeyedConcurrencyLimit, QueueDeadlineError } from './concurrencyLimit';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
 
@@ -103,6 +103,15 @@ function averageDurationMs(items: WorkflowSummary[]): number | undefined {
     }
   }
   return count > 0 ? Math.round(sum / count) : undefined;
+}
+
+/**
+ * What the overview of the entities of one request counts, for the caller to
+ * log once for the request.
+ */
+export interface OverviewRequestStats {
+  /** Entities whose calls waited in the queue until their deadline. */
+  queueTimeouts: number;
 }
 
 /** The messages of `failedOverview`: fixed text, whatever the error says. */
@@ -166,19 +175,12 @@ export class WorkflowListQueries {
     private readonly sources: EntityWorkflowSources,
     private readonly queries: WorkflowQueries,
     private readonly logger: LoggerService,
-    options: {
-      overviewRatePerSecond?: number;
-      overviewDeadlineMs?: number;
-    } = {},
+    options: { overviewRatePerSecond?: number } = {},
   ) {
     this.overviewLimit = new KeyedConcurrencyLimit(OVERVIEW_CONCURRENCY, {
       maxPerSecond: options.overviewRatePerSecond ?? OVERVIEW_RATE_PER_SECOND,
     });
-    this.overviewDeadlineMs =
-      options.overviewDeadlineMs ?? TEMPORAL_DEADLINES.list;
   }
-
-  private readonly overviewDeadlineMs: number;
 
   /**
    * The schedules of a namespace, the first MAX_SCHEDULES of them; with
@@ -415,6 +417,7 @@ export class WorkflowListQueries {
    */
   async overview(
     context: TemporalEntityContext,
+    request?: OverviewRequestStats,
   ): Promise<WorkflowTypeOverview> {
     const now = Date.now();
     try {
@@ -438,6 +441,9 @@ export class WorkflowListQueries {
       });
       return overview;
     } catch (error) {
+      if (error instanceof QueueDeadlineError && request) {
+        request.queueTimeouts += 1;
+      }
       // A failed call to Temporal is logged by `callTemporal`; a limit hit by
       // many entities would otherwise write two lines for each of them.
       this.logger
@@ -453,7 +459,7 @@ export class WorkflowListQueries {
     now: number,
   ): Promise<WorkflowTypeOverview> {
     const { namespace } = context;
-    const deadlineAt = this.overviewLimit.clock() + this.overviewDeadlineMs;
+    const deadlineAt = this.overviewLimit.clock() + TEMPORAL_DEADLINES.list;
     const limited = <T>(call: () => Promise<T>) =>
       this.overviewLimit.run(namespace, call, { deadlineAt });
     const since = new Date(

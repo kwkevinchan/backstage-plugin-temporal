@@ -23,8 +23,17 @@ export interface KeyedConcurrencyLimitOptions {
    * only the concurrency limit applies.
    */
   maxPerSecond?: number;
-  /** Monotonic clock returning milliseconds; defaults to `performance.now`. */
-  now?: () => number;
+}
+
+/**
+ * A task that waited in the queue until its deadline. No call to Temporal was
+ * made for it. The message is the one of a call that Temporal did not answer
+ * in time.
+ */
+export class QueueDeadlineError extends ServiceUnavailableError {
+  constructor() {
+    super(TEMPORAL_ERROR_MESSAGES.deadline);
+  }
 }
 
 interface Waiter {
@@ -32,6 +41,8 @@ interface Waiter {
   reject: (error: Error) => void;
   timer?: ReturnType<typeof setTimeout>;
   settled: boolean;
+  /** Clock ms of the deadline; Infinity without one. */
+  deadlineAt: number;
 }
 
 interface KeyState {
@@ -47,10 +58,14 @@ interface KeyState {
 
 /**
  * At most `max` tasks of one key run at the same time, and optionally at most
- * `maxPerSecond` tasks start per second per key; the others wait in the order
- * they came. Waiting time counts toward `deadlineAt` when provided: a task
- * whose deadline expires while queued is removed and rejected with a deadline
- * error instead of running later.
+ * `maxPerSecond` tasks start per second per key; the others wait. The one
+ * with the earliest `deadlineAt` starts first, and tasks with the same
+ * deadline (or none) start in the order they came. Waiting time counts toward
+ * `deadlineAt` when provided: a task whose deadline expires while queued is
+ * removed and rejected with a {@link QueueDeadlineError} instead of running
+ * later. Tasks of one request share a deadline, so the request that came
+ * first gets its tasks started first, and a later request does not push them
+ * past their deadline.
  *
  * The keys are Temporal namespaces: the limit holds for every request of this
  * backend process together.
@@ -59,7 +74,6 @@ export class KeyedConcurrencyLimit {
   private readonly states = new Map<string, KeyState>();
   private readonly maxPerSecond: number | undefined;
   private readonly burst: number;
-  private readonly now: () => number;
 
   constructor(
     private readonly max: number,
@@ -76,12 +90,11 @@ export class KeyedConcurrencyLimit {
       options.maxPerSecond !== undefined
         ? Math.max(1, Math.min(max, options.maxPerSecond))
         : max;
-    this.now = options.now ?? (() => performance.now());
   }
 
-  /** Current reading of this limiter's clock in milliseconds. */
+  /** Current reading of the monotonic clock of this limiter, in milliseconds. */
   clock(): number {
-    return this.now();
+    return performance.now();
   }
 
   async run<T>(
@@ -104,7 +117,7 @@ export class KeyedConcurrencyLimit {
         active: 0,
         waiting: [],
         tokens: this.burst,
-        lastRefillAt: this.now(),
+        lastRefillAt: this.clock(),
       };
       this.states.set(key, state);
     }
@@ -122,7 +135,7 @@ export class KeyedConcurrencyLimit {
 
   private tryConsumeToken(state: KeyState): boolean {
     if (this.maxPerSecond === undefined) return true;
-    const currentMs = this.now();
+    const currentMs = this.clock();
     this.refill(state, currentMs);
     if (state.tokens >= 1) {
       state.tokens -= 1;
@@ -133,7 +146,7 @@ export class KeyedConcurrencyLimit {
 
   private msUntilNextToken(state: KeyState): number {
     if (this.maxPerSecond === undefined) return 0;
-    this.refill(state, this.now());
+    this.refill(state, this.clock());
     if (state.tokens >= 1) return 0;
     return Math.max(
       1,
@@ -143,11 +156,9 @@ export class KeyedConcurrencyLimit {
 
   private acquire(key: string, deadlineAt?: number): Promise<void> {
     const state = this.stateOf(key);
-    if (deadlineAt !== undefined && deadlineAt - this.now() <= 0) {
+    if (deadlineAt !== undefined && deadlineAt - this.clock() <= 0) {
       this.cleanupIfIdle(key, state);
-      return Promise.reject(
-        new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.deadline),
-      );
+      return Promise.reject(new QueueDeadlineError());
     }
     if (
       state.waiting.length === 0 &&
@@ -161,6 +172,7 @@ export class KeyedConcurrencyLimit {
     return new Promise<void>((resolve, reject) => {
       const waiter: Waiter = {
         settled: false,
+        deadlineAt: deadlineAt ?? Infinity,
         grant: () => {
           if (waiter.settled) return;
           waiter.settled = true;
@@ -175,17 +187,22 @@ export class KeyedConcurrencyLimit {
         },
       };
       if (deadlineAt !== undefined) {
-        const remainingMs = Math.max(0, deadlineAt - this.now());
+        const remainingMs = Math.max(0, deadlineAt - this.clock());
         waiter.timer = setTimeout(() => {
           const idx = state.waiting.indexOf(waiter);
           if (idx >= 0) state.waiting.splice(idx, 1);
-          waiter.reject(
-            new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.deadline),
-          );
+          waiter.reject(new QueueDeadlineError());
           this.drain(key, state);
         }, remainingMs);
+        // A waiting task alone does not keep the process alive.
+        waiter.timer.unref?.();
       }
-      state.waiting.push(waiter);
+      // Earliest deadline first; after the tasks with the same deadline.
+      let at = state.waiting.length;
+      while (at > 0 && state.waiting[at - 1].deadlineAt > waiter.deadlineAt) {
+        at -= 1;
+      }
+      state.waiting.splice(at, 0, waiter);
       this.drain(key, state);
     });
   }
@@ -206,6 +223,7 @@ export class KeyedConcurrencyLimit {
             state.rateTimer = undefined;
             this.drain(key, state);
           }, waitMs);
+          state.rateTimer.unref?.();
         }
         return;
       }

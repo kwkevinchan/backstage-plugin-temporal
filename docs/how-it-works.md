@@ -65,10 +65,13 @@ visibility calls with the entity's visibility query: a count grouped by
 runs, and the last failure when it is not among them. A server that cannot
 group refuses the grouped count, and three counts without grouping follow (at
 most six calls). These calls share a
-limit of 4 in flight for each namespace, and the result is kept for 60 seconds
-by namespace and visibility query, so many users on the page do not multiply
-the load on Temporal. A call that Temporal rate limits gives that row an
-error; it is not retried.
+limit of 4 in flight and `temporal.overview.maxVisibilityCallsPerSecond` starts
+per second (default 5) for each namespace. They wait in a queue, the earliest
+deadline first, and a row whose calls do not start within 15 seconds gets the
+error `Temporal did not answer in time` without any call to Temporal. The
+result is kept for 60 seconds by namespace and visibility query, so many users
+on the page do not multiply the load on Temporal. A call that Temporal rate
+limits gives that row an error; it is not retried.
 
 ### Operate: press Cancel
 
