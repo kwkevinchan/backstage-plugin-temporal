@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 26 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 117 個，其中 103 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 117 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 28 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 117 個，其中 103 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 117 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -60,7 +60,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | ------------------------------------ | ---------- | -----: | -------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |      3 | `@public`                  | 安裝後端                           | [`report.api.md`](../../plugins/temporal-backend/report.api.md)                       |
 |                                      | `./node`   |      8 | `@public`                  | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |     26 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./alpha`  |     28 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |    117 | `@public` 103、`@alpha` 14 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |     25 | `@public`                  | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |      6 | `@alpha`                   | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
@@ -98,6 +98,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporalWorkflowPermissionResourceRef`、`TemporalWorkflowFilter`                                                                                                                         | `./alpha` | `temporal-workflow` 權限 resource，以及規則在列表時轉成什麼                                           | 加權限規則                                             |
 | `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | 這個 resource 的四條規則                                                                              | 用其他工具組條件                                       |
 | `temporalWorkflowConditions`、`createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | list 權限的條件和條件式決定                                                                           | 你的權限政策                                           |
+| `inCondition`、`quote`                                                                                                                                                                    | `./alpha` | 用檢查過的值組 visibility 查詢的條件；遇到不安全的值會拒絕                                            | 你的權限規則的 `toQuery`                               |
 
 ### `./common`（兩個核心套件都有）
 
@@ -412,7 +413,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 | `IN_NAMESPACE`      | `inNamespace`     | `namespaces`    |
 | `IS_INITIATOR`      | `isInitiator`     | `claims`        |
 
-外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。**注意**：`toQuery` 回傳的字串會直接接進 Temporal visibility 查詢，請用 `./alpha` 匯出的 `inCondition` 和 `quote` 組字串，不要直接拼接未檢查的值（空字串、未閉合的引號、或括號不成對的字串都會被拒絕）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
+外掛的模組可以用 `coreServices.permissionsRegistry.addPermissionRules` 和 `temporalWorkflowPermissionResourceRef` 加規則；規則的 `toQuery` 回傳 `TemporalWorkflowFilter`（visibility 查詢，或 `{ namespaces }`、`{ initiators }`）。**注意**：`toQuery` 回傳的字串會直接接進 Temporal visibility 查詢，請用 `./alpha` 匯出的 `inCondition` 和 `quote` 組字串，不要直接拼接未檢查的值（空字串、未閉合的引號、註解、或括號不成對的字串都會被拒絕）。自訂操作的權限是一個 `catalog-entity` 權限，通常就用上面其中一個。
 
 在外掛的程式裡，單獨出現的 query 指 Temporal 的 Query（由 worker 執行 query handler 的那個操作）。搜尋或列出流程用的條件一律叫 visibility 查詢或 filter，例如 `TemporalWorkflowFilter`、`buildEntityVisibilityQuery`。兩個例外：網址的查詢參數（`req.query`、`queryString`）沿用框架用語，權限規則的 `toQuery` 則是 Backstage 權限框架規定的名字。
 

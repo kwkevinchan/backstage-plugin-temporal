@@ -59,7 +59,9 @@ export function trueAttributeCondition(name: string): string {
 }
 
 /**
- * Quotes a validated value for a visibility query.
+ * Quotes a validated value for a visibility query. The value is wrapped in
+ * single quotes. A value with a single or double quote, a backslash, a
+ * whitespace character or a parenthesis is refused with an InputError.
  *
  * @alpha
  */
@@ -88,7 +90,8 @@ export function workflowIdCondition(workflowId: string): string {
 }
 
 /**
- * `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value.
+ * `Field = 'a'`, or `Field IN ('a', 'b')`, after checking every value. An
+ * empty list of values is refused with an InputError.
  *
  * @alpha
  */
@@ -97,6 +100,9 @@ export function inCondition(
   values: string[],
   isValid: (value: string) => boolean,
 ): string {
+  if (values.length === 0) {
+    throw new InputError(`No values for ${field} in a condition`);
+  }
   for (const value of values) {
     if (!isValid(value)) {
       throw new InputError(`Invalid value for ${field} in a condition`);
@@ -109,9 +115,11 @@ export function inCondition(
 
 /**
  * Validates a visibility query string returned by a custom permission rule's
- * `toQuery`: rejects empty/whitespace-only strings, unclosed quotes, and
- * unbalanced parentheses outside quoted literals (which could break out of the
- * surrounding `AND (...)`).
+ * `toQuery`: rejects empty/whitespace-only strings, unclosed quotes, comments
+ * and unbalanced parentheses outside quoted literals (which could break out of
+ * the surrounding `AND (...)`). Temporal's query parser skips comments (a
+ * block comment, `--`, `#` and `//`), so a bracket inside a comment would be
+ * counted here but dropped there; a comment outside quotes is refused.
  */
 export function validatePermissionVisibilityQuery(query: string): string {
   const trimmed = query.trim();
@@ -119,16 +127,16 @@ export function validatePermissionVisibilityQuery(query: string): string {
     throw new InputError('Permission rule returned an empty visibility query');
   }
   let depth = 0;
-  let inQuote: "'" | '"' | undefined;
+  let inQuote: "'" | '"' | '`' | undefined;
   for (let i = 0; i < trimmed.length; i += 1) {
     const ch = trimmed[i];
     if (inQuote) {
-      if (ch === '\\') {
+      if (ch === '\\' && inQuote !== '`') {
         i += 1;
         continue;
       }
       if (ch === inQuote) {
-        if (inQuote === "'" && trimmed[i + 1] === "'") {
+        if (trimmed[i + 1] === inQuote) {
           i += 1;
           continue;
         }
@@ -136,7 +144,17 @@ export function validatePermissionVisibilityQuery(query: string): string {
       }
       continue;
     }
-    if (ch === "'" || ch === '"') {
+    const next = trimmed[i + 1];
+    if (
+      ch === '#' ||
+      (ch === '-' && next === '-') ||
+      (ch === '/' && (next === '/' || next === '*'))
+    ) {
+      throw new InputError(
+        'Permission rule returned a visibility query with a comment',
+      );
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
       inQuote = ch;
     } else if (ch === '(') {
       depth += 1;
