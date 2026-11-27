@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-import { mockCredentials } from '@backstage/backend-test-utils';
+import { mockCredentials, mockServices } from '@backstage/backend-test-utils';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
-import { ConflictError, InputError, ResponseError } from '@backstage/errors';
+import {
+  ConflictError,
+  InputError,
+  NotAllowedError,
+  ResponseError,
+} from '@backstage/errors';
 import { createMockActionContext } from '@backstage/plugin-scaffolder-node-test-utils';
 import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import {
@@ -63,7 +68,7 @@ const entities = [
   }),
 ];
 
-function setup(defaultNamespace = 'default') {
+function setup(defaultNamespace = 'default', allowServiceWrites?: boolean) {
   const client = {
     start: jest.fn().mockResolvedValue({
       namespace: 'default',
@@ -77,6 +82,8 @@ function setup(defaultNamespace = 'default') {
   };
   const options = {
     client: client as unknown as TemporalPluginClient,
+    auth: mockServices.auth(),
+    allowServiceWrites,
     catalog: catalogServiceMock({ entities: entities as any }),
     appBaseUrl: 'http://backstage/',
     defaultNamespace,
@@ -938,5 +945,83 @@ describe('the namespace of wait and signal for an entity', () => {
       namespace: 'x',
     });
     expect(getEntityByRef).not.toHaveBeenCalled();
+  });
+});
+
+describe('callers that do not run as a user', () => {
+  const service = mockCredentials.service('plugin:test');
+  const asService = { getInitiatorCredentials: async () => service };
+  const start = { entityRef: 'temporalworkflow:default/release' };
+  const signal = { workflowId: 'release-1', name: 'approve' };
+
+  it('are refused by start and signal by default, before any call', async () => {
+    const { client, options } = setup();
+    await expect(
+      createTemporalWorkflowStartAction(options).handler(
+        context(start, asService),
+      ),
+    ).rejects.toThrow(NotAllowedError);
+    await expect(
+      createTemporalWorkflowSignalAction(options).handler(
+        context(signal, asService),
+      ),
+    ).rejects.toThrow(/temporal\.scaffolder\.allowServiceWrites/);
+    expect(client.start).not.toHaveBeenCalled();
+    expect(client.latestRunId).not.toHaveBeenCalled();
+    expect(client.send).not.toHaveBeenCalled();
+  });
+
+  it('are refused when the initiator is not a user, such as no credentials', async () => {
+    const { client, options } = setup();
+    await expect(
+      createTemporalWorkflowStartAction(options).handler(
+        context(start, {
+          getInitiatorCredentials: async () => mockCredentials.none(),
+        }),
+      ),
+    ).rejects.toThrow(NotAllowedError);
+    expect(client.start).not.toHaveBeenCalled();
+  });
+
+  it('are allowed by start and signal with allowServiceWrites', async () => {
+    const { client, options } = setup('default', true);
+    await createTemporalWorkflowStartAction(options).handler(
+      context(start, asService),
+    );
+    expect(client.start).toHaveBeenCalledWith(expect.anything(), service);
+    client.send.mockResolvedValue(undefined);
+    await createTemporalWorkflowSignalAction(options).handler(
+      context(signal, asService),
+    );
+    expect(client.send).toHaveBeenCalledWith(
+      'signal',
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      service,
+    );
+  });
+
+  it('can still wait without allowServiceWrites', async () => {
+    const { client, options } = setup();
+    client.describe.mockResolvedValue({ status: 'Completed', runId: 'run-1' });
+    const ctx = context({ workflowId: 'release-1', runId: 'run-1' }, asService);
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(client.describe).toHaveBeenCalled();
+    expect(ctx.output).toHaveBeenCalledWith('status', 'Completed');
+  });
+
+  it('do not matter in a dry run, which sends nothing', async () => {
+    const { client, options } = setup();
+    await createTemporalWorkflowStartAction(options).handler(
+      context(start, { ...asService, isDryRun: true }),
+    );
+    expect(client.start).not.toHaveBeenCalled();
+  });
+
+  it('do not change the user, who is always allowed', async () => {
+    const { client, options } = setup('default', false);
+    await createTemporalWorkflowStartAction(options).handler(context(start));
+    expect(client.start).toHaveBeenCalledWith(expect.anything(), user);
   });
 });
