@@ -26,22 +26,23 @@ import {
   NotFoundError,
   ResponseError,
 } from '@backstage/errors';
-import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { createTemplateAction } from '@backstage/plugin-scaffolder-node';
 import type { JsonValue } from '@backstage/types';
 import {
   exampleArgs,
   WorkflowMessageResponse,
+  type WorkflowStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import {
   buildWorkflowUrl,
   continuedAsNewRunIdOf,
   resolveWorkflowNamespace,
   TemporalPluginClient,
+  type WorkflowNamespaceOptions,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 
 /** Options of the Temporal template actions. */
-export interface TemporalActionsOptions {
+export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   client: TemporalPluginClient;
   auth: AuthService;
   /**
@@ -51,17 +52,8 @@ export interface TemporalActionsOptions {
    * (`temporal.scaffolder.allowServiceWrites`).
    */
   allowServiceWrites?: boolean;
-  /** Reads the entity whose namespace wait and signal follow. */
-  catalog: CatalogService;
   /** `app.baseUrl`, for the link to the workflow. */
   appBaseUrl: string;
-  /**
-   * The namespace that the Temporal backend plugin uses when none is given
-   * (`temporal.connection.defaultNamespace`). The routes of one workflow
-   * have the namespace in their path, so wait and signal fill it in: the
-   * given one, else the namespace of the entity, else this one.
-   */
-  defaultNamespace: string;
 }
 
 /**
@@ -84,6 +76,18 @@ function assertMayWrite(
     );
   }
 }
+
+/** The longest pause between two looks of wait. */
+const MAX_PAUSE_SECONDS = 30;
+
+/** Statuses of a run that has ended for good; ContinuedAsNew is followed. */
+const CLOSED_STATUSES = new Set<WorkflowStatus>([
+  'Completed',
+  'Failed',
+  'Canceled',
+  'Terminated',
+  'TimedOut',
+]);
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -330,17 +334,7 @@ export function createTemporalWorkflowWaitAction(
             .max(300)
             .optional()
             .describe(
-              'The pause before the second look, 5 seconds by default. The pause doubles after each look, up to maxIntervalSeconds',
-            ),
-        maxIntervalSeconds: z =>
-          z
-            .number()
-            .int()
-            .min(1)
-            .max(300)
-            .optional()
-            .describe(
-              'The longest pause between two looks; 30 seconds by default. Set it equal to intervalSeconds to look at a fixed interval. A larger intervalSeconds wins: the pauses never get shorter than it',
+              'The pause before the second look, 5 seconds by default. The pause doubles after each look, up to 30 seconds. A larger intervalSeconds is a fixed interval',
             ),
         failIfNotCompleted: z =>
           z
@@ -356,7 +350,8 @@ export function createTemporalWorkflowWaitAction(
             .describe('Output the workflow result. False by default'),
       },
       output: {
-        status: z => z.string(),
+        status: z =>
+          z.string().describe('The status of the run; Unknown in a dry run'),
         runId: z => z.string(),
         result: z => z.any().optional(),
         searchAttributes: z => z.record(z.any()).optional(),
@@ -365,7 +360,8 @@ export function createTemporalWorkflowWaitAction(
     async handler(ctx) {
       const { input } = ctx;
       if (ctx.isDryRun) {
-        ctx.output('status', 'Completed');
+        // Nothing was read, so no real status is known.
+        ctx.output('status', 'Unknown');
         ctx.output('runId', input.runId ?? 'dry-run');
         return;
       }
@@ -380,23 +376,8 @@ export function createTemporalWorkflowWaitAction(
       // Whole milliseconds: the pause doubles up to the cap. An
       // intervalSeconds above the cap is a fixed interval.
       const firstPauseMs = (input.intervalSeconds ?? 5) * 1000;
-      const maxPauseMs = Math.max(
-        firstPauseMs,
-        (input.maxIntervalSeconds ?? 30) * 1000,
-      );
+      const maxPauseMs = Math.max(firstPauseMs, MAX_PAUSE_SECONDS * 1000);
       let pauseMs = firstPauseMs;
-      if (
-        input.maxIntervalSeconds !== undefined &&
-        input.maxIntervalSeconds < (input.intervalSeconds ?? 5)
-      ) {
-        ctx.logger.warn(
-          `maxIntervalSeconds (${
-            input.maxIntervalSeconds
-          }) is smaller than intervalSeconds (${
-            input.intervalSeconds ?? 5
-          }); looking every ${input.intervalSeconds ?? 5} seconds`,
-        );
-      }
       const deadline = Date.now() + timeoutMs;
       for (;;) {
         // Without a run ID, the latest run of the run list; a workflow that
@@ -432,7 +413,10 @@ export function createTemporalWorkflowWaitAction(
             }
             // The list does not show the new run yet: look again later.
             runId = undefined;
-          } else if (attribute === true || workflow.status !== 'Running') {
+          } else if (
+            attribute === true ||
+            CLOSED_STATUSES.has(workflow.status)
+          ) {
             ctx.output('status', workflow.status);
             ctx.output('runId', workflow.runId);
             if (workflow.searchAttributes) {
@@ -486,9 +470,35 @@ export function createTemporalWorkflowWaitAction(
   });
 }
 
+/** The workflow chain and run that a signal or an update is sent to. */
+async function locateRun(
+  options: TemporalActionsOptions,
+  input: {
+    workflowId: string;
+    runId?: string;
+    namespace?: string;
+    entityRef?: string;
+  },
+  credentials: BackstageCredentials,
+) {
+  const base = {
+    namespace: await resolveWorkflowNamespace(options, input, credentials),
+    workflowId: input.workflowId,
+  };
+  const runId =
+    input.runId ??
+    (await options.client.latestRunId(base, input.entityRef, credentials));
+  if (!runId) {
+    throw new NotFoundError(
+      `No run of workflow ${input.workflowId} was found; give runId, for example the output of temporal:workflow:start`,
+    );
+  }
+  return { base, runId };
+}
+
 /**
- * `temporal:workflow:signal`: sends a signal or an update to a running
- * workflow. A task that does not run as a user is refused unless
+ * `temporal:workflow:signal`: sends a signal to a running workflow. A task
+ * that does not run as a user is refused unless
  * `temporal.scaffolder.allowServiceWrites` is true.
  */
 export function createTemporalWorkflowSignalAction(
@@ -497,16 +507,11 @@ export function createTemporalWorkflowSignalAction(
   return createTemplateAction({
     id: 'temporal:workflow:signal',
     description:
-      'Sends a signal, or an update and outputs its result, to a running Temporal workflow, as the user who runs the template (temporal.workflow.signal or temporal.workflow.update); a task that does not run as a user is refused by default.',
+      'Sends a signal to a running Temporal workflow, as the user who runs the template (temporal.workflow.signal); a task that does not run as a user is refused by default. To send an update and use its result, use temporal:workflow:update.',
     schema: {
       input: {
         ...workflowInput,
-        kind: z =>
-          z
-            .enum(['signal', 'update'])
-            .optional()
-            .describe('signal (default) or update'),
-        name: z => z.string().min(1).max(200).describe('Signal or update name'),
+        name: z => z.string().min(1).max(200).describe('Signal name'),
         args: z =>
           z
             .any()
@@ -516,86 +521,135 @@ export function createTemporalWorkflowSignalAction(
             ),
       },
       output: {
-        result: z => z.any().optional().describe('The result of an update'),
-        runId: z =>
-          z
-            .string()
-            .describe(
-              'The run the signal or update was sent to; for `kind: update` it only locates the workflow chain, and the update acts on the run of the chain that is currently running',
-            ),
+        runId: z => z.string().describe('The run the signal was sent to'),
       },
     },
     async handler(ctx) {
       const { input } = ctx;
-      const kind = input.kind ?? 'signal';
       const args = exampleArgs(input.args as JsonValue | undefined);
       if (ctx.isDryRun) {
-        ctx.logger.info(`Dry run: would send the ${kind} ${input.name}`);
+        ctx.logger.info(`Dry run: would send the signal ${input.name}`);
         ctx.output('runId', input.runId ?? 'dry-run');
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
       assertMayWrite(options, credentials, 'temporal:workflow:signal');
       // A retried task does not send it again, nor read the entity or the
-      // run again; the result is kept.
-      const sent = await ctx.checkpoint<{ result: JsonValue; runId: string }>({
-        key: `temporal.${kind}.${ctx.step?.id ?? input.name}`,
+      // run again.
+      const sent = await ctx.checkpoint<{ runId: string }>({
+        key: `temporal.signal.${ctx.step?.id ?? input.name}`,
         fn: async () => {
-          const base = {
-            namespace: await resolveWorkflowNamespace(
-              options,
-              input,
-              credentials,
-            ),
-            workflowId: input.workflowId,
-          };
-          const runId =
-            input.runId ??
-            (await options.client.latestRunId(
-              base,
-              input.entityRef,
-              credentials,
-            ));
-          if (!runId) {
-            throw new NotFoundError(
-              `No run of workflow ${input.workflowId} was found; give runId, for example the output of temporal:workflow:start`,
-            );
-          }
+          const { base, runId } = await locateRun(options, input, credentials);
           const send = (id: string) =>
             options.client.send(
-              kind,
+              'signal',
               { ...base, runId: id },
               { name: input.name, args },
               input.entityRef,
               credentials,
             );
-          let response: WorkflowMessageResponse | undefined;
-          let usedRunId = runId;
           try {
-            response = await send(runId);
+            await send(runId);
+            return { runId };
           } catch (error) {
             // Signals lock to one run: if the run looked up continued as new
-            // since, send once more to the run it continued as. Updates follow
-            // the chain in the backend and do not return continuedAsNewRunId;
-            // a given run ID is kept.
-            const next =
-              kind === 'signal' && !input.runId
-                ? continuedAsNewRunIdOf(error)
-                : undefined;
+            // since, send once more to the run it continued as. A given run
+            // ID is kept.
+            const next = input.runId ? undefined : continuedAsNewRunIdOf(error);
             if (!next) throw error;
-            usedRunId = next;
-            response = await send(next);
+            await send(next);
+            return { runId: next };
           }
-          return { result: response?.result ?? null, runId: usedRunId };
         },
       });
       ctx.logger.info(
-        `Sent the ${kind} ${input.name} to ${input.workflowId} (run ${sent.runId})`,
+        `Sent the signal ${input.name} to ${input.workflowId} (run ${sent.runId})`,
       );
       ctx.output('runId', sent.runId);
-      if (kind === 'update' && sent.result !== null) {
-        ctx.output('result', sent.result);
+    },
+  });
+}
+
+/**
+ * `temporal:workflow:update`: sends an update to a running workflow and
+ * outputs its result. A task that does not run as a user is refused unless
+ * `temporal.scaffolder.allowServiceWrites` is true.
+ */
+export function createTemporalWorkflowUpdateAction(
+  options: TemporalActionsOptions,
+) {
+  return createTemplateAction({
+    id: 'temporal:workflow:update',
+    description:
+      'Sends an update to a running Temporal workflow and outputs its result, as the user who runs the template (temporal.workflow.update); a task that does not run as a user is refused by default. To send a signal, use temporal:workflow:signal.',
+    schema: {
+      input: {
+        ...workflowInput,
+        name: z => z.string().min(1).max(200).describe('Update name'),
+        args: z =>
+          z
+            .any()
+            .optional()
+            .describe(
+              'Arguments: an array is the argument list, any other value the only argument',
+            ),
+      },
+      output: {
+        result: z =>
+          z
+            .any()
+            .optional()
+            .describe(
+              'The result of the update, including a null result; not set when the update returns no result',
+            ),
+        runId: z =>
+          z
+            .string()
+            .describe(
+              'The run used to locate the workflow chain; the update acts on the run of the chain that is currently running',
+            ),
+      },
+    },
+    async handler(ctx) {
+      const { input } = ctx;
+      const args = exampleArgs(input.args as JsonValue | undefined);
+      if (ctx.isDryRun) {
+        ctx.logger.info(`Dry run: would send the update ${input.name}`);
+        ctx.output('runId', input.runId ?? 'dry-run');
+        return;
       }
+      const credentials = await ctx.getInitiatorCredentials();
+      assertMayWrite(options, credentials, 'temporal:workflow:update');
+      // A retried task does not send it again, nor read the entity or the
+      // run again; the result is kept. `hasResult` tells an update without a
+      // result from one whose result is null.
+      const sent = await ctx.checkpoint<{
+        hasResult: boolean;
+        result: JsonValue;
+        runId: string;
+      }>({
+        key: `temporal.update.${ctx.step?.id ?? input.name}`,
+        fn: async () => {
+          const { base, runId } = await locateRun(options, input, credentials);
+          // Updates follow the chain in the backend, so a continued-as-new
+          // run needs no second send.
+          const response: WorkflowMessageResponse | undefined =
+            await options.client.send(
+              'update',
+              { ...base, runId },
+              { name: input.name, args },
+              input.entityRef,
+              credentials,
+            );
+          const hasResult = response?.result !== undefined;
+          return { hasResult, result: response?.result ?? null, runId };
+        },
+      });
+      ctx.logger.info(
+        `Sent the update ${input.name} to ${input.workflowId} (run ${sent.runId})`,
+      );
+      ctx.output('runId', sent.runId);
+      if (sent.hasResult) ctx.output('result', sent.result);
     },
   });
 }

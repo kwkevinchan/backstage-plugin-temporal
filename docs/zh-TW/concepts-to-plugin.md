@@ -142,7 +142,7 @@ export async function releaseWorkflow(input: ReleaseInput) {
 
 ### 操作、Schedule 與範本
 
-操作有 Start、Signal、Update、Cancel、Terminate、Rerun，以及 Schedule 的暫停、恢復、立即執行（[Workflow controls](../../README.md#workflow-controls)、[Schedules](../../README.md#schedules)）。Scaffolder 模組加上 `temporal:workflow:start`、`temporal:workflow:wait`、`temporal:workflow:signal`（送 Signal 或 Update）三個 action，以及 `TemporalWorkflowPicker` 欄位（[Templates](../../README.md#templates-scaffolder)）。這些 action 以執行範本的使用者的身分執行。
+操作有 Start、Signal、Update、Cancel、Terminate、Rerun，以及 Schedule 的暫停、恢復、立即執行（[Workflow controls](../../README.md#workflow-controls)、[Schedules](../../README.md#schedules)）。Scaffolder 模組加上 `temporal:workflow:start`、`temporal:workflow:wait`、`temporal:workflow:signal`（送 Signal）、`temporal:workflow:update`（送 Update）四個 action，以及 `TemporalWorkflowPicker` 欄位（[Templates](../../README.md#templates-scaffolder)）。這些 action 以執行範本的使用者的身分執行。
 
 ### 訊息說明
 

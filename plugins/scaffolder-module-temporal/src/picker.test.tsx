@@ -86,6 +86,31 @@ describe('TemporalWorkflowPicker', () => {
     expect(onChange).toHaveBeenCalledWith('release-2');
   });
 
+  it('offers a workflow ID once when it has several runs', async () => {
+    const api = {
+      listEntityWorkflows: jest.fn(),
+      listWorkflows: jest.fn().mockResolvedValue({
+        items: [
+          { ...workflow('release-1'), runId: 'newer' },
+          { ...workflow('release-1'), runId: 'older' },
+          workflow('release-2'),
+        ],
+      }),
+    };
+    const { onChange } = await render(
+      { workflowType: 'demoRelease', status: 'any' },
+      api,
+      'release-1',
+    );
+    const select = await screen.findByRole('button', {
+      name: /Release to approve/,
+    });
+    await waitFor(() => expect(select).toBeEnabled());
+    await userEvent.click(select);
+    expect(await screen.findAllByRole('option')).toHaveLength(2);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it('lists a workflow type of any status without an entity', async () => {
     const api = {
       listEntityWorkflows: jest.fn(),

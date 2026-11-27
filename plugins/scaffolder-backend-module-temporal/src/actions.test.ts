@@ -27,6 +27,7 @@ import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-bac
 import {
   createTemporalWorkflowSignalAction,
   createTemporalWorkflowStartAction,
+  createTemporalWorkflowUpdateAction,
   createTemporalWorkflowWaitAction,
 } from './actions';
 
@@ -322,6 +323,45 @@ describe('temporal:workflow:wait', () => {
     ).rejects.toThrow('closed as Failed');
   });
 
+  it('keeps waiting on an Unknown status and stops on every closed status', async () => {
+    jest.useFakeTimers();
+    try {
+      const { client, options } = setup();
+      client.describe
+        .mockResolvedValueOnce({ ...running, status: 'Unknown' })
+        .mockResolvedValueOnce({ ...running, status: 'Terminated' });
+      const ctx = context({
+        workflowId: 'release-1',
+        failIfNotCompleted: false,
+      });
+      const done = createTemporalWorkflowWaitAction(options).handler(ctx);
+      await jest.advanceTimersByTimeAsync(5000);
+      await done;
+      expect(client.describe).toHaveBeenCalledTimes(2);
+      expect(ctx.output).toHaveBeenCalledWith('status', 'Terminated');
+      expect(ctx.output).not.toHaveBeenCalledWith('status', 'Unknown');
+    } finally {
+      jest.useRealTimers();
+    }
+    for (const status of ['Completed', 'Failed', 'Canceled', 'TimedOut']) {
+      const { client, options } = setup();
+      client.describe.mockResolvedValue({ ...running, status });
+      await createTemporalWorkflowWaitAction(options).handler(
+        context({ workflowId: 'release-1', failIfNotCompleted: false }),
+      );
+      expect(client.describe).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('outputs an Unknown status and not Completed in a dry run', async () => {
+    const { client, options } = setup();
+    const ctx = context({ workflowId: 'release-1' }, { isDryRun: true });
+    await createTemporalWorkflowWaitAction(options).handler(ctx);
+    expect(ctx.output).toHaveBeenCalledWith('status', 'Unknown');
+    expect(ctx.output).not.toHaveBeenCalledWith('status', 'Completed');
+    expect(client.describe).not.toHaveBeenCalled();
+  });
+
   it('gives up after the timeout', async () => {
     const { client, options } = setup();
     client.describe.mockResolvedValue(running);
@@ -442,14 +482,13 @@ describe('temporal:workflow:wait polling interval', () => {
         : running;
     });
     const ctx = context({ workflowId: 'w', ...input }, extra);
-    const warn = jest.spyOn(ctx.logger, 'warn');
     const result = createTemporalWorkflowWaitAction(options).handler(ctx);
     const settled = result.then(
       () => 'done',
       e => e as Error,
     );
     await jest.advanceTimersByTimeAsync(4000 * 1000);
-    return { times, outcome: await settled, client, warn };
+    return { times, outcome: await settled, client };
   }
 
   const gaps = (times: number[]) => times.slice(1).map((t, i) => t - times[i]);
@@ -471,36 +510,9 @@ describe('temporal:workflow:wait polling interval', () => {
     expect(times).toHaveLength(123);
   });
 
-  it('keeps a fixed interval when maxIntervalSeconds equals intervalSeconds', async () => {
-    const { times } = await run({
-      timeoutSeconds: 60,
-      intervalSeconds: 5,
-      maxIntervalSeconds: 5,
-    });
-    expect(gaps(times)).toEqual(Array(12).fill(5));
-  });
-
   it('keeps an intervalSeconds above the default cap fixed', async () => {
     const { times } = await run({ timeoutSeconds: 300, intervalSeconds: 60 });
     expect(times).toEqual([0, 60, 120, 180, 240, 300]);
-  });
-
-  it('does not go below intervalSeconds when maxIntervalSeconds is smaller', async () => {
-    const { times } = await run({
-      timeoutSeconds: 100,
-      intervalSeconds: 20,
-      maxIntervalSeconds: 10,
-    });
-    expect(times).toEqual([0, 20, 40, 60, 80, 100]);
-  });
-
-  it('uses the given first pause and cap', async () => {
-    const { times } = await run({
-      timeoutSeconds: 200,
-      intervalSeconds: 2,
-      maxIntervalSeconds: 10,
-    });
-    expect(gaps(times).slice(0, 6)).toEqual([2, 4, 8, 10, 10, 10]);
   });
 
   it('returns at once when the workflow closes, without another pause', async () => {
@@ -576,32 +588,6 @@ describe('temporal:workflow:wait polling interval', () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  it('warns once when maxIntervalSeconds is smaller than intervalSeconds', async () => {
-    const { warn } = (await run({
-      timeoutSeconds: 100,
-      intervalSeconds: 20,
-      maxIntervalSeconds: 10,
-    })) as any;
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('maxIntervalSeconds (10)'),
-    );
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining('intervalSeconds (20)'),
-    );
-  });
-
-  it('does not warn without a maxIntervalSeconds or when it is not smaller', async () => {
-    const a = (await run({ timeoutSeconds: 100, intervalSeconds: 60 })) as any;
-    const b = (await run({
-      timeoutSeconds: 100,
-      intervalSeconds: 5,
-      maxIntervalSeconds: 5,
-    })) as any;
-    expect(a.warn).not.toHaveBeenCalled();
-    expect(b.warn).not.toHaveBeenCalled();
-  });
-
   it('stops at once when the task is cancelled', async () => {
     const { client, options } = setup();
     client.describe.mockResolvedValue(running);
@@ -624,18 +610,18 @@ describe('temporal:workflow:wait polling interval', () => {
   });
 });
 
-describe('temporal:workflow:signal', () => {
+describe('temporal:workflow:update', () => {
+  const update = (input: Record<string, unknown>, extra?: object) =>
+    context({ workflowId: 'release-1', name: 'approve', ...input }, extra);
+
   it('sends an update and outputs its result', async () => {
     const { client, options } = setup();
-    const ctx = context({
-      workflowId: 'release-1',
+    const ctx = update({
       namespace: 'billing',
       entityRef: 'component:default/orders',
-      kind: 'update',
-      name: 'approve',
       args: { approved: true },
     });
-    await createTemporalWorkflowSignalAction(options).handler(ctx);
+    await createTemporalWorkflowUpdateAction(options).handler(ctx);
     expect(client.send).toHaveBeenCalledWith(
       'update',
       { namespace: 'billing', workflowId: 'release-1', runId: 'run-1' },
@@ -643,9 +629,87 @@ describe('temporal:workflow:signal', () => {
       'component:default/orders',
       user,
     );
+    expect(ctx.output).toHaveBeenCalledWith('runId', 'run-1');
     expect(ctx.output).toHaveBeenCalledWith('result', { approved: true });
   });
 
+  it('outputs a result that is null, and none when the update has no result', async () => {
+    const { client, options } = setup();
+    client.send.mockResolvedValue({ result: null });
+    const withNull = update({});
+    await createTemporalWorkflowUpdateAction(options).handler(withNull);
+    expect(withNull.output).toHaveBeenCalledWith('result', null);
+    for (const response of [undefined, {}]) {
+      client.send.mockResolvedValue(response);
+      const without = update({});
+      await createTemporalWorkflowUpdateAction(options).handler(without);
+      expect(without.output).not.toHaveBeenCalledWith(
+        'result',
+        expect.anything(),
+      );
+      expect(without.output).not.toHaveBeenCalledWith('result', null);
+    }
+  });
+
+  it('keeps a null result in the checkpoint of a retried task', async () => {
+    const { client, options } = setup();
+    const ctx = update(
+      {},
+      {
+        checkpoint: async () => ({
+          hasResult: true,
+          result: null,
+          runId: 'run-1',
+        }),
+      },
+    );
+    await createTemporalWorkflowUpdateAction(options).handler(ctx);
+    expect(client.send).not.toHaveBeenCalled();
+    expect(ctx.output).toHaveBeenCalledWith('result', null);
+  });
+
+  it('does not retry a continuedAsNew conflict, which the backend follows', async () => {
+    const { client, options } = setup();
+    client.send.mockRejectedValue(
+      await ResponseError.fromResponse(
+        new Response(
+          JSON.stringify({
+            error: {
+              name: 'ConflictError',
+              message: 'not running',
+              continuedAsNewRunId: 'run-2',
+            },
+            request: { method: 'POST', url: '/' },
+            response: { statusCode: 409 },
+          }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    );
+    await expect(
+      createTemporalWorkflowUpdateAction(options).handler(update({})),
+    ).rejects.toThrow(/409/);
+    expect(client.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends nothing in a dry run, and is refused for a service principal by default', async () => {
+    const { client, options } = setup();
+    await createTemporalWorkflowUpdateAction(options).handler(
+      update({}, { isDryRun: true }),
+    );
+    await expect(
+      createTemporalWorkflowUpdateAction(options).handler(
+        update(
+          {},
+          { getInitiatorCredentials: async () => mockCredentials.service() },
+        ),
+      ),
+    ).rejects.toThrow(/temporal:workflow:update needs a task that runs as/);
+    expect(client.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('temporal:workflow:signal', () => {
   it('sends a signal', async () => {
     const { client, options } = setup();
     client.send.mockResolvedValue(undefined);
@@ -660,6 +724,15 @@ describe('temporal:workflow:signal', () => {
     );
     expect(ctx.output).toHaveBeenCalledWith('runId', 'run-1');
     expect(ctx.output).not.toHaveBeenCalledWith('result', expect.anything());
+  });
+
+  it('does not take a kind, so it cannot send an update', async () => {
+    const { client, options } = setup();
+    client.send.mockResolvedValue(undefined);
+    await createTemporalWorkflowSignalAction(options).handler(
+      context({ workflowId: 'w', name: 'close', kind: 'update' }),
+    );
+    expect(client.send.mock.calls[0][0]).toBe('signal');
   });
 });
 
@@ -734,17 +807,6 @@ describe('the run of signal', () => {
       ),
     ).rejects.toThrow('No run of workflow gone was found');
     expect(client.send).not.toHaveBeenCalled();
-  });
-
-  it('does not retry a continuedAsNew conflict for update kind', async () => {
-    const { client, options } = setup();
-    client.send.mockRejectedValue(await conflict('run-2'));
-    await expect(
-      createTemporalWorkflowSignalAction(options).handler(
-        context({ workflowId: 'long-1', kind: 'update', name: 'setLimit' }),
-      ),
-    ).rejects.toThrow(/409/);
-    expect(client.send).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -917,16 +979,16 @@ describe('the namespace of wait and signal for an entity', () => {
   it('does not read the entity or send again when the checkpoint has the result', async () => {
     const { client, options } = setup();
     const getEntityByRef = jest.spyOn(options.catalog, 'getEntityByRef');
-    await createTemporalWorkflowSignalAction(options).handler(
+    await createTemporalWorkflowUpdateAction(options).handler(
       context(
         {
           workflowId: 'release-1',
           name: 'approve',
-          kind: 'update',
           entityRef: 'component:default/billing',
         },
         {
           checkpoint: async () => ({
+            hasResult: true,
             result: { approved: true },
             runId: 'run-1',
           }),

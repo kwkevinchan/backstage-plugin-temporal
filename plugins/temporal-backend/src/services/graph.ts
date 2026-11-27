@@ -82,7 +82,7 @@ type Json = any;
 export const MAX_GRAPH_EDGES = 5000;
 
 /** Node kinds that count as steps in the progress. */
-const STEP_KINDS = new Set<WorkflowNodeKind>([
+export const STEP_KINDS = new Set<WorkflowNodeKind>([
   'activity',
   'timer',
   'childWorkflow',

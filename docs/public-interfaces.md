@@ -878,17 +878,18 @@ to arbitrary HTTPS hosts.
 three template actions. They call the HTTP API of the plugin as the user who
 runs the template (they may run in another backend than the plugin):
 
-| Action                     | Input                                                                                                                                                                     | Output                                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue`; `namespace`, `workflowId`, `args`                                                                                         | `namespace`, `workflowId`, `runId`, `workflowUrl` |
-| `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute`, `timeoutSeconds`, `intervalSeconds`, `maxIntervalSeconds`, `failIfNotCompleted`, `includeResult` | `status`, `runId`, `result`, `searchAttributes`   |
-| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                            | `result` (of an update), `runId`                  |
+| Action                     | Input                                                                                                                                               | Output                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue`; `namespace`, `workflowId`, `args`                                                                   | `namespace`, `workflowId`, `runId`, `workflowUrl` |
+| `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute`, `timeoutSeconds`, `intervalSeconds`, `failIfNotCompleted`, `includeResult` | `status`, `runId`, `result`, `searchAttributes`   |
+| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `name`, `args`                                                                                     | `runId`                                           |
+| `temporal:workflow:update` | `workflowId`, `runId`, `namespace`, `entityRef`; `name`, `args`                                                                                     | `result`, `runId`                                 |
 
-`start` and `signal` need the operations; `wait` only reads (the workflow,
+`start`, `signal` and `update` need the operations; `wait` only reads (the workflow,
 and `/result` for its result). Because `wait` writes `searchAttributes` and
 (when `includeResult: true`) `result` to Scaffolder task outputs, visibility
 of those persisted outputs is governed by Scaffolder task permissions rather than
-`temporal.workflow.read`. Without `runId`, `wait` and `signal` look up
+`temporal.workflow.read`. Without `runId`, `wait`, `signal` and `update` look up
 the latest run in the run list of the workflow ID (which can lag behind a
 start; pass `runId: ${{ steps.start.output.runId }}` after a start). `wait`
 follows a run that continued as new to the run it continued as; `signal`

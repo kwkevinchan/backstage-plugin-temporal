@@ -20,7 +20,20 @@ import { actionsRegistryServiceMock } from '@backstage/backend-test-utils/alpha'
 import { ResponseError } from '@backstage/errors';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { type TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
-import { registerTemporalActions } from './actions';
+import {
+  FAILED,
+  RUNNING,
+  registerTemporalActions,
+  STEP_KINDS,
+} from './actions';
+// The sets of the backend are not public, so the test reads them from its source.
+// eslint-disable-next-line @backstage/no-relative-monorepo-imports
+import { STEP_KINDS as BACKEND_STEP_KINDS } from '../../temporal-backend/src/services/graph';
+// eslint-disable-next-line @backstage/no-relative-monorepo-imports
+import {
+  FAILED_STATUSES,
+  OPEN_STATUSES,
+} from '../../temporal-backend/src/services/stepStatus';
 
 /** What the client throws when the Temporal backend serves no operations. */
 const CONTROL_DISABLED_MESSAGE =
@@ -568,6 +581,34 @@ describe('update-workflow', () => {
 });
 
 describe('step summary', () => {
+  it('uses the same step kinds, open statuses and failed statuses as the backend', () => {
+    expect([...STEP_KINDS].sort()).toEqual([...BACKEND_STEP_KINDS].sort());
+    expect([...RUNNING].sort()).toEqual([...OPEN_STATUSES].sort());
+    expect([...FAILED].sort()).toEqual([...FAILED_STATUSES].sort());
+  });
+
+  it('counts a terminated step as failed', async () => {
+    const { client, invoke } = setup();
+    client.describe.mockResolvedValue({ ...summary(), pendingActivities: [] });
+    client.graph.mockResolvedValue({
+      status: 'Terminated',
+      nodes: [
+        { id: 'a', kind: 'childWorkflow', name: 'child', status: 'Terminated' },
+      ],
+      edges: [],
+      completedSteps: 0,
+      totalSteps: 1,
+      truncated: false,
+    });
+    const { output } = await invoke('get-workflow', {
+      workflowId: 'order-1',
+      runId: 'run-1',
+    });
+    expect((output as any).steps).toEqual(
+      expect.objectContaining({ running: 0, failed: 1 }),
+    );
+  });
+
   it('counts the step kinds that the backend counts, and not markers', async () => {
     const { client, invoke } = setup();
     client.describe.mockResolvedValue({ ...summary(), pendingActivities: [] });
@@ -690,6 +731,30 @@ describe('errors of the plugin', () => {
       name: 'ConflictError',
       message: 'The workflow is not running',
     });
+  });
+
+  it('answers a server error with a fixed text and not the message of the backend', async () => {
+    const { client, invoke } = setup();
+    client.describe.mockRejectedValue(
+      await responseError(502, 'connect ECONNREFUSED 10.1.2.3:7233'),
+    );
+    client.graph.mockResolvedValue({});
+    const error = await invoke('get-workflow', {
+      workflowId: 'w',
+      runId: 'r',
+      namespace: 'default',
+    }).catch(e => e);
+    expect(error.message).toMatch(/answered 502/);
+    expect(error.message).not.toMatch(/ECONNREFUSED|10\.1\.2\.3/);
+    // Other statuses keep the message.
+    client.describe.mockRejectedValue(await responseError(429, 'Slow down'));
+    await expect(
+      invoke('get-workflow', {
+        workflowId: 'w',
+        runId: 'r',
+        namespace: 'default',
+      }),
+    ).rejects.toThrow(/answered 429: Slow down/);
   });
 
   it('tells the caller to give the entityRef that it listed the workflow with', async () => {

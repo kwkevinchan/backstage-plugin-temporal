@@ -47,6 +47,20 @@ export type TemporalWorkflowPickerUiOptions = {
 /** How many workflows the field offers, newest first. */
 export const PICKER_PAGE_SIZE = 50;
 
+/**
+ * The value of the field is a workflow ID, and an ID with several runs is
+ * listed once per run: keep the first, the newest, so that no option ID is
+ * used twice.
+ */
+function onePerWorkflowId(items: WorkflowSummary[]): WorkflowSummary[] {
+  const seen = new Set<string>();
+  return items.filter(w => {
+    if (seen.has(w.workflowId)) return false;
+    seen.add(w.workflowId);
+    return true;
+  });
+}
+
 function optionLabel(workflow: WorkflowSummary): string {
   const started = workflow.startTime
     ? new Date(workflow.startTime).toLocaleString()
@@ -59,7 +73,8 @@ function optionLabel(workflow: WorkflowSummary): string {
 /**
  * Scaffolder form field: picks a workflow, listed with the permissions of
  * the user filling in the form. Its value is the workflow ID, for
- * `temporal:workflow:signal` and `temporal:workflow:wait`.
+ * `temporal:workflow:signal`, `temporal:workflow:update` and
+ * `temporal:workflow:wait`.
  */
 export function TemporalWorkflowPicker(
   props: FieldExtensionComponentProps<string, TemporalWorkflowPickerUiOptions>,
@@ -90,7 +105,9 @@ export function TemporalWorkflowPicker(
           pageSize: PICKER_PAGE_SIZE,
         });
     request
-      .then(response => current && setWorkflows(response.items))
+      .then(
+        response => current && setWorkflows(onePerWorkflowId(response.items)),
+      )
       .catch(e => current && setError(e));
     return () => {
       current = false;

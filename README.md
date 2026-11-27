@@ -104,7 +104,7 @@ workflow definition.
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                                                                                 |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                                                                            |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-actions`](plugins/temporal-backend-module-actions)       | backend-plugin-module  | Backstage backend | Actions registry actions: list and read workflows, start them, send signals and updates, for AI assistants and MCP clients                                                                                                                                                                                                                                     |
-| [`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](plugins/scaffolder-backend-module-temporal) | backend-plugin-module  | Backstage backend | Scaffolder actions: start a workflow, wait for it, send a signal or an update (optional). Calls a reachable Temporal backend plugin.                                                                                                                                                                                                                           |
+| [`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](plugins/scaffolder-backend-module-temporal) | backend-plugin-module  | Backstage backend | Scaffolder actions: start a workflow, wait for it, send a signal, send an update (optional). Calls a reachable Temporal backend plugin.                                                                                                                                                                                                                        |
 | [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal)                 | frontend-plugin-module | Backstage app     | Scaffolder form field `TemporalWorkflowPicker` (optional). Needs the frontend plugin.                                                                                                                                                                                                                                                                          |
 
 Which ones to install:
@@ -1207,8 +1207,8 @@ temporal:
 The backend then serves none of those routes (they answer 404 without a body), ignores the
 custom actions that modules add (with a warning in the log; the modules
 still start), and the pages show no buttons for them. Reading, Query and the
-Definition tab are not affected. The Scaffolder steps `temporal:workflow:start`
-and `temporal:workflow:signal` fail with a message that names the key;
+Definition tab are not affected. The Scaffolder steps `temporal:workflow:start`,
+`temporal:workflow:signal` and `temporal:workflow:update` fail with a message that names the key;
 `temporal:workflow:wait` keeps working. Query needs `temporal.workflow.query`
 and is never turned off by this key.
 
