@@ -28,11 +28,28 @@ also installs that package's dependencies, such as `@temporalio/client`; it
 does not start the Temporal plugin. Starting, signals and updates need its
 operations: when `temporal.control.enabled` is false there, `start` and
 `signal` fail with a message that names that key, and `wait` keeps working.
-A task
-started with service credentials (not by a user) runs as that service, and
-permission policies usually allow services everything. The user's token
+The user's token
 lasts about an hour from when the task is created, so `wait` is limited to
 3600 seconds.
+
+A task that does not run as a user (for example one started with a static
+token from `backend.auth.externalAccess`) acts as a service principal, and the
+permission framework allows such a principal without asking the policy. So
+`temporal:workflow:start` and `temporal:workflow:signal` (signals and updates)
+refuse an initiator that is not a user, with a message that names the setting
+below; per-user permissions then apply to every change. `temporal:workflow:wait`
+only reads and keeps accepting any initiator. To let service-initiated tasks
+change workflows, accept that the permission policy does not apply to them
+and set:
+
+```yaml
+temporal:
+  scaffolder:
+    allowServiceWrites: true
+```
+
+The setting defaults to `false`. It affects only these Scaffolder actions, not
+the routes of the Temporal backend plugin.
 
 ## Actions
 
