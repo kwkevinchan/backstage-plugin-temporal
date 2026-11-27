@@ -741,6 +741,7 @@ Defaults and meanings are in the [README](../README.md#configuration).
 | `control.enabled`                                                            | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
 | `control.allowedSignals`, `control.allowedUpdates`                           | backend (rejects), frontend (offers)                                | yes                    |
 | `externalStorage.objectUrl`                                                  | frontend                                                            | yes                    |
+| `overview.maxVisibilityCallsPerSecond`                                       | backend (per process, default `5` calls/s per namespace)            |                        |
 | `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations` | Zigflow backend module                                              |                        |
 | `actions.allowServiceWrites`                                                 | Actions registry backend module                                     |                        |
 

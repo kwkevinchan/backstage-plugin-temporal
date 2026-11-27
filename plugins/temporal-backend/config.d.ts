@@ -121,5 +121,20 @@ export interface Config {
        */
       objectUrl?: string;
     };
+    /**
+     * Settings for the Workflows overview (`POST /workflow-types/overview`).
+     */
+    overview?: {
+      /**
+       * Maximum visibility calls per second started by the overview in each
+       * Temporal namespace, per backend process (combined with the concurrency
+       * limit of 4 in-flight calls per namespace). Defaults to 5 (half of
+       * Temporal's default `frontend.namespaceRPS.visibility` of 10). Must be
+       * a positive number. In multi-replica deployments, divide your target
+       * budget across replicas or raise `frontend.namespaceRPS.visibility` on
+       * Temporal.
+       */
+      maxVisibilityCallsPerSecond?: number;
+    };
   };
 }
