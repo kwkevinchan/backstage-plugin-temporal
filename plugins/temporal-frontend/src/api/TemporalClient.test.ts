@@ -176,13 +176,6 @@ describe('TemporalClient requests and responses', () => {
     expect(fetch).toHaveBeenLastCalledWith(
       `${base}/workflows?namespace=billing&status=Failed&allRuns=true&workflowType=invoiceWorkflow&workflowId=inv-&searchAttribute=CustomerId&pageSize=10&pageToken=p2`,
     );
-
-    await client.getEntityWorkflowStats('component:default/orders', {
-      limit: 15,
-    });
-    expect(fetch).toHaveBeenLastCalledWith(
-      `${base}/entities/component/default/orders/workflow-stats?limit=15`,
-    );
   });
 
   it('posts the references of the workflow type overview', async () => {
@@ -197,6 +190,20 @@ describe('TemporalClient requests and responses', () => {
         method: 'POST',
         body: JSON.stringify({
           entityRefs: ['temporalworkflow:default/order-workflow'],
+        }),
+      }),
+    );
+
+    await client.getWorkflowTypeOverview(
+      ['temporalworkflow:default/order-workflow'],
+      { refresh: true },
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      `${base}/workflow-types/overview`,
+      expect.objectContaining({
+        body: JSON.stringify({
+          entityRefs: ['temporalworkflow:default/order-workflow'],
+          refresh: true,
         }),
       }),
     );

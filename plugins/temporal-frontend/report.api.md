@@ -64,13 +64,6 @@ export interface TemporalApi {
       entityRef?: string;
     },
   ): Promise<void>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowStatsResponse" needs to be exported by the entry point index.d.ts
-  getEntityWorkflowStats(
-    entityRef: string,
-    options?: {
-      limit?: number;
-    },
-  ): Promise<WorkflowStatsResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowLlmCallResponse" needs to be exported by the entry point index.d.ts
   //
   // @alpha
@@ -121,6 +114,9 @@ export interface TemporalApi {
   // Warning: (ae-forgotten-export) The symbol "WorkflowTypeOverviewResponse" needs to be exported by the entry point index.d.ts
   getWorkflowTypeOverview(
     entityRefs: string[],
+    options?: {
+      refresh?: boolean;
+    },
   ): Promise<WorkflowTypeOverviewResponse>;
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;
   // Warning: (ae-forgotten-export) The symbol "WorkflowListResponse" needs to be exported by the entry point index.d.ts
@@ -247,13 +243,6 @@ export class TemporalClient implements TemporalApi {
     },
   ): Promise<void>;
   // (undocumented)
-  getEntityWorkflowStats(
-    entityRef: string,
-    options?: {
-      limit?: number;
-    },
-  ): Promise<WorkflowStatsResponse>;
-  // (undocumented)
   getLlmCall(
     ref: WorkflowRunRef,
     nodeId: string,
@@ -301,6 +290,9 @@ export class TemporalClient implements TemporalApi {
   // (undocumented)
   getWorkflowTypeOverview(
     entityRefs: string[],
+    options?: {
+      refresh?: boolean;
+    },
   ): Promise<WorkflowTypeOverviewResponse>;
   // (undocumented)
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;

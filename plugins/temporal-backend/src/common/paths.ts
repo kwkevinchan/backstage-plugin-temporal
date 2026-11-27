@@ -73,18 +73,3 @@ export const WORKFLOWS_PATH = '/workflows';
  * @public
  */
 export const WORKFLOW_TYPE_OVERVIEW_PATH = '/workflow-types/overview';
-
-/**
- * Builds the path of an entity's workflow statistics, relative to the backend
- * plugin root: `/entities/:kind/:namespace/:name/workflow-stats`.
- *
- * @public
- */
-export function buildEntityWorkflowStatsPath(
-  entity: CompoundEntityRef,
-): string {
-  return buildEntityWorkflowsPath(entity).replace(
-    /\/workflows$/,
-    '/workflow-stats',
-  );
-}

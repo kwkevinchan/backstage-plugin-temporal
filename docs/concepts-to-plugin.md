@@ -123,8 +123,8 @@ definition. It gives a workflow type an owner, a system, dependencies and a plac
 in the catalog graph. The `temporal.io/v1alpha1` API version is chosen by this
 plugin; it is not defined by Temporal. A component that uses a workflow lists it
 in the standard `spec.dependsOn`, and the component's Temporal tab then lists
-the workflow types it depends on and their executions. The merged list and
-statistics include at most 20 of those types (in the order of their entity references);
+the workflow types it depends on and their executions. The merged list
+includes at most 20 of those types (in the order of their entity references);
 when there are more, the tab says so, and the rest are opened from **Workflow
 types** above. Only one level is followed: `dependsOn` of a `TemporalWorkflow`
 entity is not followed, and a TemporalWorkflow entity's own tab lists only that

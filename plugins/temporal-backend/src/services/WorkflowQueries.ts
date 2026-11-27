@@ -50,10 +50,16 @@ import {
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
 import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
-import { matchedWorkflowEntity, workflowIdCondition } from './visibilityQuery';
+import {
+  matchedWorkflowEntity,
+  matchingWorkflowEntity,
+  workflowIdCondition,
+} from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
 
 export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
+/** Most history pages read for one run, whatever the pages hold. */
+export const MAX_HISTORY_PAGES = 100;
 /** Most history events read to build the steps of one run. */
 export const MAX_STEP_EVENTS = 5000;
 /** Query of the Temporal SDKs that lists a workflow's message definitions. */
@@ -192,6 +198,20 @@ export class WorkflowQueries {
   }
 
   /**
+   * The related `TemporalWorkflow` entity that a run matches directly, by the
+   * same rule as the workflow list (a match with the opened entity itself
+   * does not count), so the list and the detail give the same
+   * `workflowEntityRef`.
+   */
+  relatedWorkflowEntity(
+    workflow: WorkflowDetail,
+    context: TemporalEntityContext,
+  ): string | undefined {
+    if (workflow.namespace !== context.namespace) return undefined;
+    return matchingWorkflowEntity(workflow, this.sources.filterOf(context));
+  }
+
+  /**
    * Checks that a workflow is one of the entity's, or a child workflow (up
    * to MAX_PARENT_DEPTH levels) of one of them: a child is part of its
    * parent's work, so it is opened, and operated, with the parent's entity
@@ -277,15 +297,21 @@ export class WorkflowQueries {
     this.sources.checkNamespace(ref.namespace);
     const events: unknown[] = [];
     let nextPageToken: Uint8Array | undefined;
+    let pages = 0;
     do {
       const response = await this.temporalReads.historyPage(ref, {
-        pageSize: Math.min(HISTORY_PAGE_SIZE.max, max),
+        pageSize: Math.min(HISTORY_PAGE_SIZE.max, max - events.length),
         nextPageToken,
       });
       events.push(...response.items);
       nextPageToken = response.nextPageToken;
-    } while (nextPageToken && events.length < max);
-    return { events, truncated: Boolean(nextPageToken) };
+      pages += 1;
+      // A server that keeps returning a token with empty pages ends here.
+    } while (nextPageToken && events.length < max && pages < MAX_HISTORY_PAGES);
+    return {
+      events: events.slice(0, max),
+      truncated: Boolean(nextPageToken) || events.length > max,
+    };
   }
 
   /**

@@ -185,9 +185,11 @@ export function isTemporalAvailable(entity: Entity): boolean {
   const annotations = entity.metadata.annotations ?? {};
   return (
     Boolean(
-      annotations[TEMPORAL_NAMESPACE_ANNOTATION] ||
-        annotations[TEMPORAL_TASK_QUEUE_ANNOTATION] ||
-        annotations[TEMPORAL_WORKFLOW_TYPE_ANNOTATION],
+      annotations[TEMPORAL_NAMESPACE_ANNOTATION]?.trim() ||
+        annotations[TEMPORAL_TASK_QUEUE_ANNOTATION]?.trim() ||
+        (annotations[TEMPORAL_WORKFLOW_TYPE_ANNOTATION] ?? '')
+          .split(',')
+          .some(type => type.trim()),
     ) || getDependsOnTemporalWorkflowRefs(entity).length > 0
   );
 }

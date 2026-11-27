@@ -19,6 +19,7 @@ import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import type { Entity } from '@backstage/catalog-model';
 import request from 'supertest';
+import { MAX_SCHEDULE_DESCRIBES } from './services/WorkflowListQueries';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
 import {
@@ -706,6 +707,24 @@ describe('deadlines of queries and schedule reads', () => {
     expect(res.body.error.message).toContain('Temporal did not answer in time');
     // The second page is read under the deadline too.
     expect(connection.timeoutsOf('listSchedules')).toEqual([15_000, 15_000]);
+  });
+
+  it('describes at most 100 schedules of an entity, and marks the list as cut', async () => {
+    const schedules = Array.from({ length: 130 }, (_, i) => ({
+      scheduleId: `nightly-${String(i).padStart(3, '0')}`,
+      workflowType: 'orderWorkflow',
+      taskQueue: 'orders',
+    }));
+    const { server, workflowService } = await start({ schedules });
+    const res = await request(server).get(
+      '/api/temporal/entities/component/default/orders/schedules',
+    );
+    expect(res.status).toBe(200);
+    expect(workflowService.describeSchedule).toHaveBeenCalledTimes(
+      MAX_SCHEDULE_DESCRIBES,
+    );
+    expect(res.body.items).toHaveLength(MAX_SCHEDULE_DESCRIBES);
+    expect(res.body.truncated).toBe(true);
   });
 
   it('describes the schedules of an entity under 10 seconds each', async () => {

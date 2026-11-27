@@ -59,6 +59,20 @@ async function render(entity: Entity, api: ReturnType<typeof mockTemporalApi>) {
 describe('TemporalWorkflow entity tab', () => {
   it('shows the summary, recent run statistics and the runs', async () => {
     const api = mockTemporalApi();
+    api.getWorkflowTypeOverview.mockResolvedValue({
+      items: [
+        {
+          entityRef: 'temporalworkflow:default/order-workflow',
+          running: 1,
+          completed: 4,
+          failed: 2,
+          windowDays: 7,
+          sampleSize: 7,
+          averageDurationMs: 2500,
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
     await render(workflowEntity, api);
 
     expect(
@@ -85,10 +99,12 @@ describe('TemporalWorkflow entity tab', () => {
     );
 
     expect(
-      await screen.findByText('Last 7 runs (at most 50)'),
+      await screen.findByText(
+        'Completed and failed in the last 7 days; average of the last 7 runs',
+      ),
     ).toBeInTheDocument();
     expect(
-      within(screen.getByRole('group', { name: 'Succeeded' })).getByText('4'),
+      within(screen.getByRole('group', { name: 'Completed' })).getByText('4'),
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole('group', { name: 'Failed' })).getByText('2'),
@@ -101,9 +117,9 @@ describe('TemporalWorkflow entity tab', () => {
         '2.5s',
       ),
     ).toBeInTheDocument();
-    expect(api.getEntityWorkflowStats).toHaveBeenCalledWith(
-      'temporalworkflow:default/order-workflow',
-      { limit: 50 },
+    expect(api.getWorkflowTypeOverview).toHaveBeenCalledWith(
+      ['temporalworkflow:default/order-workflow'],
+      undefined,
     );
 
     expect(
@@ -178,7 +194,7 @@ describe('Temporal tab of a component that depends on workflows', () => {
       'component:default/checkout',
       expect.anything(),
     );
-    expect(api.getEntityWorkflowStats).not.toHaveBeenCalled();
+    expect(api.getWorkflowTypeOverview).not.toHaveBeenCalled();
     expect(
       screen.queryByTestId('related-workflows-truncated'),
     ).not.toBeInTheDocument();

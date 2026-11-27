@@ -21,9 +21,6 @@ export function buildEntitySchedulesPath(entity: CompoundEntityRef): string;
 // @public
 export function buildEntityWorkflowsPath(entity: CompoundEntityRef): string;
 
-// @public
-export function buildEntityWorkflowStatsPath(entity: CompoundEntityRef): string;
-
 // @alpha
 export function buildLlmCallPath(nodeId: string): string;
 
@@ -1090,20 +1087,6 @@ export interface WorkflowStartRequest {
 export type WorkflowStartResponse = WorkflowRunRef;
 
 // @public
-export interface WorkflowStatsResponse {
-  averageDurationMs?: number;
-  byStatus: Partial<Record<WorkflowStatus, number>>;
-  failed: number;
-  limit: number;
-  // (undocumented)
-  namespace: string;
-  relatedWorkflows?: RelatedWorkflows;
-  running: number;
-  sampleSize: number;
-  succeeded: number;
-}
-
-// @public
 export type WorkflowStatus =
   | 'Running'
   | 'Completed'
@@ -1174,6 +1157,7 @@ export interface WorkflowTypeOverview {
 export interface WorkflowTypeOverviewRequest {
   // (undocumented)
   entityRefs: string[];
+  refresh?: boolean;
 }
 
 // @public

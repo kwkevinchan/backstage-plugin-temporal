@@ -22,7 +22,6 @@ import type {
   WorkflowGraphResponse,
   WorkflowLlmCallResponse,
   WorkflowProgressResponse,
-  WorkflowStatsResponse,
   WorkflowHistoryResponse,
   WorkflowListResponse,
   TemporalSchedule,
@@ -77,17 +76,6 @@ export const checkoutEntity: Entity = {
   relations: [
     { type: 'dependsOn', targetRef: 'temporalworkflow:default/order-workflow' },
   ],
-};
-
-export const statsResponse: WorkflowStatsResponse = {
-  namespace: 'default',
-  sampleSize: 7,
-  limit: 50,
-  byStatus: { Completed: 4, Failed: 2, Running: 1 },
-  succeeded: 4,
-  failed: 2,
-  running: 1,
-  averageDurationMs: 2500,
 };
 
 export const listResponse: WorkflowListResponse = {
@@ -587,7 +575,6 @@ export function mockTemporalApi(): jest.Mocked<TemporalApi> {
     listEntitySchedules: jest
       .fn()
       .mockResolvedValue({ items: [], truncated: false }),
-    getEntityWorkflowStats: jest.fn().mockResolvedValue(statsResponse),
     getWorkflowTypeOverview: jest.fn(async (entityRefs: string[]) => ({
       items: entityRefs.map(entityRef => ({
         entityRef,

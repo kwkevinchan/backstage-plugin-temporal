@@ -40,6 +40,28 @@ describe('temporal common', () => {
     );
   });
 
+  it('does not open the tab for annotations without a value', () => {
+    for (const value of ['', '  ', ' , ', ',,']) {
+      expect(
+        isTemporalAvailable(entity({ 'temporal.io/workflow-type': value })),
+      ).toBe(false);
+    }
+    expect(isTemporalAvailable(entity({ 'temporal.io/task-queue': ' ' }))).toBe(
+      false,
+    );
+    expect(isTemporalAvailable(entity({ 'temporal.io/namespace': '  ' }))).toBe(
+      false,
+    );
+    expect(
+      isTemporalAvailable(entity({ 'temporal.io/workflow-type': ' , a' })),
+    ).toBe(true);
+    // A namespace alone is what an entity with an entity reference attribute
+    // sets.
+    expect(
+      isTemporalAvailable(entity({ 'temporal.io/namespace': 'prod' })),
+    ).toBe(true);
+  });
+
   it('parses workflow types separated by commas', () => {
     expect(
       parseTemporalAnnotations(

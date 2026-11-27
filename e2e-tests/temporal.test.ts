@@ -456,12 +456,12 @@ test('sign in, open the Temporal tab and the step graph of workflows', async ({
   await expect(page.getByText('orderWorkflow').first()).toBeVisible();
   await shot('14-temporal-workflow-entity');
 
-  // 13. Its Temporal tab: summary, recent run statistics and the runs.
+  // 13. Its Temporal tab: summary, run statistics and the runs.
   await entityTab(page, 'Temporal').click();
   await expect(
-    page.getByRole('heading', { name: 'Recent runs' }),
+    page.getByRole('heading', { name: 'Run statistics' }),
   ).toBeVisible();
-  await expect(page.getByRole('group', { name: 'Succeeded' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Completed' })).toBeVisible();
   // The runs of one workflow type: no type column, found by their IDs.
   const entityRuns = table(page, 'Workflow executions');
   await expect(entityRuns.getByText(/^example-order-/).first()).toBeVisible();

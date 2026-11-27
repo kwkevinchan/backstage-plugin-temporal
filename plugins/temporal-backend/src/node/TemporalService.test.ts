@@ -284,6 +284,38 @@ describe('connection options', () => {
   });
 });
 
+describe('close', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  const options = {
+    address: 'temporal.example.com:7233',
+    defaultNamespace: 'default',
+    namespaces: ['default'],
+    searchAttributes: {},
+  };
+
+  it('does not reject while the connection is failing', async () => {
+    jest
+      .spyOn(Connection, 'connect')
+      .mockRejectedValue(new Error('connection refused'));
+    const temporal = new DefaultTemporalService(options);
+    const connecting = temporal.getConnection().catch(() => undefined);
+    await expect(temporal.close()).resolves.toBeUndefined();
+    await connecting;
+  });
+
+  it('closes an open connection', async () => {
+    const close = jest.fn().mockResolvedValue(undefined);
+    jest
+      .spyOn(Connection, 'connect')
+      .mockResolvedValue({ close } as unknown as Connection);
+    const temporal = new DefaultTemporalService(options);
+    await temporal.getConnection();
+    await temporal.close();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('logs of the connection', () => {
   afterEach(() => jest.restoreAllMocks());
 

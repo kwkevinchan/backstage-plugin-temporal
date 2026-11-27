@@ -185,17 +185,6 @@ components:
         type: string
         pattern: '^$|^[A-Za-z0-9_.:/-]{1,255}$'
         maxLength: 255
-    statsLimit:
-      name: limit
-      in: query
-      required: false
-      allowReserved: true
-      description: Most recent runs to compute the numbers from.
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 50
     historyPageSize:
       name: pageSize
       in: query
@@ -578,62 +567,6 @@ components:
         relatedWorkflows:
           $ref: '#/components/schemas/RelatedWorkflows'
       additionalProperties: false
-    WorkflowStatsResponse:
-      type: object
-      description: Summary of an entity's most recent workflow runs.
-      required:
-        - namespace
-        - sampleSize
-        - limit
-        - byStatus
-        - succeeded
-        - failed
-        - running
-      properties:
-        namespace:
-          type: string
-        sampleSize:
-          type: integer
-          description: Number of most recent runs the numbers are computed from, using the same default as the workflow list (runs that continued as new are left out).
-        limit:
-          type: integer
-          description: The requested maximum of runs.
-        byStatus:
-          type: object
-          description: Runs by status.
-          properties:
-            Running:
-              type: integer
-            Completed:
-              type: integer
-            Failed:
-              type: integer
-            Canceled:
-              type: integer
-            Terminated:
-              type: integer
-            ContinuedAsNew:
-              type: integer
-            TimedOut:
-              type: integer
-            Unknown:
-              type: integer
-          additionalProperties: false
-        succeeded:
-          type: integer
-          description: Completed runs.
-        failed:
-          type: integer
-          description: Failed, timed out or terminated runs.
-        running:
-          type: integer
-          description: Running runs.
-        averageDurationMs:
-          type: number
-          description: Mean duration of the closed runs in the sample, in milliseconds.
-        relatedWorkflows:
-          $ref: '#/components/schemas/RelatedWorkflows'
-      additionalProperties: false
     WorkflowTypeOverviewRequest:
       type: object
       description: References of `TemporalWorkflow` entities, for example one page of the Temporal page.
@@ -648,6 +581,9 @@ components:
             type: string
             minLength: 1
             maxLength: 1000
+        refresh:
+          type: boolean
+          description: True reads the numbers from Temporal again instead of using the ones kept for 60 seconds. The reads still wait for the rate limit of the overview.
       additionalProperties: false
     WorkflowTypeOverviewRun:
       type: object
@@ -1656,48 +1592,12 @@ paths:
           $ref: '#/components/responses/InternalServerError'
         '503':
           $ref: '#/components/responses/ServiceUnavailable'
-  /entities/{kind}/{namespace}/{name}/workflow-stats:
-    get:
-      operationId: getEntityWorkflowStats
-      summary: Summarize an entity's most recent runs
-      description: |-
-        The runs of the entity's workflow sources, as in the default of the workflow list: runs that continued as new are left out. The `TemporalWorkflow` entities it depends on count only when the caller has the same permission on them; the others are left out, without a 403.
-
-        Permission: `temporal.workflow.read` on the entity.
-      tags:
-        - Workflows
-      x-temporal-permissions:
-        - temporal.workflow.read
-      parameters:
-        - $ref: '#/components/parameters/entityKind'
-        - $ref: '#/components/parameters/entityNamespace'
-        - $ref: '#/components/parameters/entityName'
-        - $ref: '#/components/parameters/statsLimit'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStatsResponse'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '503':
-          $ref: '#/components/responses/ServiceUnavailable'
   /workflow-types/overview:
     post:
       operationId: getWorkflowTypeOverview
       summary: Summarize several TemporalWorkflow entities
       description: |-
-        The numbers of the Workflows tab of the Temporal page, for up to 25 `TemporalWorkflow` entities: the runs that are running now, the runs completed and failed (failed, timed out or terminated) in the last 7 days, the latest run and the mean duration of the 50 most recent runs (runs that continued as new are left out), and the last failure of the 7 days. The numbers of an entity come from at most three visibility calls to Temporal (one count grouped by status; a list of the most recent runs; a list of the last failure when it is not among them); a server that cannot group refuses the grouped count, and three counts without grouping follow, at most six calls, with at most 4 calls in flight in each namespace. They are kept for 60 seconds by namespace and visibility query. A call that fails, for example for Temporal's rate limit, gives an item with `error`; it is not retried.
+        The numbers of the Workflows tab of the Temporal page, for up to 25 `TemporalWorkflow` entities: the runs that are running now, the runs completed and failed (failed, timed out or terminated) in the last 7 days, the latest run and the mean duration of the 50 most recent runs (runs that continued as new are left out), and the last failure of the 7 days. The numbers of an entity come from at most three visibility calls to Temporal (one count grouped by status; a list of the most recent runs; a list of the last failure when it is not among them); a server that cannot group refuses the grouped count, and three counts without grouping follow, at most six calls, with at most 4 calls in flight in each namespace. They are kept for 60 seconds by namespace and visibility query; with `refresh: true` they are read again (and kept), but the reads wait for the same rate limit (`temporal.overview.maxVisibilityCallsPerSecond`). The card of a `TemporalWorkflow` entity shows the same numbers. A call that fails, for example for Temporal's rate limit, gives an item with `error`; it is not retried.
 
         Permission: `temporal.workflow.read` on each entity, checked in one request on every call. Entities the caller may not read, and entities that do not exist, are left out of `items`, without a 403. A reference that is not of kind `TemporalWorkflow` is a 400.
       tags:

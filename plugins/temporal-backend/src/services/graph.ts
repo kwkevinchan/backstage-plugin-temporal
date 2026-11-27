@@ -872,6 +872,7 @@ export function buildWorkflowGraphWithLlm(
   const groups = eventGroups.build(nodes, {
     status: options.status,
     end: nodes.find(n => n.kind === 'workflowClosed'),
+    truncated: options.truncated,
   });
 
   const visible = nodes.filter(n => !n.internal);
@@ -1072,9 +1073,9 @@ function currentText(
         (n.last === undefined && OPEN_STATUSES.has(n.status)) ||
         n.kind === 'waiting',
     );
-    const failedTask = nodes.find(
-      n => n.kind === 'workflowTask' && n.status === 'Failed',
-    );
+    const failedTask = [...nodes]
+      .reverse()
+      .find(n => n.kind === 'workflowTask' && n.status === 'Failed');
     if (failedTask && open.length === 0) {
       return `Workflow task failing: ${
         failedTask.failure?.message ?? ''

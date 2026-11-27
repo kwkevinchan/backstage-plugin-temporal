@@ -22,7 +22,6 @@ import { InputError } from '@backstage/errors';
 import {
   WorkflowListResponse,
   WorkflowProgressResponse,
-  WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowDetail,
   WorkflowSummary,
@@ -58,13 +57,14 @@ import { EntityWorkflowSources } from './EntityWorkflowSources';
 import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
 
 export const LIST_PAGE_SIZE = { default: 20, max: 100 };
-/** Number of most recent runs the statistics are computed from. */
-export const STATS_LIMIT = { default: 50, max: 100 };
 /** Most history events read for the progress of one run in a list. */
 export const MAX_PROGRESS_EVENTS = 1000;
 
 /** Most schedules a list reads. */
 export const MAX_SCHEDULES = 500;
+
+/** Most schedules described in one list, for their task queue. */
+export const MAX_SCHEDULE_DESCRIBES = 100;
 
 /** Schedules described at the same time, for their task queue. */
 const SCHEDULE_DESCRIBE_CONCURRENCY = 8;
@@ -234,7 +234,12 @@ export class WorkflowListQueries {
         }
       },
     );
-    // The list has no task queue: describe those schedules, a few at a time.
+    // The list has no task queue: describe those schedules, a few at a time
+    // and not more than MAX_SCHEDULE_DESCRIBES: the rest are not listed.
+    if (toCheck.length > MAX_SCHEDULE_DESCRIBES) {
+      toCheck.length = MAX_SCHEDULE_DESCRIBES;
+      truncated = true;
+    }
     for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
       const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
       const queues = await Promise.all(
@@ -363,43 +368,6 @@ export class WorkflowListQueries {
     };
   }
 
-  /** Counts and mean duration of the entity's most recent runs. */
-  async stats(
-    context: TemporalEntityContext,
-    options: { limit: number },
-  ): Promise<WorkflowStatsResponse> {
-    const visibilityQuery = buildEntityVisibilityQuery(
-      this.sources.filterOf(context),
-      { allRuns: false },
-    );
-    const response = await this.temporalReads.listExecutions(
-      context.namespace,
-      visibilityQuery,
-      { pageSize: options.limit },
-    );
-    const convert = this.queries.convertOptions(context.namespace);
-    const items = response.items
-      .slice(0, options.limit)
-      .map(e => toWorkflowSummary(e, convert));
-    const byStatus: Partial<Record<WorkflowStatus, number>> = {};
-    for (const item of items) {
-      byStatus[item.status] = (byStatus[item.status] ?? 0) + 1;
-    }
-    const count = (...statuses: WorkflowStatus[]) =>
-      statuses.reduce((sum, st) => sum + (byStatus[st] ?? 0), 0);
-    return {
-      namespace: context.namespace,
-      sampleSize: items.length,
-      limit: options.limit,
-      byStatus,
-      succeeded: count('Completed'),
-      failed: count(...CLOSED_WITH_FAILURE),
-      running: count('Running'),
-      averageDurationMs: averageDurationMs(items),
-      relatedWorkflows: context.relatedWorkflows,
-    };
-  }
-
   private readonly overviewCache = new Map<
     string,
     { expiresAt: number; overview: WorkflowTypeOverview }
@@ -412,12 +380,15 @@ export class WorkflowListQueries {
    * window are not among them, a list of the last failure. A server that
    * cannot group refuses the grouped count, and three counts follow: at
    * most six calls. The numbers are kept for
-   * {@link OVERVIEW_CACHE_TTL_MS} by namespace and visibility query. A call
-   * that fails gives an item with `error`; nothing is retried.
+   * {@link OVERVIEW_CACHE_TTL_MS} by namespace and visibility query; with
+   * `refresh`, the kept numbers are not used and new ones are read (and
+   * kept). The reads still wait in the queue of the rate limit. A call that
+   * fails gives an item with `error`; nothing is retried.
    */
   async overview(
     context: TemporalEntityContext,
     request?: OverviewRequestStats,
+    options: { refresh?: boolean } = {},
   ): Promise<WorkflowTypeOverview> {
     const now = Date.now();
     try {
@@ -426,7 +397,7 @@ export class WorkflowListQueries {
       );
       const key = `${context.namespace}\n${entityQuery}`;
       const cached = this.overviewCache.get(key);
-      if (cached && cached.expiresAt > now) {
+      if (cached && cached.expiresAt > now && !options.refresh) {
         return { ...cached.overview, entityRef: context.entityRef };
       }
       if (cached) this.overviewCache.delete(key);
@@ -581,7 +552,7 @@ export class WorkflowListQueries {
     };
     if (graph.current) progress.current = graph.current;
     if (graph.currentDeadline) progress.currentDeadline = graph.currentDeadline;
-    if (workflow.status !== 'Running') {
+    if (workflow.status !== 'Running' && workflow.status !== 'Unknown') {
       if (this.progressCache.size >= PROGRESS_CACHE_SIZE) {
         const oldest = this.progressCache.keys().next().value;
         if (oldest !== undefined) this.progressCache.delete(oldest);

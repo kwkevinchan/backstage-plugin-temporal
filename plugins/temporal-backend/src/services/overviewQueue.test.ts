@@ -94,4 +94,47 @@ describe('the overview when its visibility calls wait in the queue', () => {
     // The first rows are the ones that were read.
     expect(items.slice(0, read.length).every(item => !item.error)).toBe(true);
   });
+
+  it('reads again with refresh, but the reads wait for the rate limit', async () => {
+    const listExecutions = jest.fn(async () => ({ items: [] }));
+    const countExecutionsByStatus = jest.fn(async () => ({}));
+    const lists = new WorkflowListQueries(
+      {} as any,
+      {
+        listExecutions,
+        countExecutionsByStatus,
+        countExecutions: jest.fn(),
+      } as any,
+      {
+        filterOf: (context: TemporalEntityContext) => ({
+          annotations: { taskQueue: 'orders', workflowTypes: ['a'] },
+          entityRef: context.entityRef,
+        }),
+      } as any,
+      { convertOptions: () => ({}) } as any,
+      mockServices.logger.mock(),
+      { overviewRatePerSecond: 1 },
+    );
+    const kept = lists.overview(entity(0));
+    await jest.advanceTimersByTimeAsync(1_100);
+    await kept;
+    expect(countExecutionsByStatus).toHaveBeenCalledTimes(1);
+    expect(listExecutions).toHaveBeenCalledTimes(1);
+
+    // Kept numbers are used without a call.
+    await lists.overview(entity(0));
+    expect(countExecutionsByStatus).toHaveBeenCalledTimes(1);
+
+    const again = lists.overview(entity(0), undefined, { refresh: true });
+    await jest.advanceTimersByTimeAsync(0);
+    // The token of the second is not back yet: the read waits.
+    expect(
+      countExecutionsByStatus.mock.calls.length +
+        listExecutions.mock.calls.length,
+    ).toBeLessThan(4);
+    await jest.advanceTimersByTimeAsync(2_000);
+    await again;
+    expect(countExecutionsByStatus).toHaveBeenCalledTimes(2);
+    expect(listExecutions).toHaveBeenCalledTimes(2);
+  });
 });

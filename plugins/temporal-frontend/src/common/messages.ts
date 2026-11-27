@@ -138,7 +138,8 @@ export function getTemporalWorkflowMessages(
   if (entity?.kind?.toLocaleLowerCase('en-US') !== 'temporalworkflow') {
     return result;
   }
-  const messages = (entity.spec as { messages?: unknown }).messages;
+  const messages = (entity.spec as { messages?: unknown } | undefined)
+    ?.messages;
   if (!isObject(messages)) return result;
   for (const kind of KINDS) {
     const list = messages[kind];

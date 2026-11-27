@@ -602,6 +602,27 @@ describe('buildWorkflowGraph', () => {
   });
 });
 
+describe('a workflow task that fails again', () => {
+  it('names the latest failure, not the first', () => {
+    const h = history();
+    h.start();
+    const failTask = (message: string) => {
+      const scheduled = h.add('WorkflowTaskScheduled', {});
+      h.add('WorkflowTaskStarted', { scheduledEventId: String(scheduled) });
+      h.add('WorkflowTaskFailed', {
+        scheduledEventId: String(scheduled),
+        cause: 'WORKFLOW_TASK_FAILED_CAUSE_NON_DETERMINISTIC_ERROR',
+        failure: { message },
+      });
+    };
+    failTask('first failure');
+    h.task();
+    failTask('second failure');
+    const graph = buildWorkflowGraph(h.events, options({ status: 'Running' }));
+    expect(graph.current).toBe('Workflow task failing: second failure');
+  });
+});
+
 describe('the current step', () => {
   /** A failure of activity `scheduledEventId`, as the workflow sees it. */
   const activityFailure = (
