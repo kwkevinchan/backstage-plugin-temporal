@@ -804,11 +804,11 @@ describe('Definition tab', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows the file and the error of a definition that cannot be parsed', async () => {
+  it('shows the error of a definition that cannot be parsed, without the file', async () => {
     const api = mockTemporalApi();
     api.getEntityDefinition.mockResolvedValue({
       ...definition,
-      content: 'do:\n  - a: [\n',
+      content: undefined,
       document: undefined,
       tasks: [],
       error: { kind: 'parse', message: 'Missing ]', line: 2, column: 8 },
@@ -817,14 +817,21 @@ describe('Definition tab', () => {
     expect(await screen.findByTestId('definition-error')).toHaveTextContent(
       'The definition is not valid YAML (line 2)',
     );
-    expect(screen.getByTestId('definition-yaml')).toHaveTextContent('a: [');
-    expect(
-      markedLines(screen.getByTestId('definition-yaml'), 'tp-yaml-error'),
-    ).toEqual([2]);
+    expect(screen.queryByTestId('definition-yaml')).not.toBeInTheDocument();
+    expect(screen.getByText('No file to show.')).toBeInTheDocument();
     expect(screen.queryByTestId('definition-graph')).not.toBeInTheDocument();
+  });
 
-    // The arrow keys stop at the first and the last line.
-    const yaml = screen.getByTestId('definition-yaml');
+  it('stops the cursor at the first and the last line of the file', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue({
+      ...definition,
+      content: 'document: {dsl: 1.0.0}\ndo: []\n',
+      document: { document: { dsl: '1.0.0' }, do: [] },
+      tasks: [],
+    });
+    await render(yamlEntity, api);
+    const yaml = await screen.findByTestId('definition-yaml');
     fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowUp' });
     fireEvent.keyDown(yaml.querySelector('.cm-content')!, { key: 'ArrowUp' });
     expect(markedLines(yaml, 'tp-yaml-cursor')).toEqual([1]);

@@ -38,6 +38,7 @@ The entity, the reading rules and the configuration
 [README of the frontend package](../temporal-module-zigflow/README.md). On any
 host backed by a Backstage integration, `temporal.definitions.allow` entries
 must specify `paths` so reading is limited to intended repositories, noting that
-`format: source` reads any allowed file in scope, `file:` checks use
-`path.resolve` without resolving symlinks, and HTTP redirects follow Backstage's
+`format: source` reads any allowed file in scope, `file:` targets must be
+regular files in the folder of the entity file after symlinks are resolved,
+and HTTP redirects follow Backstage's
 `UrlReader` rules (see the [Security section](../../README.md#security)).

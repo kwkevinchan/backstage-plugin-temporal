@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -132,7 +139,7 @@ describe('parseDefinition', () => {
     const result = parseDefinition(lines.join('\n'));
     expect(result.error).toEqual({
       kind: 'parse',
-      message: 'The file uses too many aliases (more than 100)',
+      message: 'The file uses too many aliases (more than 20)',
     });
     expect(result.document).toBeUndefined();
   });
@@ -157,6 +164,118 @@ describe('parseDefinition', () => {
     expect(
       parseDefinition('document: {dsl: 0.8.0}\ndo: []\n').error?.message,
     ).toBe('DSL version 0.8.0 is not supported; the page reads 1.x');
+  });
+
+  it('checks unique keys in time linear in the number of keys', () => {
+    const lines = ['document: {dsl: 1.0.0}', 'do: []', 'vars:'];
+    for (let i = 0; i < 50000; i++) lines.push(`  key${i}: ${i}`);
+    const text = lines.join('\n');
+    const start = Date.now();
+    const result = parseDefinition(text);
+    const elapsed = Date.now() - start;
+    expect(result.error).toBeUndefined();
+    expect(Object.keys((result.document as any).vars)).toHaveLength(50000);
+    // Comparing every key with every earlier key takes tens of seconds.
+    expect(elapsed).toBeLessThan(5000);
+
+    expect(parseDefinition(`${text}\n  key25000: again\n`).error).toMatchObject(
+      { kind: 'parse', message: 'Map keys must be unique', line: 50004 },
+    );
+    expect(
+      parseDefinition('do:\n  - a:\n      set: {x: 1, y: 2, x: 3}\n').error,
+    ).toMatchObject({ kind: 'parse', line: 3 });
+    // Equal values of different types are different keys.
+    expect(parseDefinition('do: []\n1: a\n"1": b\n').error).toBeUndefined();
+  });
+
+  it('limits the number of aliases, also in files with many anchors', () => {
+    const shared = ['document: {dsl: 1.0.0}', 'retry: &retry {limit: 3}'];
+    const tasks = (count: number) =>
+      Array.from(
+        { length: count },
+        (_, i) => `  - t${i}:\n      call: http\n      retry: *retry`,
+      );
+    // The anchor and its aliases make at most 20 copies of the block.
+    const ok = parseDefinition([...shared, 'do:', ...tasks(19)].join('\n'));
+    expect(ok.error).toBeUndefined();
+    expect((ok.document as any).do[18].t18.retry).toEqual({ limit: 3 });
+
+    for (const count of [20, 21]) {
+      expect(
+        parseDefinition([...shared, 'do:', ...tasks(count)].join('\n')).error,
+      ).toEqual({
+        kind: 'parse',
+        message: 'The file uses too many aliases (more than 20)',
+      });
+    }
+
+    // The yaml package scans the whole document for the anchor of each
+    // alias: 20000 aliases take seconds.
+    const lines = ['do:'];
+    for (let i = 0; i < 20000; i++) lines.push(`- &a${i} x`, `- *a${i}`);
+    const start = Date.now();
+    expect(parseDefinition(lines.join('\n')).error?.message).toBe(
+      'The file uses too many aliases (more than 20)',
+    );
+    expect(Date.now() - start).toBeLessThan(2000);
+  });
+
+  it('stops aliases that expand a large block into much more data', () => {
+    const text = [
+      'document: {dsl: 1.0.0}',
+      `big: &big "${'x'.repeat(60000)}"`,
+      'do: []',
+      `copies: [${new Array(19).fill('*big').join(', ')}]`,
+    ].join('\n');
+    expect(parseDefinition(text)).toEqual({
+      tasks: [],
+      error: {
+        kind: 'parse',
+        message: 'The file expands to too much data through its aliases',
+      },
+    });
+    const few = text.replace(/copies: .*/, 'copies: [*big, *big]');
+    expect(parseDefinition(few).error).toBeUndefined();
+  });
+
+  it('reports an alias inside its own anchor as a parse error', () => {
+    for (const text of [
+      'document: {dsl: 1.0.0}\ndo: []\na: &a [*a]\n',
+      'document: {dsl: 1.0.0}\ndo: []\nb: &b {c: [1, *b]}\n',
+    ]) {
+      expect(parseDefinition(text)).toEqual({
+        tasks: [],
+        error: {
+          kind: 'parse',
+          message: 'The file has an alias inside its own anchor',
+        },
+      });
+    }
+  });
+
+  it('reports deep nesting as a parse error', () => {
+    const nested = (depth: number) =>
+      `document: {dsl: 1.0.0}\ndo: []\nx: ${'['.repeat(depth)}${']'.repeat(
+        depth,
+      )}\n`;
+    expect(parseDefinition(nested(60)).error).toBeUndefined();
+    expect(parseDefinition(nested(70)).error).toEqual({
+      kind: 'parse',
+      message: 'The file is nested more than 64 levels deep',
+    });
+    for (const depth of [500, 5000, 100000]) {
+      expect(parseDefinition(nested(depth)).error?.kind).toBe('parse');
+    }
+  });
+
+  it('keeps a "__proto__" key as data', () => {
+    const result = parseDefinition(
+      'document: {dsl: 1.0.0}\ndo: []\n__proto__: {polluted: true}\n',
+    );
+    expect(result.error).toBeUndefined();
+    expect(Object.getPrototypeOf(result.document)).toBe(Object.prototype);
+    expect(Object.keys(result.document!)).toContain('__proto__');
+    expect(({} as any).polluted).toBeUndefined();
   });
 });
 
@@ -394,13 +513,29 @@ describe('DefinitionReader', () => {
       entity(),
       spec('https://raw.example.com@evil.example.com/order.yaml'),
     );
-    expect(userinfoSpoof.error?.kind).toBe('read');
-    expect(userinfoSpoof.error?.message).toContain('evil.example.com');
+    expect(userinfoSpoof.error).toEqual({
+      kind: 'read',
+      message:
+        'Absolute definition URLs must not contain a user name or password',
+    });
+    expect(readUrl).not.toHaveBeenCalledWith(
+      expect.stringContaining('evil.example.com'),
+    );
 
-    const userinfoMatch = await readerOf(readUrl, {
-      allow: [{ host: 'raw.example.com' }],
-    }).read(entity(), spec('https://user@raw.example.com/order.yaml'));
-    expect(userinfoMatch.error).toBeUndefined();
+    for (const target of [
+      'https://user@raw.example.com/order.yaml',
+      'https://user:secret@raw.example.com/order.yaml',
+      'https://:secret@raw.example.com/order.yaml',
+    ]) {
+      const userinfo = await readerOf(readUrl, {
+        allow: [{ host: 'raw.example.com' }],
+      }).read(entity(), spec(target));
+      expect(userinfo.error?.message).toContain('user name or password');
+      expect(userinfo.url).toBeUndefined();
+      expect(readUrl).not.toHaveBeenCalledWith(
+        expect.stringContaining('@raw.example.com'),
+      );
+    }
 
     const idnReader = readerOf(readUrl, {
       allow: [{ host: '例子.example.com' }],
@@ -1226,6 +1361,37 @@ describe('DefinitionReader', () => {
     expect(readUrl).not.toHaveBeenCalled();
   });
 
+  it('checks long hostnames of entity locations in linear time', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('document: {dsl: 1.0.0}\ndo: []\n'),
+    }));
+    const reader = readerOf(readUrl);
+    for (const host of [
+      `s3.${'-'.repeat(60)}.amazonaws.com.`,
+      `s3${'-'.repeat(60)}.amazonaws.com.cn.`,
+      `s3.${'-a'.repeat(30)}.amazonaws.co`,
+    ]) {
+      const start = Date.now();
+      await reader.read(
+        entity(`url:https://${host}/catalog-info.yaml`),
+        spec('./w.yaml'),
+      );
+      // Backtracking over each way to split the dashes takes seconds.
+      expect(Date.now() - start).toBeLessThan(500);
+    }
+    for (const host of [
+      's3.dualstack.eu-central-1.amazonaws.com',
+      's3.cn-north-1.amazonaws.com.cn',
+      's3-external-1.amazonaws.com',
+    ]) {
+      const result = await reader.read(
+        entity(`url:https://${host}/catalog-info.yaml`),
+        spec('./other-bucket/w.yaml'),
+      );
+      expect(result.error?.message).toContain('temporal.definitions.allow');
+    }
+  });
+
   it('stops reading at the size limit', async () => {
     const big = Buffer.alloc(64, 'a');
     const stream = Readable.from([big, big, big]);
@@ -1330,6 +1496,131 @@ describe('DefinitionReader', () => {
       ).toBe('tooLarge');
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reads only regular files in the real folder of a file location', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'tp-def-'));
+    try {
+      const dir = join(root, 'catalog');
+      mkdirSync(join(dir, 'workflows'), { recursive: true });
+      mkdirSync(join(dir, 'folder.yaml'));
+      writeFileSync(join(dir, 'workflows', 'order.yaml'), fixture);
+      writeFileSync(join(root, 'secret.yaml'), fixture);
+      symlinkSync(
+        join(dir, 'workflows', 'order.yaml'),
+        join(dir, 'inside.yaml'),
+      );
+      symlinkSync(join(root, 'secret.yaml'), join(dir, 'outside.yaml'));
+      symlinkSync(root, join(dir, 'up'));
+      symlinkSync('/dev/zero', join(dir, 'zero.yaml'));
+      const reader = readerOf(jest.fn(), { readFileLocations: true });
+      const location = entity(`file:${join(dir, 'entities.yaml')}`);
+      const read = (target: string) => reader.read(location, spec(target));
+
+      const inside = await read('./inside.yaml');
+      expect(inside.error).toBeUndefined();
+      expect(inside.tasks).toHaveLength(19);
+
+      for (const target of ['./outside.yaml', './up/secret.yaml']) {
+        const result = await read(target);
+        expect(result.error).toEqual({
+          kind: 'read',
+          message:
+            'A target next to a file location must stay in the folder of the entity file',
+        });
+        expect(result.content).toBeUndefined();
+      }
+      for (const target of ['./folder.yaml', './zero.yaml']) {
+        expect((await read(target)).error).toEqual({
+          kind: 'read',
+          message: 'The target is not a regular file',
+        });
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not wait on a FIFO next to a file location', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tp-def-'));
+    try {
+      execFileSync('mkfifo', [join(dir, 'fifo.yaml')]);
+      const reader = readerOf(jest.fn(), { readFileLocations: true });
+      const result = await reader.read(
+        entity(`file:${join(dir, 'entities.yaml')}`),
+        spec('./fifo.yaml'),
+      );
+      expect(result.error).toEqual({
+        kind: 'read',
+        message: 'The target is not a regular file',
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('reads serverless-workflow definitions only from YAML files', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from('SECRET=1\n'),
+    }));
+    const reader = readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+    });
+    const located = entity(
+      'url:https://github.com/acme/flows/blob/main/catalog-info.yaml',
+    );
+    for (const target of [
+      './.env',
+      './config/app.json',
+      './order.yaml.txt',
+      'https://raw.example.com/acme/flows/.env',
+    ]) {
+      expect((await reader.read(located, spec(target))).error).toEqual({
+        kind: 'read',
+        message:
+          'A serverless-workflow definition must be a .yaml or .yml file',
+      });
+    }
+    expect(readUrl).not.toHaveBeenCalled();
+
+    for (const target of ['./order.yml', './order.YAML']) {
+      expect(
+        (await reader.read(located, spec(target))).error?.message,
+      ).not.toContain('.yaml or .yml');
+    }
+    const source = await reader.read(located, {
+      format: 'source',
+      target: './.env',
+    });
+    expect(source.error).toBeUndefined();
+    expect(source.content).toBe('SECRET=1\n');
+  });
+
+  it('returns the text of a definition only when it can be parsed', async () => {
+    const text = jest.fn<Promise<string>, []>();
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from(await text()),
+    }));
+    const reader = readerOf(readUrl, { allow: [{ host: 'raw.example.com' }] });
+    const read = () =>
+      reader.read(entity(), spec('https://raw.example.com/order.yaml'));
+
+    text.mockResolvedValue(fixture);
+    const ok = await read();
+    expect(ok.error).toBeUndefined();
+    expect(ok.content).toBe(fixture);
+
+    for (const [body, kind] of [
+      ['token: abc\nother: [\n', 'parse'],
+      ['token: abc\n', 'format'],
+      ['TOKEN=abc\n', 'format'],
+    ]) {
+      text.mockResolvedValue(body);
+      const result = await read();
+      expect(result.error?.kind).toBe(kind);
+      expect(result.content).toBeUndefined();
+      expect(result.size).toBe(body.length);
     }
   });
 
