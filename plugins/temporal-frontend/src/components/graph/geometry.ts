@@ -160,7 +160,6 @@ const stackCache = new WeakMap<
   {
     rects: Rect[];
     routes: Map<string, StackRoute | undefined>;
-    rooms: Map<number, number | undefined>;
   }
 >();
 
@@ -195,7 +194,7 @@ function cacheOf(layout: StepLayout) {
             o.bottom <= r.bottom,
         );
     });
-    cached = { rects, routes: new Map(), rooms: new Map() };
+    cached = { rects, routes: new Map() };
     stackCache.set(layout, cached);
   }
   return cached;
@@ -253,36 +252,6 @@ export function stackTurnIn(
   target: string,
 ): number | undefined {
   return stackRoute(layout, source, target)?.turnIn;
-}
-
-/**
- * How far an arrow can run from the middle of a gap between two rows of a
- * stacked frame (`stackGaps`), `FRAME_GAP` clear of the rows above and
- * below it; nothing for another y.
- */
-export function stackGapRoom(
-  layout: StepLayout,
-  gap: number,
-): number | undefined {
-  if (!layout.stackGaps) return undefined;
-  const cached = cacheOf(layout);
-  if (cached.rooms.has(gap)) return cached.rooms.get(gap);
-  let room: number | undefined;
-  const byId = new Map(cached.rects.map(r => [r.id, r]));
-  for (const [frame, gaps] of layout.stackGaps) {
-    const f = byId.get(frame);
-    if (!f || !gaps.includes(gap)) continue;
-    let [above, below] = [f.top, f.bottom];
-    for (const r of cached.rects) {
-      if (r === f || r.left < f.left || r.right > f.right) continue;
-      if (r.top < f.top || r.bottom > f.bottom) continue;
-      if (r.bottom <= gap) above = Math.max(above, r.bottom);
-      else if (r.top >= gap) below = Math.min(below, r.top);
-    }
-    room = Math.min(gap - above, below - gap) - FRAME_GAP;
-  }
-  cached.rooms.set(gap, room);
-  return room;
 }
 
 function stackRoute(
@@ -541,25 +510,4 @@ export function rowGapOf(
     layout.rowGaps?.find(g => g > s.y && g < t.y) ??
     stackGapOf(layout, source, target)
   );
-}
-
-/**
- * Which gap between two rows an arrow from `source` to `target` runs across
- * (see `rowGapOf`): a gap of a wrapped graph by its row, one of a stacked
- * frame by that frame and its row. Gaps of two frames can be at one y.
- */
-export function rowGapKeyOf(
-  layout: StepLayout,
-  source: string,
-  target: string,
-): string | undefined {
-  const s = layout.positions.get(source);
-  const t = layout.positions.get(target);
-  if (!s || !t) return undefined;
-  const row = layout.rowGaps?.findIndex(g => g > s.y && g < t.y) ?? -1;
-  if (row >= 0) return `row ${row}`;
-  const route = stackRoute(layout, source, target);
-  if (!route) return undefined;
-  const index = layout.stackGaps!.get(route.frame)!.indexOf(route.gap);
-  return `${route.frame}\u0000${index}`;
 }
