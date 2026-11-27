@@ -444,9 +444,30 @@ which signal or update handler the workflow waits for.
 Limits: Temporal records only the last attempt of an activity and the
 failure of the attempt before it, so earlier attempts are not listed.
 Updates rejected by a validator are not written to the history. The backend
-reads at most 5000 events per run for `graph` and `llm-calls` (without caching);
-the graph of a longer history shows its start and says so. In production,
-enable Backstage's `backend.rateLimit` to bound concurrent history reads.
+reads at most 5000 events per run for the graph and for the records of model
+calls (`GET .../llm-calls/:eventId`); the graph of a longer history shows its
+start and says so. The backend does not cache these histories: every request
+reads them again. To bound that load, use Backstage's rate limit for the
+Temporal plugin only:
+
+```yaml
+backend:
+  rateLimit:
+    global: false
+    plugin:
+      temporal:
+        window: 1m
+        incomingRequestLimit: 300 # an example: choose it for your traffic
+```
+
+Do not set `backend.rateLimit: true`: that limits the whole Backstage backend
+with the defaults, 5 requests per minute for each IP address. The same
+defaults apply to `plugin.temporal` for a value you leave out
+(`window: 1m`, `incomingRequestLimit: 5`), which is too low for the pages of
+this plugin, so set both. The limit applies to every route of the Temporal
+plugin, not only to these two. It counts the requests of one IP address in
+the window, not the reads that run at the same time. Requests from
+`127.0.0.1` and `::1` are not counted (`ipAllowList`).
 
 The details page always shows one run: its address has the run ID
 (`…/namespaces/:namespace/workflows/:workflowId/runs/:runId`) and it stays on
@@ -553,6 +574,10 @@ Known limits:
 - a payload codec (for example encryption) encodes the inputs and results:
   the backend cannot read them, and the model calls are plain steps.
 - tool links of tools that record no tool call ID are inferred (above).
+  The backend infers links for at most 500 such tool requests in one model
+  call and 2000 in one run. When one model call asks for more than 500, or
+  the run has more than 2000, it infers none of them for the whole run: the
+  tool steps are plain steps.
 - the backend does not read payloads in External Storage. A model call
   whose result is stored there is drawn without its model and tokens, and
   its panel says where the record is. When only the input is stored there,

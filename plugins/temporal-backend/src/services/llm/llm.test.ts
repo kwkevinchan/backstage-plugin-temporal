@@ -431,6 +431,13 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
     return v;
   };
 
+  // JSON.stringify overflows the stack at this depth, so the payload text is
+  // written by hand.
+  const nestedPayload = (depth: number) => ({
+    metadata: { encoding: b64('json/plain') },
+    data: b64(`${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`),
+  });
+
   it('treats payloads deeper than 64 levels as non-comparable without overflowing the stack', () => {
     expect(canonicalJson(makeNested(MAX_CANONICAL_JSON_DEPTH - 1))).toEqual(
       expect.any(String),
@@ -438,7 +445,7 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
     expect(canonicalJson(makeNested(MAX_CANONICAL_JSON_DEPTH))).toBeUndefined();
     expect(canonicalJson(makeNested(5000))).toBeUndefined();
 
-    // Building a graph with a deeply nested tool payload succeeds without throwing.
+    // A graph with a 5000-level tool payload and tool request builds without throwing.
     const adapters = new LlmAdapters();
     adapters.add({
       id: 'deep-test',
@@ -458,7 +465,7 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
                         {
                           type: 'tool_call',
                           name: 'lookup',
-                          arguments: makeNested(80) as any,
+                          arguments: makeNested(5000) as any,
                         },
                       ],
                     },
@@ -473,7 +480,7 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
     h.add('WorkflowExecutionStarted', {});
     h.activity('callModel', 'm-1', { result: { ok: true } });
     const toolId = h.activity('lookup', 't-1', {
-      input: makeNested(80),
+      rawInput: nestedPayload(5000),
       result: { ok: true },
     });
     const graph = buildWorkflowGraph(h.events, {
@@ -481,6 +488,72 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
       llmAdapters: adapters,
     });
     expect(graph.nodes.find(n => n.id === `activity-${toolId}`)).toBeDefined();
+  });
+
+  /** Model calls that each ask for `requests` tools; the tool node that follows each. */
+  const toolNodesAfterModelCalls = (calls: number, requests: number) => {
+    const adapters = new LlmAdapters();
+    adapters.add({
+      id: 'limits-test',
+      isModelCall: step => step.activityType === 'callModel',
+      readModelCalls: step =>
+        step.activityType === 'callModel'
+          ? [
+              {
+                record: {
+                  systemInstructions: [],
+                  inputMessages: [],
+                  toolExecutions: [],
+                  outputMessages: [
+                    {
+                      role: 'assistant',
+                      parts: Array.from({ length: requests }, (_, i) => ({
+                        type: 'tool_call',
+                        name: 'lookup',
+                        arguments: { idx: i },
+                      })),
+                    },
+                  ],
+                  usage: {},
+                },
+              },
+            ]
+          : [],
+    });
+    const h = history();
+    h.add('WorkflowExecutionStarted', {});
+    const tools: number[] = [];
+    for (let i = 0; i < calls; i += 1) {
+      h.activity('callModel', `m-${i}`, { result: { ok: true } });
+      tools.push(
+        h.activity('lookup', `t-${i}`, {
+          input: { idx: 0 },
+          result: { ok: true },
+        }),
+      );
+    }
+    const graph = buildWorkflowGraph(h.events, {
+      ...options,
+      llmAdapters: adapters,
+    });
+    return tools.map(id => graph.nodes.find(n => n.id === `activity-${id}`)!);
+  };
+
+  it('infers the tool calls of a model call with exactly 500 unlinked requests', () => {
+    const [tool] = toolNodesAfterModelCalls(1, 500);
+    expect(tool.tool).toMatchObject({ name: 'lookup', inferred: true });
+  });
+
+  it('infers the tool calls of a run with exactly 2000 unlinked requests', () => {
+    const nodes = toolNodesAfterModelCalls(4, 500);
+    expect(nodes.every(n => n.tool?.inferred)).toBe(true);
+  });
+
+  it('skips inference for the whole run when it has more than 2000 unlinked requests', () => {
+    // Each model call is within the limit of 500; together they are not.
+    const nodes = toolNodesAfterModelCalls(5, 401);
+    expect(nodes).toHaveLength(5);
+    expect(nodes.every(n => n.tool === undefined)).toBe(true);
   });
 
   it('skips inference and keeps steps plain when unlinked tool requests exceed 500', () => {
