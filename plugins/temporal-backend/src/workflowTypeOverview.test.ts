@@ -35,6 +35,11 @@ import {
   paymentWorkflowEntity,
 } from './testUtils';
 import { withOpenApiValidation } from './__testUtils__/openapi';
+import {
+  recordingLogger,
+  recordingLoggerFactory,
+  type RecordingLogger,
+} from './__testUtils__/recordingLogger';
 
 // POST /workflow-types/overview: the numbers of the Workflows tab of the
 // Temporal page.
@@ -89,6 +94,7 @@ async function start(options?: {
   workflowService?: FakeWorkflowService;
   deny?: string[];
   entities?: Entity[];
+  recorder?: RecordingLogger;
 }) {
   const workflowService =
     options?.workflowService ?? createFakeWorkflowService();
@@ -117,6 +123,7 @@ async function start(options?: {
       }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
+      ...(options?.recorder ? [recordingLoggerFactory(options.recorder)] : []),
     ],
   });
   return {
@@ -461,20 +468,29 @@ describe('POST /workflow-types/overview', () => {
         return { count: 1, groups: [group('Running', 1)] };
       },
     );
-    const { server } = await start({ workflowService });
+    const recorder = recordingLogger();
+    const { server } = await start({ workflowService, recorder });
     const res = await request(server)
       .post(PATH)
       .send({ entityRefs: [ORDER, PAYMENT] });
     expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toContain('namespace rate limit');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        message: 'Call to Temporal failed',
+        meta: expect.objectContaining({
+          errorMessage: '8 RESOURCE_EXHAUSTED: namespace rate limit exceeded',
+        }),
+      }),
+    );
     expect(res.body.items[0]).toMatchObject({ entityRef: ORDER, running: 1 });
     expect(res.body.items[0].error).toBeUndefined();
     expect(res.body.items[1]).toMatchObject({
       entityRef: PAYMENT,
       running: 0,
       error: {
-        message: expect.stringContaining(
-          'Temporal is rate limiting the backend',
-        ),
+        message: 'Temporal is rate limiting the backend',
         rateLimited: true,
       },
     });
@@ -494,6 +510,48 @@ describe('POST /workflow-types/overview', () => {
     ).toHaveLength(2);
   });
 
+  it.each([
+    [
+      'times out',
+      Object.assign(new Error('4 DEADLINE_EXCEEDED: host-a:7233'), { code: 4 }),
+      'Temporal did not answer in time',
+    ],
+    [
+      'is not reachable',
+      Object.assign(new Error('14 UNAVAILABLE: host-a:7233 refused'), {
+        code: 14,
+      }),
+      'The numbers could not be read',
+    ],
+    [
+      'fails in another way',
+      new Error('query: Owner = "team-x" host-a:7233'),
+      'The numbers could not be read',
+    ],
+  ])(
+    'answers an item with a fixed message when Temporal %s',
+    async (_n, failure, message) => {
+      const workflowService = createFakeWorkflowService();
+      workflowService.countWorkflowExecutions.mockRejectedValue(failure);
+      const recorder = recordingLogger();
+      const { server } = await start({ workflowService, recorder });
+      const res = await request(server)
+        .post(PATH)
+        .send({ entityRefs: [ORDER] });
+      expect(res.status).toBe(200);
+      expect(res.body.items[0].error).toEqual({ message });
+      expect(JSON.stringify(res.body)).not.toContain('host-a');
+      expect(JSON.stringify(res.body)).not.toContain('Owner');
+      expect(recorder.records).toContainEqual(
+        expect.objectContaining({
+          meta: expect.objectContaining({
+            errorMessage: (failure as Error).message,
+          }),
+        }),
+      );
+    },
+  );
+
   it('answers an item with an error for an entity whose workflows cannot be listed', async () => {
     const otherNamespace: Entity = {
       apiVersion: 'temporal.io/v1alpha1',
@@ -505,8 +563,10 @@ describe('POST /workflow-types/overview', () => {
         namespace: 'audit',
       },
     };
+    const recorder = recordingLogger();
     const { server } = await start({
       entities: [orderWorkflowEntity, otherNamespace],
+      recorder,
     });
     const res = await request(server)
       .post(PATH)
@@ -515,9 +575,19 @@ describe('POST /workflow-types/overview', () => {
     expect(res.body.items).toEqual([
       expect.objectContaining({
         entityRef: 'temporalworkflow:default/audit',
-        error: { message: 'Temporal namespace is not allowed: audit' },
+        error: { message: 'The numbers could not be read' },
       }),
     ]);
+    expect(JSON.stringify(res.body)).not.toContain('not allowed');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'warn',
+        message: 'Could not read the workflows of an entity',
+        error: expect.objectContaining({
+          message: 'Temporal namespace is not allowed: audit',
+        }),
+      }),
+    );
   });
 
   it.each([

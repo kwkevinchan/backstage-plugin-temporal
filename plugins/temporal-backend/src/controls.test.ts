@@ -15,6 +15,7 @@
  */
 
 import {
+  coreServices,
   createBackendModule,
   createServiceFactory,
 } from '@backstage/backend-plugin-api';
@@ -28,6 +29,7 @@ import {
 } from './node/alpha';
 import { TemporalService, temporalServiceRef } from './node';
 import request from 'supertest';
+import Router from 'express-promise-router';
 import { temporalAccessServiceFactory } from './alpha';
 import {
   checkoutEntity,
@@ -154,6 +156,8 @@ async function start(options?: {
   connectionError?: unknown;
   /** An error of getting the client of a namespace. */
   clientError?: unknown;
+  /** More features of the test backend, such as a module with its own route. */
+  extraFeatures?: any[];
 }) {
   const workflowService = {
     ...createControlWorkflowService(options?.status, options?.entityAttribute),
@@ -267,6 +271,7 @@ async function start(options?: {
       }),
     );
   }
+  features.push(...(options?.extraFeatures ?? []));
   const { server } = await startTestBackend({ features });
   return {
     server: await withOpenApiValidation(server),
@@ -1223,9 +1228,8 @@ describe('workflow controls', () => {
         .post(`${wf}/actions/escalate${withEntity}`)
         .send({});
       expect(res.status).toBe(503);
-      expect(res.body.error.message).toBe(
-        'Temporal is not reachable: Failed to connect before the deadline',
-      );
+      expect(res.body.error.message).toBe('Temporal is not reachable');
+      expect(JSON.stringify(res.body)).not.toContain('before the deadline');
       expect(handle).not.toHaveBeenCalled();
     });
 
@@ -1900,9 +1904,7 @@ describe('deadlines of the operations', () => {
       .post(`${wf}/signal${withEntity}`)
       .send({ name: 'addNote' });
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toBe(
-      'Temporal is not reachable: Failed to connect before the deadline',
-    );
+    expect(res.body.error.message).toBe('Temporal is not reachable');
     expect(workflowService.signalWorkflowExecution).not.toHaveBeenCalled();
   });
 });
@@ -1959,10 +1961,11 @@ describe('logs', () => {
     );
     const res = await request(server).get(`${wf}${withEntity}`);
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toContain(
+    expect(res.body.error.message).toBe(
       'Temporal refused the credentials of the backend',
     );
     expect(JSON.stringify(res.body)).not.toContain('SECRET-TOKEN');
+    expect(JSON.stringify(res.body)).not.toContain('bearer rejected');
     expect(recorder.records).toContainEqual({
       level: 'warn',
       message: 'Call to Temporal failed',
@@ -1974,9 +1977,137 @@ describe('logs', () => {
         errorName: 'Error',
         grpcCode: 7,
         grpcStatus: 'PERMISSION_DENIED',
+        errorMessage: '7 PERMISSION_DENIED: bearer rejected',
       },
     });
     expect(JSON.stringify(recorder.records)).not.toContain('SECRET-TOKEN');
+  });
+
+  it.each([
+    [3, 400, 'Temporal rejected the request as invalid'],
+    [14, 503, 'Temporal is not reachable'],
+    [4, 503, 'Temporal did not answer in time'],
+    [8, 503, 'Temporal is rate limiting the backend'],
+    [13, 500, 'Internal server error'],
+  ])(
+    'answers a failed read with a fixed message and logs what Temporal said (gRPC %i)',
+    async (code, status, message) => {
+      const raw = `${code} STATUS: invalid query (Owner = "team-x") at temporal.internal:7233`;
+      const recorder = recordingLogger();
+      const { server, workflowService } = await start({ recorder });
+      workflowService.describeWorkflowExecution.mockRejectedValue(
+        Object.assign(new Error(raw), { code }),
+      );
+      const res = await request(server).get(`${wf}${withEntity}`);
+      expect(res.status).toBe(status);
+      expect(res.body.error.message).toBe(message);
+      expect(JSON.stringify(res.body)).not.toContain('temporal.internal');
+      expect(JSON.stringify(res.body)).not.toContain('Owner');
+      expect(recorder.records).toContainEqual(
+        expect.objectContaining({
+          message: 'Call to Temporal failed',
+          meta: expect.objectContaining({
+            temporalCall: 'describeWorkflowExecution',
+            namespace: 'default',
+            errorMessage: raw,
+          }),
+        }),
+      );
+    },
+  );
+
+  it('answers an error that no route expected with a fixed message and logs it', async () => {
+    const recorder = recordingLogger();
+    const { server, workflowService } = await start({ recorder });
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      new Error('cannot read property of temporal.internal:7233'),
+    );
+    const res = await request(server).get(`${wf}${withEntity}`);
+    expect(res.status).toBe(500);
+    expect(res.body.error.message).toBe('Internal server error');
+    expect(JSON.stringify(res.body)).not.toContain('temporal.internal');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Unexpected error in a route',
+        meta: expect.objectContaining({ method: 'GET' }),
+        error: expect.objectContaining({
+          message: 'cannot read property of temporal.internal:7233',
+        }),
+      }),
+    );
+  });
+
+  it('keeps the status of an error that carries one, with a fixed message for a server error', async () => {
+    const recorder = recordingLogger();
+    const { backend, workflowService } = await start({ recorder });
+    // `ResponseError` of the catalog and permission clients sets only
+    // `statusCode`.
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      Object.assign(new Error('catalog at internal-host:7007 is down'), {
+        statusCode: 503,
+      }),
+    );
+    const res = await request(backend).get(`${wf}${withEntity}`);
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toBe('Internal server error');
+    expect(JSON.stringify(res.body)).not.toContain('internal-host');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Unexpected error in a route',
+      }),
+    );
+
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      Object.assign(new Error('refused by the permission service'), {
+        statusCode: 403,
+      }),
+    );
+    const refused = await request(backend).get(`${wf}${withEntity}`);
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.message).toBe(
+      'refused by the permission service',
+    );
+  });
+
+  it('answers a body that is not JSON with 400', async () => {
+    const { backend } = await start();
+    const res = await request(backend)
+      .post(`${wf}/signal${withEntity}`)
+      .set('Content-Type', 'application/json')
+      .send('{"name": ');
+    expect(res.status).toBe(400);
+  });
+
+  it('leaves the errors of the other routes of the plugin as they are', async () => {
+    const { backend } = await start({
+      extraFeatures: [
+        createBackendModule({
+          pluginId: 'temporal',
+          moduleId: 'test-other-route',
+          register(reg) {
+            reg.registerInit({
+              deps: { httpRouter: coreServices.httpRouter },
+              async init({ httpRouter }) {
+                httpRouter.addAuthPolicy({
+                  path: '/other',
+                  allow: 'unauthenticated',
+                });
+                httpRouter.use(
+                  Router().get('/other', () => {
+                    throw new Error('The Temporal plugin answered 503');
+                  }),
+                );
+              },
+            });
+          },
+        }),
+      ],
+    });
+    const res = await request(backend).get('/api/temporal/other');
+    expect(res.status).toBe(500);
+    expect(res.body.error.message).toBe('The Temporal plugin answered 503');
   });
 
   it('warns with the update ID when an update does not finish within the polls', async () => {

@@ -18,6 +18,7 @@ import {
   AuditorService,
   BackstageCredentials,
   HttpAuthService,
+  LoggerService,
 } from '@backstage/backend-plugin-api';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
 import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
@@ -80,6 +81,7 @@ import {
 
 export interface RouterOptions {
   httpAuth: HttpAuthService;
+  logger: LoggerService;
   auditor: AuditorService;
   access: TemporalAccessService;
   sources: EntityWorkflowSources;
@@ -108,7 +110,7 @@ function describesWorkflowType(
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { httpAuth, auditor, access, queries, lists, ai } = options;
+  const { httpAuth, logger, auditor, access, queries, lists, ai } = options;
   const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
@@ -244,11 +246,13 @@ export async function createRouter(
       credentials,
     );
     const items = await Promise.all(
-      loaded.map(({ entityRef, context, error }) =>
-        context
-          ? lists.overview(context)
-          : Promise.resolve(failedOverview(entityRef, error)),
-      ),
+      loaded.map(({ entityRef, context, error }) => {
+        if (context) return lists.overview(context);
+        logger
+          .child({ entityRef })
+          .warn('Could not read the workflows of an entity', error as Error);
+        return Promise.resolve(failedOverview(entityRef, error));
+      }),
     );
     const response: WorkflowTypeOverviewResponse = { items };
     res.json(response);

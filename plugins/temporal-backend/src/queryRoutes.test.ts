@@ -552,7 +552,8 @@ describe('query routes of the core plugin', () => {
     );
     const res = await request(down.server).get('/api/temporal/schedules');
     expect(res.status).toBe(503);
-    expect(res.body.error.message).toContain('connection refused');
+    expect(res.body.error.message).toBe('Temporal is not reachable');
+    expect(JSON.stringify(res.body)).not.toContain('connection refused');
 
     // An error that is not about a payload is not hidden by the lenient
     // decoding.
@@ -655,6 +656,21 @@ describe('deadlines of queries and schedule reads', () => {
     expect(new Set(timeouts.slice(0, -1))).toEqual(
       new Set(timeouts.length > 1 ? [5_000] : []),
     );
+  });
+
+  it('answers 400 when the query handler fails or does not exist', async () => {
+    const { server, workflowService } = await start();
+    workflowService.queryWorkflow.mockRejectedValue(
+      Object.assign(
+        new Error('3 INVALID_ARGUMENT: unknown queryType state at host-a:7233'),
+        { code: 3 },
+      ),
+    );
+    const res = await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe('The workflow failed the query');
   });
 
   it('answers 503 when no worker answers a query in time', async () => {

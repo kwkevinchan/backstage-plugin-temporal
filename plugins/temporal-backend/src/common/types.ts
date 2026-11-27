@@ -290,8 +290,9 @@ export interface WorkflowTypeOverview {
   updatedAt: string;
   /**
    * Set when the numbers could not be read; the counts are then 0 and are
-   * not shown. `rateLimited` is true when Temporal refused the call for its
-   * rate limit.
+   * not shown. `message` is fixed text (rate limited, no answer in time, or
+   * the numbers could not be read), never what Temporal said. `rateLimited`
+   * is true when Temporal refused the call for its rate limit.
    */
   error?: { message: string; rateLimited?: boolean };
 }

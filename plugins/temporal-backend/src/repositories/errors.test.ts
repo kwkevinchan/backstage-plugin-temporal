@@ -19,10 +19,12 @@ import {
   ScheduleNotFoundError,
   ServiceError,
 } from '@temporalio/client';
+import { ServiceUnavailableError } from '@backstage/errors';
 import {
   mapChainCommandError,
   mapCommandError,
   mapConnectionError,
+  mapQueryError,
   mapTemporalError,
 } from './errors';
 
@@ -57,7 +59,7 @@ describe('mapTemporalError', () => {
     expect(() => mapTemporalError(wrapped(14))).toThrow(
       expect.objectContaining({
         name: 'ServiceUnavailableError',
-        message: expect.stringContaining('Failed to list schedules: refused'),
+        message: 'Temporal is not reachable',
       }),
     );
     expect(() => mapTemporalError(wrapped(16))).toThrow(
@@ -71,16 +73,47 @@ describe('mapTemporalError', () => {
     ).toThrow(expect.objectContaining({ name: 'NotFoundError' }));
   });
 
-  it('says why Temporal did not answer', () => {
+  it('says why Temporal did not answer, in fixed text', () => {
     expect(() => mapTemporalError(grpc(4))).toThrow(
-      'Temporal did not answer in time: code 4',
+      new ServiceUnavailableError('Temporal did not answer in time'),
     );
     expect(() => mapTemporalError(grpc(8))).toThrow(
-      'Temporal is rate limiting the backend: code 8',
+      new ServiceUnavailableError('Temporal is rate limiting the backend'),
     );
   });
 
-  it('keeps other errors', () => {
+  it('keeps what Temporal says out of the message of every mapped error', () => {
+    const secret = 'temporal.internal:7233 query: (Owner = "team-x")';
+    const raw = (code: number) =>
+      Object.assign(new Error(secret), { code, details: secret });
+    const mappers = [
+      mapTemporalError,
+      mapQueryError,
+      mapCommandError,
+      (e: unknown) => mapChainCommandError('wf-1', e),
+    ];
+    for (const map of mappers) {
+      for (let code = 1; code <= 16; code++) {
+        let thrown: unknown;
+        const error = raw(code);
+        try {
+          map(error);
+        } catch (e) {
+          thrown = e;
+        }
+        // A status without a mapping is rethrown for `unexpectedErrorHandler`.
+        if (thrown === error) continue;
+        expect((thrown as Error).message).not.toContain('temporal.internal');
+        expect((thrown as Error).message).not.toContain('Owner');
+        expect((thrown as Error).message).not.toContain(secret);
+      }
+    }
+    expect(() => mapConnectionError(raw(14))).toThrow(
+      new ServiceUnavailableError('Temporal is not reachable'),
+    );
+  });
+
+  it('keeps other errors, for the handler of unexpected errors', () => {
     const error = grpc(13);
     expect(() => mapTemporalError(error)).toThrow(error);
   });
@@ -97,14 +130,13 @@ describe('mapConnectionError', () => {
     expect(() => mapConnectionError(failed)).toThrow(
       expect.objectContaining({
         name: 'ServiceUnavailableError',
-        message:
-          'Temporal is not reachable: Failed to connect to Temporal server: connection refused',
+        message: 'Temporal is not reachable',
       }),
     );
     expect(() => mapConnectionError(new Error('timed out'))).toThrow(
       expect.objectContaining({
         name: 'ServiceUnavailableError',
-        message: 'Temporal is not reachable: timed out',
+        message: 'Temporal is not reachable',
       }),
     );
   });
@@ -138,7 +170,7 @@ describe('mapCommandError', () => {
     expect(() => mapCommandError(wrapped)).toThrow(
       expect.objectContaining({
         name: 'ConflictError',
-        message: 'Failed to pause schedule: already paused',
+        message: 'The resource is not in a state that allows this',
       }),
     );
     expect(() =>
