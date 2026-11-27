@@ -318,12 +318,12 @@ HTTP API 的合約正本是 OpenAPI 規格 [`plugins/temporal-backend/src/schema
 
 錯誤是 Backstage 的錯誤格式：`400` 輸入錯誤、`401` 沒有有效的憑證、`403` 拒絕、`404` 找不到、`409` 衝突（`signal` 的流程不在執行中，已接續的 run 會在錯誤裡帶 `continuedAsNewRunId`；`update`、`terminate` 遇到整條執行鏈已結束，或同一個 workflow ID 已變成別條鏈（`cancel` 遇到已結束的鏈回 `202`，Temporal 不做任何事；Temporal 伺服器不回報鏈的 ID 時，這些操作只作用在打開的 run）；重跑還在執行中的 run；操作的 filter 拒絕，或 Temporal 拒絕：workflow ID 已被使用、排程狀態不對）、`503` 連不到 Temporal、Temporal 沒在呼叫的期限內回應、Temporal 在限流後端、Temporal 拒絕後端自己的憑證，或 query、update 沒有 Worker 及時回應。
 
-**錯誤訊息。** 來自 Temporal 或其 client 的錯誤，訊息是固定文字。Temporal 說的原文（位址、visibility query、伺服器的細節）寫進後端的 log，附上呼叫名稱、namespace 和 gRPC 狀態，不會傳到瀏覽器。路由也不會回傳 stack trace，或沒預期到的錯誤的訊息。
+**錯誤訊息。** 來自 Temporal 或其 client 的錯誤，訊息是固定文字。Temporal 說的原文（位址、visibility query、伺服器的細節）寫進後端的 log，附上呼叫名稱、namespace 和 gRPC 狀態，不會傳到瀏覽器。在 production 模式，路由也不會回傳 stack trace，或沒預期到的錯誤的訊息。
 
 | 狀態  | 訊息                                                                                                                                                                                                                          |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `404` | Temporal 沒有的東西回 `Not found in Temporal`。查找流程或實體的路由，訊息會帶呼叫者給的 ID 或參照                                                                                                                             |
-| `400` | `Temporal rejected the request as invalid`。呼叫者自己輸入的問題（參數錯誤、不允許的 namespace）訊息會指出那個輸入                                                                                                            |
+| `400` | `Temporal rejected the request as invalid`；query 的處理器失敗或沒有這個名稱的處理器時是 `The workflow failed the query`。呼叫者自己輸入的問題（參數錯誤、不允許的 namespace）訊息會指出那個輸入                              |
 | `409` | `The resource already exists in Temporal`、`The resource is not in a state that allows this`、`The workflow rejected the query`                                                                                               |
 | `503` | `Temporal is not reachable`、`Temporal did not answer in time`、`Temporal is rate limiting the backend`、`Temporal refused the credentials of the backend`、`No worker answered in time`、`The update did not finish in time` |
 | `500` | `Internal server error`                                                                                                                                                                                                       |

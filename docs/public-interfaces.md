@@ -529,16 +529,16 @@ a query or an update in time.
 **Messages of errors.** The message of an error that comes from Temporal or its client is fixed text.
 What Temporal said (an address, a visibility query, a detail of the server)
 is written to the backend log, with the name of the call, the namespace and
-the gRPC status, and never sent to the browser. A route never answers with a
-stack trace or the message of an unexpected error either.
+the gRPC status, and never sent to the browser. In production, a route never
+answers with a stack trace or the message of an unexpected error either.
 
-| Status | Message                                                                                                                                                                                                                       |
-| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `404`  | `Not found in Temporal` for what Temporal does not have. The routes that look up a workflow or an entity name the ID or reference the caller gave                                                                             |
-| `400`  | `Temporal rejected the request as invalid`. Messages about the caller's own input (a wrong parameter, a namespace that is not allowed) name that input                                                                        |
-| `409`  | `The resource already exists in Temporal`, `The resource is not in a state that allows this`, `The workflow rejected the query`                                                                                               |
-| `503`  | `Temporal is not reachable`, `Temporal did not answer in time`, `Temporal is rate limiting the backend`, `Temporal refused the credentials of the backend`, `No worker answered in time`, `The update did not finish in time` |
-| `500`  | `Internal server error`                                                                                                                                                                                                       |
+| Status | Message                                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `404`  | `Not found in Temporal` for what Temporal does not have. The routes that look up a workflow or an entity name the ID or reference the caller gave                                                                                                |
+| `400`  | `Temporal rejected the request as invalid`, or `The workflow failed the query` when a query handler fails or no handler has the name. Messages about the caller's own input (a wrong parameter, a namespace that is not allowed) name that input |
+| `409`  | `The resource already exists in Temporal`, `The resource is not in a state that allows this`, `The workflow rejected the query`                                                                                                                  |
+| `503`  | `Temporal is not reachable`, `Temporal did not answer in time`, `Temporal is rate limiting the backend`, `Temporal refused the credentials of the backend`, `No worker answered in time`, `The update did not finish in time`                    |
+| `500`  | `Internal server error`                                                                                                                                                                                                                          |
 
 The one message of a worker that the API returns is the failure of an update
 that the workflow rejected (`400`): the workflow's own code wrote it for the

@@ -426,9 +426,11 @@ export class WorkflowListQueries {
       });
       return overview;
     } catch (error) {
+      // A failed call to Temporal is logged by `callTemporal`; a limit hit by
+      // many entities would otherwise write two lines for each of them.
       this.logger
         .child({ entityRef: context.entityRef })
-        .warn('Could not read the numbers of an entity', error as Error);
+        .debug('Could not read the numbers of an entity', error as Error);
       return failedOverview(context.entityRef, error, now);
     }
   }

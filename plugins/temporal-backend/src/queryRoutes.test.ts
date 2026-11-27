@@ -658,6 +658,21 @@ describe('deadlines of queries and schedule reads', () => {
     );
   });
 
+  it('answers 400 when the query handler fails or does not exist', async () => {
+    const { server, workflowService } = await start();
+    workflowService.queryWorkflow.mockRejectedValue(
+      Object.assign(
+        new Error('3 INVALID_ARGUMENT: unknown queryType state at host-a:7233'),
+        { code: 3 },
+      ),
+    );
+    const res = await request(server)
+      .post(`${wf}/query${withEntity}`)
+      .send({ name: 'state' });
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toBe('The workflow failed the query');
+  });
+
   it('answers 503 when no worker answers a query in time', async () => {
     const { server, workflowService } = await start();
     workflowService.queryWorkflow.mockRejectedValue(

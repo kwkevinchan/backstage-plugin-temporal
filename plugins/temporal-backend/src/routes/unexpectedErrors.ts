@@ -22,25 +22,46 @@ import { BACKSTAGE_ERRORS } from '../repositories/errors';
 export const UNEXPECTED_ERROR_MESSAGE = 'Internal server error';
 
 /**
- * Error middleware for the end of the plugin's routes. An error of
- * `@backstage/errors` and an error of the request itself (a body that is not
- * JSON, with a `4xx` status) pass on to Backstage's error handler. Any other
- * error is a `500`: its message may come from Temporal, the SDK or the
- * runtime, so the browser gets a fixed message and the log gets the error
- * with the request's method and path.
+ * The HTTP status that an error carries, read in the order of Backstage's
+ * error handler (`statusCode`, then `status`): `ResponseError` of the catalog
+ * and permission clients sets `statusCode`, the body parser sets `status`.
+ */
+function statusOf(error: unknown): number | undefined {
+  for (const field of ['statusCode', 'status']) {
+    const value = (error as Record<string, unknown> | undefined)?.[field];
+    if (
+      typeof value === 'number' &&
+      Number.isInteger(value) &&
+      value >= 100 &&
+      value <= 599
+    ) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Error middleware for the end of the plugin's own routes. An error of
+ * `@backstage/errors` and an error with a status below `500` (a body that is
+ * not JSON, a refusal of the permission service) pass on to Backstage's error
+ * handler. Any other error is a server error whose message may come from
+ * Temporal, the SDK or the runtime: the browser gets a fixed message and the
+ * log gets the error with the request's method and path. The status stays
+ * the one the error carries (`500` when it carries none).
  *
  * Express tells an error handler from a request handler by its four
- * parameters, so it is mounted as it is, not inside a router.
+ * parameters, so it is mounted as it is.
  */
 export function unexpectedErrorHandler(
   logger: LoggerService,
 ): express.ErrorRequestHandler {
   return (error, req, _res, next) => {
-    const status = (error as { status?: unknown })?.status;
+    const status = statusOf(error);
     if (
       error instanceof Error &&
       (BACKSTAGE_ERRORS.has(error.name) ||
-        (typeof status === 'number' && status >= 400 && status < 500))
+        (status !== undefined && status < 500))
     ) {
       next(error);
       return;
@@ -48,6 +69,10 @@ export function unexpectedErrorHandler(
     logger
       .child({ method: req.method, path: req.path })
       .error('Unexpected error in a route', error as Error);
-    next(new Error(UNEXPECTED_ERROR_MESSAGE));
+    next(
+      Object.assign(new Error(UNEXPECTED_ERROR_MESSAGE), {
+        ...(status !== undefined ? { statusCode: status } : {}),
+      }),
+    );
   };
 }

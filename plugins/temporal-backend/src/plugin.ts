@@ -37,7 +37,7 @@ import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
-import type { RequestHandler } from 'express';
+import express from 'express';
 import { createRouter } from './routes/router';
 import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
@@ -121,13 +121,17 @@ export const temporalPlugin = createBackendPlugin({
         const sources = new EntityWorkflowSources(temporal, logger);
         const controlEnabled =
           config.getOptionalBoolean('temporal.control.enabled') ?? true;
+        // The routes of this plugin, with the handler of their unexpected
+        // errors. Other routes of the plugin's router (such as the actions
+        // registry's) are outside it and keep their own errors.
+        const pluginRouter = express.Router();
         if (controlEnabled) {
           const commands = new WorkflowCommands(
             temporal,
             readControlOptions(config),
             logger,
           );
-          httpRouter.use(
+          pluginRouter.use(
             createControlRouter({
               httpAuth,
               access,
@@ -195,7 +199,7 @@ export const temporalPlugin = createBackendPlugin({
             );
           },
         });
-        httpRouter.use(
+        pluginRouter.use(
           await createRouter({
             httpAuth,
             logger,
@@ -209,9 +213,8 @@ export const temporalPlugin = createBackendPlugin({
           }),
         );
         // After every route, so that it sees the errors of all of them.
-        httpRouter.use(
-          unexpectedErrorHandler(logger) as unknown as RequestHandler,
-        );
+        pluginRouter.use(unexpectedErrorHandler(logger));
+        httpRouter.use(pluginRouter);
       },
     });
   },

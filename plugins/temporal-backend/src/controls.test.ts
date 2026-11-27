@@ -15,6 +15,7 @@
  */
 
 import {
+  coreServices,
   createBackendModule,
   createServiceFactory,
 } from '@backstage/backend-plugin-api';
@@ -28,6 +29,7 @@ import {
 } from './node/alpha';
 import { TemporalService, temporalServiceRef } from './node';
 import request from 'supertest';
+import Router from 'express-promise-router';
 import { temporalAccessServiceFactory } from './alpha';
 import {
   checkoutEntity,
@@ -154,6 +156,8 @@ async function start(options?: {
   connectionError?: unknown;
   /** An error of getting the client of a namespace. */
   clientError?: unknown;
+  /** More features of the test backend, such as a module with its own route. */
+  extraFeatures?: any[];
 }) {
   const workflowService = {
     ...createControlWorkflowService(options?.status, options?.entityAttribute),
@@ -267,6 +271,7 @@ async function start(options?: {
       }),
     );
   }
+  features.push(...(options?.extraFeatures ?? []));
   const { server } = await startTestBackend({ features });
   return {
     server: await withOpenApiValidation(server),
@@ -2031,6 +2036,78 @@ describe('logs', () => {
         }),
       }),
     );
+  });
+
+  it('keeps the status of an error that carries one, with a fixed message for a server error', async () => {
+    const recorder = recordingLogger();
+    const { backend, workflowService } = await start({ recorder });
+    // `ResponseError` of the catalog and permission clients sets only
+    // `statusCode`.
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      Object.assign(new Error('catalog at internal-host:7007 is down'), {
+        statusCode: 503,
+      }),
+    );
+    const res = await request(backend).get(`${wf}${withEntity}`);
+    expect(res.status).toBe(503);
+    expect(res.body.error.message).toBe('Internal server error');
+    expect(JSON.stringify(res.body)).not.toContain('internal-host');
+    expect(recorder.records).toContainEqual(
+      expect.objectContaining({
+        level: 'error',
+        message: 'Unexpected error in a route',
+      }),
+    );
+
+    workflowService.describeWorkflowExecution.mockRejectedValue(
+      Object.assign(new Error('refused by the permission service'), {
+        statusCode: 403,
+      }),
+    );
+    const refused = await request(backend).get(`${wf}${withEntity}`);
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.message).toBe(
+      'refused by the permission service',
+    );
+  });
+
+  it('answers a body that is not JSON with 400', async () => {
+    const { backend } = await start();
+    const res = await request(backend)
+      .post(`${wf}/signal${withEntity}`)
+      .set('Content-Type', 'application/json')
+      .send('{"name": ');
+    expect(res.status).toBe(400);
+  });
+
+  it('leaves the errors of the other routes of the plugin as they are', async () => {
+    const { backend } = await start({
+      extraFeatures: [
+        createBackendModule({
+          pluginId: 'temporal',
+          moduleId: 'test-other-route',
+          register(reg) {
+            reg.registerInit({
+              deps: { httpRouter: coreServices.httpRouter },
+              async init({ httpRouter }) {
+                httpRouter.addAuthPolicy({
+                  path: '/other',
+                  allow: 'unauthenticated',
+                });
+                httpRouter.use(
+                  Router().get('/other', () => {
+                    throw new Error('The Temporal plugin answered 503');
+                  }),
+                );
+              },
+            });
+          },
+        }),
+      ],
+    });
+    const res = await request(backend).get('/api/temporal/other');
+    expect(res.status).toBe(500);
+    expect(res.body.error.message).toBe('The Temporal plugin answered 503');
   });
 
   it('warns with the update ID when an update does not finish within the polls', async () => {

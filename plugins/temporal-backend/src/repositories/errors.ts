@@ -171,6 +171,7 @@ export const TEMPORAL_ERROR_MESSAGES = {
   rateLimited: 'Temporal is rate limiting the backend',
   credentials: 'Temporal refused the credentials of the backend',
   noWorker: 'No worker answered in time',
+  queryFailed: 'The workflow failed the query',
   queryRejected: 'The workflow rejected the query',
   updateTimeout: 'The update did not finish in time',
 } as const;
@@ -244,6 +245,10 @@ export function mapConnectionError(_error: unknown): never {
 /** Like {@link mapTemporalError}, with the errors of a query. */
 export function mapQueryError(error: unknown): never {
   const { code } = grpcErrorOf(error);
+  if (code === GRPC_INVALID_ARGUMENT) {
+    // The query handler failed, or no handler has this name.
+    throw new InputError(TEMPORAL_ERROR_MESSAGES.queryFailed);
+  }
   if (code === GRPC_FAILED_PRECONDITION) {
     throw new ConflictError(TEMPORAL_ERROR_MESSAGES.queryRejected);
   }
