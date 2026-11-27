@@ -511,8 +511,10 @@ function indexByNameKey(steps: ToolStep[]): Map<string, ToolStep[]> {
   return byKey;
 }
 
-/** Maximum unlinked tool requests processed by inference before falling back to plain steps. */
-export const MAX_INFERRED_TOOL_REQUESTS = 500;
+/** Maximum unlinked tool requests in one model call processed by inference. */
+export const MAX_INFERRED_TOOL_REQUESTS_PER_CALL = 500;
+/** Maximum total unlinked tool requests in a run processed by inference. */
+export const MAX_INFERRED_TOOL_REQUESTS = 2000;
 
 /** Tool calls without an ID on their step: by name, arguments and order. */
 function linkByInference(
@@ -520,14 +522,17 @@ function linkByInference(
   toolCandidates: ToolStep[],
   plainCandidates: ToolStep[],
 ) {
-  let unlinkedRequests = 0;
+  let totalUnlinked = 0;
   for (const model of models) {
+    let callUnlinked = 0;
     for (const request of model.requests) {
       if (!request.ref.nodeId && !request.ref.inActivity) {
-        unlinkedRequests += 1;
-        if (unlinkedRequests > MAX_INFERRED_TOOL_REQUESTS) return;
+        callUnlinked += 1;
+        totalUnlinked += 1;
+        if (totalUnlinked > MAX_INFERRED_TOOL_REQUESTS) return;
       }
     }
+    if (callUnlinked > MAX_INFERRED_TOOL_REQUESTS_PER_CALL) return;
   }
   const used = new Set<ToolStep>();
   const toolsByKey = indexByNameKey(toolCandidates);
