@@ -89,7 +89,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none)."
+      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none). An operation on a workflow that `temporal.workflow.list` allowed uses that entity only when the workflow opens with it as with `entityRef`; otherwise its permission must be allowed without conditions."
       schema:
         type: string
     scheduleEntityRef:
