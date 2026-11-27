@@ -409,19 +409,22 @@ export function createControlRouter(
 
   router.post(workflowRunSubpath('actions/:actionId'), async (req, res) => {
     const actionId = req.params.actionId;
-    const action = isValidControlActionId(actionId)
-      ? options.actions.find(a => a.id === actionId)
-      : undefined;
-    if (!action) {
-      throw new NotFoundError(`No workflow action ${actionId}`);
-    }
+    const validActionId = isValidControlActionId(actionId);
     const result = await audited(
       auditor,
       req,
       'workflow-action',
-      requestWorkflowMeta(req, { actionId }),
+      requestWorkflowMeta(req, {
+        actionId: validActionId ? actionId : INVALID_AUDIT_VALUE,
+      }),
       'medium',
       async setMeta => {
+        const action = validActionId
+          ? options.actions.find(a => a.id === actionId)
+          : undefined;
+        if (!action) {
+          throw new NotFoundError(`No workflow action ${actionId}`);
+        }
         const loaded = await loadWorkflow(req);
         const entityRef = await authorizeControl(action.permission, loaded);
         setMeta(workflowMeta(loaded.workflow, entityRef, { actionId }));
@@ -605,6 +608,12 @@ export function createControlRouter(
             // one of them (scheduleBelongsToSources).
             entitySources = sources.workflowSourcesOf(context);
           } else {
+            // Without an entity, the same checks as a start from the Temporal
+            // page: a caller who sees only some workflows cannot operate any
+            // schedule of the namespace.
+            if (!(await access.canListAll(credentials))) {
+              throw new NotAllowedError();
+            }
             await access.authorizeOn(
               temporalWorkflowStartPermission,
               undefined,
