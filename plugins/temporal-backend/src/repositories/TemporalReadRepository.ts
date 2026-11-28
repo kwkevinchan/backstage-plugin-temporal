@@ -19,7 +19,8 @@ import type { Connection } from '@temporalio/client';
 import type { WorkflowRef } from '../common';
 import type { TemporalService } from '../node';
 import { mapQueryError, mapTemporalError } from './errors';
-import { callTemporal, QUERY_CALL, TEMPORAL_DEADLINES } from './temporalCall';
+import { TEMPORAL_DEADLINES } from '../lib/deadlines';
+import { callTemporal, QUERY_CALL } from './temporalCall';
 
 /**
  * `HISTORY_EVENT_FILTER_TYPE_CLOSE_EVENT` on

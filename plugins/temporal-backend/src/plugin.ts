@@ -31,12 +31,17 @@ import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
 import { WorkflowTypeEntities } from './access/WorkflowTypeEntities';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
+import { TemporalScheduleRepository } from './repositories/TemporalScheduleRepository';
+import { TemporalWriteRepository } from './repositories/TemporalWriteRepository';
 import { createControlRouter } from './routes/controlRoutes';
 import express from 'express';
 import { createRouter } from './routes/router';
 import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
+import { CatalogWorkflowQueries } from './services/CatalogWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
+import { ScheduleOwnership } from './services/ScheduleOwnership';
+import { WorkflowHistoryReader } from './services/WorkflowHistoryReader';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { WorkflowQueries } from './services/WorkflowQueries';
 import {
@@ -95,6 +100,14 @@ export const temporalPlugin = createBackendPlugin({
         access,
       }) {
         permissionsRegistry.addPermissions(temporalPermissions);
+        // Layers: routes → access (permissions, catalog; shared with the
+        // modules through temporalAccessServiceRef) → services (use cases)
+        // → repositories (Temporal).
+        const temporalReads = new TemporalReadRepository(temporal, logger);
+        const temporalSchedules = new TemporalScheduleRepository(
+          temporal,
+          logger,
+        );
         const sources = new EntityWorkflowSources(temporal, logger);
         const controlEnabled =
           config.getOptionalBoolean('temporal.control.enabled') ?? true;
@@ -104,7 +117,8 @@ export const temporalPlugin = createBackendPlugin({
         const pluginRouter = express.Router();
         if (controlEnabled) {
           const commands = new WorkflowCommands(
-            temporal,
+            new TemporalWriteRepository(temporal, logger),
+            temporalSchedules,
             readControlOptions(config),
             logger,
           );
@@ -116,6 +130,7 @@ export const temporalPlugin = createBackendPlugin({
               temporal,
               sources,
               commands,
+              schedules: new ScheduleOwnership(access, sources, commands),
               actions,
             }),
           );
@@ -128,15 +143,17 @@ export const temporalPlugin = createBackendPlugin({
               );
           }
         }
-        // Layers: routes → access (permissions, catalog; shared with the
-        // modules through temporalAccessServiceRef) → services (use cases)
-        // → repositories (Temporal).
-        const temporalReads = new TemporalReadRepository(temporal, logger);
+        const historyReader = new WorkflowHistoryReader(
+          sources,
+          temporalReads,
+          logger,
+        );
         const queries = new WorkflowQueries(
           temporal,
           logger,
           sources,
           temporalReads,
+          historyReader,
         );
         const overviewRatePerSecond = config.getOptionalNumber(
           'temporal.overview.maxVisibilityCallsPerSecond',
@@ -153,14 +170,14 @@ export const temporalPlugin = createBackendPlugin({
         const lists = new WorkflowListQueries(
           temporal,
           temporalReads,
+          temporalSchedules,
           sources,
-          queries,
+          historyReader,
           logger,
           overviewRatePerSecond !== undefined
             ? { overviewRatePerSecond }
             : undefined,
         );
-        const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permission.
         // Modules can add more rules (addPermissionRules). The plugin
         // applies the conditions itself, so there is no getResources.
@@ -171,14 +188,19 @@ export const temporalPlugin = createBackendPlugin({
         pluginRouter.use(
           createRouter({
             httpAuth,
-            logger,
             auditor,
             access,
-            typeEntities: new WorkflowTypeEntities(catalog, sources, logger),
             sources,
             queries,
             lists,
-            ai,
+            catalogQueries: new CatalogWorkflowQueries(
+              access,
+              new WorkflowTypeEntities(catalog, sources, logger),
+              queries,
+              lists,
+              logger,
+            ),
+            ai: new AiWorkflowQueries(historyReader),
           }),
         );
         // After every route, so that it sees the errors of all of them.

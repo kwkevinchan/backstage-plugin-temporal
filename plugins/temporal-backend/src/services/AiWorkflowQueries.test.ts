@@ -28,7 +28,10 @@ import { memoryS3, storeExternally } from '../__testUtils__/externalStorage';
 import { WorkflowDetail } from '../common';
 import { AiWorkflowQueries } from './AiWorkflowQueries';
 import { buildWorkflowGraphWithLlm } from './graph';
-import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
+import {
+  MAX_STEP_EVENTS,
+  WorkflowHistoryReader,
+} from './WorkflowHistoryReader';
 
 const workflow: WorkflowDetail = {
   namespace: 'default',
@@ -40,10 +43,10 @@ const workflow: WorkflowDetail = {
   pendingActivities: [],
 };
 
-function makeQueries(
-  readEvents: WorkflowQueries['readEvents'],
-): WorkflowQueries {
-  return { readEvents } as unknown as WorkflowQueries;
+function makeReader(
+  readEvents: WorkflowHistoryReader['readEvents'],
+): WorkflowHistoryReader {
+  return { readEvents } as unknown as WorkflowHistoryReader;
 }
 
 describe('AiWorkflowQueries', () => {
@@ -62,7 +65,7 @@ describe('AiWorkflowQueries', () => {
       ],
       truncated: true,
     }));
-    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+    const ai = new AiWorkflowQueries(makeReader(readEvents));
 
     await expect(
       ai.llmCall(workflow, String(MAX_STEP_EVENTS + 1)),
@@ -94,7 +97,7 @@ describe('AiWorkflowQueries', () => {
       ],
       truncated: true,
     }));
-    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+    const ai = new AiWorkflowQueries(makeReader(readEvents));
 
     await expect(ai.llmCall(workflow, '42')).rejects.toThrow(
       new NotFoundError('No model call 42 in this run'),
@@ -110,7 +113,7 @@ describe('AiWorkflowQueries', () => {
       events: [],
       truncated: true,
     }));
-    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+    const ai = new AiWorkflowQueries(makeReader(readEvents));
 
     await expect(ai.llmCall(workflow, '1')).rejects.toThrow(
       new NotFoundError(
@@ -167,7 +170,7 @@ describe('AiWorkflowQueries', () => {
       ],
       truncated: false,
     }));
-    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+    const ai = new AiWorkflowQueries(makeReader(readEvents));
 
     const response = await ai.llmCall({ ...workflow, status: 'Failed' }, '2');
 
@@ -180,7 +183,7 @@ describe('AiWorkflowQueries', () => {
       events: [{ eventId: '1', workflowExecutionStartedEventAttributes: {} }],
       truncated: false,
     }));
-    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+    const ai = new AiWorkflowQueries(makeReader(readEvents));
 
     await expect(ai.llmCall(workflow, '9999')).rejects.toThrow(
       new NotFoundError('No model call 9999 in this run'),

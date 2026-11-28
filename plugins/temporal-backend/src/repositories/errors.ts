@@ -25,6 +25,7 @@ import {
   WorkflowUpdateFailedError,
   WorkflowUpdateRPCTimeoutOrCancelledError,
 } from '@temporalio/client';
+import { TEMPORAL_ERROR_MESSAGES } from '../lib/errorMessages';
 
 /** gRPC status codes used to map Temporal errors to HTTP errors. */
 const GRPC_INVALID_ARGUMENT = 3;
@@ -156,51 +157,6 @@ function isNamespaceNotFound(error: unknown): boolean {
 }
 
 /**
- * The messages of the errors that a failed call to Temporal becomes. They are
- * fixed text: what Temporal or the SDK say (addresses, visibility queries,
- * internal details) is written to the log by `callTemporal`, never sent to
- * the browser.
- */
-export const TEMPORAL_ERROR_MESSAGES = {
-  notFound: 'Not found in Temporal',
-  invalid: 'Temporal rejected the request as invalid',
-  alreadyExists: 'The resource already exists in Temporal',
-  wrongState: 'The resource is not in a state that allows this',
-  notReachable: 'Temporal is not reachable',
-  deadline: 'Temporal did not answer in time',
-  rateLimited: 'Temporal is rate limiting the backend',
-  credentials: 'Temporal refused the credentials of the backend',
-  noWorker: 'No worker answered in time',
-  queryFailed: 'The workflow failed the query',
-  queryRejected: 'The workflow rejected the query',
-  updateTimeout: 'The update did not finish in time',
-} as const;
-
-const RATE_LIMITED_MESSAGE = TEMPORAL_ERROR_MESSAGES.rateLimited;
-
-/**
- * True for the error that {@link mapTemporalError} makes of a call that
- * Temporal refused for its rate limit (`RESOURCE_EXHAUSTED`).
- */
-export function isRateLimitedError(error: unknown): boolean {
-  return (
-    error instanceof ServiceUnavailableError &&
-    error.message === RATE_LIMITED_MESSAGE
-  );
-}
-
-/**
- * True for the error that {@link mapTemporalError} makes of a call that
- * Temporal did not answer within its deadline.
- */
-export function isDeadlineError(error: unknown): boolean {
-  return (
-    error instanceof ServiceUnavailableError &&
-    error.message === TEMPORAL_ERROR_MESSAGES.deadline
-  );
-}
-
-/**
  * Rethrows a Temporal (gRPC) error as the Backstage error of its HTTP status,
  * with a fixed message. An error without a mapping is rethrown as it is: it
  * becomes a 500 with a fixed message in `unexpectedErrorHandler`.
@@ -225,7 +181,7 @@ export function mapTemporalError(error: unknown): never {
   }
   if (code === GRPC_RESOURCE_EXHAUSTED) {
     // The backend's own connection is rate limited, not the user.
-    throw new ServiceUnavailableError(RATE_LIMITED_MESSAGE);
+    throw new ServiceUnavailableError(TEMPORAL_ERROR_MESSAGES.rateLimited);
   }
   if (code === GRPC_PERMISSION_DENIED || code === GRPC_UNAUTHENTICATED) {
     // The backend's own credentials, not the user's: a server-side problem.

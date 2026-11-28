@@ -15,7 +15,7 @@
  */
 
 import { ServiceUnavailableError } from '@backstage/errors';
-import { TEMPORAL_ERROR_MESSAGES } from '../repositories/errors';
+import { TEMPORAL_ERROR_MESSAGES } from '../lib/errorMessages';
 
 export interface KeyedConcurrencyLimitOptions {
   /**

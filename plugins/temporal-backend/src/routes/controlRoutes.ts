@@ -29,7 +29,6 @@ import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject, JsonValue } from '@backstage/types';
 import {
   TemporalScheduleOperation,
-  isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
   temporalWorkflowCancelPermission,
@@ -46,9 +45,9 @@ import { TemporalService } from '../node';
 import { TemporalAccessService, TemporalControlAction } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
+import { WORKFLOW_ID_REUSE_POLICY } from '../repositories/TemporalWriteRepository';
 import {
   MAX_WORKFLOW_ID_LENGTH,
-  WORKFLOW_ID_REUSE_POLICY,
   WorkflowChainRef,
   WorkflowCommands,
 } from '../services/WorkflowCommands';
@@ -56,10 +55,8 @@ import {
   EntityWorkflowSources,
   readEntityWorkflowFilter,
 } from '../services/EntityWorkflowSources';
-import {
-  matchesSource,
-  scheduleBelongsToSources,
-} from '../services/visibilityQuery';
+import { ScheduleOwnership } from '../services/ScheduleOwnership';
+import { matchesSource } from '../services/visibilityQuery';
 import {
   entityRefFromParams,
   isValidControlActionId,
@@ -92,6 +89,7 @@ interface ControlRouterOptions {
   temporal: TemporalService;
   sources: EntityWorkflowSources;
   commands: WorkflowCommands;
+  schedules: ScheduleOwnership;
   actions: TemporalControlAction[];
 }
 
@@ -224,7 +222,7 @@ function assertClosed(workflow: WorkflowDetail) {
 export function createControlRouter(
   options: ControlRouterOptions,
 ): express.Router {
-  const { httpAuth, access, auditor, sources, commands } = options;
+  const { httpAuth, access, auditor, sources, commands, schedules } = options;
   const router = Router();
   router.use(express.json());
 
@@ -243,14 +241,6 @@ export function createControlRouter(
     loaded: LoadedWorkflow,
   ): Promise<string | undefined> =>
     authorizeOnWorkflow(access, permission, loaded);
-
-  /** A namespace of the path or the body: a valid name that is allowed. */
-  function checkNamespace(namespace: string) {
-    if (!isValidNamespaceName(namespace)) {
-      throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
-    }
-    sources.checkNamespace(namespace);
-  }
 
   /** Values of the configured search attributes of a new workflow. */
   function startAttributes(
@@ -573,9 +563,8 @@ export function createControlRouter(
     },
   );
 
-  // Pause, unpause or trigger a schedule. Schedules start workflows, so
-  // these need temporal.workflow.start: on the entity (whose workflow types
-  // the schedule must start), or without conditions without one.
+  // Pause, unpause or trigger a schedule. Which schedules a caller may
+  // operate is decided by `ScheduleOwnership`.
   router.post(
     '/namespaces/:namespace/schedules/:scheduleId/:operation(pause|unpause|trigger)',
     async (req, res) => {
@@ -606,54 +595,12 @@ export function createControlRouter(
             throw new InputError('A note is only kept by pause and unpause');
           }
           const entityRef = parseEntityRefParam(req.query.entityRef);
-          // The permission first: the namespace and schedule are only checked
-          // for callers that may start workflows, so neither is told to others.
-          let entityNamespace: string | undefined;
-          let entitySources:
-            | { taskQueue?: string; workflowTypes: string[] }[]
-            | undefined;
-          if (entityRef) {
-            const context = await access.loadEntity(
-              entityRef,
-              temporalWorkflowStartPermission,
-              credentials,
-            );
-            entityNamespace = context.namespace;
-            // The sources of the entity and of its related entities, the same
-            // list as the entity's schedule list; the schedule must belong to
-            // one of them (scheduleBelongsToSources).
-            entitySources = sources.workflowSourcesOf(context);
-          } else {
-            // Without an entity, the same checks as a start from the Temporal
-            // page: a caller who sees only some workflows cannot operate any
-            // schedule of the namespace.
-            if (!(await access.canListAll(credentials))) {
-              throw new NotAllowedError();
-            }
-            await access.authorizeOn(
-              temporalWorkflowStartPermission,
-              undefined,
-              credentials,
-            );
-          }
-          checkNamespace(namespace);
-          if (entityNamespace && entityNamespace !== namespace) {
-            throw new NotFoundError(
-              `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
-            );
-          }
-          const schedule = await commands.describeSchedule(
+          const schedule = await schedules.operable({
             namespace,
             scheduleId,
-          );
-          if (
-            entitySources &&
-            !scheduleBelongsToSources(schedule, entitySources)
-          ) {
-            throw new NotFoundError(
-              `Schedule ${scheduleId} does not start a workflow of ${entityRef}`,
-            );
-          }
+            entityRef,
+            credentials,
+          });
           setMeta({
             namespace,
             scheduleId,
@@ -697,7 +644,7 @@ export function createControlRouter(
         );
         const start = parseStart(req);
         const namespace = start.namespace || sources.defaultNamespace();
-        checkNamespace(namespace);
+        sources.checkRequestedNamespace(namespace);
         if (!start.workflowType) {
           throw new InputError('workflowType is required');
         }

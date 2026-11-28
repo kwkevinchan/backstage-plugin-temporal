@@ -18,12 +18,13 @@ import { mockServices } from '@backstage/backend-test-utils';
 import type { WorkflowDetail } from '../common';
 import { WorkflowListQueries } from './WorkflowListQueries';
 
-function listsWith(graph: jest.Mock) {
+function listsWith(readStepEvents: jest.Mock) {
   return new WorkflowListQueries(
     {} as any,
     {} as any,
     {} as any,
-    { graph } as any,
+    {} as any,
+    { readStepEvents } as any,
     mockServices.logger.mock(),
   );
 }
@@ -37,18 +38,12 @@ const run = (status: WorkflowDetail['status']): WorkflowDetail =>
   } as WorkflowDetail);
 
 describe('the progress cache', () => {
-  const graph = () =>
-    jest.fn(async () => ({
-      status: 'Completed',
-      completedSteps: 1,
-      totalSteps: 1,
-      truncated: false,
-    }));
+  const history = () => jest.fn(async () => ({ events: [], truncated: false }));
 
   it.each(['Completed', 'Failed', 'Canceled', 'TimedOut'] as const)(
     'keeps the progress of a %s run',
     async status => {
-      const read = graph();
+      const read = history();
       const lists = listsWith(read);
       await lists.progress(run(status));
       await lists.progress(run(status));
@@ -59,7 +54,7 @@ describe('the progress cache', () => {
   it.each(['Running', 'Unknown'] as const)(
     'does not keep the progress of a %s run',
     async status => {
-      const read = graph();
+      const read = history();
       const lists = listsWith(read);
       await lists.progress(run(status));
       await lists.progress(run(status));

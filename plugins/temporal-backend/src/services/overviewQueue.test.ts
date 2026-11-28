@@ -33,6 +33,11 @@ const entity = (i: number): TemporalEntityContext =>
     relatedWorkflowEntities: [],
   } as unknown as TemporalEntityContext);
 
+const temporal = {
+  getSearchAttributeNames: () => ({}),
+  getWebUiUrl: () => undefined,
+} as any;
+
 describe('the overview when its visibility calls wait in the queue', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -45,8 +50,9 @@ describe('the overview when its visibility calls wait in the queue', () => {
     const countExecutionsByStatus = jest.fn(async () => ({}));
     const countExecutions = jest.fn(async () => 0);
     const lists = new WorkflowListQueries(
-      {} as any,
+      temporal,
       { listExecutions, countExecutionsByStatus, countExecutions } as any,
+      {} as any,
       {
         filterOf: (context: TemporalEntityContext) => ({
           annotations: {
@@ -56,7 +62,7 @@ describe('the overview when its visibility calls wait in the queue', () => {
           entityRef: context.entityRef,
         }),
       } as any,
-      { convertOptions: () => ({}) } as any,
+      {} as any,
       mockServices.logger.mock(),
       // 1 call per second: the 15 seconds of a call allow about 15 calls,
       // and each of the 12 rows needs 2.
@@ -99,19 +105,20 @@ describe('the overview when its visibility calls wait in the queue', () => {
     const listExecutions = jest.fn(async () => ({ items: [] }));
     const countExecutionsByStatus = jest.fn(async () => ({}));
     const lists = new WorkflowListQueries(
-      {} as any,
+      temporal,
       {
         listExecutions,
         countExecutionsByStatus,
         countExecutions: jest.fn(),
       } as any,
+      {} as any,
       {
         filterOf: (context: TemporalEntityContext) => ({
           annotations: { taskQueue: 'orders', workflowTypes: ['a'] },
           entityRef: context.entityRef,
         }),
       } as any,
-      { convertOptions: () => ({}) } as any,
+      {} as any,
       mockServices.logger.mock(),
       { overviewRatePerSecond: 1 },
     );

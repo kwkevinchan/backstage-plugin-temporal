@@ -14,42 +14,24 @@
  * limitations under the License.
  */
 
+import { AuditorService, HttpAuthService } from '@backstage/backend-plugin-api';
+import { InputError, NotAllowedError } from '@backstage/errors';
 import {
-  AuditorService,
-  BackstageCredentials,
-  HttpAuthService,
-  LoggerService,
-} from '@backstage/backend-plugin-api';
-import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
-import {
-  getTemporalWorkflowMessages,
   SCHEDULES_PATH,
-  isTemporalWorkflowEntity,
-  parseTemporalWorkflowSpec,
-  mergeWorkflowMessageDefinitions,
   temporalWorkflowQueryPermission,
   temporalWorkflowReadPermission,
   WORKFLOW_TYPE_OVERVIEW_PATH,
-  WorkflowDetail,
-  WorkflowTypeOverviewResponse,
 } from '../common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import { LIST_PAGE_SIZE } from '../common/listLimits';
-import { TemporalAccessService, TemporalEntityContext } from '../node/alpha';
+import { TemporalAccessService } from '../node/alpha';
 import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
+import { CatalogWorkflowQueries } from '../services/CatalogWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
-import {
-  failedOverview,
-  OverviewRequestStats,
-  WorkflowListQueries,
-} from '../services/WorkflowListQueries';
-import {
-  HISTORY_PAGE_SIZE,
-  WorkflowQueries,
-} from '../services/WorkflowQueries';
-import { WorkflowTypeEntities } from '../access/WorkflowTypeEntities';
+import { WorkflowListQueries } from '../services/WorkflowListQueries';
+import { HISTORY_PAGE_SIZE } from '../services/WorkflowHistoryReader';
+import { WorkflowQueries } from '../services/WorkflowQueries';
 import { decodePageToken } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
@@ -78,42 +60,23 @@ import {
 
 export interface RouterOptions {
   httpAuth: HttpAuthService;
-  logger: LoggerService;
   auditor: AuditorService;
   access: TemporalAccessService;
-  typeEntities: WorkflowTypeEntities;
   sources: EntityWorkflowSources;
   queries: WorkflowQueries;
   lists: WorkflowListQueries;
+  catalogQueries: CatalogWorkflowQueries;
   ai: AiWorkflowQueries;
 }
 
-/** Whether a TemporalWorkflow entity lists the workflow type of the run. */
-function describesWorkflowType(
-  entity: Entity,
-  workflow: WorkflowDetail,
-): boolean {
-  if (!isTemporalWorkflowEntity(entity)) return false;
-  try {
-    return parseTemporalWorkflowSpec(entity).workflowTypes.includes(
-      workflow.workflowType,
-    );
-  } catch {
-    return false;
-  }
-}
-
+/**
+ * The routes that read workflows. A handler parses the request, checks the
+ * caller with the access service and answers with what a query class
+ * returns; the rules are in `services/`.
+ */
 export function createRouter(options: RouterOptions): express.Router {
-  const {
-    httpAuth,
-    logger,
-    auditor,
-    access,
-    typeEntities,
-    queries,
-    lists,
-    ai,
-  } = options;
+  const { httpAuth, auditor, access, queries, lists, catalogQueries, ai } =
+    options;
   const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
@@ -164,12 +127,7 @@ export function createRouter(options: RouterOptions): express.Router {
       temporalWorkflowReadPermission,
       credentials,
     );
-    const sources = entitySources.workflowSourcesOf(context);
-    res.json(
-      sources.length > 0
-        ? await lists.listSchedules(context.namespace, { sources })
-        : { items: [], truncated: false },
-    );
+    res.json(await lists.listEntitySchedules(context));
   });
 
   router.get('/workflows', async (req, res) => {
@@ -182,7 +140,7 @@ export function createRouter(options: RouterOptions): express.Router {
       namespace,
       credentials,
     );
-    const result = await lists.listNamespaceWorkflows(
+    const result = await catalogQueries.namespaceWorkflows(
       namespace,
       {
         status: parseStatus(req.query.status),
@@ -203,11 +161,9 @@ export function createRouter(options: RouterOptions): express.Router {
         pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
         pageToken: optionalString(req.query.pageToken, 'pageToken'),
       },
+      credentials,
     );
-    res.json({
-      ...result,
-      items: await typeEntities.link(result.items, namespace, credentials),
-    });
+    res.json(result);
   });
 
   // The numbers of the TemporalWorkflow entities of one page of the
@@ -216,32 +172,9 @@ export function createRouter(options: RouterOptions): express.Router {
     const credentials = await httpAuth.credentials(req);
     const entityRefs = parseOverviewEntityRefs(req);
     const refresh = parseOverviewRefresh(req);
-    const loaded = await access.loadWorkflowEntities(
-      entityRefs,
-      temporalWorkflowReadPermission,
-      credentials,
+    res.json(
+      await catalogQueries.overview(entityRefs, credentials, { refresh }),
     );
-    const request: OverviewRequestStats = { queueTimeouts: 0 };
-    const items = await Promise.all(
-      loaded.map(({ entityRef, context, error }) => {
-        if (context) return lists.overview(context, request, { refresh });
-        logger
-          .child({ entityRef })
-          .warn('Could not read the workflows of an entity', error as Error);
-        return Promise.resolve(failedOverview(entityRef, error));
-      }),
-    );
-    if (request.queueTimeouts > 0) {
-      // These rows show "did not answer in time" though no call to Temporal
-      // was made for them: the calls waited for the rate limit of the
-      // overview (`temporal.overview.maxVisibilityCallsPerSecond`).
-      logger.warn(
-        'The overview of some entities was not read in time: its visibility calls waited in the queue until their deadline',
-        { entities: loaded.length, queueTimeouts: request.queueTimeouts },
-      );
-    }
-    const response: WorkflowTypeOverviewResponse = { items };
-    res.json(response);
   });
 
   // The runs of one workflow ID, in the order of Temporal's visibility
@@ -258,72 +191,17 @@ export function createRouter(options: RouterOptions): express.Router {
       pageToken: optionalString(req.query.pageToken, 'pageToken'),
     };
     const entityRef = parseEntityRefParam(req.query.entityRef);
-    if (entityRef) {
-      const context = await access.loadEntity(
-        entityRef,
-        temporalWorkflowReadPermission,
+    res.json(
+      await catalogQueries.workflowRuns(
+        { namespace, workflowId, entityRef },
+        page,
         credentials,
-      );
-      if (context.namespace !== namespace) {
-        throw new NotFoundError(
-          `Workflow ${workflowId} was not found for ${entityRef}`,
-        );
-      }
-      res.json(
-        await lists.listEntityWorkflows(context, {
-          workflowId,
-          ...page,
-        }),
-      );
-      return;
-    }
-    // Undefined, or the visibility query of a conditional decision.
-    const permissionFilter = await access.authorizeWorkflowList(
-      namespace,
-      credentials,
+      ),
     );
-    const result = await lists.listNamespaceWorkflows(
-      namespace,
-      { workflowId, permissionFilter },
-      page,
-    );
-    res.json({
-      ...result,
-      items: await typeEntities.link(result.items, namespace, credentials),
-    });
   });
 
   router.get(workflowRunPath, async (req, res) => {
-    const { credentials, context, matchedEntityRef, workflow } =
-      await loadWorkflow(req);
-    // The same rule as the list: the related entity a run matches directly,
-    // else the entity an ancestor matched (a child workflow).
-    const workflowEntityRef =
-      (context && queries.relatedWorkflowEntity(workflow, context)) ??
-      (matchedEntityRef && matchedEntityRef !== context?.entityRef
-        ? matchedEntityRef
-        : undefined);
-    const workflowWithEntity = workflowEntityRef
-      ? { ...workflow, workflowEntityRef }
-      : workflow;
-    // The entity that describes the workflow type is only shown as a link.
-    // An opened TemporalWorkflow entity already is that entity, unless the
-    // run is a child workflow of another type.
-    const needsTypeEntity =
-      !workflowWithEntity.workflowEntityRef &&
-      !(context && describesWorkflowType(context.entity, workflow));
-    const [linked] = needsTypeEntity
-      ? await typeEntities.link(
-          [workflowWithEntity],
-          workflowWithEntity.namespace,
-          credentials,
-        )
-      : [];
-    const typeEntityRef = linked?.workflowTypeEntityRef;
-    const withTypeEntity = typeEntityRef
-      ? { ...workflowWithEntity, workflowTypeEntityRef: typeEntityRef }
-      : workflowWithEntity;
-    res.json(withTypeEntity);
+    res.json(await catalogQueries.detail(await loadWorkflow(req)));
   });
 
   router.get(workflowRunSubpath('history'), async (req, res) => {
@@ -350,11 +228,7 @@ export function createRouter(options: RouterOptions): express.Router {
 
   router.get(workflowRunSubpath('graph'), async (req, res) => {
     const { workflow } = await loadWorkflow(req);
-    const graph = await queries.graph(workflow);
-    if (graph.runChain) {
-      graph.runChain = await queries.runPosition(workflow, graph.runChain);
-    }
-    res.json(graph);
+    res.json(await queries.graph(workflow));
   });
 
   // The full record of one model call: messages, reasoning, tool calls.
@@ -375,66 +249,8 @@ export function createRouter(options: RouterOptions): express.Router {
   // spec.messages. The backend runs the metadata query itself, so the read
   // permission is enough.
   router.get(workflowRunSubpath('message-definitions'), async (req, res) => {
-    const { workflow, context, credentials, matchedEntityRef } =
-      await loadWorkflow(req);
-    const [reported, entity] = await Promise.all([
-      queries.messageDefinitions(workflow),
-      workflowEntityOf(workflow, context, matchedEntityRef, credentials),
-    ]);
-    res.json(
-      mergeWorkflowMessageDefinitions(
-        reported,
-        getTemporalWorkflowMessages(entity),
-      ),
-    );
+    res.json(await catalogQueries.messageDefinitions(await loadWorkflow(req)));
   });
-
-  /**
-   * The TemporalWorkflow entity of a run that the caller can read: the
-   * entity it was opened with, one it depends on, or the one that matches
-   * its workflow type and task queue. The entity matched through `dependsOn`
-   * comes first: several entities can match the type and task queue.
-   */
-  async function workflowEntityOf(
-    workflow: WorkflowDetail,
-    context: TemporalEntityContext | undefined,
-    matchedEntityRef: string | undefined,
-    credentials: BackstageCredentials,
-  ): Promise<Entity | undefined> {
-    if (context && isTemporalWorkflowEntity(context.entity)) {
-      return context.entity;
-    }
-    const matched = matchedEntityRef
-      ? context?.relatedWorkflowEntities.find(
-          e => stringifyEntityRef(e) === matchedEntityRef,
-        )
-      : undefined;
-    if (matched) return matched;
-    const [linked] = await typeEntities.link(
-      [workflow],
-      workflow.namespace,
-      credentials,
-    );
-    const ref = linked?.workflowTypeEntityRef;
-    if (!ref) return undefined;
-    const related = context?.relatedWorkflowEntities.find(
-      e => stringifyEntityRef(e) === ref,
-    );
-    if (related) return related;
-    try {
-      const loaded = await access.loadEntity(
-        ref,
-        temporalWorkflowReadPermission,
-        credentials,
-      );
-      return loaded.entity;
-    } catch (error) {
-      if (error instanceof NotAllowedError || error instanceof NotFoundError) {
-        return undefined;
-      }
-      throw error;
-    }
-  }
 
   // A query chosen by the user. Queries only read the workflow, but run
   // the worker's code: they need temporal.workflow.query on the entity, and

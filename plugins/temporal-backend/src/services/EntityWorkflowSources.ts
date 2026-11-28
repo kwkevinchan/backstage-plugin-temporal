@@ -21,6 +21,7 @@ import {
   InvalidTemporalAnnotationError,
   InvalidTemporalWorkflowSpecError,
   isTemporalWorkflowEntity,
+  isValidNamespaceName,
   getTemporalWorkflowSource,
   parseTemporalWorkflowSpec,
   RelatedWorkflows,
@@ -180,5 +181,13 @@ export class EntityWorkflowSources {
     if (!this.temporal.isNamespaceAllowed(namespace)) {
       throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
     }
+  }
+
+  /** A namespace a request names: a valid name that is allowed. */
+  checkRequestedNamespace(namespace: string) {
+    if (!isValidNamespaceName(namespace)) {
+      throw new InputError(`Temporal namespace is not allowed: ${namespace}`);
+    }
+    this.checkNamespace(namespace);
   }
 }
