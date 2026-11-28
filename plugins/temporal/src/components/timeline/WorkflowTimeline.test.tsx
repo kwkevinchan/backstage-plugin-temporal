@@ -190,4 +190,86 @@ describe('WorkflowTimeline', () => {
     fireEvent.wheel(chart, { clientX: 800, deltaY: -100 });
     expect(width()).toBeCloseTo(before / 0.8, 1);
   });
+
+  it('pans a zoomed chart with Shift and the scroll wheel, or a sideways scroll', () => {
+    render(<Harness />);
+    mockAxis();
+    const chart = screen.getByRole('group', { name: 'Workflow timeline' });
+    // The whole run does not move.
+    fireEvent.wheel(chart, { clientX: 800, deltaY: 100, shiftKey: true });
+    expect(screen.getByRole('button', { name: 'Whole run' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(chart).toHaveTextContent('10s – 30s');
+    // 100px of the 1000px axis: a tenth of the 20 seconds on screen.
+    fireEvent.wheel(chart, { clientX: 800, deltaY: 100, shiftKey: true });
+    expect(chart).toHaveTextContent('12s – 32s');
+    fireEvent.wheel(chart, { clientX: 800, deltaX: -200 });
+    expect(chart).toHaveTextContent('8s – 28s');
+    // The window stays inside the run.
+    fireEvent.wheel(chart, { clientX: 800, deltaX: -2000 });
+    expect(chart).toHaveTextContent('0s – 20s');
+  });
+
+  it('drops a drag that is cancelled, and ignores the other mouse buttons', () => {
+    render(<Harness />);
+    mockAxis();
+    const chart = screen.getByRole('group', { name: 'Workflow timeline' });
+    fireEvent.pointerDown(chart, { clientX: 550, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(chart, { clientX: 800, pointerId: 1 });
+    expect(chart).toHaveAttribute('data-dragging', 'true');
+    fireEvent.pointerCancel(chart, { pointerId: 1 });
+    expect(chart).toHaveAttribute('data-dragging', 'false');
+    fireEvent.pointerUp(chart, { clientX: 800, pointerId: 1 });
+    expect(screen.getByRole('button', { name: 'Whole run' })).toBeDisabled();
+    fireEvent.pointerDown(chart, { clientX: 550, button: 2, pointerId: 2 });
+    fireEvent.pointerMove(chart, { clientX: 800, pointerId: 2 });
+    expect(chart).toHaveAttribute('data-dragging', 'false');
+    // A drag that starts on the labels, left of the time axis, selects nothing.
+    fireEvent.pointerDown(chart, { clientX: 100, button: 0, pointerId: 3 });
+    fireEvent.pointerMove(chart, { clientX: 800, pointerId: 3 });
+    expect(chart).toHaveAttribute('data-dragging', 'false');
+  });
+
+  it('does not select the step under the pointer at the end of a drag', () => {
+    render(<Harness />);
+    mockAxis();
+    const chart = screen.getByRole('group', { name: 'Workflow timeline' });
+    const bar = screen.getByTestId('timeline-bar-activity-9');
+    fireEvent.pointerDown(chart, { clientX: 550, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(chart, { clientX: 800, pointerId: 1 });
+    fireEvent.mouseEnter(bar, { clientX: 500, clientY: 100 });
+    expect(screen.queryByTestId('timeline-tooltip')).not.toBeInTheDocument();
+    fireEvent.pointerUp(chart, { clientX: 800, pointerId: 1 });
+    fireEvent.click(screen.getByTestId('timeline-bar-activity-9'));
+    expect(screen.getByTestId('selected')).toHaveTextContent('none');
+  });
+
+  it('puts the tooltip below the pointer in the upper half of the chart, above it in the lower half', () => {
+    render(<Harness />);
+    const chart = screen.getByRole('group', { name: 'Workflow timeline' });
+    chart.getBoundingClientRect = () =>
+      ({
+        left: 0,
+        right: 1300,
+        width: 1300,
+        top: 0,
+        bottom: 400,
+        height: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect);
+    const bar = screen.getByTestId('timeline-bar-activity-9');
+    fireEvent.mouseEnter(bar, { clientX: 500, clientY: 100 });
+    expect(screen.getByTestId('timeline-tooltip')).toHaveStyle({
+      left: '512px',
+      top: '116px',
+    });
+    fireEvent.mouseMove(bar, { clientX: 1290, clientY: 300 });
+    // Kept inside the chart: 300px from its right edge.
+    expect(screen.getByTestId('timeline-tooltip')).toHaveStyle({
+      left: '1000px',
+      bottom: '112px',
+    });
+  });
 });

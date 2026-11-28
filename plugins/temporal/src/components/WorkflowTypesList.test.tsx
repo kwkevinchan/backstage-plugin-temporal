@@ -361,6 +361,147 @@ describe('Workflows tab of the Temporal page', () => {
     );
   });
 
+  it('filters by the owner, system, lifecycle and name in the URL', async () => {
+    const api = mockTemporalApi();
+    const catalog = mockCatalog([workflowEntity('orders')]);
+    await render({
+      api,
+      catalog,
+      path: '/?owner=group:default/team-b&system=system:default/shop&lifecycle=production&q=ord',
+    });
+    await grid();
+    await waitFor(() =>
+      expect(catalog.queryEntities).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filter: {
+            kind: 'TemporalWorkflow',
+            'relations.ownedBy': 'group:default/team-b',
+            'relations.partOf': 'system:default/shop',
+            'spec.lifecycle': 'production',
+          },
+          fullTextFilter: {
+            term: 'ord',
+            fields: ['metadata.name', 'metadata.title'],
+          },
+        }),
+      ),
+    );
+    expect(screen.getByRole('searchbox', { name: 'Name' })).toHaveValue('ord');
+    expect(catalog.getEntityFacets).toHaveBeenCalledWith({
+      filter: { kind: 'TemporalWorkflow' },
+      facets: ['relations.ownedBy', 'relations.partOf', 'spec.lifecycle'],
+    });
+  });
+
+  it('puts the name that is searched for in the URL and takes it out again', async () => {
+    const api = mockTemporalApi();
+    const catalog = mockCatalog([workflowEntity('orders')]);
+    await render({ api, catalog });
+    await grid();
+    const name = screen.getByRole('searchbox', { name: 'Name' });
+    await userEvent.type(name, ' ord {Enter}');
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/?q=ord'),
+    );
+    await waitFor(() =>
+      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          fullTextFilter: {
+            term: 'ord',
+            fields: ['metadata.name', 'metadata.title'],
+          },
+        }),
+      ),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /clear/i }));
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe('/'),
+    );
+  });
+
+  it('goes to the next page with its cursor, and back to the first page when the order changes', async () => {
+    const api = mockTemporalApi();
+    const entities = Array.from({ length: 60 }, (_, i) =>
+      workflowEntity(`type-${String(i).padStart(2, '0')}`),
+    );
+    const catalog = mockCatalog(entities);
+    await render({ api, catalog });
+    const table = await grid();
+    await within(table).findByText('Title of type-00');
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await within(table).findByText('Title of type-25');
+    expect(catalog.queryEntities).toHaveBeenLastCalledWith({
+      cursor: '25',
+      limit: 25,
+      fields: expect.any(Array),
+    });
+    expect(api.getWorkflowTypeOverview).toHaveBeenLastCalledWith(
+      entities.slice(25, 50).map(refOf),
+    );
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Previous page' }),
+    );
+    await within(table).findByText('Title of type-00');
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
+    await within(table).findByText('Title of type-25');
+    await userEvent.click(
+      screen.getByRole('columnheader', { name: 'Workflow' }),
+    );
+    await waitFor(() =>
+      expect(catalog.queryEntities).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          orderFields: { field: 'metadata.name', order: 'desc' },
+        }),
+      ),
+    );
+    expect(catalog.queryEntities.mock.calls.at(-1)?.[0].cursor).toBeUndefined();
+    expect(
+      screen.getByRole('columnheader', { name: 'Workflow' }),
+    ).toHaveAttribute('aria-sort', 'descending');
+  });
+
+  it('adds the columns picked in the Columns menu', async () => {
+    const api = mockTemporalApi();
+    const entity = workflowEntity('orders');
+    entity.metadata.tags = ['billing', 'core'];
+    entity.spec = { ...entity.spec, lifecycle: 'production' };
+    entity.relations!.push({
+      type: 'dependencyOf',
+      targetRef: 'component:default/web',
+    });
+    const catalog = mockCatalog([entity]);
+    await render({ api, catalog });
+    const table = await grid();
+    expect(
+      screen.queryByRole('columnheader', { name: 'Tags' }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Columns' }));
+    for (const name of [
+      'Lifecycle',
+      'Namespace / Task queue',
+      'Used by',
+      'Tags',
+    ]) {
+      await userEvent.click(
+        await screen.findByRole('menuitemcheckbox', { name }),
+      );
+    }
+    await userEvent.keyboard('{Escape}');
+    expect(
+      screen
+        .getAllByRole('columnheader')
+        .map(header => header.textContent)
+        .slice(-4),
+    ).toEqual(['Lifecycle', 'Namespace / Task queue', 'Used by', 'Tags']);
+    expect(within(table).getByText('production')).toBeInTheDocument();
+    expect(within(table).getByText('default / orders')).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: 'web' })).toHaveAttribute(
+      'href',
+      '/catalog/default/component/web',
+    );
+    expect(within(table).getByText('billing, core')).toBeInTheDocument();
+  });
+
   it('adds the numbers in StrictMode', async () => {
     const api = mockTemporalApi();
     api.getWorkflowTypeOverview.mockImplementation(async refs => ({
