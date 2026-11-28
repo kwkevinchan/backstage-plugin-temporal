@@ -115,7 +115,7 @@ function One(props: { payload: JsonValue; open?: boolean }) {
     const info = undecodableInfo(payload.encoding, payload.metadata);
     const metadata = Object.entries(payload.metadata ?? {});
     return (
-      <div style={{ display: 'grid', gap: 2 }} data-kind={info.kind}>
+      <div style={{ display: 'grid', gap: 2 }}>
         <Text as="p" variant="body-small" color="secondary">
           {info.label} ({payload.encoding || 'unknown encoding'}, {payload.size}{' '}
           bytes)

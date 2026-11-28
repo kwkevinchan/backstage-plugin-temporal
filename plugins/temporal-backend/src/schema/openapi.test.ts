@@ -57,7 +57,7 @@ function operationsOf(include: (operation: any) => boolean): string[] {
 // the validating proxy (src/__testUtils__/openapi.ts).
 describe('the OpenAPI spec', () => {
   it('describes every read route, and no other', async () => {
-    const router = await createRouter({} as any);
+    const router = createRouter({} as any);
     // `GET /openapi.json` is added to the document when it is served; see
     // routes/openApiRoutes.ts and openApiRoutes.test.ts.
     expect(

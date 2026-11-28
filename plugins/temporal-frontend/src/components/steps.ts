@@ -54,7 +54,7 @@ export function isOpenStep(node: WorkflowGraphNode): boolean {
 }
 
 /** What a step box knows besides the step. */
-export interface StepTextOptions {
+interface StepTextOptions {
   /**
    * Number of the run that follows (`runChain.index + 1`), for the end of a
    * run that continued as new.

@@ -45,7 +45,7 @@ export type TemporalWorkflowPickerUiOptions = {
 };
 
 /** How many workflows the field offers, newest first. */
-export const PICKER_PAGE_SIZE = 50;
+const PICKER_PAGE_SIZE = 50;
 
 /**
  * The value of the field is a workflow ID, and an ID with several runs is

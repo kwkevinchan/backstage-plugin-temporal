@@ -82,7 +82,7 @@ import {
   workflowRunSubpath,
 } from './shared';
 
-export interface ControlRouterOptions {
+interface ControlRouterOptions {
   httpAuth: HttpAuthService;
   access: TemporalAccessService;
   auditor: AuditorService;

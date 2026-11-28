@@ -47,7 +47,7 @@ import {
  */
 
 /** A step of a run with what the LLM reading needs. */
-export interface LlmLinkNode extends WorkflowGraphNode {
+interface LlmLinkNode extends WorkflowGraphNode {
   /** Event ID of the first and of the closing event. */
   first: number;
   last?: number;
@@ -111,7 +111,7 @@ function lazy<T extends object, K extends keyof T>(
  * The decoded payloads of a step for the adapters. Each payload is decoded
  * when it is first read: most steps are read by no adapter.
  */
-export function stepPayloads(entry: LlmStepEntry): {
+function stepPayloads(entry: LlmStepEntry): {
   payloads: LlmStepPayloads;
   /** The decoded result, also when it is not readable. */
   decodedResult: () => unknown;

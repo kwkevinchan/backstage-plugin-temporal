@@ -108,9 +108,7 @@ function describesWorkflowType(
   }
 }
 
-export async function createRouter(
-  options: RouterOptions,
-): Promise<express.Router> {
+export function createRouter(options: RouterOptions): express.Router {
   const { httpAuth, logger, auditor, access, queries, lists, ai } = options;
   const entitySources = options.sources;
   const router = Router();

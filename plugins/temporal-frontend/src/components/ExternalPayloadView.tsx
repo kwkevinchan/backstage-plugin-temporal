@@ -14,14 +14,12 @@
  * limitations under the License.
  */
 
+import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import { ButtonLink, Flex, Text } from '@backstage/ui';
 import { RiCloudLine, RiExternalLinkLine } from '@remixicon/react';
 import type { ExternalPayload } from '../common';
 import { CopyButton } from './CopyButton';
-import {
-  externalObjectUrl,
-  useExternalObjectUrlTemplate,
-} from './externalStorage';
+import { externalObjectUrl } from './externalStorage';
 import { tp } from './styles';
 
 /** `1536` becomes `1.5 KB`. */
@@ -46,7 +44,11 @@ export function formatBytes(bytes: number): string {
 export function ExternalPayloadView(props: { external: ExternalPayload }) {
   const { external } = props;
   const location = `${external.store}://${external.bucket}/${external.key}`;
-  const url = externalObjectUrl(useExternalObjectUrlTemplate(), external);
+  const config = useApi(configApiRef);
+  const url = externalObjectUrl(
+    config.getOptionalString('temporal.externalStorage.objectUrl'),
+    external,
+  );
   return (
     <div className={tp('tp-external')} data-testid="external-payload">
       <Flex align="center" gap="2" style={{ flexWrap: 'wrap' }}>

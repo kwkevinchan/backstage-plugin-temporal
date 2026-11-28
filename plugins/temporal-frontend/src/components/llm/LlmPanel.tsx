@@ -90,12 +90,8 @@ function NotShown(props: { hidden: number; one: string; many: string }) {
   );
 }
 
+/** A string as it is; any other value as indented JSON. */
 function asText(value: unknown): string {
-  return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-}
-
-/** A copy button for the JSON (or text) of a section. */
-function copyText(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
 
@@ -113,7 +109,7 @@ function Section(props: {
         </Text>
         {props.copy !== undefined && (
           <CopyButton
-            text={copyText(props.copy)}
+            text={asText(props.copy)}
             label={`Copy ${props.title.toLocaleLowerCase('en-US')}`}
           />
         )}
@@ -128,7 +124,7 @@ function Section(props: {
  * {@link MAX_TEXT_CHARS} characters are put on the page; a longer text says
  * so and has a button that copies all of it.
  */
-export function LongText(props: { text: string; testId?: string }) {
+function LongText(props: { text: string }) {
   const { text } = props;
   const shown = head(text, MAX_TEXT_CHARS);
   const truncated = shown.length < text.length;
@@ -143,11 +139,7 @@ export function LongText(props: { text: string; testId?: string }) {
   }
   return (
     <div>
-      <p
-        className={tp('tp-llm-text')}
-        data-clamped={long && !open}
-        data-testid={props.testId}
-      >
+      <p className={tp('tp-llm-text')} data-clamped={long && !open}>
         {shown}
       </p>
       {long && (

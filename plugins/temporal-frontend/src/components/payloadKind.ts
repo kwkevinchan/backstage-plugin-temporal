@@ -16,17 +16,8 @@
 
 import type { JsonObject } from '@backstage/types';
 
-/** The kinds of payload the plugin cannot decode. */
-export type UndecodableKind =
-  | 'encrypted'
-  | 'binary'
-  | 'protobuf'
-  | 'invalidJson'
-  | 'custom';
-
 /** What to tell the user about a payload the plugin cannot decode. */
-export interface UndecodableInfo {
-  kind: UndecodableKind;
+interface UndecodableInfo {
   label: string;
   description: string;
 }
@@ -51,7 +42,6 @@ export function undecodableInfo(
     case 'binary/encrypted': {
       const keyId = text(metadata?.['encryption-key-id']);
       return {
-        kind: 'encrypted',
         label: 'Encrypted',
         description: `Encrypted by a payload codec${
           keyId ? ` (key ID ${keyId})` : ''
@@ -60,14 +50,12 @@ export function undecodableInfo(
     }
     case 'binary/plain':
       return {
-        kind: 'binary',
         label: 'Binary data',
         description: 'Not text, so only its size is shown.',
       };
     case 'binary/protobuf': {
       const type = text(metadata?.messageType);
       return {
-        kind: 'protobuf',
         label: 'Protobuf binary',
         description: `${
           type ? `Message type ${type}. ` : ''
@@ -77,13 +65,11 @@ export function undecodableInfo(
     case 'json/plain':
     case 'json/protobuf':
       return {
-        kind: 'invalidJson',
         label: 'Invalid JSON',
         description: 'The content is not valid JSON.',
       };
     default:
       return {
-        kind: 'custom',
         label: 'Custom encoding',
         description: 'Encoded by a payload codec or a custom data converter.',
       };

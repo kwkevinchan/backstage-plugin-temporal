@@ -347,20 +347,6 @@ export function failureFromCloseEvent(
   return undefined;
 }
 
-/** Status implied by a close event, when the event is one. */
-export function statusFromCloseEvent(event: Json): WorkflowStatus | undefined {
-  if (!event) return undefined;
-  if (event.workflowExecutionCompletedEventAttributes) return 'Completed';
-  if (event.workflowExecutionFailedEventAttributes) return 'Failed';
-  if (event.workflowExecutionTimedOutEventAttributes) return 'TimedOut';
-  if (event.workflowExecutionTerminatedEventAttributes) return 'Terminated';
-  if (event.workflowExecutionCanceledEventAttributes) return 'Canceled';
-  if (event.workflowExecutionContinuedAsNewEventAttributes) {
-    return 'ContinuedAsNew';
-  }
-  return undefined;
-}
-
 /**
  * Result or failure of a run, from its close event. A missing event (a
  * running run) or a close without a result or failure yields an empty

@@ -24,27 +24,22 @@
 .tp-tone-success {
   --tp-fg: var(--bui-fg-success);
   --tp-border: var(--bui-border-success);
-  --tp-bg: var(--bui-bg-success);
 }
 .tp-tone-danger {
   --tp-fg: var(--bui-fg-danger);
   --tp-border: var(--bui-border-danger);
-  --tp-bg: var(--bui-bg-danger);
 }
 .tp-tone-warning {
   --tp-fg: var(--bui-fg-warning);
   --tp-border: var(--bui-border-warning);
-  --tp-bg: var(--bui-bg-warning);
 }
 .tp-tone-info {
   --tp-fg: var(--bui-fg-info);
   --tp-border: var(--bui-border-info);
-  --tp-bg: var(--bui-bg-info);
 }
 .tp-tone-neutral {
   --tp-fg: var(--bui-fg-secondary);
   --tp-border: var(--bui-border-2);
-  --tp-bg: var(--bui-bg-neutral-2);
 }
 
 /* Status label: icon and text. */

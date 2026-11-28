@@ -44,7 +44,7 @@ export const MAX_EVENT_GROUPS = 1000;
 export const MAX_GROUPS_PER_STEP = 32;
 
 /** One marker of an event, read. */
-export interface EventGroupMarker {
+interface EventGroupMarker {
   key: string;
   kind: WorkflowEventGroupKind;
   id: string;
@@ -171,7 +171,7 @@ export function inferEventGroupParents(
 }
 
 /** A graph node while the graph is built: `last` is unset while it runs. */
-export type EventGroupNode = WorkflowGraphNode & { last?: number };
+type EventGroupNode = WorkflowGraphNode & { last?: number };
 
 /** Run statuses after which a group left open failed. */
 const FAILED_RUNS = new Set<WorkflowStatus>([
@@ -181,7 +181,7 @@ const FAILED_RUNS = new Set<WorkflowStatus>([
 ]);
 
 /** How the run stands, for groups whose steps did not all end. */
-export interface EventGroupRun {
+interface EventGroupRun {
   /** Status of the run from describe. */
   status: WorkflowStatus;
   /** The node of the closing event, when the history has it. */
@@ -206,7 +206,7 @@ const ENDED_RUNS = new Set<WorkflowStatus>([
  * was terminated, else `Canceled`. When the history was cut, a step left
  * open is not known to be unfinished: its status stays as it is.
  */
-export function eventGroupStatus(
+function eventGroupStatus(
   steps: EventGroupNode[],
   run: EventGroupRun,
 ): WorkflowNodeStatus {

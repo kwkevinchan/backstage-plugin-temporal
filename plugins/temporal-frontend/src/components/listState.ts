@@ -41,7 +41,7 @@ import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
 
 /** Page sizes offered by the lists. */
 export const PAGE_SIZES = [10, 20, 50, 100] as const;
-export const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
 /** Largest page size the backend accepts. */
 const MAX_PAGE_SIZE = 100;
 

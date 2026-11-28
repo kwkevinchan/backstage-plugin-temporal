@@ -66,7 +66,7 @@ export function LostPageNotice(props: { page?: number }) {
 }
 
 /** Notice when the merged list covers only the first related workflow types. */
-export function RelatedWorkflowsTruncationNotice(props: {
+function RelatedWorkflowsTruncationNotice(props: {
   relatedWorkflows?: RelatedWorkflows;
 }) {
   const related = props.relatedWorkflows;
@@ -84,7 +84,6 @@ export function RelatedWorkflowsTruncationNotice(props: {
 
 /** Workflow list of the current entity. */
 export function WorkflowList(props: {
-  title?: string;
   listActions?: TemporalWorkflowListActionDef[];
 }) {
   const { entity } = useEntity();
@@ -114,7 +113,7 @@ export function WorkflowList(props: {
   return (
     <div ref={scrollRef}>
       <PanelCard
-        title={props.title ?? 'Workflow executions'}
+        title="Workflow executions"
         subtitle={value ? `Namespace: ${value.namespace}` : undefined}
         actions={
           <>

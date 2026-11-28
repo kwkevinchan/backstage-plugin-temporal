@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import type { ReactNode } from 'react';
 import type { WorkflowNodeStatus, WorkflowStatus } from '../common';
 import {
   RiCheckboxCircleFill,
@@ -101,7 +100,7 @@ export function isActiveStatus(status: AnyStatus): boolean {
   return status === 'Running' || status === 'Retrying';
 }
 
-export function StatusIcon(props: { status: AnyStatus; size?: number }) {
+function StatusIcon(props: { status: AnyStatus; size?: number }) {
   const size = props.size ?? 16;
   switch (props.status) {
     case 'Running':
@@ -135,27 +134,21 @@ export function StatusIcon(props: { status: AnyStatus; size?: number }) {
   }
 }
 
-/**
- * Running status with a spinner that turns. With reduced motion requested,
- * the spinner stands still as a full ring.
- */
-export function RunningStatus(props: { children?: ReactNode }) {
-  return (
-    <span
-      className={tp('tp-status', 'tp-tone-info')}
-      data-testid="workflow-status-running"
-    >
-      <StatusIcon status="Running" />
-      <span className={tp('tp-status-text')}>{props.children}</span>
-    </span>
-  );
-}
-
 /** Status with an icon in the status color; every list and page uses it. */
 export function WorkflowStatusLabel(props: { status: AnyStatus }) {
   const label = statusLabel(props.status);
   if (props.status === 'Running') {
-    return <RunningStatus>{label}</RunningStatus>;
+    // The spinner turns; with reduced motion requested it stands still as a
+    // full ring.
+    return (
+      <span
+        className={tp('tp-status', 'tp-tone-info')}
+        data-testid="workflow-status-running"
+      >
+        <StatusIcon status="Running" />
+        <span className={tp('tp-status-text')}>{label}</span>
+      </span>
+    );
   }
   return (
     <span

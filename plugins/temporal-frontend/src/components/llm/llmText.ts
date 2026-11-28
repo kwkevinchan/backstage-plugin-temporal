@@ -52,7 +52,7 @@ export function tokensText(usage: WorkflowLlmUsage | undefined): string {
 }
 
 /** `1 tool`, `3 tools`. */
-export function toolCountText(count: number): string {
+function toolCountText(count: number): string {
   if (count === 0) return '';
   return count === 1 ? '1 tool' : `${count} tools`;
 }
