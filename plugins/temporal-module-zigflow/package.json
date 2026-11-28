@@ -45,7 +45,9 @@
     "pluginId": "temporal",
     "pluginPackage": "@kwkevinchan/backstage-plugin-temporal"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "backstage-cli package build",
     "lint": "backstage-cli package lint",
