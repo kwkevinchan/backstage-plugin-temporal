@@ -1,10 +1,10 @@
 # @kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal
 
-Scaffolder actions of the unofficial [Backstage Temporal plugin](../../README.md):
+Scaffolder actions of the unofficial [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md):
 templates can start a Temporal workflow, wait for it, and send it a signal or
 an update. Pick a workflow in the form with the `TemporalWorkflowPicker`
 field from
-[`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](../scaffolder-module-temporal).
+[`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/scaffolder-module-temporal).
 
 ```sh
 yarn --cwd packages/backend add @kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal
@@ -104,7 +104,7 @@ saves that read and cannot differ from where the workflow runs. Because
 true) `result` to Scaffolder task outputs, access to those outputs depends on
 Scaffolder task permissions rather than Temporal's
 `temporal.workflow.read` permission (see the
-[Security section](../../README.md#security)). Starting,
+[Security section](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#security)). Starting,
 signals and updates are kept in a checkpoint, so a retried task does not start
 or send them again. When `workflowId` is omitted on `temporal:workflow:start`,
 the action builds a default ID from the workflow type (or entity name), the
@@ -180,7 +180,7 @@ send a Backstage notification with a link to the run. The
 [`@backstage/plugin-scaffolder-backend-module-notifications`](https://github.com/backstage/backstage/tree/master/plugins/scaffolder-backend-module-notifications)
 (install that module and `@backstage/plugin-notifications-backend`, and the
 notifications frontend page). A complete template is in
-[`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml).
+[`examples/templates/release-with-notification.yaml`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/examples/templates/release-with-notification.yaml).
 
 ```yaml
 steps:
