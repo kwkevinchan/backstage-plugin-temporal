@@ -36,7 +36,8 @@ import { EventGroupCollector } from './eventGroups';
 import { isLocalActivityMarker } from '../common/stepRules';
 
 /*
- * Groups the events of a workflow history into steps. The input is the protobuf JSON form of the events, oldest first.
+ * Groups the events of a workflow history into steps. The input is the
+ * protobuf JSON form of the events, oldest first.
  *
  * Grouping:
  * - activity: Scheduled, Started, Completed, Failed, TimedOut, Canceled and
