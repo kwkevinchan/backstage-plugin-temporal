@@ -4,8 +4,9 @@
 > endorsed by, or supported by Temporal Technologies, Inc. or the Backstage
 > project. "Temporal" is used only to describe what the plugin connects to.
 
-**Status: pre-release.** The first release will be `0.1.0`. Until `1.0.0`,
-minor versions may change the API.
+**Status: pre-release.** The first release will be `0.1.0`. The seven
+published packages always have the same version. Until `1.0.0`, minor
+versions may change the API.
 
 The plugin shows [Temporal](https://temporal.io) workflows next to the catalog
 entities that own them in [Backstage](https://backstage.io), and lets people

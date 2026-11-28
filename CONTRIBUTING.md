@@ -24,19 +24,22 @@ discuss larger changes before sending a pull request.
 ## Releasing
 
 Releases are cut by the maintainer from `main`, with
-[changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`: the seven packages
+[changesets](https://github.com/changesets/changesets). The seven published
+packages have one version: `.changeset/config.json` puts
 `@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal`,
 `-temporal-backend-module-zigflow`, `-temporal-module-zigflow`,
 `-temporal-backend-module-actions`,
 `-scaffolder-backend-module-temporal` and `-scaffolder-module-temporal`
-(all under `@kwkevinchan/backstage-plugin-`).
+(all under `@kwkevinchan/backstage-plugin-`) in one `fixed` group, so a
+changeset for one of them raises all seven to the same version.
 
-1. `yarn changeset version`: bumps the versions (the first-release
-   changesets are `minor`), updates the internal dependency ranges and
-   writes the changelogs. Then `yarn install` (not `--immutable`: the
-   workspace versions are in `yarn.lock`). Review and commit both in a pull
-   request.
+The first release is `0.1.0`. The packages already have that version and
+its changelog, and there are no changesets to apply: start at step 2.
+
+1. `yarn changeset version`: bumps the versions, updates the internal
+   dependency ranges and writes the changelogs. Then `yarn install` (not
+   `--immutable`: the workspace versions are in `yarn.lock`). Review and
+   commit both in a pull request.
 2. On the merged `main`: `yarn install --immutable`, then
    `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
 3. Check what each package will contain:
@@ -45,7 +48,7 @@ takes every published package from `0.0.0` to `0.1.0`: the seven packages
    backend plugin `src/schema/openapi.yaml`. Then
    `yarn workspace <package> pack` and look at the `package.json` inside the
    tarball: `main`/`types` (and `exports`) point at `dist/`, and the
-   `workspace:^` ranges are replaced by version ranges.
+   `workspace:^` and `backstage:^` ranges are replaced by version ranges.
 4. Publish with Yarn, which replaces the `workspace:` ranges (plain
    `npm publish` does not). Yarn does not read `~/.npmrc`: log in with
    `yarn npm login` (or set `npmAuthToken` in `~/.yarnrc.yml`), then run
