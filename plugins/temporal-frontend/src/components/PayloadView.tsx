@@ -49,6 +49,39 @@ function isReference(
   );
 }
 
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+function hasExactKeys(value: object, keys: string[]): boolean {
+  const own = Object.keys(value);
+  return own.length === keys.length && keys.every(k => own.includes(k));
+}
+
+/**
+ * A memo entry that is a reference written by the backend. The memo gives
+ * the values of JSON entries as they are, so a JSON entry could look like a
+ * reference: only the exact form the backend writes for a reference
+ * (`json/protobuf`, an `s3` store, a SHA-256 in lowercase hex, a size in
+ * bytes and no other keys) is shown as one.
+ */
+function isMemoReference(
+  value: unknown,
+): value is { encoding: string; external: ExternalPayload } {
+  if (!isReference(value) || !hasExactKeys(value, ['encoding', 'external'])) {
+    return false;
+  }
+  const { encoding, external } = value;
+  return (
+    encoding === 'json/protobuf' &&
+    hasExactKeys(external, ['store', 'bucket', 'key', 'size', 'sha256']) &&
+    external.store === 's3' &&
+    external.bucket !== '' &&
+    external.key !== '' &&
+    SHA256_HEX.test(external.sha256) &&
+    Number.isSafeInteger(external.size) &&
+    external.size >= 0
+  );
+}
+
 function summary(value: JsonValue): string {
   const text = JSON.stringify(value);
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
@@ -144,10 +177,10 @@ export function PayloadView(props: { payload?: JsonValue; open?: boolean }) {
  */
 export function MemoView(props: { memo: JsonObject }) {
   const entries = Object.entries(props.memo);
-  const stored = entries.filter(([, value]) => isReference(value));
+  const stored = entries.filter(([, value]) => isMemoReference(value));
   if (stored.length === 0) return <JsonView value={props.memo} />;
   const rest = Object.fromEntries(
-    entries.filter(([, value]) => !isReference(value)),
+    entries.filter(([, value]) => !isMemoReference(value)),
   );
   return (
     <div style={{ display: 'grid', gap: 8 }}>

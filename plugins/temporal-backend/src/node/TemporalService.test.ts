@@ -63,6 +63,32 @@ describe('readTemporalServiceOptions', () => {
     expect(options.searchAttributes.entityRef).toBe('BackstageEntityRef');
   });
 
+  it.each([
+    ['http://ui.example.com:8080/', 'http://ui.example.com:8080'],
+    [' https://ui.example.com/temporal// ', 'https://ui.example.com/temporal'],
+    // eslint-disable-next-line no-script-url
+    ['javascript:alert(1)', undefined],
+    ['data:text/html,x', undefined],
+    ['ftp://ui.example.com', undefined],
+    ['ui.example.com', undefined],
+    ['/temporal', undefined],
+  ])('reads webUi.baseUrl %j as %j', (baseUrl, expected) => {
+    const options = readTemporalServiceOptions(
+      new ConfigReader({
+        temporal: {
+          connection: { address: 'temporal:7233' },
+          webUi: { baseUrl },
+        },
+      }),
+    );
+    expect(options.webUiBaseUrl).toBe(expected);
+    const service = new DefaultTemporalService(options);
+    const url = service.getWebUiUrl({ namespace: 'default', workflowId: 'wf' });
+    expect(url).toBe(
+      expected ? `${expected}/namespaces/default/workflows/wf` : undefined,
+    );
+  });
+
   it('rejects invalid names', () => {
     expect(() =>
       readTemporalServiceOptions(

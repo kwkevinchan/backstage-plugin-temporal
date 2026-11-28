@@ -54,6 +54,41 @@ import {
 /** Text longer than this (characters or lines) starts collapsed. */
 const CLAMP_CHARS = 600;
 const CLAMP_LINES = 8;
+/** Longest text put on the page; its copy button copies all of it. */
+export const MAX_TEXT_CHARS = 50_000;
+/**
+ * Most messages, parts of a message, reasoning parts or tool calls put on
+ * the page; the copy button of the section copies all of them.
+ */
+export const MAX_ITEMS = 200;
+
+function count(value: number): string {
+  return value.toLocaleString('en-US');
+}
+
+/** The first `max` characters of `text`, without cutting a character in two. */
+function head(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const code = text.charCodeAt(max - 1);
+  // A high surrogate: the first half of a character outside the BMP.
+  return text.slice(0, code >= 0xd800 && code <= 0xdbff ? max - 1 : max);
+}
+
+/** Says how many items of a list are not on the page. */
+function NotShown(props: { hidden: number; one: string; many: string }) {
+  if (props.hidden <= 0) return null;
+  return (
+    <Text
+      as="p"
+      variant="body-small"
+      color="secondary"
+      data-testid="llm-not-shown"
+    >
+      {count(props.hidden)} more {props.hidden === 1 ? props.one : props.many}{' '}
+      not shown. The copy button of the section copies all of them.
+    </Text>
+  );
+}
 
 function asText(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
@@ -88,12 +123,24 @@ function Section(props: {
   );
 }
 
-/** Long text, collapsed to a few lines with a button to show all. */
+/**
+ * Long text, collapsed to a few lines with a button to show more. At most
+ * {@link MAX_TEXT_CHARS} characters are put on the page; a longer text says
+ * so and has a button that copies all of it.
+ */
 export function LongText(props: { text: string; testId?: string }) {
   const { text } = props;
+  const shown = head(text, MAX_TEXT_CHARS);
+  const truncated = shown.length < text.length;
   const long =
-    text.length > CLAMP_CHARS || text.split('\n').length > CLAMP_LINES;
+    shown.length > CLAMP_CHARS || shown.split('\n').length > CLAMP_LINES;
   const [open, setOpen] = useState(false);
+  let more = `Show all (${text.length} characters)`;
+  if (truncated) {
+    more = `Show the first ${count(shown.length)} of ${count(
+      text.length,
+    )} characters`;
+  }
   return (
     <div>
       <p
@@ -101,7 +148,7 @@ export function LongText(props: { text: string; testId?: string }) {
         data-clamped={long && !open}
         data-testid={props.testId}
       >
-        {text}
+        {shown}
       </p>
       {long && (
         <Button
@@ -110,8 +157,17 @@ export function LongText(props: { text: string; testId?: string }) {
           className={tp('tp-llm-more')}
           onPress={() => setOpen(!open)}
         >
-          {open ? 'Show less' : `Show all (${text.length} characters)`}
+          {open ? 'Show less' : more}
         </Button>
+      )}
+      {truncated && open && (
+        <Flex align="center" gap="1" data-testid="llm-text-truncated">
+          <Text variant="body-small" color="secondary">
+            Showing the first {count(shown.length)} of {count(text.length)}{' '}
+            characters.
+          </Text>
+          <CopyButton text={text} label="Copy the full text" />
+        </Flex>
       )}
     </div>
   );
@@ -203,7 +259,7 @@ function RoleIcon(props: { role: string }) {
 function Messages(props: { messages: WorkflowLlmMessage[] }) {
   return (
     <div className={tp('tp-llm-messages')}>
-      {props.messages.map((m, i) => (
+      {props.messages.slice(0, MAX_ITEMS).map((m, i) => (
         <div
           key={i}
           className={tp('tp-llm-message')}
@@ -216,9 +272,14 @@ function Messages(props: { messages: WorkflowLlmMessage[] }) {
             {m.name ? ` · ${m.name}` : ''}
           </div>
           <Flex direction="column" gap="2">
-            {m.parts.map((part, j) => (
+            {m.parts.slice(0, MAX_ITEMS).map((part, j) => (
               <Part key={j} part={part} />
             ))}
+            <NotShown
+              hidden={m.parts.length - MAX_ITEMS}
+              one="part of this message is"
+              many="parts of this message are"
+            />
             {m.parts.length === 0 && (
               <Text variant="body-small" color="secondary">
                 (empty)
@@ -227,6 +288,11 @@ function Messages(props: { messages: WorkflowLlmMessage[] }) {
           </Flex>
         </div>
       ))}
+      <NotShown
+        hidden={props.messages.length - MAX_ITEMS}
+        one="message is"
+        many="messages are"
+      />
     </div>
   );
 }
@@ -302,7 +368,7 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
   }
   return (
     <div className={tp('tp-llm-tools')}>
-      {props.cards.map((card, i) => {
+      {props.cards.slice(0, MAX_ITEMS).map((card, i) => {
         const status = cardStatus(card);
         return (
           <div
@@ -370,6 +436,11 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
           </div>
         );
       })}
+      <NotShown
+        hidden={props.cards.length - MAX_ITEMS}
+        one="tool call is"
+        many="tool calls are"
+      />
     </div>
   );
 }
@@ -623,9 +694,14 @@ export function LlmPanel(props: {
                         )} tokens)`
                       : ''}
                   </summary>
-                  {reasoning.map((p, i) => (
+                  {reasoning.slice(0, MAX_ITEMS).map((p, i) => (
                     <LongText key={i} text={asText(p.content ?? '')} />
                   ))}
+                  <NotShown
+                    hidden={reasoning.length - MAX_ITEMS}
+                    one="reasoning part is"
+                    many="reasoning parts are"
+                  />
                 </details>
               ) : (
                 <Text variant="body-small" color="secondary">

@@ -26,7 +26,8 @@ import {
 import { WorkflowGraph } from '../graph/WorkflowGraph';
 import { layoutSteps, stepSize, visibleSteps } from '../graph/layout';
 import { StepDrawer } from '../StepDrawer';
-import type { WorkflowGraphResponse } from '../../common';
+import type { WorkflowGraphResponse, WorkflowLlmMessage } from '../../common';
+import { MAX_ITEMS, MAX_TEXT_CHARS } from './LlmPanel';
 import {
   formatCallDuration,
   formatTokens,
@@ -182,6 +183,95 @@ describe('LLM panel', () => {
       'gen_ai.request.model',
     );
     expect(screen.queryByTestId('llm-input')).not.toBeInTheDocument();
+  });
+
+  it('puts at most MAX_TEXT_CHARS characters of a text on the page, and copies all of it', async () => {
+    const writeText = jest.fn(async (_text: string) => undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    const long = `${'a'.repeat(MAX_TEXT_CHARS)}TAIL`;
+    const api = mockTemporalApi();
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: {
+        ...llmCallResponse.record,
+        inputMessages: [
+          { role: 'user', parts: [{ type: 'text', content: long }] },
+        ],
+      },
+    });
+    await renderDrawer('activity-5', { api });
+    const input = await screen.findByTestId('llm-input');
+    expect(input).not.toHaveTextContent('TAIL');
+    expect(screen.queryByTestId('llm-text-truncated')).toBeNull();
+    fireEvent.click(
+      within(input).getByRole('button', {
+        name: 'Show the first 50,000 of 50,004 characters',
+      }),
+    );
+    expect(screen.getByTestId('llm-text-truncated')).toHaveTextContent(
+      'Showing the first 50,000 of 50,004 characters.',
+    );
+    expect(input).not.toHaveTextContent('TAIL');
+    fireEvent.click(screen.getByRole('button', { name: 'Copy the full text' }));
+    expect(writeText).toHaveBeenLastCalledWith(long);
+    // The copy button of the section copies the whole input too.
+    fireEvent.click(screen.getByRole('button', { name: 'Copy input' }));
+    expect(writeText.mock.calls.at(-1)![0]).toContain('TAIL');
+  });
+
+  it('does not cut a character in two at the limit', async () => {
+    const long = `${'a'.repeat(MAX_TEXT_CHARS - 1)}\u{1F600}b`;
+    const api = mockTemporalApi();
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: {
+        ...llmCallResponse.record,
+        inputMessages: [
+          { role: 'user', parts: [{ type: 'text', content: long }] },
+        ],
+      },
+    });
+    await renderDrawer('activity-5', { api });
+    const input = await screen.findByTestId('llm-input');
+    const text = input.querySelector('p')!.textContent!;
+    expect(text).toBe('a'.repeat(MAX_TEXT_CHARS - 1));
+  });
+
+  it('puts at most MAX_ITEMS messages and parts on the page, and says how many are left out', async () => {
+    const parts = Array.from({ length: MAX_ITEMS + 5 }, (_, i) => ({
+      type: 'text',
+      content: `part ${i}`,
+    }));
+    const inputMessages: WorkflowLlmMessage[] = [
+      { role: 'user', parts },
+      ...Array.from({ length: MAX_ITEMS + 1 }, (_, i) => ({
+        role: 'user',
+        parts: [{ type: 'text', content: `message ${i}` }],
+      })),
+    ];
+    const api = mockTemporalApi();
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: { ...llmCallResponse.record, inputMessages },
+    });
+    await renderDrawer('activity-5', { api });
+    const input = await screen.findByTestId('llm-input');
+    // The system instructions are empty: the input is the messages.
+    const messages = within(input).getAllByTestId('llm-message');
+    expect(messages).toHaveLength(MAX_ITEMS);
+    expect(messages[0]).toHaveTextContent(`part ${MAX_ITEMS - 1}`);
+    expect(messages[0]).not.toHaveTextContent(`part ${MAX_ITEMS}`);
+    const notes = within(input)
+      .getAllByTestId('llm-not-shown')
+      .map(n => n.textContent);
+    expect(notes).toEqual([
+      '5 more parts of this message are not shown. The copy button of the section copies all of them.',
+      '2 more messages are not shown. The copy button of the section copies all of them.',
+    ]);
+    expect(input).not.toHaveTextContent(`message ${MAX_ITEMS}`);
   });
 
   it('says why a record cannot be shown', async () => {

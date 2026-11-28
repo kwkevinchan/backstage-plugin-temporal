@@ -94,6 +94,21 @@ describe('EntityTemporalContent', () => {
     );
   });
 
+  it.each([
+    // eslint-disable-next-line no-script-url
+    'javascript:alert(1)',
+    'data:text/html,x',
+    '/namespaces/default/workflows/payment-1',
+  ])('shows no Temporal UI link for a webUiUrl of %j', async webUiUrl => {
+    const api = mockTemporalApi();
+    api.getWorkflow.mockResolvedValue({ ...failedWorkflow, webUiUrl });
+    await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');
+    expect(await screen.findByTestId('workflow-summary')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /Open in Temporal UI/ }),
+    ).toBeNull();
+  });
+
   it('shows the summary line and the step graph', async () => {
     const api = mockTemporalApi();
     await render(api, '/namespaces/default/workflows/payment-1/runs/run-2');

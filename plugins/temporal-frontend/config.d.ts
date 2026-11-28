@@ -53,7 +53,8 @@ export interface Config {
     /** Temporal Web UI, used for "Open in Temporal UI" links. */
     webUi?: {
       /**
-       * For example `http://localhost:8080`.
+       * For example `http://localhost:8080`. Only `http:` and `https:` URLs
+       * make links.
        * @visibility frontend
        */
       baseUrl?: string;

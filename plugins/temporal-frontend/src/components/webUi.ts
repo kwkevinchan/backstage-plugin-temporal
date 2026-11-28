@@ -21,12 +21,30 @@ import {
   isValidWorkflowTypeName,
 } from '../common';
 
-/** `temporal.webUi.baseUrl` without a trailing slash, when it is set. */
+/** `value` when it is an `http:` or `https:` URL, else undefined. */
+export function httpUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const url = new URL(trimmed);
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? trimmed
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `temporal.webUi.baseUrl` without a trailing slash, when it is set to an
+ * `http:` or `https:` URL.
+ */
 export function useTemporalWebUiBaseUrl(): string | undefined {
   const config = useApi(configApiRef);
-  return config
-    .getOptionalString('temporal.webUi.baseUrl')
-    ?.replace(/\/+$/, '');
+  return httpUrl(config.getOptionalString('temporal.webUi.baseUrl'))?.replace(
+    /\/+$/,
+    '',
+  );
 }
 
 /** `temporal.connection.defaultNamespace`, or `default`. */

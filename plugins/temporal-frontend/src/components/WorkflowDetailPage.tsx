@@ -83,6 +83,7 @@ import { WorkflowTimeline } from './timeline/WorkflowTimeline';
 import { useRefreshLock } from './useRefreshLock';
 import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { useWorkflowData } from './useWorkflowData';
+import { httpUrl } from './webUi';
 import { WorkflowEvents } from './WorkflowEvents';
 import { stepsDoneText } from './WorkflowProgress';
 import { workflowLink } from './WorkflowRunsTable';
@@ -810,6 +811,7 @@ export function WorkflowDetailPage(
     workflowHref,
   };
   const actions = workflowActions.filter(a => !a.filter || a.filter(workflow));
+  const webUiUrl = httpUrl(workflow.webUiUrl);
   const sections = workflowSections.filter(
     s => !s.filter || s.filter(workflow),
   );
@@ -870,10 +872,10 @@ export function WorkflowDetailPage(
                   </div>
                 ))}
                 <QueryButton workflow={workflow} entityRef={entityRef} />
-                {workflow.webUiUrl && (
+                {webUiUrl && (
                   <ButtonLink
                     variant="secondary"
-                    href={workflow.webUiUrl}
+                    href={webUiUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     iconEnd={<RiExternalLinkLine />}

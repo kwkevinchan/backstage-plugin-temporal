@@ -205,9 +205,13 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
     if (!targetLaidOut || scrolledTo.current === target) return undefined;
     // After the canvas height and the view follow the new layout.
     const timer = window.setTimeout(() => {
-      const element = domNode?.querySelector(
-        `.react-flow__node[data-id="${target.replace(/["\\]/g, '\\$&')}"]`,
-      );
+      // Compared by attribute rather than in a selector: an ID can hold any
+      // character, newlines included.
+      const element = [
+        ...(domNode?.querySelectorAll<HTMLElement>(
+          '.react-flow__node[data-id]',
+        ) ?? []),
+      ].find(node => node.getAttribute('data-id') === target);
       if (!element) return;
       scrolledTo.current = target;
       element.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
@@ -299,7 +303,7 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
         if (!selectable || selectable(node)) onSelect(node.id);
       }}
       onPaneClick={() => onSelect(undefined)}
-      proOptions={{ hideAttribution: true }}
+      attributionPosition="bottom-left"
     >
       <EdgeArrowDefs />
       <Background gap={20} size={1} />

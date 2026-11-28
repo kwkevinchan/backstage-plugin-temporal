@@ -386,6 +386,7 @@ function DefinitionView(props: {
       : undefined;
 
   const error = definition.error;
+  const definitionUrl = httpUrl(definition.url);
   return (
     <Flex direction="column" gap="4">
       {error && (
@@ -400,9 +401,9 @@ function DefinitionView(props: {
       <Flex align="end" justify="between" gap="3" style={{ flexWrap: 'wrap' }}>
         <div style={{ minWidth: 0 }}>
           <Text as="p" variant="body-small" color="secondary">
-            {definition.url ? (
+            {definitionUrl ? (
               <Link
-                href={definition.url}
+                href={definitionUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 variant="body-small"

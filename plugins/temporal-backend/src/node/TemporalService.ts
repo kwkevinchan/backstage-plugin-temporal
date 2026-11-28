@@ -113,6 +113,22 @@ function readAuth(connection: Config): TemporalConnectionAuth {
 }
 
 /**
+ * `webUi.baseUrl` without a trailing slash. Only `http:` and `https:` URLs
+ * make links; any other value is ignored.
+ */
+function readWebUiBaseUrl(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const { protocol } = new URL(trimmed);
+    if (protocol !== 'http:' && protocol !== 'https:') return undefined;
+  } catch {
+    return undefined;
+  }
+  return trimmed.replace(/\/+$/, '');
+}
+
+/**
  * Reads {@link TemporalServiceOptions} from the root config.
  */
 export function readTemporalServiceOptions(
@@ -149,9 +165,7 @@ export function readTemporalServiceOptions(
     tls: connection.getOptionalBoolean('tls') ?? false,
     defaultNamespace,
     namespaces,
-    webUiBaseUrl: temporal
-      .getOptionalString('webUi.baseUrl')
-      ?.replace(/\/+$/, ''),
+    webUiBaseUrl: readWebUiBaseUrl(temporal.getOptionalString('webUi.baseUrl')),
     searchAttributes,
   };
 }

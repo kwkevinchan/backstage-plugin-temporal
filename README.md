@@ -557,8 +557,10 @@ What the plugin shows:
   agent loop reads as model call, tools, model call. Retries of a tool show
   on its box.
 - selecting a model call opens the LLM panel: **Input** (system
-  instructions and messages as a chat, long texts collapsed), **Thinking**
-  (collapsed), **Output**, **Tool calls** (name, arguments, response,
+  instructions and messages as a chat, long texts collapsed; at most 50,000
+  characters of a text and 200 messages, parts of a message or tool calls
+  are put on the page, with a note and a copy button for the rest),
+  **Thinking** (collapsed), **Output**, **Tool calls** (name, arguments, response,
   status, and a button to the step of the tool), **Usage** (input, output,
   reasoning, cached and cache write tokens, duration) and **Details** (the
   response ID, the call parameters such as the temperature, and the tool
@@ -850,7 +852,7 @@ temporal:
 | `connection.tls`                       | `false`              | Connect with TLS, the server certificate checked with the system's CAs (for example Temporal Cloud). Client certificates (mTLS) are not supported; see [Authentication](#authentication).                                                                                                                                                                                         |
 | `connection.auth.type`                 | `none`               | `none`, or `bearer` to send `Authorization: Bearer <token>`.                                                                                                                                                                                                                                                                                                                      |
 | `connection.auth.token`                |                      | Token for `bearer`. A secret: read it from an environment variable.                                                                                                                                                                                                                                                                                                               |
-| `webUi.baseUrl`                        |                      | Temporal Web UI; adds "Open in Temporal UI" links.                                                                                                                                                                                                                                                                                                                                |
+| `webUi.baseUrl`                        |                      | Temporal Web UI (`http:` or `https:` only); adds "Open in Temporal UI" links.                                                                                                                                                                                                                                                                                                     |
 | `searchAttributes.entityRef`           |                      | Keyword search attribute with the entity reference of a workflow.                                                                                                                                                                                                                                                                                                                 |
 | `searchAttributes.initiator`           |                      | Keyword search attribute set to the user who started or reran a workflow from Backstage.                                                                                                                                                                                                                                                                                          |
 | `control.enabled`                      | `true`               | Serve the routes that change workflows and show their buttons. When false, those routes do not exist (404) and custom actions are ignored; see [Workflow controls](#workflow-controls).                                                                                                                                                                                           |
@@ -974,8 +976,19 @@ temporal:
 Only templates that start with `https:` are used; with anything else, or
 without the setting, there is no link. The bucket and the key come from the
 workflow history, so they are encoded and a link is made only when the
-result is an `https:` URL. The link opens the page of your own console, and
-the permissions of that console decide who can read the object.
+result is an `https:` URL whose path has no `.` or `..` segment and still
+starts with the path of the template up to the first placeholder. The link
+opens the page of your own console, and the permissions of that console
+decide who can read the object.
+
+With `{bucket}` in the template, whoever writes the history (the workers
+and the clients of the namespace) chooses the bucket of the link. On a
+domain shared by many tenants, such as `{bucket}.s3.amazonaws.com`,
+`s3.amazonaws.com/{bucket}`, `{bucket}.blob.core.windows.net` or
+`storage.googleapis.com/{bucket}`, that bucket can belong to anyone. Write the bucket of your workers into the
+template there (`https://temporal-payloads.s3.amazonaws.com/{key}`), and
+keep `{bucket}` for a console or a domain that only serves your own
+buckets.
 
 To show the bucket in the catalog, create a `Resource` entity for it and
 let the `TemporalWorkflow` entity `dependsOn` it. The plugin does not look
@@ -1227,7 +1240,10 @@ A `TemporalWorkflow` entity can describe the signals, updates and queries of
 its workflow in `spec.messages`. The dialogs then show the description,
 fill the arguments with the example and, for a signal, update or query with
 an `inputSchema` (JSON Schema of its one argument), show a form instead of
-the JSON field (with `@rjsf/core`, as in the Scaffolder). `userField` names a
+the JSON field (with `@rjsf/core`, as in the Scaffolder). An input schema
+whose JSON is larger than 64 KiB (65536 characters) or nested more than 32
+levels deep, a schema that cannot be compiled, or a form that fails while
+it is shown gives the JSON field with a note instead. `userField` names a
 property of the argument that is filled with the signed-in user's entity
 reference and cannot be changed in the form; the workflow should still check
 it, since a request can be sent without the form. Message definitions the entity
@@ -1631,6 +1647,15 @@ warning; it does not fail the lint.
 - **TLS is off by default.** Without `connection.tls: true`, a bearer token
   (`auth.type: bearer`) is sent without TLS, for a Temporal server inside a
   private network. Turn TLS on for any server across an untrusted network.
+- **Content Security Policy.** The form of a message definition with an
+  `inputSchema` validates with `@rjsf/validator-ajv8` (5.24), and ajv 8
+  compiles every schema into a function with `new Function`, so it needs
+  `'unsafe-eval'` in `script-src`. Backstage's default policy has it
+  (`@backstage/backend-defaults` 0.18.1 sets
+  `script-src 'self' 'unsafe-eval'` for the ajv validation of the
+  frontend). With a stricter
+  `backend.csp`, the browser refuses the compile, and the signal, update
+  and query dialogs show the JSON field with a note instead of the form.
 - **Operations are recorded.** Every operation is checked with the
   permission framework and recorded with the auditor, and the Temporal
   history shows the user as the identity. Limit signal and update names
@@ -1693,7 +1718,21 @@ warning; it does not fail the lint.
     (`https://{bucket}.com/...`) lets the workflow history value choose the
     domain. Keep a fixed trusted host or domain suffix (at least two fixed
     domain labels after `{bucket}`/`{key}`) in `objectUrl`; otherwise the
-    frontend warns once in the browser console and produces no link.
+    frontend warns once in the browser console and produces no link. A
+    fixed domain does not fix the bucket: on a domain shared by many
+    tenants (`*.s3.amazonaws.com`, `s3.amazonaws.com/{bucket}`,
+    `*.blob.core.windows.net`, `storage.googleapis.com/{bucket}`) a link
+    with `{bucket}` can point to a bucket of anyone, so write your own
+    bucket into the template there. A bucket or key that is `.` or `..`
+    in a path segment, or a link whose path no longer starts with the
+    template's path up to the first placeholder, gives no link.
+  - **Memo entries shown as stored payloads.** The memo gives JSON entries
+    as they are, so the details page shows an entry as stored in External
+    Storage only when it has exactly the form the backend writes for a
+    reference (`encoding: json/protobuf`, an `s3` store, a lowercase hex
+    SHA-256, a size and no other keys). Whoever writes the memo can still
+    write that form, as a worker can write any reference: the link
+    template above decides where such a link can go.
   - **Scaffolder `temporal:workflow:wait` outputs.** `temporal:workflow:wait`
     writes `searchAttributes` and (when `includeResult: true`) `result` to
     Scaffolder task outputs. While the action reads Temporal as the caller who
