@@ -130,6 +130,49 @@ describe('payloads in External Storage', () => {
       expect(screen.queryByText(/"external"/)).toBeNull();
     });
 
+    it.each([
+      ['another encoding', { encoding: 'json/plain', external }],
+      ['another key', { ...reference, value: 1 }],
+      [
+        'another store',
+        { encoding: 'json/protobuf', external: { ...external, store: 'gcs' } },
+      ],
+      [
+        'another field',
+        {
+          encoding: 'json/protobuf',
+          external: { ...external, url: 'https://x.example.com' },
+        },
+      ],
+      [
+        'a SHA-256 that is not hex',
+        {
+          encoding: 'json/protobuf',
+          external: { ...external, sha256: 'z'.repeat(64) },
+        },
+      ],
+      [
+        'a size that is not a whole number',
+        { encoding: 'json/protobuf', external: { ...external, size: 1.5 } },
+      ],
+      [
+        'an empty bucket',
+        { encoding: 'json/protobuf', external: { ...external, bucket: '' } },
+      ],
+    ])(
+      'shows a JSON entry that looks like a reference with %s as JSON, without a link',
+      async (_, value) => {
+        await render(<MemoView memo={{ report: value } as any} />, {
+          externalStorage: {
+            objectUrl: 'https://console.example.com/s3/{bucket}?prefix={key}',
+          },
+        });
+        expect(screen.queryByTestId('external-payload')).toBeNull();
+        expect(screen.queryByRole('link', { name: 'Open' })).toBeNull();
+        expect(document.querySelector('pre')).toHaveTextContent('"report"');
+      },
+    );
+
     it('shows a memo without references as JSON', async () => {
       await render(<MemoView memo={{ customer: 'acme' }} />);
       expect(screen.getByText('{"customer":"acme"}')).toBeInTheDocument();

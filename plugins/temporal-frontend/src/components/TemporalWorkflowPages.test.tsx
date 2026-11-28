@@ -35,9 +35,13 @@ import {
   workflowEntity,
 } from '../testData';
 
-async function render(entity: Entity, api: ReturnType<typeof mockTemporalApi>) {
+async function render(
+  entity: Entity,
+  api: ReturnType<typeof mockTemporalApi>,
+  webUiBaseUrl = 'http://temporal-ui/',
+) {
   const config = new MockConfigApi({
-    temporal: { webUi: { baseUrl: 'http://temporal-ui/' } },
+    temporal: { webUi: { baseUrl: webUiBaseUrl } },
   });
   return renderInTestApp(
     <TestApiProvider
@@ -139,6 +143,23 @@ describe('TemporalWorkflow entity tab', () => {
     expect(
       screen.queryByTestId('related-workflows-truncated'),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Temporal UI link of a workflow type', () => {
+  it.each([
+    // eslint-disable-next-line no-script-url
+    'javascript:alert(1)',
+    'data:text/html,x',
+    'temporal-ui.example.com',
+  ])('is not shown when temporal.webUi.baseUrl is %j', async baseUrl => {
+    await render(workflowEntity, mockTemporalApi(), baseUrl);
+    expect(
+      await screen.findByRole('heading', { name: 'Workflow type' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /Open in Temporal UI/ }),
+    ).toBeNull();
   });
 });
 

@@ -836,7 +836,13 @@ its own format, to show where a stored payload is (the plugin does not read
 the stored data). When setting `externalStorage.objectUrl`, keep `{bucket}` in
 the path or as a subdomain under a fixed trusted domain rather than using
 `{bucket}` as the entire host, so a workflow history value cannot direct links
-to arbitrary HTTPS hosts.
+to arbitrary HTTPS hosts. On a domain shared by many tenants
+(`*.s3.amazonaws.com`, `*.blob.core.windows.net`, `storage.googleapis.com`),
+write your own bucket into the template instead of `{bucket}`, since any
+tenant's bucket is on that domain. A bucket or key that makes a `.` or `..`
+path segment gives no link. The details page shows a memo entry as a stored
+payload only when it has exactly the form the backend writes for a
+reference.
 
 ## Scaffolder
 

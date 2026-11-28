@@ -59,6 +59,47 @@ describe('externalObjectUrl', () => {
     ).toBeUndefined();
   });
 
+  const pathTemplate = 'https://console.example.com/s3/{bucket}/objects/{key}';
+
+  it.each([
+    ['..', 'k'],
+    ['.', 'k'],
+    ['b', '..'],
+    ['b', '.'],
+  ])(
+    'makes no link when the bucket %j or the key %j is a dot segment of the path',
+    (bucket, key) => {
+      expect(externalObjectUrl(pathTemplate, { bucket, key })).toBeUndefined();
+    },
+  );
+
+  it('makes no link when a value next to a dot in the template makes a dot segment', () => {
+    expect(
+      externalObjectUrl('https://console.example.com/s3/{bucket}./x', {
+        bucket: '.',
+        key: 'k',
+      }),
+    ).toBeUndefined();
+    expect(
+      externalObjectUrl('https://console.example.com/s3/%2e{bucket}/x', {
+        bucket: '.',
+        key: 'k',
+      }),
+    ).toBeUndefined();
+  });
+
+  it('keeps dots that are not a whole path segment, and dots in the query', () => {
+    expect(externalObjectUrl(pathTemplate, { bucket: 'b.c', key: '...' })).toBe(
+      'https://console.example.com/s3/b.c/objects/...',
+    );
+    expect(
+      externalObjectUrl(pathTemplate, { bucket: 'b', key: '../../x' }),
+    ).toBe('https://console.example.com/s3/b/objects/..%2F..%2Fx');
+    expect(externalObjectUrl(template, { bucket: 'b', key: '..' })).toBe(
+      'https://console.example.com/s3/b?prefix=..',
+    );
+  });
+
   it.each([
     undefined,
     '',

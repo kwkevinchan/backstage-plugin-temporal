@@ -14,11 +14,19 @@
  * limitations under the License.
  */
 
-import { useEffect, useId, useMemo, useState } from 'react';
+import {
+  Component,
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useState,
+} from 'react';
 import Form from '@rjsf/core';
 import type { RJSFSchema, UiSchema } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 import type { JsonObject, JsonValue } from '@backstage/types';
+import { Text } from '@backstage/ui';
 import {
   messageDefinitionExampleArgs,
   JsonMessageArgsField,
@@ -30,15 +38,97 @@ function isObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** Largest input schema shown as a form: its JSON, in characters. */
+export const MAX_SCHEMA_CHARS = 64 * 1024;
+/** Deepest input schema shown as a form: objects and arrays inside each other. */
+export const MAX_SCHEMA_DEPTH = 32;
+
+function deeperThan(value: unknown, limit: number): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  if (limit === 0) return true;
+  return Object.values(value).some(v => deeperThan(v, limit - 1));
+}
+
+/**
+ * Why an input schema is not shown as a form, or undefined when it can be.
+ * The schema comes from the catalog, so its size is limited, and it is
+ * compiled once here: a schema that is not valid, or a page whose Content
+ * Security Policy has no `'unsafe-eval'` (ajv compiles schemas with
+ * `new Function`), gives the JSON field instead of an error.
+ */
+function unusableSchema(schema: JsonObject): string | undefined {
+  if (deeperThan(schema, MAX_SCHEMA_DEPTH)) {
+    return `The input schema is nested more than ${MAX_SCHEMA_DEPTH} levels deep.`;
+  }
+  if (JSON.stringify(schema).length > MAX_SCHEMA_CHARS) {
+    return `The input schema is larger than ${MAX_SCHEMA_CHARS} characters.`;
+  }
+  const { validationError } = validator.rawValidation(schema, undefined);
+  return validationError
+    ? 'The input schema could not be compiled.'
+    : undefined;
+}
+
+function FallbackField(props: MessageArgsFieldProps & { reason: string }) {
+  const { reason, ...field } = props;
+  return (
+    <>
+      <Text
+        as="p"
+        variant="body-small"
+        color="secondary"
+        data-testid="message-form-fallback"
+      >
+        {reason} Enter the arguments as JSON.
+      </Text>
+      <JsonMessageArgsField {...field} />
+    </>
+  );
+}
+
+/** Shows `fallback` when the form throws while it renders. */
+class FormBoundary extends Component<
+  { fallback: ReactNode; children: ReactNode },
+  { failed: boolean }
+> {
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  state = { failed: false };
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 /**
  * The arguments field of the signal, update and query dialogs: a form for a
  * message definition with an input schema (from `spec.messages`), the JSON field
- * otherwise. The form gives the message's one argument.
+ * otherwise. The form gives the message's one argument. A schema that is too
+ * large or too deep, cannot be compiled, or makes the form fail gives the
+ * JSON field with a note.
  */
 export function SchemaArgsField(props: MessageArgsFieldProps) {
-  if (!props.messageDefinition?.inputSchema)
-    return <JsonMessageArgsField {...props} />;
-  return <SchemaForm {...props} schema={props.messageDefinition.inputSchema} />;
+  const schema = props.messageDefinition?.inputSchema;
+  const reason = useMemo(
+    () => (schema ? unusableSchema(schema) : undefined),
+    [schema],
+  );
+  if (!schema) return <JsonMessageArgsField {...props} />;
+  if (reason) return <FallbackField {...props} reason={reason} />;
+  return (
+    <FormBoundary
+      fallback={
+        <FallbackField
+          {...props}
+          reason="The form of the input schema could not be shown."
+        />
+      }
+    >
+      <SchemaForm {...props} schema={schema} />
+    </FormBoundary>
+  );
 }
 
 function SchemaForm(props: MessageArgsFieldProps & { schema: JsonObject }) {

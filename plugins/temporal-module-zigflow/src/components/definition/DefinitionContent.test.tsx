@@ -364,6 +364,32 @@ describe('Definition tab', () => {
     );
   });
 
+  it('links the definition file only when its URL is http or https', async () => {
+    const api = mockTemporalApi();
+    api.getEntityDefinition.mockResolvedValue(definition);
+    const linked = await render(yamlEntity, api);
+    await screen.findByTestId('definition-yaml');
+    expect(screen.getByRole('link', { name: './order.yaml' })).toHaveAttribute(
+      'href',
+      'https://git.example.com/org/repo/blob/main/order.yaml',
+    );
+    linked.unmount();
+
+    for (const url of [
+      // eslint-disable-next-line no-script-url
+      'javascript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      '/relative/order.yaml',
+    ]) {
+      api.getEntityDefinition.mockResolvedValue({ ...definition, url });
+      const view = await render(yamlEntity, api);
+      await screen.findByTestId('definition-yaml');
+      expect(screen.queryByRole('link', { name: './order.yaml' })).toBeNull();
+      expect(screen.getByText(/\.\/order\.yaml/)).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
   it('selects a task whose name has a #', async () => {
     const api = mockTemporalApi();
     const text = [

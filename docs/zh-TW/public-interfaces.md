@@ -476,7 +476,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
   **不會**進 log 的：payload、signal／update／query 的參數和結果、token、請求和回應的 body。欄位只放 ID、名稱、狀態碼和耗時。
 
-外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。設定 `externalStorage.objectUrl` 時，請將 `{bucket}` 放在路徑或固定受信任網域的子網域底下，不要把 `{bucket}` 當成整個 host（`https://{bucket}/…`），以免歷史紀錄裡的 bucket 值把連結導向任意 HTTPS 主機；若 `{bucket}` 出現在主機且其後固定網域不足兩段，前端會在瀏覽器 console 記一次警告且不產生連結。
+外掛會在詳情頁顯示流程的 memo。外掛另外會讀 Temporal External Storage 的 reference（SDK 的 S3 driver 用它自己的格式寫的），用來顯示存放的 Payload 在哪裡；外掛不讀存放的資料本身。設定 `externalStorage.objectUrl` 時，請將 `{bucket}` 放在路徑或固定受信任網域的子網域底下，不要把 `{bucket}` 當成整個 host（`https://{bucket}/…`），以免歷史紀錄裡的 bucket 值把連結導向任意 HTTPS 主機；若 `{bucket}` 出現在主機且其後固定網域不足兩段，前端會在瀏覽器 console 記一次警告且不產生連結。在多租戶共用的網域（`*.s3.amazonaws.com`、`*.blob.core.windows.net`、`storage.googleapis.com`）上，任何租戶的 bucket 都在同一個網域，請把自己的 bucket 名稱直接寫進範本，不要用 `{bucket}`。bucket 或 key 會形成 `.` 或 `..` 路徑段時，不產生連結。詳情頁只把形式和後端寫出的 reference 完全相同的 memo 項目顯示成外部儲存的 Payload。
 
 ## Scaffolder
 
