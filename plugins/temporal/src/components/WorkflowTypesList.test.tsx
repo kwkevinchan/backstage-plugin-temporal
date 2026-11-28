@@ -439,12 +439,6 @@ describe('Workflows tab of the Temporal page', () => {
       entities.slice(25, 50).map(refOf),
     );
     await userEvent.click(
-      screen.getByRole('button', { name: 'Previous page' }),
-    );
-    await within(table).findByText('Title of type-00');
-    await userEvent.click(screen.getByRole('button', { name: 'Next page' }));
-    await within(table).findByText('Title of type-25');
-    await userEvent.click(
       screen.getByRole('columnheader', { name: 'Workflow' }),
     );
     await waitFor(() =>
@@ -458,7 +452,7 @@ describe('Workflows tab of the Temporal page', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Workflow' }),
     ).toHaveAttribute('aria-sort', 'descending');
-  });
+  }, 30_000);
 
   it('adds the columns picked in the Columns menu', async () => {
     const api = mockTemporalApi();

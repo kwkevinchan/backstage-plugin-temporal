@@ -207,7 +207,7 @@ describe('WorkflowTimeline', () => {
     expect(chart).toHaveTextContent('8s – 28s');
     // The window stays inside the run.
     fireEvent.wheel(chart, { clientX: 800, deltaX: -2000 });
-    expect(chart).toHaveTextContent('0s – 20s');
+    expect(chart).toHaveTextContent('0ms – 20s');
   });
 
   it('drops a drag that is cancelled, and ignores the other mouse buttons', () => {

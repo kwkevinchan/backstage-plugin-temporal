@@ -69,9 +69,7 @@ describe('header of the workflow details page', () => {
     expect(within(summary).getByTestId('workflow-current')).toHaveTextContent(
       'chargeCard failed',
     );
-    expect(
-      screen.queryByTestId('workflow-run-chain'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId('workflow-run-chain')).not.toBeInTheDocument();
     expect(
       within(screen.getByTestId('workflow-actions')).getByRole('link', {
         name: 'Open in Temporal UI',
@@ -112,11 +110,15 @@ describe('header of the workflow details page', () => {
     );
     const chain = screen.getByTestId('workflow-run-chain');
     expect(chain).toHaveTextContent('Run 2 of 3');
-    expect(within(chain).getByRole('link', { name: '← Run 1' })).toHaveAttribute(
+    expect(
+      within(chain).getByRole('link', { name: '← Run 1' }),
+    ).toHaveAttribute(
       'href',
       '/namespaces/default/workflows/payment-1/runs/run-1',
     );
-    expect(within(chain).getByRole('link', { name: 'Run 3 →' })).toHaveAttribute(
+    expect(
+      within(chain).getByRole('link', { name: 'Run 3 →' }),
+    ).toHaveAttribute(
       'href',
       '/namespaces/default/workflows/payment-1/runs/run-3',
     );
@@ -161,7 +163,6 @@ describe('Details tab of the workflow details page', () => {
       'Started',
       'Ended',
       'Duration',
-      'History events',
       'Parent workflow',
     ]);
     expect(

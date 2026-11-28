@@ -48,13 +48,17 @@ describe('plugin styles', () => {
     const used = new Set<string>();
     const prefixes = new Set<string>();
     for (const source of sources) {
-      for (const [, name, end] of source.matchAll(
-        /['"`](tp-[a-z0-9-]+)(['"`]|\$\{)/g,
+      for (const [, name] of source.matchAll(/['"`](tp-[a-z0-9-]+)['"`]/g)) {
+        used.add(name);
+      }
+      // A name that is put together in a call, as in tp(`tp-tone-${tone}`).
+      for (const [, name] of source.matchAll(
+        /\btp\([^)]*`(tp-[a-z0-9-]+)\$\{/g,
       )) {
-        if (end === '${') prefixes.add(name);
-        else used.add(name);
+        prefixes.add(name);
       }
     }
+    expect(prefixes.size).toBeGreaterThan(0);
     expect(used.size).toBeGreaterThan(100);
     expect([...used].filter(name => !defined.has(name))).toEqual([]);
     // `tp-tone-${tone}` and the like: at least one class with the prefix.
@@ -87,9 +91,7 @@ describe('plugin styles', () => {
 describe('tp', () => {
   it('joins the names, and returns a name that is not a class of the styles as it is', () => {
     expect(tp('tp-node', 'tp-tone-danger')).toBe('tp-node tp-tone-danger');
-    expect(tp('tp-node', 'some-other-class')).toBe(
-      'tp-node some-other-class',
-    );
+    expect(tp('tp-node', 'some-other-class')).toBe('tp-node some-other-class');
     expect(tp()).toBe('');
   });
 });
