@@ -39,11 +39,7 @@ export { AUTO_REFRESH_MS, usePageVisible } from './components/useWorkflowData';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
 export { DefinitionList } from './components/StepDrawer';
-export {
-  isActiveStatus,
-  statusLabel,
-  statusTone,
-} from './components/status';
+export { isActiveStatus, statusLabel, statusTone } from './components/status';
 export { entityContentRouteRef } from './routes';
 export { workflowLink } from './components/WorkflowRunsTable';
 export { graphHeight, layoutSteps } from './components/graph/layout';

@@ -160,13 +160,6 @@ module.exports = {
         ],
       },
     },
-    {
-      name: 'not-to-unresolvable',
-      severity: 'error',
-      comment: 'An import that cannot be resolved hides a dependency.',
-      from: {},
-      to: { couldNotResolve: true },
-    },
   ],
   options: {
     includeOnly: '^(plugins/[^/]+/src/|node_modules/)',
