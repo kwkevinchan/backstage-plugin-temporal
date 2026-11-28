@@ -91,23 +91,23 @@ A request in `temporal-backend` goes down four folders in order
 and the classes are described in
 [CONTRIBUTING.md](../CONTRIBUTING.md#backend-layout); in short:
 
-| Layer           | Responsibility                                                                                                                                                                                                | In clean-architecture terms |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Parse and validate the request, check access (and that a started workflow or a schedule is the entity's), audit the operations, call services.                                                                | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                                                                        | Authorization               |
-| `services/`     | Four query classes (`EntityWorkflowSources`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`) and the conversion from Temporal data to API types.                                               | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (the read calls), `callTemporal` (the deadline and the error mapping of every call), the Temporal error mapping, the schedule client, and the parser of External Storage references. | Gateways                    |
+| Layer           | Responsibility                                                                                                                                                                                                                                                                                                     | In clean-architecture terms |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------- |
+| `routes/`       | Parse and validate the request, check access (and that a started workflow is the entity's), audit the operations, call services.                                                                                                                                                                                   | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups.                                                                                                                                                                                                                                             | Authorization               |
+| `services/`     | The query classes (`EntityWorkflowSources`, `WorkflowHistoryReader`, `WorkflowListQueries`, `WorkflowQueries`, `AiWorkflowQueries`, `CatalogWorkflowQueries`), `WorkflowCommands` (the operations), `ScheduleOwnership` (which schedules a caller may operate) and the conversion from Temporal data to API types. | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (the read calls), `TemporalWriteRepository` (the operations), `TemporalScheduleRepository` (schedules), `callTemporal` (the deadline and the error mapping of every call) and the Temporal error mapping.                                                                                 | Gateways                    |
 
 The model (the API types) is in `src/common`, and the shared client in
 `src/node`. The classes are plain; `plugin.ts` creates and wires them, and
 there is no repository interface and no dependency-injection container inside
 the plugin. The routes that change workflows are their own router
 (`routes/controlRoutes.ts`), mounted by `plugin.ts` unless
-`temporal.control.enabled` is false. Reads go through
-`TemporalReadRepository`. `WorkflowCommands` (the operations) and the
-schedule list in `WorkflowListQueries` call Temporal on the shared
-connection themselves: each of their methods is already one call. All of
-them call through `callTemporal` (see [Deadlines](#deadlines)). The LLM
+`temporal.control.enabled` is false. Every call to Temporal is made by one
+of the three repositories, through `callTemporal` (see
+[Deadlines](#deadlines)); the services are given the repositories. What both
+layers need (payload formats, the deadlines, the fixed error messages) is
+in `lib/`. The LLM
 adapters of the official Temporal AI integrations are in `services/llm/`.
 
 ### Deadlines

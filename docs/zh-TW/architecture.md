@@ -48,14 +48,14 @@
 
 `temporal-backend` 裡的一個請求依序經過四個資料夾（[圖一](how-it-works.md#圖一一個請求經過各層)）。表格和各個類別在 [CONTRIBUTING.md](../../CONTRIBUTING.md#backend-layout) 有說明；簡單說：
 
-| 層              | 職責                                                                                                                                                     | 用 clean architecture 的詞 |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程或排程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                        | Controllers                |
-| `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                                | Authorization              |
-| `services/`     | 四個查詢類別（`EntityWorkflowSources`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`），以及把 Temporal 資料轉成 API 型別的轉換。        | Use cases                  |
-| `repositories/` | `TemporalReadRepository`（讀取的呼叫）、`callTemporal`（每個呼叫的期限和錯誤轉換）、Temporal 錯誤的轉換、排程 client，以及 External Storage 參照的解析。 | Gateways                   |
+| 層              | 職責                                                                                                                                                                                                                                                                        | 用 clean architecture 的詞 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `routes/`       | 解析並驗證請求，檢查權限（以及要啟動的流程是否屬於該實體），記錄操作的稽核，呼叫 services。                                                                                                                                                                                 | Controllers                |
+| `access/`       | `DefaultTemporalAccessService`：權限檢查和 catalog 查詢。                                                                                                                                                                                                                   | Authorization              |
+| `services/`     | 查詢類別（`EntityWorkflowSources`、`WorkflowHistoryReader`、`WorkflowListQueries`、`WorkflowQueries`、`AiWorkflowQueries`、`CatalogWorkflowQueries`）、`WorkflowCommands`（操作）、`ScheduleOwnership`（呼叫者可以操作哪些排程），以及把 Temporal 資料轉成 API 型別的轉換。 | Use cases                  |
+| `repositories/` | `TemporalReadRepository`（讀取的呼叫）、`TemporalWriteRepository`（操作）、`TemporalScheduleRepository`（排程）、`callTemporal`（每個呼叫的期限和錯誤轉換），以及 Temporal 錯誤的轉換。                                                                                     | Gateways                   |
 
-Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上。讀取走 `TemporalReadRepository`。`WorkflowCommands`（操作）和 `WorkflowListQueries` 的排程清單自己用共用連線呼叫 Temporal：它們的每個方法本來就是一次呼叫。這些呼叫都經過 `callTemporal`（見[期限](#期限)）。實驗性的 LLM 紀錄解析放在 `services/llm/`。
+Model（API 型別）在 `src/common`，共用的 client 在 `src/node`。這些類別都是一般的類別；`plugin.ts` 建立並接起它們，外掛內部沒有 repository interface，也沒有依賴注入容器。改動流程的路由是獨立的 router（`routes/controlRoutes.ts`），除非 `temporal.control.enabled` 是 false，否則由 `plugin.ts` 掛上。對 Temporal 的每個呼叫都由這三個 repository 之一發出，並經過 `callTemporal`（見[期限](#期限)）；services 拿到的是建立好的 repository。兩層都要用的東西（payload 格式、期限、固定的錯誤訊息）放在 `lib/`。實驗性的 LLM 紀錄解析放在 `services/llm/`。
 
 ### 期限
 

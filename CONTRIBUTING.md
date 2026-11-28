@@ -81,8 +81,8 @@ its side, and no published package on a private one.
 `.dependency-cruiser.cjs`) checks the layers inside the packages: a module
 imports a core package only through its entry points; in the backend,
 `common/` imports nothing else of the package, `services/` neither
-`repositories/` (with the exceptions the rules name) nor Express, and
-`repositories/` and `lib/` nothing above them; in the frontend, the files
+`repositories/` (only the types of the repositories it is given) nor
+Express, and `repositories/` and `lib/` nothing above them; in the frontend, the files
 without React (the timeline model, the layout and event groups of the
 graph) reach no component and no React package, and of them only
 `graph/frameEdge.ts` imports `@xyflow/react`. Each rule says why in its
@@ -128,39 +128,50 @@ want protobufjs 7).
 `plugins/temporal-backend/src` has four folders a request goes down in
 order, and four for the other parts of the package:
 
-| Folder          | Holds                                                                                                                                     | In clean-architecture terms |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates)               | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups; `WorkflowTypeEntities`: the links to the entity of a workflow type | Authorization               |
-| `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                                           | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping and the schedule client                                             | Gateways                    |
-| `lib/`          | The Temporal payload formats that `services/` and `repositories/` share: JSON payloads and the parser of External Storage references      |                             |
-| `common/`       | The shared definitions (`./common`)                                                                                                       | Model                       |
-| `node/`         | `temporalServiceRef`, the client of the plugin's routes, the extension points and the access service interface (`./node`, `./alpha`)      | Ports for modules           |
-| `catalog/`      | The catalog module with the `TemporalWorkflow` kind and its JSON schema                                                                   |                             |
+| Folder          | Holds                                                                                                                                                               | In clean-architecture terms |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates)                                         | Controllers                 |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups; `WorkflowTypeEntities`: the links to the entity of a workflow type                           | Authorization               |
+| `services/`     | The query classes below, `WorkflowCommands`, `ScheduleOwnership` and the conversions from Temporal data to API types                                                | Use cases                   |
+| `repositories/` | `TemporalReadRepository` (the read calls), `TemporalWriteRepository` (the operations), `TemporalScheduleRepository` (schedules) and the Temporal error mapping      | Gateways                    |
+| `lib/`          | What `services/` and `repositories/` share: JSON payloads, the parser of External Storage references, the deadlines of calls and the fixed messages of their errors |                             |
+| `common/`       | The shared definitions (`./common`)                                                                                                                                 | Model                       |
+| `node/`         | `temporalServiceRef`, the client of the plugin's routes, the extension points and the access service interface (`./node`, `./alpha`)                                | Ports for modules           |
+| `catalog/`      | The catalog module with the `TemporalWorkflow` kind and its JSON schema                                                                                             |                             |
 
 The query classes in `services/` each cover one kind of read:
 
-| Class                   | Holds                                                                                                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `EntityWorkflowSources` | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks                                   |
-| `WorkflowListQueries`   | The workflows of an entity and of a namespace, statistics, the overview of workflow types, schedules and the progress of runs in a list |
-| `WorkflowQueries`       | One workflow: details, membership of an entity, history, steps, graph, run position, queries and message definitions                    |
-| `AiWorkflowQueries`     | The records of a run's model calls                                                                                                      |
+| Class                    | Holds                                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EntityWorkflowSources`  | Entity context, the search filter of an entity's workflows, workflow sources and the namespace checks                                                               |
+| `WorkflowHistoryReader`  | The events of one run, for the classes that build on them                                                                                                           |
+| `WorkflowListQueries`    | The workflows of an entity and of a namespace, statistics, the overview of workflow types, schedules and the progress of runs in a list                             |
+| `WorkflowQueries`        | One workflow: details, membership of an entity, history, graph, result, queries and message definitions                                                             |
+| `AiWorkflowQueries`      | The records of a run's model calls                                                                                                                                  |
+| `CatalogWorkflowQueries` | What joins workflows with catalog entities: the entity links of a run, the message definitions of its entity, the overview of entities, the runs of one workflow ID |
 
-`EntityWorkflowSources` is used by the other three, and `WorkflowQueries` by
-`WorkflowListQueries` and `AiWorkflowQueries`; none of them depends on a
-class that uses it. The access service uses `EntityWorkflowSources` and
-`WorkflowQueries`; the router uses all four. The LLM adapters (model calls and tool calls) and their views are in
+`EntityWorkflowSources` is used by the others, and `WorkflowHistoryReader` by
+`WorkflowQueries`, `WorkflowListQueries` and `AiWorkflowQueries`;
+`CatalogWorkflowQueries` uses `WorkflowQueries` and `WorkflowListQueries`.
+None of them depends on a class that uses it. The access service uses
+`EntityWorkflowSources` and `WorkflowQueries`; `CatalogWorkflowQueries` and
+`ScheduleOwnership` (which schedules a caller may operate) are the two
+classes that call the access service, and the router uses all of them. The
+LLM adapters (model calls and tool calls) and their views are in
 `services/llm/` (backend) and `components/llm/` (frontend).
+
+The graph of a run is built in three files of `services/`: `graphSteps.ts`
+groups the events into steps, `graphProgress.ts` reads where the run is
+(the counts and the current step) and `graph.ts` adds the arrows, the event
+groups and the model calls. The progress of a run in a list reads the first
+two only (`buildWorkflowProgress`), without payloads.
 
 The classes are plain; there are no repository interfaces or DI container
 inside the plugin. `plugin.ts` creates them and wires them together, and
 mounts the routes that change workflows (`createControlRouter`) unless
-`temporal.control.enabled` is false. Reads go through
-`TemporalReadRepository`. `WorkflowCommands` (the operations) and the
-schedule list in `WorkflowListQueries` call Temporal on the shared
-connection themselves: each of their methods is already one call.
+`temporal.control.enabled` is false. Every call to Temporal is made in
+`repositories/`: `services/` are given the repositories and import only
+their types.
 
 The one interface is `TemporalAccessService` in `src/node/alpha.ts`: the
 contract between the plugin and its modules (`temporalAccessServiceRef`).
