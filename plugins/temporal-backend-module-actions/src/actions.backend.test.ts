@@ -191,7 +191,6 @@ describe('temporalActionsModule against the Temporal backend', () => {
           ) => fn(),
         } as any),
       getDefaultNamespace: () => 'default',
-      getAllowedNamespaces: () => ['default'],
       isNamespaceAllowed: ns => ns === 'default',
       getSearchAttributeNames: () => ({}),
       getWebUiUrl: () => undefined,

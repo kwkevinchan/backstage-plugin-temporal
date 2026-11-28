@@ -401,12 +401,10 @@ export function toWorkflowDetail(
     ? dropUndefined({
         workflowId: info.parentExecution.workflowId as string,
         runId: (info.parentExecution.runId as string) || undefined,
-        namespace: (info.parentNamespaceId as string) || undefined,
       })
     : undefined;
   return dropUndefined({
     ...summary,
-    executionTime: toIsoTime(info.executionTime),
     parent,
     searchAttributes: withOwnAttributesFirst(
       decodeSearchAttributes(info.searchAttributes),

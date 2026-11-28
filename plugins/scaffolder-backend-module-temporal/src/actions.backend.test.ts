@@ -113,7 +113,6 @@ describe('temporal:workflow:wait against the backend', () => {
           ) => fn(),
         } as any),
       getDefaultNamespace: () => 'default',
-      getAllowedNamespaces: () => ['default'],
       isNamespaceAllowed: ns => ns === 'default',
       getSearchAttributeNames: () => ({}),
       getWebUiUrl: () => undefined,

@@ -20,14 +20,10 @@ import {
   isValidNamespaceName,
   isValidTaskQueueName,
   isValidWorkflowTypeName,
-  NAME_PATTERN_SOURCES,
   parseTemporalAnnotations,
   TemporalAnnotations,
 } from './annotations';
-import {
-  temporalWorkflowMessageSchema,
-  TemporalWorkflowMessagesSpec,
-} from './messages';
+import { TemporalWorkflowMessagesSpec } from './messages';
 
 /**
  * API version of the `TemporalWorkflow` kind.
@@ -89,134 +85,6 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
     };
   };
 }
-
-/**
- * JSON schema of the `TemporalWorkflow` kind, for
- * `entityKindSchemaValidator` from `@backstage/catalog-model`. Name patterns
- * are the same as for the Temporal annotations.
- *
- * @public
- */
-export const temporalWorkflowEntityV1alpha1Schema = {
-  $schema: 'http://json-schema.org/draft-07/schema',
-  $id: 'TemporalWorkflowV1alpha1',
-  description:
-    'A TemporalWorkflow describes one Temporal workflow type: what runs it and who owns it.',
-  examples: [
-    {
-      apiVersion: TEMPORAL_WORKFLOW_API_VERSION,
-      kind: TEMPORAL_WORKFLOW_KIND,
-      metadata: { name: 'order-workflow' },
-      spec: {
-        owner: 'group:default/orders-team',
-        workflowType: 'orderWorkflow',
-        taskQueue: 'orders',
-        system: 'shop',
-      },
-    },
-  ],
-  allOf: [
-    { $ref: 'Entity' },
-    {
-      type: 'object',
-      required: ['spec'],
-      properties: {
-        apiVersion: { enum: [TEMPORAL_WORKFLOW_API_VERSION] },
-        kind: { enum: [TEMPORAL_WORKFLOW_KIND] },
-        spec: {
-          type: 'object',
-          required: ['owner', 'workflowType'],
-          additionalProperties: false,
-          properties: {
-            owner: {
-              type: 'string',
-              description: 'An entity reference to the owner.',
-              minLength: 1,
-            },
-            workflowType: {
-              type: 'string',
-              description: 'The Temporal workflow type name.',
-              pattern: NAME_PATTERN_SOURCES.workflowType,
-            },
-            taskQueue: {
-              type: 'string',
-              description: 'The task queue the workflow runs on.',
-              pattern: NAME_PATTERN_SOURCES.taskQueue,
-            },
-            namespace: {
-              type: 'string',
-              description:
-                'The Temporal namespace. Defaults to the configured default namespace.',
-              pattern: NAME_PATTERN_SOURCES.namespace,
-            },
-            system: {
-              type: 'string',
-              description:
-                'An entity reference to the system the workflow belongs to.',
-              minLength: 1,
-            },
-            lifecycle: {
-              type: 'string',
-              description: 'The lifecycle state of the workflow.',
-              minLength: 1,
-            },
-            dependsOn: {
-              type: 'array',
-              description:
-                'Entity references of what the workflow needs, like resources.',
-              items: { type: 'string', minLength: 1 },
-            },
-            exampleInput: {
-              description:
-                'Example arguments for the Start workflow dialog: an array of arguments, or one value for a workflow with one argument.',
-            },
-            messages: {
-              type: 'object',
-              description:
-                'The signals, updates and queries of the workflow, for the forms of the operation dialogs.',
-              additionalProperties: false,
-              properties: {
-                signals: {
-                  type: 'array',
-                  items: temporalWorkflowMessageSchema,
-                },
-                updates: {
-                  type: 'array',
-                  items: temporalWorkflowMessageSchema,
-                },
-                queries: {
-                  type: 'array',
-                  items: temporalWorkflowMessageSchema,
-                },
-              },
-            },
-            definition: {
-              type: 'object',
-              description: 'The file of the workflow: a workflow DSL file.',
-              required: ['format', 'target'],
-              additionalProperties: false,
-              properties: {
-                format: {
-                  type: 'string',
-                  enum: ['serverless-workflow'],
-                  description:
-                    'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow).',
-                },
-                target: {
-                  type: 'string',
-                  minLength: 1,
-                  maxLength: 2048,
-                  description:
-                    'Path relative to the file of the entity, or an absolute URL.',
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  ],
-} as const;
 
 /**
  * True for entities of the `TemporalWorkflow` kind (any case).

@@ -22,8 +22,8 @@ import {
   isTemporalAvailable,
   isTemporalWorkflowEntity,
   parseTemporalWorkflowSpec,
-  temporalWorkflowEntityV1alpha1Schema,
 } from './index';
+import { temporalWorkflowEntityV1alpha1Schema } from '../catalog/temporalWorkflowEntitySchema';
 
 const validate = entityKindSchemaValidator(
   temporalWorkflowEntityV1alpha1Schema,

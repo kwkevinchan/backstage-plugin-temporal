@@ -149,8 +149,7 @@ export interface PendingActivity {
  * @public
  */
 export interface WorkflowDetail extends WorkflowSummary {
-  executionTime?: string;
-  parent?: { workflowId: string; runId?: string; namespace?: string };
+  parent?: { workflowId: string; runId?: string };
   searchAttributes?: JsonObject;
   memo?: JsonObject;
   /** Failure of a closed execution (failed, timed out, terminated). */

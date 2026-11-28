@@ -125,7 +125,6 @@ async function startPlugin(): Promise<{ backend: Server }> {
     getClient: async () => ({ workflow: { getHandle: jest.fn() } } as any),
     getConnection: async () => createFakeConnection(workflowService) as any,
     getDefaultNamespace: () => 'default',
-    getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
     getSearchAttributeNames: () => ({
       entityRef: 'BackstageEntityRef',

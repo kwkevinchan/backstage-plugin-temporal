@@ -125,7 +125,6 @@ export function toTemporalSchedule(
       .reverse()
       .slice(0, MAX_RECENT_ACTIONS)
       .map(a => ({
-        scheduledAt: iso(a.scheduledAt) ?? '',
         takenAt: iso(a.takenAt) ?? '',
         workflowId: a.action.workflow.workflowId,
         runId: a.action.workflow.firstExecutionRunId,

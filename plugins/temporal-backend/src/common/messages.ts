@@ -60,35 +60,6 @@ export type TemporalWorkflowMessagesSpec = {
   queries?: TemporalWorkflowMessageSpec[];
 };
 
-/**
- * JSON schema of one entry of `spec.messages`, part of the kind schema.
- *
- * @public
- */
-export const temporalWorkflowMessageSchema = {
-  type: 'object',
-  required: ['name'],
-  additionalProperties: false,
-  properties: {
-    name: { type: 'string', minLength: 1, maxLength: 200 },
-    description: { type: 'string' },
-    inputSchema: {
-      type: 'object',
-      description: 'JSON Schema of the one argument this message takes.',
-    },
-    example: {
-      description:
-        'Example arguments: an array of arguments, or one value for a message with one argument.',
-    },
-    userField: {
-      type: 'string',
-      pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$',
-      description:
-        "A property of the argument filled with the signed-in user's entity reference.",
-    },
-  },
-} as const;
-
 const KINDS = ['signals', 'updates', 'queries'] as const;
 
 function isObject(value: unknown): value is Record<string, unknown> {

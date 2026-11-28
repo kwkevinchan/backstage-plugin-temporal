@@ -33,13 +33,11 @@ describe('schedules', () => {
       nextActionTimes: ['2026-01-03T02:00:00.000Z'],
       recentActions: [
         {
-          scheduledAt: '2026-01-02T02:00:00.000Z',
           takenAt: '2026-01-02T02:00:01.000Z',
           workflowId: 'nightly-2',
           runId: 'run-2',
         },
         {
-          scheduledAt: '2026-01-01T02:00:00.000Z',
           takenAt: '2026-01-01T02:00:01.000Z',
           workflowId: 'nightly-1',
           runId: 'run-1',

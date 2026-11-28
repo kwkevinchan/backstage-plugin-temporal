@@ -482,9 +482,6 @@ components:
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
-        executionTime:
-          type: string
-          description: ISO 8601 timestamp.
         parent:
           type: object
           required:
@@ -493,8 +490,6 @@ components:
             workflowId:
               type: string
             runId:
-              type: string
-            namespace:
               type: string
           additionalProperties: false
         searchAttributes:
@@ -1132,14 +1127,10 @@ components:
     TemporalScheduleAction:
       type: object
       required:
-        - scheduledAt
         - takenAt
         - workflowId
         - runId
       properties:
-        scheduledAt:
-          type: string
-          description: ISO 8601 timestamp.
         takenAt:
           type: string
           description: ISO 8601 timestamp.

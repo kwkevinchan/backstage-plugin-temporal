@@ -182,7 +182,6 @@ async function start(setup: Setup) {
     getClient: async () => ({} as any),
     getConnection: async () => connection as any,
     getDefaultNamespace: () => 'default',
-    getAllowedNamespaces: () => ['default', 'other'],
     isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
     getSearchAttributeNames: () => ({ entityRef: 'BackstageEntityRef' }),
     getWebUiUrl: () => undefined,

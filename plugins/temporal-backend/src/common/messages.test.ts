@@ -20,7 +20,7 @@ import {
   getTemporalWorkflowMessages,
   mergeWorkflowMessageDefinitions,
 } from './messages';
-import { temporalWorkflowEntityV1alpha1Schema } from './workflowEntity';
+import { temporalWorkflowEntityV1alpha1Schema } from '../catalog/temporalWorkflowEntitySchema';
 
 const validate = entityKindSchemaValidator(
   temporalWorkflowEntityV1alpha1Schema,

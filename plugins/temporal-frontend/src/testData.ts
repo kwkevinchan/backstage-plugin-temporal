@@ -549,7 +549,6 @@ export const nightlySchedule: TemporalSchedule = {
   nextActionTimes: ['2026-01-02T02:00:00.000Z'],
   recentActions: [
     {
-      scheduledAt: '2026-01-01T02:00:00.000Z',
       takenAt: '2026-01-01T02:00:01.000Z',
       workflowId: 'nightly-orders-2026-01-01T02:00:00Z',
       runId: 'run-n1',

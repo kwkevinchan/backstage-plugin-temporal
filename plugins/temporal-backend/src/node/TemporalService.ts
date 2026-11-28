@@ -51,7 +51,6 @@ export interface TemporalService {
   /** Returns the shared connection. */
   getConnection(): Promise<Connection>;
   getDefaultNamespace(): string;
-  getAllowedNamespaces(): string[];
   isNamespaceAllowed(namespace: string): boolean;
   getSearchAttributeNames(): TemporalSearchAttributeNames;
   /** Link to the execution in the Temporal Web UI, if `temporal.webUi` is set. */
@@ -229,10 +228,6 @@ export class DefaultTemporalService implements TemporalService {
 
   getDefaultNamespace(): string {
     return this.#options.defaultNamespace;
-  }
-
-  getAllowedNamespaces(): string[] {
-    return [...this.#options.namespaces];
   }
 
   isNamespaceAllowed(namespace: string): boolean {

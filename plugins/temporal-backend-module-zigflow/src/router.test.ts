@@ -58,7 +58,6 @@ const fakeTemporalService = createServiceFactory({
         throw new Error('not used');
       },
       getDefaultNamespace: () => 'default',
-      getAllowedNamespaces: () => ['default'],
       isNamespaceAllowed: (ns: string) => ns === 'default',
       getSearchAttributeNames: () => ({
         entityRef: 'BackstageEntityRef',
