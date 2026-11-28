@@ -30,7 +30,11 @@ import { registerTemporalActions } from './actions';
  * `temporal:update-workflow` in the actions registry. They call the Temporal
  * backend plugin as the user who invokes the action, so its permission
  * checks and audit records apply; the actions that change workflows need
- * its operations (`temporal.control.enabled`, on by default).
+ * its operations (`temporal.control.enabled`, on by default). A service
+ * principal is not a user: the Temporal backend does not apply permission
+ * policies to it, and it can invoke the actions that change workflows only
+ * with `temporal.actions.allowServiceWrites`. It is then recorded as
+ * `plugin:temporal`.
  *
  * @public
  */

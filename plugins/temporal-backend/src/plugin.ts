@@ -56,7 +56,8 @@ const RESOURCE_CONCURRENCY = 8;
  * workflows and, unless `temporal.control.enabled` is false, the routes that
  * change them (start, signal, update, cancel, terminate, rerun, custom
  * actions and schedule operations). Every route is checked with the
- * permission framework; the operations are recorded with the auditor.
+ * permission framework, except `GET /openapi.json`, which needs a signed-in
+ * caller only; the operations are recorded with the auditor.
  *
  * @public
  */

@@ -1,7 +1,7 @@
 # @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow
 
 Unofficial module of the Backstage Temporal backend plugin
-([`@kwkevinchan/backstage-plugin-temporal-backend`](../temporal-backend/README.md))
+([`@kwkevinchan/backstage-plugin-temporal-backend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend/README.md))
 for workflows written in the Serverless Workflow DSL and run by
 [Zigflow](https://github.com/zigflow/zigflow).
 
@@ -9,7 +9,7 @@ for workflows written in the Serverless Workflow DSL and run by
 
 Serves the definition file of a `TemporalWorkflow` entity
 (`spec.definition`) for the **Definition** tab of
-[`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](../temporal-module-zigflow/README.md):
+[`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-module-zigflow/README.md):
 `GET /api/temporal/entities/:kind/:namespace/:name/definition`, with the
 `temporal.workflow.read` permission on the entity. The file is read with the
 URL reader of the configured integrations and parsed as plain YAML, with the
@@ -35,7 +35,7 @@ workflow definitions.
 
 The entity, the reading rules and the configuration
 (`temporal.definitions`) are described in the
-[README of the frontend package](../temporal-module-zigflow/README.md). On any
+[README of the frontend package](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-module-zigflow/README.md). On any
 host backed by a Backstage integration, `temporal.definitions.allow` entries
 must specify `paths` so reading is limited to intended repositories, noting that
 the route reads only `.yaml` and `.yml` files and returns their text only when they are
@@ -43,4 +43,4 @@ valid definitions (a file with a parse error is answered without its content),
 `file:` targets must be
 regular files in the folder of the entity file after symlinks are resolved,
 and HTTP redirects follow Backstage's
-`UrlReader` rules (see the [Security section](../../README.md#security)).
+`UrlReader` rules (see the [Security section](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md#security)).

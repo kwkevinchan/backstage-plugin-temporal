@@ -31,7 +31,7 @@
   that the backend does not serve the Temporal plugin and name that package.
 
   - An entity tab with the workflows of an entity (annotations, the
-    `TemporalWorkflow` kind and `spec.dependsOn`), a Workflows page
+    `TemporalWorkflow` kind and `spec.dependsOn`), a Temporal page
     (`/temporal`), and cards for `TemporalWorkflow` entities: summary and
     related workflows. The tab of a `TemporalWorkflow` entity shows the
     recent run statistics.
@@ -57,7 +57,7 @@
     workflow defines and the description and example from `spec.messages`.
     A query with an `inputSchema` there gets the same form as a signal or an
     update, any other query a JSON field.
-  - Schedules: a card on the Workflows page and on the Temporal tab of an
+  - Schedules: a card on the Executions tab of the Temporal page and on the Temporal tab of an
     entity, with when they run, their next and last runs and whether they are
     paused.
   - Workflow lists keep their filters, page and page size in the URL. The

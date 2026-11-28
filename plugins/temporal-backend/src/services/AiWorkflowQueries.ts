@@ -121,7 +121,6 @@ export class AiWorkflowQueries {
       ref,
       MAX_STEP_EVENTS,
     );
-    // The result and the failures of the step.
     let result: unknown;
     const failures: unknown[] = [];
     for (const event of events as any[]) {

@@ -1,6 +1,6 @@
 # @kwkevinchan/backstage-plugin-temporal-backend-module-actions
 
-Actions of the unofficial [Backstage Temporal plugin](../../README.md) for the
+Actions of the unofficial [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md) for the
 Backstage [actions registry](https://backstage.io/docs/backend-system/core-services/actions-registry).
 An AI assistant, an MCP client or another agent can list and read workflows,
 start them, and send them signals and updates, as the caller: a signed-in
@@ -14,7 +14,7 @@ ask a person.
 ## Install
 
 Install the module in the same backend as the Temporal backend plugin
-([`@kwkevinchan/backstage-plugin-temporal-backend`](../temporal-backend)). Its
+([`@kwkevinchan/backstage-plugin-temporal-backend`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-backend)). Its
 plugin ID is `temporal`, so it starts only in the backend that runs that
 plugin.
 

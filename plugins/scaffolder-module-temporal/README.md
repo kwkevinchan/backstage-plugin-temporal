@@ -1,9 +1,9 @@
 # @kwkevinchan/backstage-plugin-scaffolder-module-temporal
 
-Scaffolder form field of the unofficial [Backstage Temporal plugin](../../README.md):
+Scaffolder form field of the unofficial [Backstage Temporal plugin](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md):
 `TemporalWorkflowPicker` lists workflows to choose from, for the template
 actions of
-[`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](../scaffolder-backend-module-temporal).
+[`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/scaffolder-backend-module-temporal).
 The workflows are listed with the permissions of the user filling in the
 form. Needs the Temporal frontend plugin (its `temporalApiRef`).
 

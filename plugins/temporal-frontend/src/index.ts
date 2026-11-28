@@ -17,7 +17,8 @@
 /**
  * Unofficial Backstage frontend plugin for Temporal workflows (legacy
  * frontend system). The new frontend system uses the `./alpha` entry point,
- * which also has the blueprints for workflow actions and sections.
+ * which also has the blueprints for workflow actions, list actions, schedule
+ * actions, sections and buttons of custom backend actions.
  *
  * The package also exports the frontend extension points (the API ref, the
  * workflow hook with its provider for tests, and the props of actions, list actions and sections) and

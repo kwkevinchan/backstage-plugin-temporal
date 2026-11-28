@@ -51,7 +51,6 @@ type Zod = Parameters<
   ActionsRegistryActionOptions<any, any>['schema']['input']
 >[0];
 
-/** What the actions need. */
 export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   client: TemporalPluginClient;
   auth: AuthService;

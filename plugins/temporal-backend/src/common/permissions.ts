@@ -122,7 +122,8 @@ function controlPermission(
 /**
  * Start a workflow of an entity, or from the Temporal page. Checked on the
  * entity; from the Temporal page, without an entity, only a policy that
- * allows it for every entity lets it through.
+ * allows it for every entity lets it through, and the caller also needs
+ * {@link temporalWorkflowListPermission}, which is checked first.
  *
  * @public
  */
