@@ -1209,7 +1209,8 @@ describe('planGroups', () => {
 describe('boxes of a frame in one row', () => {
   const middle = (layout: StepGraphLayout, id: string) =>
     layout.positions.get(id)!.y + boxSize(layout, id).height / 2;
-  const height = (layout: StepGraphLayout, id: string) => boxSize(layout, id).height;
+  const height = (layout: StepGraphLayout, id: string) =>
+    boxSize(layout, id).height;
   const rounds = [1, 2, 3].map(i =>
     groupNodeId(`label:loop:draft-review:${i}`),
   );

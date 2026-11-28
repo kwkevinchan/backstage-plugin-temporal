@@ -429,7 +429,10 @@ function withFrames(
 ): StepGraphLayout {
   const { nodes, frames, sizeOf } = graph;
   const sizes = new Map(graph.sizes);
-  const layout: StepGraphLayout = { ...graph.layout, positions: new Map(positions) };
+  const layout: StepGraphLayout = {
+    ...graph.layout,
+    positions: new Map(positions),
+  };
   layout.width += spreadFrameColumns(layout.positions, nodes, frames, sizeOf);
   placeFrames(layout, nodes, frames, sizes);
   if (sizes.size > 0) layout.sizes = sizes;
@@ -1233,7 +1236,11 @@ export function wrapColumns(
  * frame with the boxes in its width) of each box, and the row and left of
  * each piece.
  */
-function planRows(layout: StepGraphLayout, width: number, outerFrames: string[]) {
+function planRows(
+  layout: StepGraphLayout,
+  width: number,
+  outerFrames: string[],
+) {
   const framed = outerFrames.length > 0;
   const side = framed ? MARGIN + FRAME_GAP : MARGIN;
   const rowGap = framed ? FRAME_WRAP_GAP : WRAP_GAP;

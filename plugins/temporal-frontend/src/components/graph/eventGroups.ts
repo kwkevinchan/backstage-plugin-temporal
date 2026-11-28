@@ -778,7 +778,10 @@ function overlaps(a: Rect, b: Rect): boolean {
  * next to it. dagre keeps the steps of a frame together, so this is rare;
  * the graph is then laid out again with these groups as labels.
  */
-function coveringFrames(layout: StepGraphLayout, graph: GroupedGraph): string[] {
+function coveringFrames(
+  layout: StepGraphLayout,
+  graph: GroupedGraph,
+): string[] {
   const parentOf = new Map<string, string | undefined>();
   for (const f of graph.frames) parentOf.set(f.id, f.parent);
   for (const n of graph.nodes) parentOf.set(n.id, n.parent);

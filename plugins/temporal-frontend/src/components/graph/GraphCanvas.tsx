@@ -193,10 +193,7 @@ export interface StepGraphCanvasProps<N extends Node>
 export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   // A layout of `layoutSteps` has the fields of the arrows too.
   return (
-    <StepGraphCanvas<N>
-      {...props}
-      layout={props.layout as StepGraphLayout}
-    />
+    <StepGraphCanvas<N> {...props} layout={props.layout as StepGraphLayout} />
   );
 }
 
