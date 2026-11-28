@@ -42,12 +42,3 @@ export function endpointKindTint(
   if (box) return groupKindTint(box.group.kind);
   return undefined;
 }
-
-/** Kind tint that colors an edge: the kind of the step or group it leads to. */
-export function edgeKindTint(
-  target: string,
-  nodes: ReadonlyArray<{ id: string; kind: WorkflowNodeKind }>,
-  boxes?: ReadonlyMap<string, { group: { kind: WorkflowEventGroupKind } }>,
-): string | undefined {
-  return endpointKindTint(target, nodes, boxes);
-}

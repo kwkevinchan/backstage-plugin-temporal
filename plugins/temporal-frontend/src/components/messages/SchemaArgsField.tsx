@@ -31,7 +31,7 @@ import {
   messageDefinitionExampleArgs,
   JsonMessageArgsField,
   type MessageArgsFieldProps,
-} from './MessageDialog';
+} from './shared';
 import { tp } from '../styles';
 
 function isObject(value: unknown): value is JsonObject {

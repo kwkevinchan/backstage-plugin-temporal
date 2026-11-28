@@ -85,11 +85,11 @@ import { Pager, workflowLink } from './WorkflowRunsTable';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /** Rows on one page of the Workflows tab. */
-export const WORKFLOW_TYPES_PAGE_SIZE = 25;
+const WORKFLOW_TYPES_PAGE_SIZE = 25;
 /** Numbers older than this are read again when their row comes back. */
 const NUMBERS_MAX_AGE_MS = 60_000;
 
-export const COUNTS_HELP =
+const COUNTS_HELP =
   'Running now / completed in the last 7 days / failed, timed out or terminated in the last 7 days. ' +
   "Approximate: Temporal's visibility store is eventually consistent, and the numbers are up to a minute old.";
 

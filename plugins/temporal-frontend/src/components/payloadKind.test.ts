@@ -18,13 +18,13 @@ import { undecodableInfo } from './payloadKind';
 
 describe('undecodableInfo', () => {
   it('tells the five kinds apart', () => {
-    expect(undecodableInfo('binary/encrypted').kind).toBe('encrypted');
-    expect(undecodableInfo('binary/plain').kind).toBe('binary');
-    expect(undecodableInfo('binary/protobuf').kind).toBe('protobuf');
-    expect(undecodableInfo('json/plain').kind).toBe('invalidJson');
-    expect(undecodableInfo('json/protobuf').kind).toBe('invalidJson');
-    expect(undecodableInfo('binary/custom').kind).toBe('custom');
-    expect(undecodableInfo('').kind).toBe('custom');
+    expect(undecodableInfo('binary/encrypted').label).toBe('Encrypted');
+    expect(undecodableInfo('binary/plain').label).toBe('Binary data');
+    expect(undecodableInfo('binary/protobuf').label).toBe('Protobuf binary');
+    expect(undecodableInfo('json/plain').label).toBe('Invalid JSON');
+    expect(undecodableInfo('json/protobuf').label).toBe('Invalid JSON');
+    expect(undecodableInfo('binary/custom').label).toBe('Custom encoding');
+    expect(undecodableInfo('').label).toBe('Custom encoding');
   });
 
   it('names the key ID and the message type when metadata has them', () => {

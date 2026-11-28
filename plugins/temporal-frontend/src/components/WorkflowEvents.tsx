@@ -32,19 +32,18 @@ import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 import { tp } from './styles';
 
 /** History events grouped by step, in event order. */
-export function GroupedEvents(props: {
+function GroupedEvents(props: {
   steps: WorkflowGraphNode[];
   showInternal: boolean;
-  /** Shows markers (side effects, version and patch markers); default on. */
-  showMarkers?: boolean;
+  /** Shows markers (side effects, version and patch markers). */
+  showMarkers: boolean;
   onSelect(id: string): void;
 }) {
-  const showMarkers = props.showMarkers ?? true;
   const steps = props.steps.filter(
     s =>
       s.events.length > 0 &&
       (props.showInternal || !s.internal) &&
-      (showMarkers || !isMarkerStep(s)),
+      (props.showMarkers || !isMarkerStep(s)),
   );
   return (
     <div role="list" aria-label="Grouped events" data-testid="grouped-events">

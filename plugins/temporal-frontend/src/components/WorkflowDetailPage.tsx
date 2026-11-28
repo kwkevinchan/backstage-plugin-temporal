@@ -22,6 +22,7 @@ import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
 import useAsync from 'react-use/esm/useAsync';
 import type {
   WorkflowDetail,
+  WorkflowGraphNode,
   WorkflowGraphResponse,
   WorkflowRef,
   WorkflowRunRef,
@@ -347,7 +348,7 @@ function currentLabel(workflow: WorkflowDetail) {
 function GraphCard(props: {
   graph?: WorkflowGraphResponse;
   graphError?: Error;
-  selectedId?: string;
+  selected?: WorkflowGraphNode;
   /** Shows the step drawer next to the graph. */
   showDrawer: boolean;
   onSelect(id: string | undefined): void;
@@ -363,8 +364,7 @@ function GraphCard(props: {
   focusGroup?: { key: string };
   onGroupDisplay(display: GroupDisplay): void;
 }) {
-  const { graph, graphError, selectedId, onSelect } = props;
-  const selected = graph?.nodes.find(n => n.id === selectedId);
+  const { graph, graphError, selected, onSelect } = props;
   const showDrawer = Boolean(selected) && props.showDrawer;
   const fullscreen = useGraphFullscreenState();
   return (
@@ -418,7 +418,7 @@ function GraphCard(props: {
             >
               <WorkflowGraph
                 graph={graph}
-                selectedId={selectedId}
+                selectedId={selected?.id}
                 onSelect={onSelect}
                 showMarkers={props.showMarkers}
                 onShowMarkersChange={props.onShowMarkersChange}
@@ -456,15 +456,15 @@ function TimelineTab(props: {
   workflow: WorkflowDetail;
   showMarkers: boolean;
   live: boolean;
-  selectedId?: string;
+  selected?: WorkflowGraphNode;
   showDrawer: boolean;
   onSelect(id: string | undefined): void;
   onSelectStep(id: string): void;
+  workflowRef: WorkflowRunRef;
   workflowHref(ref: WorkflowRef): string;
   entityRef?: string;
 }) {
-  const { graph, selectedId, onSelect } = props;
-  const selected = graph.nodes.find(n => n.id === selectedId);
+  const { graph, selected, onSelect } = props;
   const showDrawer = Boolean(selected) && props.showDrawer;
   return (
     <div className={tp('tp-graph-layout')}>
@@ -480,7 +480,7 @@ function TimelineTab(props: {
           graph={graph}
           workflow={props.workflow}
           showMarkers={props.showMarkers}
-          selectedId={selectedId}
+          selectedId={selected?.id}
           onSelect={onSelect}
           live={props.live}
         />
@@ -491,11 +491,7 @@ function TimelineTab(props: {
           workflowHref={props.workflowHref}
           onClose={() => onSelect(undefined)}
           nodes={graph.nodes}
-          workflowRef={{
-            namespace: props.workflow.namespace,
-            workflowId: props.workflow.workflowId,
-            runId: props.workflow.runId,
-          }}
+          workflowRef={props.workflowRef}
           entityRef={props.entityRef}
           onSelectStep={props.onSelectStep}
         />
@@ -599,7 +595,6 @@ export function WorkflowDetailPage(
     [ephemeralStep, runKey, nodes],
   );
   const selectedNode = ephemeralNode ?? urlSelectedNode;
-  const selectedId = selectedNode?.id;
   // A step picked outside the graph: its groups are expanded.
   const openGroupsOf = useCallback(
     (id: string) => {
@@ -977,7 +972,7 @@ export function WorkflowDetailPage(
           <GraphCard
             graph={graph}
             graphError={data.graphError}
-            selectedId={showGraphDrawer ? selectedId : undefined}
+            selected={showGraphDrawer ? selectedNode : undefined}
             showDrawer={showGraphDrawer}
             onSelect={selectFromGraph}
             onSelectStep={selectInGraph}
@@ -1027,10 +1022,11 @@ export function WorkflowDetailPage(
                     workflow={workflow}
                     showMarkers={showMarkers}
                     live={running && autoRefresh}
-                    selectedId={showTimelineDrawer ? selectedId : undefined}
+                    selected={showTimelineDrawer ? selectedNode : undefined}
                     showDrawer={showTimelineDrawer}
                     onSelect={selectFromTimeline}
                     onSelectStep={selectFromTimeline}
+                    workflowRef={historyRef}
                     workflowHref={workflowHref}
                     entityRef={entityRef}
                   />

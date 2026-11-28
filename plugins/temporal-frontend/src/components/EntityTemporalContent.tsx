@@ -80,10 +80,7 @@ function TemporalOverview(props: {
           <TemporalWorkflowStatsCard />
         </Grid.Item>
         <Grid.Item colSpan={{ initial: '1', md: '2' }}>
-          <WorkflowList
-            title="Workflow executions"
-            listActions={props.listActions}
-          />
+          <WorkflowList listActions={props.listActions} />
         </Grid.Item>
         <Grid.Item colSpan={{ initial: '1', md: '2' }}>{schedules}</Grid.Item>
       </Grid.Root>

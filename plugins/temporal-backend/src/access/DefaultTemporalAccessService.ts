@@ -164,7 +164,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
   private decisionAllows(
     decision: PolicyDecision,
     workflow: WorkflowSummary,
-    permissionName: string,
   ): boolean {
     if (decision.result !== AuthorizeResult.CONDITIONAL) {
       return decision.result === AuthorizeResult.ALLOW;
@@ -179,25 +178,12 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       // fault, which the caller cannot tell from a refusal: the log can.
       this.logger
         .child({
-          permission: permissionName,
+          permission: temporalWorkflowListPermission.name,
           errorName: error instanceof Error ? error.name : 'Error',
         })
         .warn('A permission condition cannot be applied, so it allows nothing');
       return false;
     }
-  }
-
-  /** True when the caller has the permission on the entity. */
-  async isAllowedOn(
-    permission: ResourcePermission<'catalog-entity'>,
-    entityRef: string,
-    credentials: BackstageCredentials,
-  ): Promise<boolean> {
-    const [decision] = await this.permissions.authorize(
-      [{ permission, resourceRef: entityRef }],
-      { credentials },
-    );
-    return decision.result === AuthorizeResult.ALLOW;
   }
 
   async canListAll(credentials: BackstageCredentials): Promise<boolean> {
@@ -399,14 +385,7 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       new NotFoundError(`Workflow ${ref.workflowId} was not found`);
     try {
       const workflow = await this.queries.describe(ref);
-      if (
-        listMayAllow &&
-        this.decisionAllows(
-          listDecision,
-          workflow,
-          temporalWorkflowListPermission.name,
-        )
-      ) {
+      if (listMayAllow && this.decisionAllows(listDecision, workflow)) {
         return { workflow };
       }
       // A search attribute that is not an entity reference counts as none.

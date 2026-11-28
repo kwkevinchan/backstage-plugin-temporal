@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import { ComponentType, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { identityApiRef, useApi } from '@backstage/core-plugin-api';
 import type { JsonValue } from '@backstage/types';
 import {
-  exampleArgs,
   WorkflowDetail,
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
@@ -41,13 +40,8 @@ import {
 } from '../../extensions';
 import { JsonView } from '../PayloadView';
 import { tp } from '../styles';
-import {
-  ControlError,
-  controlError,
-  ControlErrorAlert,
-  JsonArgsField,
-  parseArgs,
-} from './shared';
+import { SchemaArgsField } from './SchemaArgsField';
+import { ControlError, controlError, ControlErrorAlert } from './shared';
 
 const NO_MESSAGE_DEFINITIONS: WorkflowMessageDefinitionsResponse = {
   signals: [],
@@ -116,77 +110,10 @@ export function useUserEntityRef(): string | undefined {
 }
 
 /**
- * The example arguments of a message definition, with its `userField` set to the
- * signed-in user on an object argument.
- */
-export function messageDefinitionExampleArgs(
-  definition: WorkflowMessageDefinition | undefined,
-  userEntityRef: string | undefined,
-): JsonValue[] {
-  const args = exampleArgs(definition?.example);
-  const field = definition?.userField;
-  if (!field || !userEntityRef) return args;
-  const first = args[0];
-  const base =
-    first && typeof first === 'object' && !Array.isArray(first) ? first : {};
-  return [{ ...base, [field]: userEntityRef }, ...args.slice(1)];
-}
-
-/** Props of the arguments field of a {@link MessageDialog}. */
-export interface MessageArgsFieldProps {
-  /** The chosen message definition, when the workflow or its entity describes it. */
-  messageDefinition?: WorkflowMessageDefinition;
-  /** The signed-in user's entity reference, for `messageDefinition.userField`. */
-  userEntityRef?: string;
-  /** Called with the arguments, or why they are not valid. */
-  onChange(value: { args: JsonValue[] } | { error: string }): void;
-}
-
-function argsText(args: JsonValue[]): string {
-  if (args.length === 0) return '[]';
-  // One object or array argument is shown as itself; parseArgs reads an
-  // array as the argument list, so only a non-array value can be bare.
-  const value = args.length === 1 && !Array.isArray(args[0]) ? args[0] : args;
-  return JSON.stringify(value, null, 2);
-}
-
-/**
- * The default arguments field: JSON, filled with the message definition's example.
- */
-export function JsonMessageArgsField(props: MessageArgsFieldProps) {
-  const { messageDefinition, userEntityRef, onChange } = props;
-  const [text, setText] = useState(() =>
-    argsText(messageDefinitionExampleArgs(messageDefinition, userEntityRef)),
-  );
-  const [edited, setEdited] = useState(false);
-  // The user's reference may come after the field opens.
-  useEffect(() => {
-    if (!edited)
-      setText(
-        argsText(
-          messageDefinitionExampleArgs(messageDefinition, userEntityRef),
-        ),
-      );
-  }, [edited, messageDefinition, userEntityRef]);
-  useEffect(() => {
-    onChange(parseArgs(text));
-  }, [text, onChange]);
-  return (
-    <JsonArgsField
-      value={text}
-      onChange={value => {
-        setEdited(true);
-        setText(value);
-      }}
-    />
-  );
-}
-
-/**
  * Signal, update or query: a name, the arguments, then the result.
  * `send` sends the message; the dialog shows its result unless
- * `showResult` is false. `argsField` replaces the JSON field, for example
- * with a form for message definitions with an input schema.
+ * `showResult` is false. A message definition with an input schema gets a
+ * form for its arguments; any other gets a JSON field.
  */
 export function MessageDialog(props: {
   /** `signal`, `update` or `query`; names the result's test ID. */
@@ -196,7 +123,6 @@ export function MessageDialog(props: {
   messageDefinitions: WorkflowMessageDefinition[];
   allowsCustomValue: boolean;
   showResult?: boolean;
-  argsField?: ComponentType<MessageArgsFieldProps>;
   send(request: {
     name: string;
     args: JsonValue[];
@@ -206,7 +132,6 @@ export function MessageDialog(props: {
   context?: TemporalWorkflowExtensionProps;
 }) {
   const { kind, text } = props;
-  const ArgsField = props.argsField ?? JsonMessageArgsField;
   const userEntityRef = useUserEntityRef();
   const [name, setName] = useState(props.messageDefinitions[0]?.name ?? '');
   // The message definition names may come after the dialog opens.
@@ -267,7 +192,7 @@ export function MessageDialog(props: {
             onSelectionChange={key => key !== null && changeName(String(key))}
             isRequired
           />
-          <ArgsField
+          <SchemaArgsField
             // A new field, with its example, for each described message definition.
             key={messageDefinition?.name ?? ''}
             messageDefinition={messageDefinition}

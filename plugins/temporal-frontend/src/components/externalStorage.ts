@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { configApiRef, useApi } from '@backstage/core-plugin-api';
 import type { ExternalPayload } from '../common';
 
 const BUCKET_PLACEHOLDER = 'temporal-bucket-placeholder';
@@ -57,15 +56,6 @@ function isDynamicObjectUrlHost(template: string): boolean {
     .slice(lastPlaceholderIndex + 1)
     .filter(Boolean);
   return fixedSuffixLabels.length < 2;
-}
-
-/**
- * `temporal.externalStorage.objectUrl`, the template of the link to a stored
- * payload, when it is set.
- */
-export function useExternalObjectUrlTemplate(): string | undefined {
-  const config = useApi(configApiRef);
-  return config.getOptionalString('temporal.externalStorage.objectUrl');
 }
 
 /**

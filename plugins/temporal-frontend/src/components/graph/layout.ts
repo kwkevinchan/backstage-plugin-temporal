@@ -50,21 +50,19 @@ export {
   EDGE_LANE_GAP,
   FRAME_GAP,
   FRAME_PADDING,
-  FRAME_TITLE_HEIGHT,
   FRAME_TOP,
-  FRAME_WRAP_GAP,
   MARGIN,
   NODE_HEIGHT,
   NODE_WIDTH,
 } from './geometry';
 export type { NodeSize, StepLayout } from './geometry';
-export type { LayoutFrame, LayoutNode } from './stackLayout';
+export type { LayoutFrame } from './stackLayout';
 /** A model call: three lines (name, model, tokens and tools). */
 export const LLM_NODE_WIDTH = 240;
 export const LLM_NODE_HEIGHT = 86;
 /** A tool call of a model call: a smaller box. */
-export const TOOL_NODE_WIDTH = 180;
-export const TOOL_NODE_HEIGHT = 52;
+const TOOL_NODE_WIDTH = 180;
+const TOOL_NODE_HEIGHT = 52;
 /** Widest box, for the columns of a wrapped graph. */
 const MAX_NODE_WIDTH = LLM_NODE_WIDTH;
 

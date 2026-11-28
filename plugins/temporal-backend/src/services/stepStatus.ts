@@ -35,7 +35,7 @@ export const FAILED_STATUSES = new Set<WorkflowNodeStatus>([
 ]);
 
 /** A step while the graph is built: `last` is unset while it is open. */
-export interface StatusStep {
+interface StatusStep {
   status: WorkflowNodeStatus;
   last?: number;
 }

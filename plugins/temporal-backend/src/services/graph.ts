@@ -104,7 +104,7 @@ export interface BuildGraphOptions {
   closeEvent?: Json;
 }
 
-export interface Building extends WorkflowGraphNode {
+interface Building extends WorkflowGraphNode {
   /** Event ID of the first and of the closing event, for the arrows. */
   first: number;
   last?: number;

@@ -30,7 +30,6 @@ import {
 import {
   FrameEdgeData,
   frameEdgePoints,
-  OFFSET,
   Point,
   frameInsets,
   routeRowGaps,
@@ -45,6 +44,7 @@ import {
   visibleSteps,
 } from './layout';
 import {
+  OFFSET,
   STACK_GAP,
   STACK_SIDE,
   stackGapOf,

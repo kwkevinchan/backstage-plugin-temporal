@@ -434,14 +434,3 @@ export function matchedWorkflowEntity(
   }
   return matchingWorkflowEntity(workflow, filter);
 }
-
-/**
- * True when a workflow belongs to the entity by the same rules as
- * {@link buildEntityVisibilityQuery}. Used before showing a single workflow.
- */
-export function workflowBelongsToEntity(
-  workflow: Pick<WorkflowSummary, 'taskQueue' | 'workflowType' | 'entityRef'>,
-  filter: EntityWorkflowFilter,
-): boolean {
-  return matchedWorkflowEntity(workflow, filter) !== undefined;
-}

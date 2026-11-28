@@ -57,6 +57,13 @@ describe('light and dark themes', () => {
             step={step}
             workflowHref={() => '/x'}
             onClose={() => {}}
+            nodes={graphResponse.nodes}
+            workflowRef={{
+              namespace: 'default',
+              workflowId: 'order-1',
+              runId: 'run-1',
+            }}
+            onSelectStep={() => {}}
           />
         </UnifiedThemeProvider>,
       );
