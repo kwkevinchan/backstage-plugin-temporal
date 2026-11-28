@@ -75,6 +75,10 @@ import {
   WorkflowTypeOverview,
   WorkflowTypeOverviewRun,
 } from '../common';
+import {
+  OVERVIEW_CACHE_TTL_MS,
+  OVERVIEW_WINDOW_DAYS,
+} from '../common/listLimits';
 import { temporalApiRef } from '../extensions';
 import { ErrorAlert } from './feedback';
 import { formatMilliseconds, formatTime } from './format';
@@ -85,12 +89,12 @@ import { Pager, workflowLink } from './WorkflowRunsTable';
 import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /** Rows on one page of the Workflows tab. */
-const WORKFLOW_TYPES_PAGE_SIZE = 25;
+const WORKFLOW_TYPES_PAGE_SIZE = MAX_WORKFLOW_TYPE_OVERVIEW_REFS;
 /** Numbers older than this are read again when their row comes back. */
-const NUMBERS_MAX_AGE_MS = 60_000;
+const NUMBERS_MAX_AGE_MS = OVERVIEW_CACHE_TTL_MS;
 
 const COUNTS_HELP =
-  'Running now / completed in the last 7 days / failed, timed out or terminated in the last 7 days. ' +
+  `Running now / completed in the last ${OVERVIEW_WINDOW_DAYS} days / failed, timed out or terminated in the last ${OVERVIEW_WINDOW_DAYS} days. ` +
   "Approximate: Temporal's visibility store is eventually consistent, and the numbers are up to a minute old.";
 
 const MINE = 'mine';
@@ -555,7 +559,7 @@ export function WorkflowTypesList() {
     },
     {
       id: 'lastFailure',
-      title: 'Last failure (7 days)',
+      title: `Last failure (${OVERVIEW_WINDOW_DAYS} days)`,
       cell: (_entity, n) =>
         numbersCell(n, o =>
           o.lastFailure ? (

@@ -13,6 +13,7 @@ discuss larger changes before sending a pull request.
    ```sh
    yarn tsc && yarn lint:all && yarn test && yarn build:all
    yarn constraints && yarn boundaries && yarn sync:common:check
+   yarn lint:deps
    yarn lint:openapi
    ```
 
@@ -76,6 +77,17 @@ packages never depend on backend packages or Node-only packages, the two
 core packages depend on no other workspace, a module only on the core of
 its side, and no published package on a private one.
 
+`yarn lint:deps` ([dependency-cruiser](https://github.com/sverweij/dependency-cruiser),
+`.dependency-cruiser.cjs`) checks the layers inside the packages: a module
+imports a core package only through its entry points; in the backend,
+`common/` imports nothing else of the package, `services/` neither
+`repositories/` (with the exceptions the rules name) nor Express, and
+`repositories/` and `lib/` nothing above them; in the frontend, the files
+without React (the timeline model, the layout and event groups of the
+graph) reach no component and no React package, and of them only
+`graph/frameEdge.ts` imports `@xyflow/react`. Each rule says why in its
+`comment`.
+
 ## Shared definitions
 
 The permissions, types, annotation constants, API paths and the
@@ -114,14 +126,15 @@ want protobufjs 7).
 ## Backend layout
 
 `plugins/temporal-backend/src` has four folders a request goes down in
-order, and three for the other parts of the package:
+order, and four for the other parts of the package:
 
 | Folder          | Holds                                                                                                                                     | In clean-architecture terms |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates)               | Controllers                 |
 | `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups; `WorkflowTypeEntities`: the links to the entity of a workflow type | Authorization               |
 | `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                                           | Use cases                   |
-| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references | Gateways                    |
+| `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping and the schedule client                                             | Gateways                    |
+| `lib/`          | The Temporal payload formats that `services/` and `repositories/` share: JSON payloads and the parser of External Storage references      |                             |
 | `common/`       | The shared definitions (`./common`)                                                                                                       | Model                       |
 | `node/`         | `temporalServiceRef`, the client of the plugin's routes, the extension points and the access service interface (`./node`, `./alpha`)      | Ports for modules           |
 | `catalog/`      | The catalog module with the `TemporalWorkflow` kind and its JSON schema                                                                   |                             |

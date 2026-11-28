@@ -18,7 +18,11 @@ import {
   TEMPORAL_WORKFLOW_API_VERSION,
   TEMPORAL_WORKFLOW_KIND,
 } from '../common';
-import { NAME_PATTERN_SOURCES } from '../common/namePatterns';
+import {
+  MAX_MESSAGE_NAME_LENGTH,
+  NAME_PATTERN_SOURCES,
+  USER_FIELD_PATTERN_SOURCE,
+} from '../common/namePatterns';
 
 /**
  * JSON schema of one entry of `spec.messages`, part of the kind schema.
@@ -28,7 +32,7 @@ const temporalWorkflowMessageSchema = {
   required: ['name'],
   additionalProperties: false,
   properties: {
-    name: { type: 'string', minLength: 1, maxLength: 200 },
+    name: { type: 'string', minLength: 1, maxLength: MAX_MESSAGE_NAME_LENGTH },
     description: { type: 'string' },
     inputSchema: {
       type: 'object',
@@ -40,7 +44,7 @@ const temporalWorkflowMessageSchema = {
     },
     userField: {
       type: 'string',
-      pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$',
+      pattern: USER_FIELD_PATTERN_SOURCE,
       description:
         "A property of the argument filled with the signed-in user's entity reference.",
     },

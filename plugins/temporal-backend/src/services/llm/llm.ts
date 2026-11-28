@@ -21,6 +21,7 @@ import type {
   WorkflowLlmSummary,
   WorkflowLlmToolCallRef,
 } from '../../common';
+import { OPEN_STATUSES } from '../../common/stepRules';
 import { decodePayloads } from '../convert';
 import { canonicalJson, isObject, Json, str } from './json';
 import {
@@ -76,10 +77,20 @@ function values(decoded: unknown): JsonValue[] | undefined {
   return out;
 }
 
+/**
+ * Levels of a failure's cause chain whose details are read for a record:
+ * the failure and its first causes.
+ */
+export const FAILURE_DETAIL_LEVELS = 5;
+
 /** The failure details of a failure and its causes. */
 function failureDetails(failure: Json) {
   const out: JsonValue[] = [];
-  for (let f = failure, depth = 0; f && depth < 5; f = f.cause, depth++) {
+  for (
+    let f = failure, depth = 0;
+    f && depth < FAILURE_DETAIL_LEVELS;
+    f = f.cause, depth++
+  ) {
     const decoded = decodePayloads(f.applicationFailureInfo?.details);
     if (decoded === undefined) continue;
     out.push(...(values(decoded) ?? []));
@@ -194,8 +205,6 @@ function between(start?: string, end?: string): number | undefined {
   return Number.isFinite(ms) && ms >= 0 ? ms : undefined;
 }
 
-const OPEN = ['Scheduled', 'Running', 'Retrying', 'Waiting'];
-
 /**
  * The summary of the model call of one step. `decodedResult` is the
  * decoded result payload (`{ encoding, value }`, a stored payload, or
@@ -223,7 +232,7 @@ export function summarizeModelCall(
   if (!record) {
     if (isObject(decodedResult)) {
       summary.record = 'value' in decodedResult ? 'missing' : 'unreadable';
-    } else if (!OPEN.includes(node.status)) {
+    } else if (!OPEN_STATUSES.has(node.status)) {
       summary.record = 'missing';
     }
     return { summary, requests: [] };

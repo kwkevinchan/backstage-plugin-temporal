@@ -69,6 +69,11 @@ export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
 const MAX_LIST_LIMIT = 50;
 /** The most step names that get-workflow returns. */
 const MAX_CURRENT_STEPS = 10;
+/**
+ * Longest signal or update name; the backend's limit, which a test compares
+ * with this one.
+ */
+export const MAX_MESSAGE_NAME_LENGTH = 200;
 
 /** Added to an error of an action on an existing workflow when no entityRef was given. */
 const ENTITY_REF_HINT =
@@ -116,7 +121,7 @@ function readable(error: unknown, gaveEntityRef: boolean): unknown {
 /**
  * The step kinds that the backend counts in `completedSteps` and `totalSteps`
  * (`services/graph.ts`), and the open and failed statuses of
- * `services/stepStatus.ts`. A test compares these sets with the ones of the
+ * `common/stepRules.ts`. A test compares these sets with the ones of the
  * backend.
  */
 export const STEP_KINDS = new Set<WorkflowGraphNode['kind']>([
@@ -547,7 +552,11 @@ export function registerTemporalActions(
   /** The message fields of signal-workflow and update-workflow. */
   const messageFields = (z: Zod) => ({
     ...workflowFields(z),
-    name: z.string().min(1).max(200).describe('Name of the message'),
+    name: z
+      .string()
+      .min(1)
+      .max(MAX_MESSAGE_NAME_LENGTH)
+      .describe('Name of the message'),
     args: z
       .any()
       .optional()

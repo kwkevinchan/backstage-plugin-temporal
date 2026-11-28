@@ -23,6 +23,7 @@ import {
 } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
+import { LIST_PAGE_SIZE } from '../common/listLimits';
 
 /*
  * State of the workflow lists, kept when the user opens a workflow and comes
@@ -41,9 +42,9 @@ import { WORKFLOW_STATUSES, WorkflowStatus } from '../common';
 
 /** Page sizes offered by the lists. */
 export const PAGE_SIZES = [10, 20, 50, 100] as const;
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = LIST_PAGE_SIZE.default;
 /** Largest page size the backend accepts. */
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = LIST_PAGE_SIZE.max;
 
 export interface ListFilters {
   status: WorkflowStatus | '';

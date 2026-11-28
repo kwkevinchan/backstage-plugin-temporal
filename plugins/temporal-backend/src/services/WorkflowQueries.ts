@@ -23,7 +23,6 @@ import {
   WorkflowHistoryResponse,
   WorkflowRef,
   WorkflowRunRef,
-  WorkflowStatus,
   WorkflowResultResponse,
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
@@ -31,7 +30,8 @@ import {
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
-import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
+import { CLOSED_WITH_FAILURE } from '../common/stepRules';
+import { decodeJsonPayloads, encodeJsonPayloads } from '../lib/payloads';
 import {
   ConvertOptions,
   decodePageToken,
@@ -41,7 +41,7 @@ import {
   resultFromCloseEvent,
 } from './convert';
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
-import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import type { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import {
   matchedWorkflowEntity,
   matchingWorkflowEntity,
@@ -77,12 +77,6 @@ function messageDefinitionList(
 /** How many parents up a child workflow is looked for in an entity. */
 export const MAX_PARENT_DEPTH = 3;
 
-export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
-  'Failed',
-  'TimedOut',
-  'Terminated',
-];
-
 /**
  * Close events read during `describe()`, keyed by the returned `WorkflowDetail`.
  * Module-scoped so a detail described by `temporalAccessServiceRef`'s
@@ -102,10 +96,7 @@ export class WorkflowQueries {
     private readonly temporal: TemporalService,
     private readonly logger: LoggerService,
     private readonly sources: EntityWorkflowSources,
-    private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
-      temporal,
-      logger,
-    ),
+    private readonly temporalReads: TemporalReadRepository,
   ) {}
 
   /** The conversion options of a namespace; the list queries use them too. */

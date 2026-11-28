@@ -23,7 +23,7 @@ import {
   parseTemporalAnnotations,
   TemporalAnnotations,
 } from './annotations';
-import { TemporalWorkflowMessagesSpec } from './messages';
+import { exampleArgs, TemporalWorkflowMessagesSpec } from './messages';
 
 /**
  * API version of the `TemporalWorkflow` kind.
@@ -194,8 +194,7 @@ export function getTemporalWorkflowExampleArgs(
   if (!isTemporalWorkflowEntity(entity)) return undefined;
   const value = (entity.spec as { exampleInput?: JsonValue } | undefined)
     ?.exampleInput;
-  if (value === undefined) return undefined;
-  return Array.isArray(value) ? value : [value];
+  return value === undefined ? undefined : exampleArgs(value);
 }
 
 /**

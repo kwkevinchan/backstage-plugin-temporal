@@ -21,10 +21,8 @@ import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import request from 'supertest';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
-import {
-  OVERVIEW_CACHE_TTL_MS,
-  OVERVIEW_CONCURRENCY,
-} from './services/WorkflowListQueries';
+import { OVERVIEW_CACHE_TTL_MS } from './common/listLimits';
+import { OVERVIEW_CONCURRENCY } from './services/WorkflowListQueries';
 import {
   createFakeWorkflowService,
   executionInfo,

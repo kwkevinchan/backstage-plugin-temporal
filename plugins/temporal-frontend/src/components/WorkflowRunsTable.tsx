@@ -40,7 +40,8 @@ import { CopyButton } from './CopyButton';
 import { formatDuration, formatTime } from './format';
 import { PAGE_SIZES } from './listState';
 import { WorkflowProgress } from './WorkflowProgress';
-import { statusLabel, WorkflowStatusLabel } from './WorkflowStatusLabel';
+import { statusLabel } from './status';
+import { WorkflowStatusLabel } from './WorkflowStatusLabel';
 
 /**
  * Relative link from a workflow list to the details of a run, or, without

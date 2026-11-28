@@ -31,6 +31,7 @@ import {
   durationToMs,
   eventTypeName,
   failureFromCloseEvent,
+  MAX_CAUSE_DEPTH,
   summaryOf,
   toDisplayJson,
   toIsoTime,
@@ -38,7 +39,12 @@ import {
 } from './convert';
 import { LlmStepEntry, LlmSteps, readLlmSteps } from './llm/llm';
 import { EventGroupCollector } from './eventGroups';
-import { FAILED_STATUSES, OPEN_STATUSES } from './stepStatus';
+import {
+  CLOSED_WITH_FAILURE,
+  FAILED_STATUSES,
+  isLocalActivityMarker,
+  OPEN_STATUSES,
+} from '../common/stepRules';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows
@@ -192,8 +198,6 @@ interface CloseFailure {
   step?: { kind: 'activity' | 'childWorkflow'; eventId: string; name: string };
 }
 
-const MAX_CAUSE_DEPTH = 20;
-
 /**
  * Reads the failure of a close event (protobuf JSON): its message and the
  * first activity or child workflow in its cause chain. A child workflow
@@ -240,13 +244,18 @@ export function buildWorkflowGraph(
 }
 
 /**
- * The graph of a run and the model calls the LLM adapters read from its
- * steps, by node ID.
+ * The graph of a run, the model calls the LLM adapters read from its steps
+ * (by node ID), and the payloads of the activities and local activities
+ * that the adapters read them from.
  */
 export function buildWorkflowGraphWithLlm(
   events: Json[],
   options: BuildGraphOptions,
-): { graph: WorkflowGraphResponse; llm: LlmSteps } {
+): {
+  graph: WorkflowGraphResponse;
+  llm: LlmSteps;
+  llmEntries: LlmStepEntry[];
+} {
   const nodes: Building[] = [];
   // Activities and local activities, for the LLM adapters.
   const llmEntries: LlmStepEntry[] = [];
@@ -712,7 +721,7 @@ export function buildWorkflowGraphWithLlm(
     a = event.markerRecordedEventAttributes;
     if (a) {
       const markerName: string = a.markerName ?? 'Marker';
-      const isLocalActivity = /local_?activity/i.test(markerName);
+      const isLocalActivity = isLocalActivityMarker(markerName);
       const details: JsonObject = {};
       for (const [k, v] of Object.entries(a.details ?? {})) {
         details[k] = decodePayloads(v) ?? null;
@@ -913,7 +922,7 @@ export function buildWorkflowGraphWithLlm(
     eventGroups: groups.groups.length > 0 ? groups.groups : undefined,
     eventGroupsTruncated: groups.truncated || undefined,
   };
-  return { graph: dropUndefined(response), llm };
+  return { graph: dropUndefined(response), llm, llmEntries };
 }
 
 /**
@@ -1056,7 +1065,7 @@ function currentText(
     return listText(open.map(openStepText));
   }
   if (options.status === 'ContinuedAsNew') return 'Continued as new';
-  if (['Failed', 'TimedOut', 'Terminated'].includes(options.status)) {
+  if (CLOSED_WITH_FAILURE.includes(options.status)) {
     // The close event's cause chain tells which step the run failed at; a
     // failure caught earlier in the run is not the reason.
     const closeFailure = closeFailureOf(closeEvent ?? options.closeEvent);

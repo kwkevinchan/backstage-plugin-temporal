@@ -81,6 +81,12 @@ function assertMayWrite(
 /** The longest pause between two looks of wait. */
 const MAX_PAUSE_SECONDS = 30;
 
+/**
+ * Longest signal or update name; the backend's limit, which a test compares
+ * with this one.
+ */
+export const MAX_MESSAGE_NAME_LENGTH = 200;
+
 /** Statuses of a run that has ended for good; ContinuedAsNew is followed. */
 const CLOSED_STATUSES = new Set<WorkflowStatus>([
   'Completed',
@@ -522,7 +528,12 @@ export function createTemporalWorkflowSignalAction(
     schema: {
       input: {
         ...workflowInput,
-        name: z => z.string().min(1).max(200).describe('Signal name'),
+        name: z =>
+          z
+            .string()
+            .min(1)
+            .max(MAX_MESSAGE_NAME_LENGTH)
+            .describe('Signal name'),
         args: z =>
           z
             .any()
@@ -596,7 +607,12 @@ export function createTemporalWorkflowUpdateAction(
     schema: {
       input: {
         ...workflowInput,
-        name: z => z.string().min(1).max(200).describe('Update name'),
+        name: z =>
+          z
+            .string()
+            .min(1)
+            .max(MAX_MESSAGE_NAME_LENGTH)
+            .describe('Update name'),
         args: z =>
           z
             .any()

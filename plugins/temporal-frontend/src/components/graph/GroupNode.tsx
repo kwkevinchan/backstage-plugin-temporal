@@ -35,7 +35,7 @@ import {
   stepsText,
   UNREADABLE_LABEL_TEXT,
 } from '../groupText';
-import { statusLabel, statusTone } from '../WorkflowStatusLabel';
+import { statusLabel, statusTone } from '../status';
 import { tp } from '../styles';
 
 /** The icon of a group: signal and update groups have their own. */

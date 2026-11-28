@@ -32,18 +32,14 @@
 
 export type { GraphCanvasProps } from './components/graph/GraphCanvas';
 export type { NodeSize, StepLayout } from './components/graph/layout';
-export type { AnyStatus, Tone } from './components/WorkflowStatusLabel';
+export type { AnyStatus, Tone } from './components/status';
 export type { TemporalUiClassName } from './components/styles';
 export { uiClassNames as tp } from './components/styles';
 export { AUTO_REFRESH_MS, usePageVisible } from './components/useWorkflowData';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
 export { DefinitionList } from './components/StepDrawer';
-export {
-  isActiveStatus,
-  statusLabel,
-  statusTone,
-} from './components/WorkflowStatusLabel';
+export { isActiveStatus, statusLabel, statusTone } from './components/status';
 export { entityContentRouteRef } from './routes';
 export { workflowLink } from './components/WorkflowRunsTable';
 export { graphHeight, layoutSteps } from './components/graph/layout';

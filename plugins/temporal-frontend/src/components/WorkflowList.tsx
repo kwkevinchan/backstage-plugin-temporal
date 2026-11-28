@@ -31,7 +31,7 @@ import {
   WorkflowRunsTable,
 } from './WorkflowRunsTable';
 import { WorkflowListActions } from './WorkflowListActions';
-import { statusLabel } from './WorkflowStatusLabel';
+import { statusLabel } from './status';
 import { useRefreshLock } from './useRefreshLock';
 
 /**

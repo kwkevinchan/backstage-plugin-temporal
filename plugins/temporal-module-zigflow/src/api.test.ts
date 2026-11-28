@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { loadEntityDefinition, MODULE_MISSING_MESSAGE } from './api';
+// The rule of the core plugin is not public, so the test reads it from its source.
+// eslint-disable-next-line @backstage/no-relative-monorepo-imports
+import { hasErrorBody as coreHasErrorBody } from '../../temporal-frontend/src/common/errorBody';
+import {
+  hasErrorBody,
+  loadEntityDefinition,
+  MODULE_MISSING_MESSAGE,
+} from './api';
 
 describe('loadEntityDefinition', () => {
   const discoveryApi = { getBaseUrl: async () => '/api/temporal' };
@@ -85,5 +92,28 @@ describe('loadEntityDefinition', () => {
       ),
     ).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('hasErrorBody', () => {
+  it('tells an error body apart like the core plugin', async () => {
+    const bodies = [
+      JSON.stringify({ error: { name: 'NotFoundError', message: 'x' } }),
+      JSON.stringify({ error: { message: 'no name' } }),
+      JSON.stringify({ error: 'text' }),
+      JSON.stringify({}),
+      'null',
+      'not json',
+      '',
+    ];
+    for (const body of bodies) {
+      const response = () => new Response(body, { status: 404 });
+      expect(await hasErrorBody(response())).toBe(
+        await coreHasErrorBody(response()),
+      );
+    }
+    expect(await hasErrorBody(new Response(bodies[0], { status: 404 }))).toBe(
+      true,
+    );
   });
 });

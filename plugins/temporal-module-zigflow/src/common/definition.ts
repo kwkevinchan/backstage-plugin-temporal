@@ -119,7 +119,8 @@ export interface DefinitionTaskList {
   scope?: 'try' | 'catch';
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
+/** True for an object that is not an array, such as a task or a map of tasks. */
+export function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 

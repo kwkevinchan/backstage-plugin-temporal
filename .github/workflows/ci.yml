@@ -129,6 +129,10 @@ jobs:
       - name: Lint
         run: yarn backstage-cli repo lint
 
+      # The layers of the packages (.dependency-cruiser.cjs).
+      - name: Dependency layers
+        run: yarn lint:deps
+
       - name: Test
         id: test
         env:

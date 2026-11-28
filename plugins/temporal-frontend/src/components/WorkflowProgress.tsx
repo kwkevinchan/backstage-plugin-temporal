@@ -21,7 +21,7 @@ import { temporalApiRef } from '../extensions';
 import { ButtonIcon, Skeleton } from '@backstage/ui';
 import { RiRefreshLine } from '@remixicon/react';
 import { deadlineText } from './format';
-import { statusTone } from './WorkflowStatusLabel';
+import { statusTone } from './status';
 import { tp } from './styles';
 
 /** Most progress requests in flight at once, for all lists on the page. */

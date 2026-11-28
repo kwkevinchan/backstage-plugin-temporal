@@ -32,11 +32,8 @@ import {
   JsonMessageArgsField,
   type MessageArgsFieldProps,
 } from './shared';
+import { isJsonObject } from '../../common/json';
 import { tp } from '../styles';
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** Largest input schema shown as a form: its JSON, in characters. */
 export const MAX_SCHEMA_CHARS = 64 * 1024;
@@ -149,7 +146,7 @@ function SchemaForm(props: MessageArgsFieldProps & { schema: JsonObject }) {
   useEffect(() => {
     if (!field || !userEntityRef) return;
     setData(current => ({
-      ...(isObject(current) ? current : {}),
+      ...(isJsonObject(current) ? current : {}),
       [field]: userEntityRef,
     }));
   }, [field, userEntityRef]);

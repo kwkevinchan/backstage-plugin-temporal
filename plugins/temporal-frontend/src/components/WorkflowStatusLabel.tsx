@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import type { WorkflowNodeStatus, WorkflowStatus } from '../common';
 import {
   RiCheckboxCircleFill,
   RiCloseCircleFill,
@@ -27,78 +26,8 @@ import {
   RiQuestionLine,
 } from '@remixicon/react';
 import { RUN_HELP } from './RunHelp';
+import { AnyStatus, statusLabel, statusTone } from './status';
 import { tp } from './styles';
-
-/**
- * Color tone of a status, mapped to the `@backstage/ui` status tokens.
- *
- * @alpha
- */
-export type Tone = 'success' | 'danger' | 'warning' | 'info' | 'neutral';
-
-/**
- * A workflow status or a step status.
- *
- * @alpha
- */
-export type AnyStatus = WorkflowStatus | WorkflowNodeStatus;
-
-const LABELS: Record<AnyStatus, string> = {
-  Running: 'Running',
-  Completed: 'Completed',
-  Failed: 'Failed',
-  Canceled: 'Canceled',
-  Terminated: 'Terminated',
-  ContinuedAsNew: 'Continued as new',
-  TimedOut: 'Timed out',
-  Unknown: 'Unknown',
-  Scheduled: 'Scheduled',
-  Retrying: 'Retrying',
-  Waiting: 'Waiting',
-  Rejected: 'Rejected',
-};
-
-/**
- * The label of a workflow or step status.
- *
- * @alpha
- */
-export function statusLabel(status: AnyStatus): string {
-  return LABELS[status] ?? status;
-}
-
-/**
- * The color tone of a workflow or step status.
- *
- * @alpha
- */
-export function statusTone(status: AnyStatus): Tone {
-  switch (status) {
-    case 'Completed':
-      return 'success';
-    case 'Failed':
-    case 'TimedOut':
-    case 'Rejected':
-      return 'danger';
-    case 'Terminated':
-    case 'Retrying':
-      return 'warning';
-    case 'Running':
-    case 'ContinuedAsNew':
-      return 'info';
-    default:
-      return 'neutral';
-  }
-}
-
-/**
- * True for statuses that are still in progress.
- *
- * @alpha
- */
-export function isActiveStatus(status: AnyStatus): boolean {
-  return status === 'Running' || status === 'Retrying';
-}
 
 function StatusIcon(props: { status: AnyStatus; size?: number }) {
   const size = props.size ?? 16;

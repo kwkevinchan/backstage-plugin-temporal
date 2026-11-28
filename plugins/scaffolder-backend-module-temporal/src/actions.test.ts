@@ -29,7 +29,11 @@ import {
   createTemporalWorkflowStartAction,
   createTemporalWorkflowUpdateAction,
   createTemporalWorkflowWaitAction,
+  MAX_MESSAGE_NAME_LENGTH,
 } from './actions';
+// The limit of the backend is not public, so the test reads it from its source.
+// eslint-disable-next-line @backstage/no-relative-monorepo-imports
+import { MAX_MESSAGE_NAME_LENGTH as BACKEND_MAX_MESSAGE_NAME_LENGTH } from '../../temporal-backend/src/common/namePatterns';
 
 const user = mockCredentials.user('user:default/alice');
 
@@ -1085,5 +1089,11 @@ describe('callers that do not run as a user', () => {
     const { client, options } = setup('default', false);
     await createTemporalWorkflowStartAction(options).handler(context(start));
     expect(client.start).toHaveBeenCalledWith(expect.anything(), user);
+  });
+});
+
+describe('signal and update names', () => {
+  it('have the length limit of the backend', () => {
+    expect(MAX_MESSAGE_NAME_LENGTH).toBe(BACKEND_MAX_MESSAGE_NAME_LENGTH);
   });
 });
