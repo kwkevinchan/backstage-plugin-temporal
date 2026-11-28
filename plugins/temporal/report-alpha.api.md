@@ -517,16 +517,14 @@ export const TemporalWorkflowSectionBlueprint: ExtensionBlueprint<{
 
 // Warnings were encountered during analysis:
 //
-// src/alpha.d.ts:27:13 - (ae-forgotten-export) The symbol "TemporalWorkflowActionDef" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:32:13 - (ae-forgotten-export) The symbol "TemporalWorkflowSectionDef" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:37:13 - (ae-forgotten-export) The symbol "TemporalWorkflowListActionDef" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:42:13 - (ae-forgotten-export) The symbol "TemporalScheduleActionDef" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:192:13 - (ae-forgotten-export) The symbol "TemporalScheduleActionProps" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:193:13 - (ae-forgotten-export) The symbol "TemporalSchedule" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:204:13 - (ae-forgotten-export) The symbol "TemporalWorkflowExtensionProps" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:205:13 - (ae-forgotten-export) The symbol "WorkflowDetail" needs to be exported by the entry point alpha.d.ts
-// src/alpha.d.ts:216:13 - (ae-forgotten-export) The symbol "TemporalWorkflowListActionProps" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:38:13 - (ae-forgotten-export) The symbol "TemporalWorkflowActionDef" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:43:13 - (ae-forgotten-export) The symbol "TemporalWorkflowSectionDef" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:48:13 - (ae-forgotten-export) The symbol "TemporalWorkflowListActionDef" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:53:13 - (ae-forgotten-export) The symbol "TemporalScheduleActionDef" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:203:13 - (ae-forgotten-export) The symbol "TemporalScheduleActionProps" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:204:13 - (ae-forgotten-export) The symbol "TemporalSchedule" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:215:13 - (ae-forgotten-export) The symbol "TemporalWorkflowExtensionProps" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:216:13 - (ae-forgotten-export) The symbol "WorkflowDetail" needs to be exported by the entry point alpha.d.ts
+// src/alpha.d.ts:227:13 - (ae-forgotten-export) The symbol "TemporalWorkflowListActionProps" needs to be exported by the entry point alpha.d.ts
 // src/control/alpha.d.ts:81:5 - (ae-forgotten-export) The symbol "TemporalControlActionButtonOptions" needs to be exported by the entry point alpha.d.ts
-
-// (No @packageDocumentation comment for this package)
 ```

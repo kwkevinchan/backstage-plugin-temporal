@@ -20,6 +20,4 @@ export type TemporalWorkflowPickerUiOptions = {
   status?: WorkflowStatus | 'any';
   searchAttribute?: string;
 };
-
-// (No @packageDocumentation comment for this package)
 ```

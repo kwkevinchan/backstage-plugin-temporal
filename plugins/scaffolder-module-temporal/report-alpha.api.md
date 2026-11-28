@@ -28,6 +28,4 @@ export const temporalWorkflowPickerFormField: OverridableExtensionDefinition<{
     field: () => Promise<FormField>;
   };
 }>;
-
-// (No @packageDocumentation comment for this package)
 ```

@@ -25,9 +25,9 @@
  * @packageDocumentation
  */
 
+import { temporalWorkflowPermissionRules } from './access/rules';
 import { createConditionExports } from '@backstage/plugin-permission-node';
 import { temporalWorkflowPermissionResourceRef } from './node/alpha';
-import { temporalWorkflowPermissionRules } from './access/rules';
 
 export * from './node/alpha';
 export { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';

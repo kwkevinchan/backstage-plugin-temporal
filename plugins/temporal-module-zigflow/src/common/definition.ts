@@ -31,8 +31,6 @@ import type { JsonObject } from '@backstage/types';
  * Builds the path of the definition of a `TemporalWorkflow` entity, relative
  * to the root of the Temporal backend plugin:
  * `/entities/:kind/:namespace/:name/definition`.
- *
- * @public
  */
 export function buildEntityDefinitionPath(entity: CompoundEntityRef): string {
   return `/entities/${encodeURIComponent(
@@ -44,8 +42,6 @@ export function buildEntityDefinitionPath(entity: CompoundEntityRef): string {
 
 /**
  * One task of a definition and where it is in the file.
- *
- * @public
  */
 export interface WorkflowDefinitionTask {
   /** JSON pointer of the task, for example `/do/1/checkStock`. */
@@ -65,8 +61,6 @@ export interface WorkflowDefinitionTask {
  * - `parse`: the file is not valid YAML, or uses too many aliases, is nested
  *   too deeply or expands to too much data.
  * - `format`: the file is YAML, but not a workflow of the format.
- *
- * @public
  */
 export interface WorkflowDefinitionError {
   kind: 'read' | 'tooLarge' | 'parse' | 'format';
@@ -78,8 +72,6 @@ export interface WorkflowDefinitionError {
 /**
  * The definition of a `TemporalWorkflow` entity, as the backend read it
  * (`GET /entities/:kind/:namespace/:name/definition`).
- *
- * @public
  */
 export interface WorkflowDefinitionResponse {
   /** Format of the file (`spec.definition.format`). */
@@ -105,8 +97,6 @@ export interface WorkflowDefinitionResponse {
 /**
  * A task list inside a task: the body of `do`, `for` and `try`, the `do` of
  * a `catch`, and the branches of a `fork`.
- *
- * @public
  */
 export interface DefinitionTaskList {
   /** Path from the task to the list, for example `['catch', 'do']`. */
@@ -127,8 +117,6 @@ export function isObject(value: unknown): value is Record<string, unknown> {
 /**
  * The task lists inside a task, in the order they appear in the DSL
  * (`try` before `catch`).
- *
- * @public
  */
 export function definitionTaskLists(task: unknown): DefinitionTaskList[] {
   if (!isObject(task)) return [];
@@ -154,8 +142,6 @@ export function definitionTaskLists(task: unknown): DefinitionTaskList[] {
 /**
  * One item of a task list: `{ <name>: <task> }`. Undefined for an item of
  * another shape.
- *
- * @public
  */
 export function definitionTaskItem(
   item: unknown,
@@ -173,8 +159,6 @@ export function jsonPointerSegment(segment: string | number): string {
 
 /**
  * One task found by {@link walkDefinitionTasks}.
- *
- * @public
  */
 export interface DefinitionTaskVisit {
   pointer: string;
@@ -196,8 +180,6 @@ export interface DefinitionTaskVisit {
 /**
  * Calls `visit` for every task of a definition, depth first in file order.
  * Items that are not `{ <name>: <task> }` are skipped.
- *
- * @public
  */
 export function walkDefinitionTasks(
   document: unknown,

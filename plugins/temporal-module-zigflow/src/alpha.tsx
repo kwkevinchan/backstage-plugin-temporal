@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
+import { compatWrapper } from '@backstage/core-compat-api';
+import { createFrontendModule } from '@backstage/frontend-plugin-api';
+import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
+import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal/common';
+
 /**
  * Entry point for the new frontend system: a module of the Temporal plugin
  * (default export) with the Definition tab of `TemporalWorkflow` entities.
  *
  * @packageDocumentation
  */
-
-import { compatWrapper } from '@backstage/core-compat-api';
-import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import { EntityContentBlueprint } from '@backstage/plugin-catalog-react/alpha';
-import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal/common';
 
 /**
  * Definition tab of `TemporalWorkflow` entities
