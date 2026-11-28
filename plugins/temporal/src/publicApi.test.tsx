@@ -37,7 +37,7 @@ import {
   temporalApiRef,
   TemporalPage,
   temporalPlugin,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend';
+} from '@kwkevinchan/backstage-plugin-temporal';
 import {
   DefinitionList,
   ErrorAlert,
@@ -47,7 +47,7 @@ import {
   statusLabel,
   statusTone,
   workflowLink,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { checkoutEntity, mockTemporalApi, workflowEntity } from './testData';
 
 // Uses the package by name, as an extension author's tests do.

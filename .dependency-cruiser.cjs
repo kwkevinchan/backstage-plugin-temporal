@@ -20,7 +20,7 @@
 // copy of a rule with the core's.
 
 const BE = '^plugins/temporal-backend/src';
-const FE = '^plugins/temporal-frontend/src';
+const FE = '^plugins/temporal/src';
 const GRAPH = `${FE}/components/graph`;
 
 /** Files of services/ that call Temporal without a repository. */

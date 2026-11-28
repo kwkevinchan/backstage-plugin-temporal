@@ -25,7 +25,7 @@ import {
   layoutSteps,
   useIsGraphFullscreen,
   useSettledWidth,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { tp } from '../styles';
 
 import { DefinitionFlowNode, DefinitionNode } from './DefinitionNode';

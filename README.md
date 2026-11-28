@@ -99,7 +99,7 @@ workflow definition.
 | Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                                                                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension point for custom actions (`./alpha`) and the permissions and types (`./common`).                                                            |
-| [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Temporal page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions, schedule actions, sections and buttons of custom backend actions; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
+| [`@kwkevinchan/backstage-plugin-temporal`](plugins/temporal)                                                     | frontend-plugin        | Backstage app     | Entity tab, workflow details, Temporal page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions, schedule actions, sections and buttons of custom backend actions; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                                                                                 |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                                                                            |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-actions`](plugins/temporal-backend-module-actions)       | backend-plugin-module  | Backstage backend | Actions registry actions: list and read workflows, start them, send signals and updates, for AI assistants and MCP clients                                                                                                                                                                                                                                     |
@@ -218,13 +218,13 @@ backend.add(catalogModuleTemporalWorkflowKind);
 ### Frontend, new frontend system
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
 ```
 
 Add the plugin to your app features, or let feature discovery find it:
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 
 export default createApp({ features: [temporalPlugin /* ... */] });
 ```
@@ -244,7 +244,7 @@ of the plugin; they show nothing when `temporal.control.enabled` is false.
 ### Frontend, legacy frontend system
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
 ```
 
 `EntityPage.tsx`:
@@ -253,7 +253,7 @@ yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
 import {
   EntityTemporalContent,
   isTemporalAvailable,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend';
+} from '@kwkevinchan/backstage-plugin-temporal';
 
 <EntityLayout.Route path="/temporal" title="Temporal" if={isTemporalAvailable}>
   <EntityTemporalContent />
@@ -271,7 +271,7 @@ import {
   EntityTemporalWorkflowSummaryCard,
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend';
+} from '@kwkevinchan/backstage-plugin-temporal';
 
 const temporalWorkflowPage = (
   <EntityLayout>
@@ -307,7 +307,7 @@ component (use it with
 The Temporal page (`App.tsx` and the sidebar in `Root.tsx`):
 
 ```tsx
-import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { TemporalPage } from '@kwkevinchan/backstage-plugin-temporal';
 import AccountTreeIcon from '@material-ui/icons/AccountTree';
 
 <Route path="/temporal" element={<TemporalPage />} />;
@@ -1468,7 +1468,7 @@ do the same from the frontend with `temporalApiRef`.
 ## Extending
 
 New frontend system, with the blueprints of
-`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`:
+`@kwkevinchan/backstage-plugin-temporal/alpha`:
 
 ```ts
 TemporalWorkflowActionBlueprint.make({
@@ -1491,7 +1491,7 @@ the pages of the entity tab and of the Temporal page. In the legacy system, pass
 
 ### Entry points and the two frontend systems
 
-The package `@kwkevinchan/backstage-plugin-temporal-frontend` has one entry
+The package `@kwkevinchan/backstage-plugin-temporal` has one entry
 point for each frontend system:
 
 - `.` is the legacy frontend system: `temporalPlugin`, the page components
@@ -1528,7 +1528,7 @@ are `page:temporal`, `entity-content:temporal`,
 `temporal-schedule-action:temporal/controls`.
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 
 export default createApp({
   features: [
@@ -1600,7 +1600,7 @@ temporal.addControlAction({
 
 The frontend plugin shows it as a button that runs the action and shows the
 result. New frontend system, with the blueprint of
-`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`:
+`@kwkevinchan/backstage-plugin-temporal/alpha`:
 
 ```ts
 TemporalControlActionBlueprint.make({
@@ -1618,7 +1618,7 @@ TemporalControlActionBlueprint.make({
 
 Legacy system: add
 `createTemporalControlActionDef({ actionId: 'escalate', label: 'Escalate' })`
-of `@kwkevinchan/backstage-plugin-temporal-frontend` to `workflowActions`. Custom components can call the
+of `@kwkevinchan/backstage-plugin-temporal` to `workflowActions`. Custom components can call the
 actions, the operations and the reads with `temporalApiRef`
 (`runWorkflowAction`, `signalWorkflow`, `getWorkflow`, …).
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
@@ -1643,14 +1643,14 @@ the plugin itself. Importing a backend plugin package from a module makes
 the Backstage lint rule `@backstage/no-mixed-plugin-imports` print a
 warning; it does not fail the lint.
 
-| What                                                          | Import from                                              |
-| ------------------------------------------------------------- | -------------------------------------------------------- |
-| `temporalServiceRef`, its type and `DefaultTemporalService`   | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
-| `temporalAccessServiceRef`, the extension point, …            | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
-| Permissions, API types and paths, annotations (backend code)  | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
-| Permissions, API types and paths, annotations (frontend code) | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
-| `TemporalControlActionBlueprint`                              | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |
-| `createTemporalControlActionDef`                              | `@kwkevinchan/backstage-plugin-temporal-frontend`        |
+| What                                                          | Import from                                             |
+| ------------------------------------------------------------- | ------------------------------------------------------- |
+| `temporalServiceRef`, its type and `DefaultTemporalService`   | `@kwkevinchan/backstage-plugin-temporal-backend/node`   |
+| `temporalAccessServiceRef`, the extension point, …            | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`  |
+| Permissions, API types and paths, annotations (backend code)  | `@kwkevinchan/backstage-plugin-temporal-backend/common` |
+| Permissions, API types and paths, annotations (frontend code) | `@kwkevinchan/backstage-plugin-temporal/common`         |
+| `TemporalControlActionBlueprint`                              | `@kwkevinchan/backstage-plugin-temporal/alpha`          |
+| `createTemporalControlActionDef`                              | `@kwkevinchan/backstage-plugin-temporal`                |
 
 ## Security
 

@@ -1,5 +1,5 @@
 {
-  "name": "@kwkevinchan/backstage-plugin-temporal-frontend",
+  "name": "@kwkevinchan/backstage-plugin-temporal",
   "version": "0.1.0",
   "description": "Unofficial Backstage frontend plugin for Temporal workflows: entity tab, Temporal page, workflow details and the operations that change workflows, with the extension points and blueprints for workflow actions, list actions and sections",
   "license": "Apache-2.0",
@@ -9,14 +9,14 @@
     "temporal",
     "workflow"
   ],
-  "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-frontend",
+  "homepage": "https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal",
   "bugs": {
     "url": "https://github.com/kwkevinchan/backstage-plugin-temporal/issues"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/kwkevinchan/backstage-plugin-temporal",
-    "directory": "plugins/temporal-frontend"
+    "directory": "plugins/temporal"
   },
   "main": "src/index.ts",
   "types": "src/index.ts",
@@ -50,8 +50,8 @@
     "role": "frontend-plugin",
     "pluginId": "temporal",
     "pluginPackages": [
-      "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-frontend"
+      "@kwkevinchan/backstage-plugin-temporal",
+      "@kwkevinchan/backstage-plugin-temporal-backend"
     ]
   },
   "sideEffects": false,

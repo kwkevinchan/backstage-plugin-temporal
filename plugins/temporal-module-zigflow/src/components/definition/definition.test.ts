@@ -22,7 +22,7 @@ import type {
   WorkflowGraphResponse,
   WorkflowNodeKind,
   WorkflowNodeStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+} from '@kwkevinchan/backstage-plugin-temporal/common';
 import {
   buildDefinitionGraph,
   durationText,
@@ -33,7 +33,7 @@ import {
 import {
   flowNodeBase,
   layoutSteps,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { definitionLayoutBaseline } from './definitionLayoutBaseline';
 import { taskAtLine } from './lines';
 import { overlayRun, taskIdentities, zigflowActivityType } from './overlay';

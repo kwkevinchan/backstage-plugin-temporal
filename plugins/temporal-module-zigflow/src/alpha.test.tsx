@@ -27,7 +27,7 @@ import {
   TestApiProvider,
 } from '@backstage/test-utils';
 import type { Entity } from '@backstage/catalog-model';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
 import zigflowModule, { temporalDefinitionContent } from './alpha';
 import { EntityTemporalDefinitionContent } from './index';
 

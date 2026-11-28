@@ -56,7 +56,7 @@ const roleOf = workspace => workspace.manifest.backstage?.role;
  * published package is a module that builds on the core of its side.
  */
 const BACKEND_CORE = '@kwkevinchan/backstage-plugin-temporal-backend';
-const FRONTEND_CORE = '@kwkevinchan/backstage-plugin-temporal-frontend';
+const FRONTEND_CORE = '@kwkevinchan/backstage-plugin-temporal';
 
 module.exports = defineConfig({
   async constraints({ Yarn }) {

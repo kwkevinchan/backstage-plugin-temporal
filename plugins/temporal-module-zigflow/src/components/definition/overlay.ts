@@ -18,7 +18,7 @@ import {
   WorkflowGraphNode,
   WorkflowGraphResponse,
   WorkflowNodeStatus,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+} from '@kwkevinchan/backstage-plugin-temporal/common';
 import { isObject, walkDefinitionTasks } from '../../common/definition';
 import { listenEvents, Obj, str, taskKind } from './dslGraph';
 

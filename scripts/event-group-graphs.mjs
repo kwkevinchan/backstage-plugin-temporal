@@ -21,7 +21,7 @@
  * The frontend tests do not run backend code, so this script reads some
  * recorded histories of `test-fixtures/` with the backend's graph builder
  * (`buildWorkflowGraph`, with the built-in LLM adapters) and writes each
- * graph response to `plugins/temporal-frontend/src/testGraphs/<name>.ts`.
+ * graph response to `plugins/temporal/src/testGraphs/<name>.ts`.
  * Run it again when the backend changes the shape of the graph:
  *
  *   yarn sync:test-graphs         writes the files
@@ -49,7 +49,7 @@ const { readHistoryFixture } = require(join(
 ));
 const prettier = require('prettier');
 
-const outDir = join(root, 'plugins/temporal-frontend/src/testGraphs');
+const outDir = join(root, 'plugins/temporal/src/testGraphs');
 
 /** The graphs: export name, recorded history and options. */
 const graphs = [

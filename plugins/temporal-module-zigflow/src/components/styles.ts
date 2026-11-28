@@ -17,7 +17,7 @@
 import {
   tp as coreClassNames,
   TemporalUiClassName,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import styles from './zigflow.module.css';
 
 /** The classes of the Temporal plugin styles this package uses. */

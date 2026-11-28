@@ -1,4 +1,4 @@
-# @kwkevinchan/backstage-plugin-temporal-frontend
+# @kwkevinchan/backstage-plugin-temporal
 
 Unofficial Backstage frontend plugin for [Temporal](https://temporal.io).
 
@@ -23,7 +23,7 @@ routes).
 ## Installation
 
 ```sh
-yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-frontend
+yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal
 ```
 
 It needs the backend plugin
@@ -37,7 +37,7 @@ the configuration.
 
 ## API
 
-New frontend system (`@kwkevinchan/backstage-plugin-temporal-frontend/alpha`):
+New frontend system (`@kwkevinchan/backstage-plugin-temporal/alpha`):
 the default export is the plugin, with the entity content, the Temporal
 page, the entity cards, the API and the buttons of the operations
 (`temporal-workflow-action:temporal/controls`,
@@ -103,7 +103,7 @@ that call the Temporal backend from their own components, use these exports.
 
 The permissions, the annotation constants and the response types of the
 backend API (`WorkflowDetail`, `WorkflowSummary` and the others) are in
-`./common` (`@kwkevinchan/backstage-plugin-temporal-frontend/common`). `./ui`
+`./common` (`@kwkevinchan/backstage-plugin-temporal/common`). `./ui`
 has building blocks of the pages for companion packages such as the Zigflow
 module (alpha: a change that breaks them comes in a minor version while the
 plugin is `0.x`, never in a patch).
