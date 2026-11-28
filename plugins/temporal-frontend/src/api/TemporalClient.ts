@@ -293,8 +293,9 @@ export class TemporalClient implements TemporalApi {
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
     return this.post(
-      `${buildWorkflowRunPath(ref)}/query` +
-        queryString({ entityRef: options?.entityRef }),
+      `${buildWorkflowRunPath(ref)}/query${queryString({
+        entityRef: options?.entityRef,
+      })}`,
       request,
     );
   }

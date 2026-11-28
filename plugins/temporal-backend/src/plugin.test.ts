@@ -1354,7 +1354,7 @@ describe('temporal backend plugin', () => {
     it('rejects injection and other namespaces', async () => {
       const { server, workflowService } = await start();
       for (const query of [
-        `workflowId=${encodeURIComponent("x' OR WorkflowId != '")}`,
+        `workflowIdPrefix=${encodeURIComponent("x' OR WorkflowId != '")}`,
         `workflowType=${encodeURIComponent('a b')}`,
         `status=${encodeURIComponent("Running' OR '1")}`,
       ]) {
