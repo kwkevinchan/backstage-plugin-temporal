@@ -34,11 +34,9 @@ import type { Entity } from '@backstage/catalog-model';
 import { ConfigReader } from '@backstage/config';
 import { NotFoundError } from '@backstage/errors';
 import { ScmIntegrations } from '@backstage/integration';
-import {
-  DefinitionAllowRule,
-  DefinitionReader,
-  parseDefinition,
-} from './definition';
+import { DefinitionReader } from './definition';
+import type { DefinitionAllowRule } from './definitionAllow';
+import { parseDefinition } from './definitionYaml';
 
 const fixture = readFileSync(
   join(__dirname, '../../../../test-fixtures/definitions/every-task.yaml'),
@@ -1965,19 +1963,25 @@ describe('DefinitionReader', () => {
 
     it.each([
       ['https://', 'spec.definition.target is not a valid URL'],
-      ['https://exa mple.com/order.yaml', 'spec.definition.target is not a valid URL'],
-    ])('reports the absolute target %s as an invalid URL', async (target, message) => {
-      const result = await readerOf(noRead, {
-        allow: [{ host: 'example.com' }],
-      }).read(entity(), spec(target));
-      expect(result).toEqual({
-        format: 'serverless-workflow',
-        target,
-        tasks: [],
-        error: { kind: 'read', message },
-      });
-      expect(noRead).not.toHaveBeenCalled();
-    });
+      [
+        'https://exa mple.com/order.yaml',
+        'spec.definition.target is not a valid URL',
+      ],
+    ])(
+      'reports the absolute target %s as an invalid URL',
+      async (target, message) => {
+        const result = await readerOf(noRead, {
+          allow: [{ host: 'example.com' }],
+        }).read(entity(), spec(target));
+        expect(result).toEqual({
+          format: 'serverless-workflow',
+          target,
+          tasks: [],
+          error: { kind: 'read', message },
+        });
+        expect(noRead).not.toHaveBeenCalled();
+      },
+    );
 
     it('reports a location annotation that cannot be parsed and a location type that is not read', async () => {
       const reader = readerOf(noRead, { readFileLocations: true });
@@ -2043,7 +2047,9 @@ describe('DefinitionReader', () => {
       path => {
         expect(() =>
           readerOf(noRead, { allow: [{ host: 'example.com', paths: [path] }] }),
-        ).toThrow(new Error(`temporal.definitions.allow: invalid path "${path}"`));
+        ).toThrow(
+          new Error(`temporal.definitions.allow: invalid path "${path}"`),
+        );
       },
     );
 

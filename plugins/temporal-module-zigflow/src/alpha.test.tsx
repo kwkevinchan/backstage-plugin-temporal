@@ -139,7 +139,8 @@ describe('Zigflow module (new frontend system)', () => {
         definition: { format: 'serverless-workflow', target: './order.yaml' },
       },
     };
-    const content = 'document:\n  dsl: 1.0.0\ndo:\n  - step:\n      set:\n        a: 1\n';
+    const content =
+      'document:\n  dsl: 1.0.0\ndo:\n  - step:\n      set:\n        a: 1\n';
     const api = {
       listEntityWorkflows: jest
         .fn()
