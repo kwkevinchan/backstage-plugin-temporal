@@ -190,6 +190,8 @@ export interface WorkflowGraphNode {
    * Keys of the Temporal event groups of the step, outer groups first, as
    * the history lists them (see `WorkflowGraphResponse.eventGroups`).
    * Experimental, like Event Groups in Temporal.
+   *
+   * @alpha
    */
   groups?: string[];
   /** The events of the step, oldest first. */
@@ -247,6 +249,8 @@ export interface WorkflowGraphResponse {
   /**
    * True when the run has more event groups than the backend reads, or a
    * step more groups than it reads for one step; the others are left out.
+   *
+   * @alpha
    */
   eventGroupsTruncated?: boolean;
 }
