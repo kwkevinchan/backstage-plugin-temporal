@@ -19,14 +19,9 @@ import {
   mockServices,
   startTestBackend,
 } from '@backstage/backend-test-utils';
-import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import type { Entity } from '@backstage/catalog-model';
-import {
-  temporalWorkflowEnricherExtensionPoint,
-  TemporalWorkflowEnricher,
-} from './node/alpha';
 import request from 'supertest';
 import { stringifyTemporalWorkflowResourceRef } from './common';
 import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
@@ -73,7 +68,6 @@ async function start(options?: {
   permission?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
   /** Entity references, permission names, or `{ permission, resourceRef }` rules denied regardless of `permission`. */
   deny?: Array<string | { permission: string; resourceRef: string }>;
-  enricher?: TemporalWorkflowEnricher;
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
   entities?: Entity[];
@@ -121,23 +115,6 @@ async function start(options?: {
   if (options?.logger) features.push(options.logger.factory);
   if (options?.recorder) {
     features.push(recordingLoggerFactory(options.recorder));
-  }
-  if (options?.enricher) {
-    const enricher = options.enricher;
-    features.push(
-      createBackendModule({
-        pluginId: 'temporal',
-        moduleId: 'test-enricher',
-        register(reg) {
-          reg.registerInit({
-            deps: { temporal: temporalWorkflowEnricherExtensionPoint },
-            async init({ temporal }) {
-              temporal.addWorkflowEnricher(enricher);
-            },
-          });
-        },
-      }),
-    );
   }
   const { server } = await startTestBackend({ features });
   return {
@@ -1116,45 +1093,6 @@ describe('temporal backend plugin', () => {
         '/api/temporal/entities/workflow/default/nightly/workflows?allRuns=yes',
       )
       .expect(400);
-  });
-
-  it('runs workflow enrichers on lists and details', async () => {
-    const enrich = jest.fn(async (items: any[]) =>
-      items.map(item => ({ ...item, extensions: { test: { seen: true } } })),
-    );
-    const { server } = await start({ enricher: { id: 'test', enrich } });
-    const list = await request(server).get(
-      '/api/temporal/entities/component/default/orders/workflows',
-    );
-    expect(list.body.items[0].extensions).toEqual({ test: { seen: true } });
-    const detail = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
-    );
-    expect(detail.body.extensions).toEqual({ test: { seen: true } });
-    expect(enrich).toHaveBeenCalledTimes(2);
-    expect(enrich).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.objectContaining({
-        namespace: 'default',
-        entity: expect.objectContaining({
-          metadata: expect.objectContaining({ name: 'orders' }),
-        }),
-      }),
-    );
-  });
-
-  it('keeps going when an enricher fails', async () => {
-    const { server } = await start({
-      enricher: {
-        id: 'broken',
-        enrich: async () => {
-          throw new Error('nope');
-        },
-      },
-    });
-    await request(server)
-      .get('/api/temporal/entities/component/default/orders/workflows')
-      .expect(200);
   });
 
   it('lists the runs of a TemporalWorkflow entity from its spec', async () => {

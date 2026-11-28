@@ -435,10 +435,6 @@ components:
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
-        extensions:
-          type: object
-          description: Data added by backend workflow enrichers, keyed by enricher.
-          additionalProperties: {}
       additionalProperties: false
     WorkflowDetail:
       type: object
@@ -486,10 +482,6 @@ components:
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
-        extensions:
-          type: object
-          description: Data added by backend workflow enrichers, keyed by enricher.
-          additionalProperties: {}
         executionTime:
           type: string
           description: ISO 8601 timestamp.

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  BackstageCredentials,
-  LoggerService,
-} from '@backstage/backend-plugin-api';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { ConflictError, InputError, NotFoundError } from '@backstage/errors';
 import {
   WorkflowDetail,
@@ -28,16 +25,12 @@ import {
   WorkflowRunRef,
   WorkflowStatus,
   WorkflowResultResponse,
-  WorkflowSummary,
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
 } from '../common';
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
-import type {
-  TemporalEntityContext,
-  TemporalWorkflowEnricher,
-} from '../node/alpha';
+import type { TemporalEntityContext } from '../node/alpha';
 import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
 import {
   ConvertOptions,
@@ -107,7 +100,6 @@ const describedCloseEvents = new WeakMap<WorkflowDetail, unknown>();
 export class WorkflowQueries {
   constructor(
     private readonly temporal: TemporalService,
-    private readonly enrichers: TemporalWorkflowEnricher[],
     private readonly logger: LoggerService,
     private readonly sources: EntityWorkflowSources,
     private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
@@ -125,37 +117,6 @@ export class WorkflowQueries {
       initiatorAttribute: attributes.initiator,
       webUiUrl: ref => this.temporal.getWebUiUrl(ref),
     };
-  }
-
-  /** Runs the enrichers over summaries; the list queries use it too. */
-  async enrich<T extends WorkflowSummary>(
-    items: T[],
-    context: TemporalEntityContext,
-    credentials: BackstageCredentials,
-  ): Promise<T[]> {
-    let current = items;
-    for (const enricher of this.enrichers) {
-      try {
-        const enriched = await enricher.enrich(current, {
-          entity: context.entity,
-          namespace: context.namespace,
-          credentials,
-        });
-        current = current.map((item, i) => ({ ...item, ...enriched[i] }));
-      } catch (error) {
-        this.logger
-          .child({
-            enricherId: enricher.id,
-            namespace: context.namespace,
-            entityRef: context.entityRef,
-          })
-          .warn(
-            'A workflow enricher failed, so its fields are left out',
-            error as Error,
-          );
-      }
-    }
-    return current;
   }
 
   /**
@@ -245,15 +206,6 @@ export class WorkflowQueries {
         this.convertOptions(ref.namespace),
       );
     }
-  }
-
-  async enrichDetail(
-    detail: WorkflowDetail,
-    context: TemporalEntityContext,
-    credentials: BackstageCredentials,
-  ): Promise<WorkflowDetail> {
-    const [enriched] = await this.enrich([detail], context, credentials);
-    return enriched;
   }
 
   async history(

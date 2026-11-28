@@ -107,8 +107,6 @@ export interface WorkflowSummary {
   workflowTypeEntityRef?: string;
   /** Link to the execution in the Temporal Web UI, when configured. */
   webUiUrl?: string;
-  /** Data added by backend workflow enrichers, keyed by enricher. */
-  extensions?: { [enricherId: string]: JsonValue };
 }
 
 /**

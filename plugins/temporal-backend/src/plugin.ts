@@ -27,8 +27,6 @@ import {
   TemporalControlAction,
   temporalAccessServiceRef,
   temporalControlExtensionPoint,
-  TemporalWorkflowEnricher,
-  temporalWorkflowEnricherExtensionPoint,
   temporalWorkflowPermissionResourceRef,
 } from './node/alpha';
 import { isValidControlActionId } from './routes/params';
@@ -63,15 +61,6 @@ const RESOURCE_CONCURRENCY = 8;
 export const temporalPlugin = createBackendPlugin({
   pluginId: 'temporal',
   register(env) {
-    const enrichers: TemporalWorkflowEnricher[] = [];
-    env.registerExtensionPoint(temporalWorkflowEnricherExtensionPoint, {
-      addWorkflowEnricher(enricher) {
-        if (enrichers.some(e => e.id === enricher.id)) {
-          throw new Error(`Duplicate workflow enricher id: ${enricher.id}`);
-        }
-        enrichers.push(enricher);
-      },
-    });
     // Registered whether or not the operations are enabled, so that the
     // modules that add actions start either way.
     const actions: TemporalControlAction[] = [];
@@ -148,7 +137,6 @@ export const temporalPlugin = createBackendPlugin({
         const temporalReads = new TemporalReadRepository(temporal, logger);
         const queries = new WorkflowQueries(
           temporal,
-          enrichers,
           logger,
           sources,
           temporalReads,

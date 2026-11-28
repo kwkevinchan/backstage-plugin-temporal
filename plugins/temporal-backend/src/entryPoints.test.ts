@@ -49,9 +49,6 @@ describe('entry points for backend modules', () => {
       const alpha = require('./alpha');
       expect(alpha.temporalAccessServiceRef.id).toBe('temporal.access');
       expect(alpha.temporalControlExtensionPoint.id).toBe('temporal.control');
-      expect(alpha.temporalWorkflowEnricherExtensionPoint.id).toBe(
-        'temporal.workflow-enrichers',
-      );
       expect(Object.keys(alpha).sort()).toEqual([
         'createTemporalWorkflowConditionalDecision',
         'inCondition',
@@ -60,7 +57,6 @@ describe('entry points for backend modules', () => {
         'temporalAccessServiceRef',
         'temporalControlExtensionPoint',
         'temporalWorkflowConditions',
-        'temporalWorkflowEnricherExtensionPoint',
         'temporalWorkflowPermissionResourceRef',
         'temporalWorkflowPermissionRules',
       ]);

@@ -144,7 +144,6 @@ export function createRouter(options: RouterOptions): express.Router {
         undefined,
       pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
       pageToken: optionalString(req.query.pageToken, 'pageToken'),
-      credentials,
     });
     res.json(result);
   });
@@ -283,7 +282,6 @@ export function createRouter(options: RouterOptions): express.Router {
         await lists.listEntityWorkflows(context, {
           workflowId,
           ...page,
-          credentials,
         }),
       );
       return;
@@ -338,10 +336,7 @@ export function createRouter(options: RouterOptions): express.Router {
     const withTypeEntity = typeEntityRef
       ? { ...workflowWithEntity, workflowTypeEntityRef: typeEntityRef }
       : workflowWithEntity;
-    const detail = context
-      ? await queries.enrichDetail(withTypeEntity, context, credentials)
-      : withTypeEntity;
-    res.json(detail);
+    res.json(withTypeEntity);
   });
 
   router.get(workflowRunSubpath('history'), async (req, res) => {
