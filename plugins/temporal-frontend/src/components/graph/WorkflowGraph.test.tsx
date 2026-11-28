@@ -40,7 +40,7 @@ describe('useSettledWidth', () => {
   });
 
   function Probe() {
-    const [ref, width] = useSettledWidth(150);
+    const [ref, width] = useSettledWidth();
     return (
       <div ref={ref} data-testid="probe">
         {width ?? 'none'}
@@ -74,7 +74,7 @@ describe('useSettledWidth', () => {
   });
 
   function PanelProbe(props: { open: boolean }) {
-    const [ref, width] = useSettledWidth(150, props.open);
+    const [ref, width] = useSettledWidth(props.open);
     return (
       <div ref={ref} data-testid="panel-probe">
         {width ?? 'none'}

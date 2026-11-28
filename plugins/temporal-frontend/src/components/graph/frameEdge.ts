@@ -25,7 +25,7 @@ import {
   stackSidePad,
   stackTurnIn,
   stackTurnOut,
-  StepLayout,
+  StepGraphLayout,
 } from './geometry';
 
 /*
@@ -58,7 +58,7 @@ const RADIUS = 5;
  * and not the other (`parentOf`: the frame around each box and frame).
  */
 export function frameInsets(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   parentOf: ReadonlyMap<string, string | undefined>,
   source: string,
   target: string,
@@ -323,7 +323,7 @@ export function frameEdgeCorners(
  * that share a gap run on one line in it. At the sides of a stacked frame
  * the arrows run in lanes (see `spreadSides`).
  */
-export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
+export function routeRowGaps(layout: StepGraphLayout, edges: Edge[]): Edge[] {
   if (!layout.rowGaps?.length && !layout.stackGaps?.size) return edges;
   const routed = edges.map(edge => {
     if (edge.type !== 'smoothstep' && edge.type !== 'frameEdge') return edge;
@@ -349,7 +349,7 @@ export function routeRowGaps(layout: StepLayout, edges: Edge[]): Edge[] {
  * lane past the inner one leads past the rows (see `stackTurnOut`) takes a
  * lane after the others, a full lane from each of them.
  */
-function spreadSides(layout: StepLayout, edges: Edge[]): Edge[] {
+function spreadSides(layout: StepGraphLayout, edges: Edge[]): Edge[] {
   /** A part of an arrow down or up, next to its source or its target. */
   type Part = {
     edge: Edge;

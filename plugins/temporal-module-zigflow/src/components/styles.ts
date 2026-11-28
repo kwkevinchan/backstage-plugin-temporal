@@ -14,8 +14,30 @@
  * limitations under the License.
  */
 
-import { tp as coreClassNames } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+import {
+  tp as coreClassNames,
+  TemporalUiClassName,
+} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import styles from './zigflow.module.css';
+
+/** The classes of the Temporal plugin styles this package uses. */
+const CORE_CLASS_NAMES: ReadonlySet<string> = new Set<TemporalUiClassName>([
+  'tp-graph',
+  'tp-graph-column',
+  'tp-graph-toolbar',
+  'tp-graph-canvas',
+  'tp-node',
+  'tp-node-icon',
+  'tp-node-title',
+  'tp-node-sub',
+  'tp-handle',
+  'tp-badge',
+  'tp-tone-success',
+  'tp-tone-danger',
+  'tp-tone-warning',
+  'tp-tone-info',
+  'tp-tone-neutral',
+]);
 
 /**
  * Class names for the elements of this package: the class of the Temporal
@@ -27,7 +49,9 @@ export function tp(...names: string[]): string {
   return names
     .map(name => {
       const own = styles[name];
-      const core = coreClassNames(name);
+      const core = CORE_CLASS_NAMES.has(name)
+        ? coreClassNames(name as TemporalUiClassName)
+        : name;
       return own ? `${core} ${own}` : core;
     })
     .join(' ');

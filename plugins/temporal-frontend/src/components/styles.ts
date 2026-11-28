@@ -15,12 +15,38 @@
  */
 
 import styles from './temporal.module.css';
+import type { Tone } from './WorkflowStatusLabel';
 
 /**
- * Scoped class names of the plugin styles, joined with spaces.
- *
- * @alpha
+ * Scoped class names of the plugin styles, joined with spaces. A name that
+ * is not one of them is returned as it is.
  */
 export function tp(...names: string[]): string {
   return names.map(name => styles[name] ?? name).join(' ');
 }
+
+/**
+ * The classes of the plugin styles that companion packages may use: the
+ * graph area, the boxes of a graph and their tones.
+ *
+ * @alpha
+ */
+export type TemporalUiClassName =
+  | 'tp-graph'
+  | 'tp-graph-column'
+  | 'tp-graph-toolbar'
+  | 'tp-graph-canvas'
+  | 'tp-node'
+  | 'tp-node-icon'
+  | 'tp-node-title'
+  | 'tp-node-sub'
+  | 'tp-handle'
+  | 'tp-badge'
+  | `tp-tone-${Tone}`;
+
+/**
+ * Scoped class names of {@link TemporalUiClassName}, joined with spaces.
+ *
+ * @alpha
+ */
+export const uiClassNames: (...names: TemporalUiClassName[]) => string = tp;

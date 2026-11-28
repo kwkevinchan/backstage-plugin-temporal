@@ -20,12 +20,11 @@ import { Flex } from '@backstage/ui';
 import {
   flowNodeBase,
   GraphCanvas,
+  GraphFullscreenButton,
   graphHeight,
   layoutSteps,
-  RELAYOUT_DELAY_MS,
-  useGraphFullscreen,
+  useIsGraphFullscreen,
   useSettledWidth,
-  ViewButtons,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import { tp } from '../styles';
 
@@ -49,7 +48,7 @@ export interface DefinitionGraphProps {
  */
 export function DefinitionGraph(props: DefinitionGraphProps) {
   const { graph, overlay, selectedId, onSelect } = props;
-  const [areaRef, layoutWidth] = useSettledWidth(RELAYOUT_DELAY_MS);
+  const [areaRef, layoutWidth] = useSettledWidth();
   const layout = useMemo(
     () =>
       layoutSteps(graph.nodes, graph.edges, layoutWidth, { direction: 'TB' }),
@@ -98,7 +97,7 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
     [graph],
   );
 
-  const fullscreen = useGraphFullscreen();
+  const fullscreen = useIsGraphFullscreen();
   const minHeight = graphHeight(layout, layoutWidth ?? layout.width);
   return (
     <ReactFlowProvider>
@@ -109,13 +108,13 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
           justify="end"
           gap="2"
         >
-          <ViewButtons />
+          <GraphFullscreenButton />
         </Flex>
         <div
           ref={areaRef}
           className={tp('tp-graph')}
           // Full screen: the graph takes the height of the window instead.
-          style={fullscreen?.fullscreen ? undefined : { minHeight }}
+          style={fullscreen ? undefined : { minHeight }}
           role="region"
           aria-label="Definition graph"
           data-testid="definition-graph"

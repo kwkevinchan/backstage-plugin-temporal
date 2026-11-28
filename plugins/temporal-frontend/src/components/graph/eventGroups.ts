@@ -25,7 +25,7 @@ import {
   layoutGraph,
   LayoutFrame,
   NodeSize,
-  StepLayout,
+  StepGraphLayout,
 } from './layout';
 
 /*
@@ -757,7 +757,7 @@ interface Rect {
   height: number;
 }
 
-function rectOf(layout: StepLayout, id: string): Rect | undefined {
+function rectOf(layout: StepGraphLayout, id: string): Rect | undefined {
   const p = layout.positions.get(id);
   if (!p) return undefined;
   const size: NodeSize = boxSize(layout, id);
@@ -778,7 +778,7 @@ function overlaps(a: Rect, b: Rect): boolean {
  * next to it. dagre keeps the steps of a frame together, so this is rare;
  * the graph is then laid out again with these groups as labels.
  */
-function coveringFrames(layout: StepLayout, graph: GroupedGraph): string[] {
+function coveringFrames(layout: StepGraphLayout, graph: GroupedGraph): string[] {
   const parentOf = new Map<string, string | undefined>();
   for (const f of graph.frames) parentOf.set(f.id, f.parent);
   for (const n of graph.nodes) parentOf.set(n.id, n.parent);
@@ -823,7 +823,7 @@ type GroupNotice =
 
 /** A laid out graph with group boxes. */
 export interface GroupedLayout {
-  layout: StepLayout;
+  layout: StepGraphLayout;
   plan: GroupPlan;
   graph: GroupedGraph;
   /** Groups the user opened that stay collapsed (no room left). */
@@ -900,7 +900,7 @@ export function layoutGroupedSteps(
     // row below it, and the graph is laid out again.
     const below = new Set<string>();
     let graph: GroupedGraph;
-    let layout: StepLayout;
+    let layout: StepGraphLayout;
     for (;;) {
       graph = stackGroups(groupGraph(nodes, edges, p), p, ids, below);
       layout = lay(

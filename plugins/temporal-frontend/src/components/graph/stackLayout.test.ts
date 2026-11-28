@@ -40,7 +40,7 @@ import {
   FRAME_GAP,
   layoutGraph,
   stepSize,
-  StepLayout,
+  StepGraphLayout,
   visibleSteps,
 } from './layout';
 import {
@@ -525,7 +525,7 @@ describe('arrows down the left side of a stacked frame', () => {
       ['t1', { x: STACK_SIDE, y: 170 }],
       ['t2', { x: STACK_SIDE, y: 250 }],
     ]);
-    const layout: StepLayout = {
+    const layout: StepGraphLayout = {
       positions,
       sizes: new Map([['f', { width: 900, height: 340 }]]),
       width: 940,
@@ -574,7 +574,7 @@ describe('arrows down the right side of a stacked frame', () => {
       ['x', { x: 432, y: 340 }],
       ['t', { x: 48, y: 1644 }],
     ]);
-    const layout: StepLayout = {
+    const layout: StepGraphLayout = {
       positions,
       sizes: new Map([
         ['f', { width: 364, height: 698 }],
@@ -1650,7 +1650,7 @@ describe('stackGapOf', () => {
    * A stacked frame `f` of two rows: a and b in the first, c in the second;
    * t outside, right of it.
    */
-  function layout(): StepLayout {
+  function layout(): StepGraphLayout {
     const positions = new Map([
       ['f', { x: 0, y: 0 }],
       ['a', { x: 40, y: 40 }],
@@ -1678,7 +1678,7 @@ describe('stackGapOf', () => {
   function threeRows(
     target: { x: number; frame?: boolean },
     middle = 40,
-  ): StepLayout {
+  ): StepGraphLayout {
     const positions = new Map([
       ['f', { x: 0, y: 0 }],
       ['a', { x: 40, y: 40 }],
@@ -1725,7 +1725,7 @@ describe('stackGapOf', () => {
       ['n', { x: 420, y: 200 }],
       ['t', { x: 40, y: 360 }],
     ]);
-    const rows: StepLayout = {
+    const rows: StepGraphLayout = {
       positions,
       sizes: new Map([['f', { width: 700, height: 500 }]]),
       width: 740,
@@ -1843,7 +1843,7 @@ describe('stackGapOf', () => {
       ['c', { x: 40, y: 360 }],
       ['t', { x: 40, y: 600 }],
     ]);
-    const rows: StepLayout = {
+    const rows: StepGraphLayout = {
       positions,
       sizes: new Map([['f', { width: 700, height: 500 }]]),
       width: 740,
