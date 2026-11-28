@@ -31,7 +31,7 @@
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@public` | 正式支援的 API。`1.0.0` 之前，minor 版本仍可能改動它，changelog 會寫出來（[README](../../README.md)）。                                                               |
 | `@alpha`  | 可以用，但版本之間不保證相容。`./alpha` 入口只有這一種，`./ui` 也是（它只在 minor 版本才會不相容，見 [`temporal`](#temporal)）；`./common` 有 13 個（實驗性的名稱）。 |
-| 實驗性    | 模型呼叫的型別和 Event Groups。第一版之前會大幅改動，見[實驗性](#實驗性模型呼叫和-event-groups)。不要依賴它們。                                                       |
+| 實驗性    | 模型呼叫的型別和 Event Groups。minor 版本可能改動，見[實驗性](#實驗性模型呼叫和-event-groups)。不要依賴它們。                                                         |
 
 HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己的標記：它們跟著提供或讀取它們的套件（`temporal-backend`，`@public`），實驗性的路由和設定鍵除外。
 
@@ -495,7 +495,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## 實驗性：模型呼叫和 Event Groups
 
-> **實驗性。第一版之前會大幅改動，不要依賴。**
+> **實驗性。minor 版本可能改動，不要依賴。**
 
 - 模型呼叫和 tool call：一律開啟。路由 `GET /:wf/llm-calls/:eventId`、`TemporalApi` 的 `getLlmCall`（`@alpha`）、`./common` 裡 `llm.ts` 的名稱、`WorkflowGraphNode` 的 `llm`、`tool` 欄位。
 - Event Groups：一律開啟，從事件紀錄讀出來。`./common` 裡 `eventGroups.ts` 的名稱、`WorkflowGraphNode` 的 `groups` 欄位，以及 `WorkflowGraphResponse` 的 `eventGroups`、`eventGroupsTruncated` 欄位（[README](../../README.md#event-groups)）。需要 Temporal server 1.32 以上和會寫 Event Groups 的 SDK（TypeScript SDK 1.23 以上）；版本不夠時這些欄位不會出現。Event Groups 在 Temporal 是實驗性功能，形狀跟著它變。

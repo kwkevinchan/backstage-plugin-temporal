@@ -44,8 +44,8 @@ its changelog, and there are no changesets to apply: start at step 2.
    `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
 3. Check what each package will contain:
    `yarn workspace <package> pack --dry-run` lists the files: `dist/`, its
-   `README.md`, `LICENSE`, where it has one, `config.d.ts`, and for the
-   backend plugin `src/schema/openapi.yaml`. Then
+   `README.md`, `LICENSE`, `CHANGELOG.md`, where it has one,
+   `config.schema.json`, and for the backend plugin `src/schema/openapi.yaml`. Then
    `yarn workspace <package> pack` and look at the `package.json` inside the
    tarball: `main`/`types` (and `exports`) point at `dist/`, and the
    `workspace:^` and `backstage:^` ranges are replaced by version ranges.

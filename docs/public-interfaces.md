@@ -42,7 +42,7 @@ Every exported name carries a release tag in its doc comment, and the
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                                                                            |
 | `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui` (it breaks only in a minor version, see [`temporal`](#temporal)), and `./common` has 13 of them (the experimental names). |
-| Experimental | The model call types and Event Groups. They will change substantially before the first release; see [Experimental](#experimental-model-calls-and-event-groups). Do not build on them.                                                        |
+| Experimental | The model call types and Event Groups. They can change in a minor version; see [Experimental](#experimental-model-calls-and-event-groups). Do not build on them.                                                                             |
 
 The HTTP API, the permissions, the configuration keys, the annotations, the
 kind and the search attributes have no tag of their own: they follow the
@@ -919,8 +919,8 @@ released together and the route is for the tab only.
 
 ## Experimental: model calls and event groups
 
-> **Experimental. These will change substantially before the first
-> release. Do not depend on them.**
+> **Experimental. These can change in a minor version. Do not depend on
+> them.**
 
 - the model calls and tool calls: always on. The route
   `GET /:wf/llm-calls/:eventId`, the `TemporalApi` method `getLlmCall`
