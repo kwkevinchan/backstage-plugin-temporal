@@ -28,6 +28,7 @@ import type {
   WorkflowRunRef,
   WorkflowRunChain,
 } from '../common';
+import { CLOSED_WITH_FAILURE } from '../common/stepRules';
 import {
   temporalApiRef,
   TemporalWorkflowActionDef,
@@ -338,7 +339,7 @@ function runChainLabel(chain: WorkflowRunChain): string {
 
 function currentLabel(workflow: WorkflowDetail) {
   if (workflow.status === 'Running') return 'Now';
-  if (['Failed', 'TimedOut', 'Terminated'].includes(workflow.status)) {
+  if (CLOSED_WITH_FAILURE.includes(workflow.status)) {
     return 'Stopped at';
   }
   return 'Result';

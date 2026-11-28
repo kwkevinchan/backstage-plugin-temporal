@@ -15,6 +15,7 @@
  */
 
 import type { WorkflowGraphNode, WorkflowNodeKind } from '../common';
+import { isLocalActivityMarker, OPEN_STATUSES } from '../common/stepRules';
 import { deadlineText, formatDuration } from './format';
 
 const KIND_LABELS: Record<WorkflowNodeKind, string> = {
@@ -45,12 +46,12 @@ export function kindLabel(kind: WorkflowNodeKind): string {
 export function isMarkerStep(node: WorkflowGraphNode): boolean {
   if (node.kind !== 'marker') return false;
   const name = node.details?.markerName;
-  return !/local_?activity/i.test(typeof name === 'string' ? name : node.name);
+  return !isLocalActivityMarker(typeof name === 'string' ? name : node.name);
 }
 
 /** True for steps that are not closed yet. */
 export function isOpenStep(node: WorkflowGraphNode): boolean {
-  return ['Scheduled', 'Running', 'Retrying', 'Waiting'].includes(node.status);
+  return OPEN_STATUSES.has(node.status);
 }
 
 /** What a step box knows besides the step. */

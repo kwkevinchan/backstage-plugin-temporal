@@ -50,6 +50,7 @@ import {
   TemporalScheduleNoteRequest,
   TemporalScheduleOperation,
 } from '../common';
+import { hasErrorBody } from '../common/errorBody';
 import type { TemporalApi } from '../extensions';
 
 function queryString(params: Record<string, string | number | undefined>) {
@@ -84,14 +85,7 @@ async function responseError(
   operation = false,
 ): Promise<Error> {
   if (response.status === 404) {
-    let errorBody = false;
-    try {
-      const body = JSON.parse(await response.clone().text());
-      errorBody = typeof body?.error?.name === 'string';
-    } catch {
-      // not JSON: no error body
-    }
-    if (!errorBody) {
+    if (!(await hasErrorBody(response.clone()))) {
       return Object.assign(
         new Error(
           operation ? OPERATION_NOT_SERVED_MESSAGE : BACKEND_MISSING_MESSAGE,

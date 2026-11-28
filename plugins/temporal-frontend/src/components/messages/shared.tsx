@@ -62,7 +62,7 @@ export function parseArgs(
   if (!text.trim()) return { args: [] };
   try {
     const value = JSON.parse(text) as JsonValue;
-    return { args: Array.isArray(value) ? value : [value] };
+    return { args: exampleArgs(value) };
   } catch (e) {
     return { error: `Not valid JSON: ${(e as Error).message}` };
   }

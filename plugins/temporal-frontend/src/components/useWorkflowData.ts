@@ -21,6 +21,7 @@ import type {
   WorkflowGraphResponse,
   WorkflowRunRef,
 } from '../common';
+import { GRAPH_PENDING_ACTIVITY_FIELDS } from '../common/stepRules';
 import { temporalApiRef } from '../extensions';
 
 /**
@@ -66,17 +67,9 @@ function graphKey(ref: WorkflowRunRef, workflow: WorkflowDetail) {
     workflow.runId,
     workflow.status,
     workflow.historyLength,
-    // Keep in step with the pending activities part of `buildWorkflowGraph`.
     [...workflow.pendingActivities]
       .sort((a, b) => a.activityId.localeCompare(b.activityId))
-      .map(a => [
-        a.activityId,
-        a.attempt,
-        a.maximumAttempts,
-        a.lastFailure,
-        a.state,
-        a.lastStartedTime,
-      ]),
+      .map(a => GRAPH_PENDING_ACTIVITY_FIELDS.map(field => a[field])),
   ]);
 }
 

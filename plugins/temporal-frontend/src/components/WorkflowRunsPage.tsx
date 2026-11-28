@@ -22,6 +22,7 @@ import { useEntity } from '@backstage/plugin-catalog-react';
 import { Button, Flex, Link, Text } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import type { WorkflowSummary } from '../common';
+import { LIST_PAGE_SIZE } from '../common/listLimits';
 import { temporalApiRef } from '../extensions';
 import { ErrorAlert } from './feedback';
 import { savedListSearch } from './listState';
@@ -30,7 +31,7 @@ import { useRefreshLock } from './useRefreshLock';
 import { Pager, workflowLink, WorkflowRunsTable } from './WorkflowRunsTable';
 
 /** Runs on one page of the run list. */
-const RUNS_PAGE_SIZE = 20;
+const RUNS_PAGE_SIZE = LIST_PAGE_SIZE.default;
 
 /** The run list of a workflow ID, inside the entity tab. */
 export function EntityWorkflowRunsPage() {

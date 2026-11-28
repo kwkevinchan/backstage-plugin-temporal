@@ -30,6 +30,7 @@ import {
 } from '@backstage/ui';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
 import type { TemporalSchedule } from '../common';
+import { MAX_SCHEDULES } from '../common/listLimits';
 import { temporalApiRef, TemporalScheduleActionDef } from '../extensions';
 import { ErrorAlert } from './feedback';
 import { formatTime } from './format';
@@ -225,7 +226,7 @@ export function SchedulesCard(props: {
       )}
       {value?.truncated && (
         <Text as="p" variant="body-x-small" color="secondary">
-          Only the first 500 schedules of the namespace are read.
+          {`Only the first ${MAX_SCHEDULES} schedules of the namespace are read.`}
         </Text>
       )}
     </PanelCard>
