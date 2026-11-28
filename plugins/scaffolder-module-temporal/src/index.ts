@@ -23,12 +23,12 @@
  * @packageDocumentation
  */
 
-import { scaffolderPlugin } from '@backstage/plugin-scaffolder';
-import { createScaffolderFieldExtension } from '@backstage/plugin-scaffolder-react';
 import {
   TemporalWorkflowPicker,
   TemporalWorkflowPickerUiOptions,
 } from './components/TemporalWorkflowPicker';
+import { scaffolderPlugin } from '@backstage/plugin-scaffolder';
+import { createScaffolderFieldExtension } from '@backstage/plugin-scaffolder-react';
 
 export type { TemporalWorkflowPickerUiOptions };
 

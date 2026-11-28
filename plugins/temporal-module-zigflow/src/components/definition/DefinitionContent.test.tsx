@@ -39,9 +39,9 @@ import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
 import { listResponse, mockTemporalApi } from '../../testData';
 
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
-import { entityContentRouteRef } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
-import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
+import { entityContentRouteRef } from '@kwkevinchan/backstage-plugin-temporal/ui';
+import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal/common';
 import type { WorkflowDefinitionResponse } from '../../common/definition';
 import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
 import { EntityTemporalDefinitionContentPage } from './DefinitionContent';

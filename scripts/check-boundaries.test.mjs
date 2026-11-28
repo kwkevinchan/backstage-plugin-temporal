@@ -69,7 +69,7 @@ for (const [rule, text] of Object.entries(samples)) {
 
 test('clean text passes', () => {
   const clean = [
-    '@kwkevinchan/backstage-plugin-temporal-frontend',
+    '@kwkevinchan/backstage-plugin-temporal',
     'https://registry.npmjs.org',
     '/home/runner/work',
     '/Users/Shared/data',

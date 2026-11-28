@@ -14,6 +14,4 @@ export default _default;
 
 // @public
 export const temporalPlugin: BackendFeature;
-
-// (No @packageDocumentation comment for this package)
 ```

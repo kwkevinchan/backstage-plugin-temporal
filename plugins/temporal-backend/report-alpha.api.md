@@ -237,7 +237,5 @@ export const temporalWorkflowPermissionRules: {
 
 // Warnings were encountered during analysis:
 //
-// src/alpha.d.ts:14:5 - (ae-forgotten-export) The symbol "WorkflowSummary" needs to be exported by the entry point alpha.d.ts
-
-// (No @packageDocumentation comment for this package)
+// src/alpha.d.ts:24:5 - (ae-forgotten-export) The symbol "WorkflowSummary" needs to be exported by the entry point alpha.d.ts
 ```

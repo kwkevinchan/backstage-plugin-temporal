@@ -113,5 +113,5 @@ After a recording, compare it against the committed file and run the backend
 and frontend tests before you replace anything:
 
 ```bash
-CI=true yarn backstage-cli repo test --selectProjects @kwkevinchan/backstage-plugin-temporal-backend @kwkevinchan/backstage-plugin-temporal-frontend
+CI=true yarn backstage-cli repo test --selectProjects @kwkevinchan/backstage-plugin-temporal-backend @kwkevinchan/backstage-plugin-temporal
 ```

@@ -44,7 +44,7 @@ const { parse } = require(require.resolve('yaml', {
 const { buildDefinitionGraph } = require(join(zigflowDefDir, 'dslGraph.ts'));
 const { boxSize, layoutSteps } = require(join(
   root,
-  'plugins/temporal-frontend/src/components/graph/layout.ts',
+  'plugins/temporal/src/components/graph/layout.ts',
 ));
 
 const fixturePath = join(root, 'test-fixtures/definitions/every-task.yaml');

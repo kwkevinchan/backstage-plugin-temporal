@@ -18,11 +18,11 @@ import { useEffect, useState } from 'react';
 import { useApi } from '@backstage/core-plugin-api';
 import type { FieldExtensionComponentProps } from '@backstage/plugin-scaffolder-react';
 import { Select, Text } from '@backstage/ui';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
 import type {
   WorkflowStatus,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+} from '@kwkevinchan/backstage-plugin-temporal/common';
 
 /**
  * Options of the `TemporalWorkflowPicker` field (`ui:options`). Without

@@ -20,7 +20,7 @@
 // copy of a rule with the core's.
 
 const BE = '^plugins/temporal-backend/src';
-const FE = '^plugins/temporal-frontend/src';
+const FE = '^plugins/temporal/src';
 const GRAPH = `${FE}/components/graph`;
 
 /** The gateway classes that the use cases are given. */
@@ -129,10 +129,10 @@ module.exports = {
       comment:
         'A module imports the core package of its side only through the entry points the core package exports.',
       from: {
-        path: '^plugins/(?!temporal-(backend|frontend)/)[^/]+/src/',
+        path: '^plugins/(?!temporal(-backend)?/)[^/]+/src/',
       },
       to: {
-        path: '^plugins/temporal-(backend|frontend)/src/',
+        path: '^plugins/temporal(-backend)?/src/',
         pathNot: [
           `${BE}/(index|alpha)\\.ts$`,
           `${BE}/(common|node)/index\\.ts$`,

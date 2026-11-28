@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
+import { createFrontendModule } from '@backstage/frontend-plugin-api';
+import {
+  createFormField,
+  FormFieldBlueprint,
+} from '@backstage/plugin-scaffolder-react/alpha';
+
 /**
  * Entry point for the new frontend system: a module of the Scaffolder with
  * the `TemporalWorkflowPicker` form field.
  *
  * @packageDocumentation
  */
-
-import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import {
-  createFormField,
-  FormFieldBlueprint,
-} from '@backstage/plugin-scaffolder-react/alpha';
 
 /**
  * The `TemporalWorkflowPicker` form field.

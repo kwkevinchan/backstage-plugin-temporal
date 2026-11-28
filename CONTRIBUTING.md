@@ -24,28 +24,31 @@ discuss larger changes before sending a pull request.
 ## Releasing
 
 Releases are cut by the maintainer from `main`, with
-[changesets](https://github.com/changesets/changesets). The first release
-takes every published package from `0.0.0` to `0.1.0`: the seven packages
-`@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal-frontend`,
+[changesets](https://github.com/changesets/changesets). The seven published
+packages have one version: `.changeset/config.json` puts
+`@kwkevinchan/backstage-plugin-temporal-backend`, `-temporal`,
 `-temporal-backend-module-zigflow`, `-temporal-module-zigflow`,
 `-temporal-backend-module-actions`,
 `-scaffolder-backend-module-temporal` and `-scaffolder-module-temporal`
-(all under `@kwkevinchan/backstage-plugin-`).
+(all under `@kwkevinchan/backstage-plugin-`) in one `fixed` group, so a
+changeset for one of them raises all seven to the same version.
 
-1. `yarn changeset version`: bumps the versions (the first-release
-   changesets are `minor`), updates the internal dependency ranges and
-   writes the changelogs. Then `yarn install` (not `--immutable`: the
-   workspace versions are in `yarn.lock`). Review and commit both in a pull
-   request.
+The first release is `0.1.0`. The packages already have that version and
+its changelog, and there are no changesets to apply: start at step 2.
+
+1. `yarn changeset version`: bumps the versions, updates the internal
+   dependency ranges and writes the changelogs. Then `yarn install` (not
+   `--immutable`: the workspace versions are in `yarn.lock`). Review and
+   commit both in a pull request.
 2. On the merged `main`: `yarn install --immutable`, then
    `yarn tsc:full && yarn lint:all && yarn test && yarn build:all`.
 3. Check what each package will contain:
    `yarn workspace <package> pack --dry-run` lists the files: `dist/`, its
-   `README.md`, `LICENSE`, where it has one, `config.d.ts`, and for the
-   backend plugin `src/schema/openapi.yaml`. Then
+   `README.md`, `LICENSE`, `CHANGELOG.md`, where it has one,
+   `config.schema.json`, and for the backend plugin `src/schema/openapi.yaml`. Then
    `yarn workspace <package> pack` and look at the `package.json` inside the
    tarball: `main`/`types` (and `exports`) point at `dist/`, and the
-   `workspace:^` ranges are replaced by version ranges.
+   `workspace:^` and `backstage:^` ranges are replaced by version ranges.
 4. Publish with Yarn, which replaces the `workspace:` ranges (plain
    `npm publish` does not). Yarn does not read `~/.npmrc`: log in with
    `yarn npm login` (or set `npmAuthToken` in `~/.yarnrc.yml`), then run
@@ -65,12 +68,12 @@ modules that build on the package of their side:
 | Package                              | Depends on (of this repository) |
 | ------------------------------------ | ------------------------------- |
 | `temporal-backend`                   | nothing                         |
-| `temporal-frontend`                  | nothing                         |
+| `temporal`                           | nothing                         |
 | `temporal-backend-module-zigflow`    | `temporal-backend`              |
 | `temporal-backend-module-actions`    | `temporal-backend`              |
 | `scaffolder-backend-module-temporal` | `temporal-backend`              |
-| `temporal-module-zigflow`            | `temporal-frontend`             |
-| `scaffolder-module-temporal`         | `temporal-frontend`             |
+| `temporal-module-zigflow`            | `temporal`                      |
+| `scaffolder-module-temporal`         | `temporal`                      |
 
 `yarn constraints` (`yarn.config.cjs`) checks these directions: frontend
 packages never depend on backend packages or Node-only packages, the two
@@ -95,8 +98,8 @@ The permissions, types, annotation constants, API paths and the
 `plugins/temporal-backend/src/common` (exported as
 `@kwkevinchan/backstage-plugin-temporal-backend/common`). Backstage does not
 let a frontend plugin import a backend plugin, so the frontend package has a
-copy in `plugins/temporal-frontend/src/common` (exported as
-`@kwkevinchan/backstage-plugin-temporal-frontend/common`). Edit the backend
+copy in `plugins/temporal/src/common` (exported as
+`@kwkevinchan/backstage-plugin-temporal/common`). Edit the backend
 files and run `yarn sync:common`; the `pre-commit` hook and CI fail when the
 copy is out of date. The tests stay with the backend files; they check the
 permissions against `test-fixtures/permissions.json`.
@@ -113,7 +116,7 @@ paths before adding one). The event groups are tested the same way against
 The frontend tests of the event group views read graph responses written
 from some of these histories with the backend's graph builder: run
 `yarn sync:test-graphs` when the shape of the graph changes
-(`plugins/temporal-frontend/src/testGraphs/README.md`).
+(`plugins/temporal/src/testGraphs/README.md`).
 Large payloads use Temporal External
 Storage: the backend tests use references written by the official S3 driver
 (`plugins/temporal-backend/src/__testUtils__/externalStorage.ts`).
@@ -207,10 +210,10 @@ The routers are plain Express routers; nothing is generated from the spec.
 
 Graph layout tests guard against unintended layout or arrow-routing regressions with four baselines:
 
-- `plugins/temporal-frontend/src/components/graph/layoutBaseline.ts` — expected node positions, box sizes, graph dimensions, wrapping and row gaps for non-framed LR and TB graphs, verified by `eventGroups.test.ts`. Generated by running `layout.ts` from commit `58296d1` (before event-group frames) against the installed `@dagrejs/dagre` and current `steps` helpers.
+- `plugins/temporal/src/components/graph/layoutBaseline.ts` — expected node positions, box sizes, graph dimensions, wrapping and row gaps for non-framed LR and TB graphs, verified by `eventGroups.test.ts`. Generated by running `layout.ts` from commit `58296d1` (before event-group frames) against the installed `@dagrejs/dagre` and current `steps` helpers.
 - `plugins/temporal-module-zigflow/src/components/definition/definitionLayoutBaseline.ts` — expected node positions, box sizes and overall dimensions for the Zigflow `TB` definition graph of `test-fixtures/definitions/every-task.yaml`, verified by `definition.test.ts`.
-- `KNOWN_PROBLEMS` in `plugins/temporal-frontend/src/components/graph/frameEdge.test.ts` — upper bounds on problems introduced by row alignment, spread-turn crowding and stacked loops across 150 seeded cases.
-- `KNOWN_PREEXISTING_THROUGH_BOXES` in `plugins/temporal-frontend/src/components/graph/frameEdge.test.ts` — absolute upper bounds on arrows already running through boxes before row alignment (`lineUpRows = false`) across the same 150 seeded runs and graphs.
+- `KNOWN_PROBLEMS` in `plugins/temporal/src/components/graph/frameEdge.test.ts` — upper bounds on problems introduced by row alignment, spread-turn crowding and stacked loops across 150 seeded cases.
+- `KNOWN_PREEXISTING_THROUGH_BOXES` in `plugins/temporal/src/components/graph/frameEdge.test.ts` — absolute upper bounds on arrows already running through boxes before row alignment (`lineUpRows = false`) across the same 150 seeded runs and graphs.
 
 When making an intentional change to graph layout:
 

@@ -2,7 +2,17 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@kwkevinchan/backstage-plugin-temporal-backend",
+      "@kwkevinchan/backstage-plugin-temporal",
+      "@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow",
+      "@kwkevinchan/backstage-plugin-temporal-module-zigflow",
+      "@kwkevinchan/backstage-plugin-temporal-backend-module-actions",
+      "@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal",
+      "@kwkevinchan/backstage-plugin-scaffolder-module-temporal"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

@@ -27,17 +27,17 @@
 
 每個匯出的名稱在文件註解裡都有 release tag，[API report](#讓這篇保持正確) 的每一行也會標出來：
 
-| 標記      | 意思                                                                                                                                                                                    |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@public` | 正式支援的 API。`1.0.0` 之前，minor 版本仍可能改動它，changelog 會寫出來（[README](../../README.md)）。                                                                                 |
-| `@alpha`  | 可以用，但版本之間不保證相容。`./alpha` 入口只有這一種，`./ui` 也是（它只在 minor 版本才會不相容，見 [`temporal-frontend`](#temporal-frontend)）；`./common` 有 13 個（實驗性的名稱）。 |
-| 實驗性    | 模型呼叫的型別和 Event Groups。第一版之前會大幅改動，見[實驗性](#實驗性模型呼叫和-event-groups)。不要依賴它們。                                                                         |
+| 標記      | 意思                                                                                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@public` | 正式支援的 API。`1.0.0` 之前，minor 版本仍可能改動它，changelog 會寫出來（[README](../../README.md)）。                                                               |
+| `@alpha`  | 可以用，但版本之間不保證相容。`./alpha` 入口只有這一種，`./ui` 也是（它只在 minor 版本才會不相容，見 [`temporal`](#temporal)）；`./common` 有 13 個（實驗性的名稱）。 |
+| 實驗性    | 模型呼叫的型別和 Event Groups。minor 版本可能改動，見[實驗性](#實驗性模型呼叫和-event-groups)。不要依賴它們。                                                         |
 
 HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己的標記：它們跟著提供或讀取它們的套件（`temporal-backend`，`@public`），實驗性的路由和設定鍵除外。
 
 ## 接口在哪裡
 
-![外掛的接口在哪裡。Backstage app 裡，你的 app 和外掛使用 temporal-frontend 的 npm 入口（1）和擴充：blueprint、props、temporalApiRef（2）。瀏覽器、其他後端外掛、Scaffolder 模組和 actions 模組呼叫 /api/temporal 底下的 HTTP API（3）。Backstage 後端裡，你的模組使用擴充點和 service ref（4），你的權限政策使用權限和條件（5），catalog 多了 TemporalWorkflow kind，外掛讀取這個 kind 和實體上的標註（6），app-config 放 temporal 設定鍵（7）。後端用 @temporalio/client 連到 Temporal，並寫入 search attribute、identity 和稽核事件（8）。Worker 執行你的流程程式。](images/interfaces-overview.svg)
+![外掛的接口在哪裡。Backstage app 裡，你的 app 和外掛使用 temporal 的 npm 入口（1）和擴充：blueprint、props、temporalApiRef（2）。瀏覽器、其他後端外掛、Scaffolder 模組和 actions 模組呼叫 /api/temporal 底下的 HTTP API（3）。Backstage 後端裡，你的模組使用擴充點和 service ref（4），你的權限政策使用權限和條件（5），catalog 多了 TemporalWorkflow kind，外掛讀取這個 kind 和實體上的標註（6），app-config 放 temporal 設定鍵（7）。後端用 @temporalio/client 連到 Temporal，並寫入 search attribute、identity 和稽核事件（8）。Worker 執行你的流程程式。](images/interfaces-overview.svg)
 
 每個數字是一類接口，下面各節照這個順序。青綠色是前端用的，橘色是後端程式用的，紫色是跨過程序邊界的（HTTP、Temporal）。
 
@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 17 個 alpha（report-alpha.api.md），./node 12 個 public（report-node.api.md），./common 110 個，其中 97 個 public、13 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 22 個 public，./alpha 6 個 alpha，./common 同樣 110 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 17 個 alpha（report-alpha.api.md），./node 12 個 public（report-node.api.md），./common 110 個，其中 97 個 public、13 個是實驗性的 alpha（report-common.api.md）。temporal：. 22 個 public，./alpha 6 個 alpha，./common 同樣 110 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -62,10 +62,10 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 |                                      | `./node`   |     12 | `@public`                 | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
 |                                      | `./alpha`  |     17 | `@alpha`                  | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |    110 | `@public` 97、`@alpha` 13 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
-| `temporal-frontend`                  | `.`        |     22 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
-|                                      | `./alpha`  |      6 | `@alpha`                  | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
-|                                      | `./common` |    110 | `@public` 97、`@alpha` 13 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal-frontend/report-common.api.md)        |
-|                                      | `./ui`     |     26 | `@alpha`                  | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal-frontend/report-ui.api.md)                |
+| `temporal`                           | `.`        |     22 | `@public`                 | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal/report.api.md)                               |
+|                                      | `./alpha`  |      6 | `@alpha`                  | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal/report-alpha.api.md)                   |
+|                                      | `./common` |    110 | `@public` 97、`@alpha` 13 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal/report-common.api.md)                 |
+|                                      | `./ui`     |     26 | `@alpha`                  | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal/report-ui.api.md)                         |
 | `temporal-backend-module-zigflow`    | `.`        |      1 | `@public`                 | 安裝模組                           | [`report.api.md`](../../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |      1 | `@public`                 | 舊前端系統                         | [`report.api.md`](../../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |      2 | `@alpha`                  | 新前端系統                         | [`report-alpha.api.md`](../../plugins/temporal-module-zigflow/report-alpha.api.md)    |
@@ -120,7 +120,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 `DecodedPayload` 維持現在的三種形狀（`{ encoding, value }`、`{ encoding, size, undecodable: true, metadata? }`、`{ encoding, external }`），之後的版本只會加選填欄位。
 
-### `temporal-frontend`
+### `temporal`
 
 | 名稱                                                                                                                                                                              | 入口      | 是什麼                                                | 什麼時候用                         |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------- | ---------------------------------- |
@@ -392,7 +392,7 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 ## 設定鍵
 
-所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
+所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal`](../../plugins/temporal/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
 
 | 鍵                                                                                                                              | 誰讀                                                     | 瀏覽器看得到 |
 | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------ |
@@ -495,7 +495,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## 實驗性：模型呼叫和 Event Groups
 
-> **實驗性。第一版之前會大幅改動，不要依賴。**
+> **實驗性。minor 版本可能改動，不要依賴。**
 
 - 模型呼叫和 tool call：一律開啟。路由 `GET /:wf/llm-calls/:eventId`、`TemporalApi` 的 `getLlmCall`（`@alpha`）、`./common` 裡 `llm.ts` 的名稱、`WorkflowGraphNode` 的 `llm`、`tool` 欄位。
 - Event Groups：一律開啟，從事件紀錄讀出來。`./common` 裡 `eventGroups.ts` 的名稱、`WorkflowGraphNode` 的 `groups` 欄位，以及 `WorkflowGraphResponse` 的 `eventGroups`、`eventGroupsTruncated` 欄位（[README](../../README.md#event-groups)）。需要 Temporal server 1.32 以上和會寫 Event Groups 的 SDK（TypeScript SDK 1.23 以上）；版本不夠時這些欄位不會出現。Event Groups 在 Temporal 是實驗性功能，形狀跟著它變。
@@ -522,7 +522,7 @@ backend.add(
 App，新前端系統：
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 import temporalZigflowModule from '@kwkevinchan/backstage-plugin-temporal-module-zigflow/alpha';
 
 export default createApp({
@@ -570,8 +570,8 @@ App 把它顯示成按鈕，新系統：
 
 ```ts
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import { TemporalControlActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
-import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+import { TemporalControlActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal/common';
 
 const escalateButton = TemporalControlActionBlueprint.make({
   name: 'escalate',
@@ -611,8 +611,8 @@ export const temporalExtensionsModule = createFrontendModule({
 ```tsx
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { Text } from '@backstage/ui';
-import { TemporalWorkflowSectionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { TemporalWorkflowSectionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
 
 export function OwnerSection(props: TemporalWorkflowExtensionProps) {
   const owner = props.entity?.spec?.owner;
@@ -638,7 +638,7 @@ export const temporalTabsModule = createFrontendModule({
 ### 覆寫一個擴充
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 
 export default createApp({
   features: [
@@ -785,7 +785,7 @@ export async function listRunningWorkflows(
 | `temporalWorkflowExtensionsApiRef`、`TemporalWorkflowExtensionsApi` | 收集 blueprint 是實作細節                    | blueprint；要拿掉所有擴充就停用 `api:temporal/workflow-extensions`   |
 | 外掛的擴充本身（`temporalPage`…）                                   | 匯出擴充會把它們的參數固定下來               | `getExtension(id)` 和 `withOverrides()`（[ID](#extension-id)）       |
 | Zigflow 的型別（`WorkflowDefinitionResponse`…）                     | 這條路由只給 Definition 分頁用               | Definition 分頁                                                      |
-| 在前端匯入 `@kwkevinchan/backstage-plugin-temporal-backend/common`  | 前端外掛不能匯入後端外掛                     | `@kwkevinchan/backstage-plugin-temporal-frontend/common`，同一份定義 |
+| 在前端匯入 `@kwkevinchan/backstage-plugin-temporal-backend/common`  | 前端外掛不能匯入後端外掛                     | `@kwkevinchan/backstage-plugin-temporal/common`，同一份定義          |
 | 在你的外掛用 `./ui` 的元件                                          | 是為 Zigflow 模組做的，`@alpha`              | `@backstage/ui`                                                      |
 
 ## 讓這篇保持正確
@@ -798,6 +798,6 @@ yarn build:api-reports   # 型別檢查，再寫出 report
 
 把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。HTTP API 另有自己的合約：[OpenAPI 規格](../../plugins/temporal-backend/src/schema/openapi.yaml)，改路由時一起改它；路由的測試、對帳測試和 `yarn lint:openapi` 會檢查它。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
 
-有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal-frontend` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。大部分是預期的：一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。其餘是步驟圖型別上的實驗性欄位（`@public` 型別引用 `@alpha` 型別），會跟實驗性畫面一起改。
+有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。這些警告全都是一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。步驟圖型別上的三個實驗性欄位（`WorkflowGraphNode.llm`、`.tool` 和 `WorkflowGraphResponse.eventGroups`）標成 `@alpha`：它們可能在 minor 版本改變。
 
 回到[文件索引](README.md)。

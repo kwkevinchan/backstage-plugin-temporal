@@ -1,6 +1,6 @@
 {
   "name": "@kwkevinchan/backstage-plugin-temporal-backend-module-actions",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Actions registry actions for the unofficial Backstage Temporal plugin: list and read workflows, start them, send signals and updates, for AI assistants and MCP clients that act as the user",
   "license": "Apache-2.0",
   "keywords": [
