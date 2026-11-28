@@ -178,7 +178,7 @@ not use it.
 | `temporal-module-zigflow`            | `EntityTemporalDefinitionContent`                                         | `.`       | Legacy Definition tab                                                                            |
 |                                      | `default`, `temporalDefinitionContent`                                    | `./alpha` | Frontend module of `temporal` with `entity-content:temporal/definition`                          |
 | `temporal-backend-module-actions`    | `default`                                                                 | `.`       | Backend module `temporal` / `actions`: five actions of the actions registry                      |
-| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | Backend module `scaffolder` / `temporal`: the three template actions                             |
+| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | Backend module `scaffolder` / `temporal`: the four template actions                              |
 | `scaffolder-module-temporal`         | `TemporalWorkflowPickerFieldExtension`, `TemporalWorkflowPickerUiOptions` | `.`       | Legacy form field and its `ui:options`                                                           |
 |                                      | `default`, `temporalWorkflowPickerFormField`                              | `./alpha` | Frontend module of `scaffolder` with `scaffolder-form-field:scaffolder/temporal-workflow-picker` |
 
@@ -841,7 +841,7 @@ to arbitrary HTTPS hosts.
 ## Scaffolder
 
 `@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` adds
-three template actions. They call the HTTP API of the plugin as the user who
+four template actions. They call the HTTP API of the plugin as the user who
 runs the template (they may run in another backend than the plugin):
 
 | Action                     | Input                                                                                                                                               | Output                                            |

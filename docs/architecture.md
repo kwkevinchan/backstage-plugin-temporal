@@ -42,15 +42,15 @@ the table with the role of each package and
 
 What works with what:
 
-| You install                                                      | What you get                                                                                                                                                                      |
-| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `temporal-backend` only                                          | The API (reads, Query, operations unless `temporal.control.enabled` is false), the `TemporalWorkflow` kind, and the shared client and extension points for your own backend code. |
-| `temporal-backend` in a backend without the catalog plugin       | The same without the kind: the backend skips the catalog module.                                                                                                                  |
-| `temporal-frontend` and `temporal-backend`                       | Every page of the plugin in both frontend systems; no Definition tab and no Scaffolder field.                                                                                     |
-| `temporal-frontend` without a reachable `temporal-backend`       | The pages load and show an error that names `@kwkevinchan/backstage-plugin-temporal-backend` (or the error of the request when the backend cannot be reached); nothing works.     |
-| Zigflow frontend module without the Zigflow backend module       | The Definition tab says that the backend serves no workflow definitions.                                                                                                          |
-| Zigflow backend module without `temporal-backend` (same backend) | The backend skips the module; the route does not exist.                                                                                                                           |
-| Scaffolder backend module                                        | The three actions, calling a reachable `temporal-backend` (possibly another backend) as the user. With the operations turned off there, `start` and `signal` fail with a message. |
+| You install                                                      | What you get                                                                                                                                                                               |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `temporal-backend` only                                          | The API (reads, Query, operations unless `temporal.control.enabled` is false), the `TemporalWorkflow` kind, and the shared client and extension points for your own backend code.          |
+| `temporal-backend` in a backend without the catalog plugin       | The same without the kind: the backend skips the catalog module.                                                                                                                           |
+| `temporal-frontend` and `temporal-backend`                       | Every page of the plugin in both frontend systems; no Definition tab and no Scaffolder field.                                                                                              |
+| `temporal-frontend` without a reachable `temporal-backend`       | The pages load and show an error that names `@kwkevinchan/backstage-plugin-temporal-backend` (or the error of the request when the backend cannot be reached); nothing works.              |
+| Zigflow frontend module without the Zigflow backend module       | The Definition tab says that the backend serves no workflow definitions.                                                                                                                   |
+| Zigflow backend module without `temporal-backend` (same backend) | The backend skips the module; the route does not exist.                                                                                                                                    |
+| Scaffolder backend module                                        | The four actions, calling a reachable `temporal-backend` (possibly another backend) as the user. With the operations turned off there, `start`, `signal` and `update` fail with a message. |
 
 ### Why two core packages
 

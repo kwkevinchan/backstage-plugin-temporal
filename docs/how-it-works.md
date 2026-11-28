@@ -122,7 +122,7 @@ Temporal doing their own work, and dashed lines are replies. Time runs downward.
    `untilSearchAttribute` is true. The workflow set it when it reached the point
    where it needs a decision, so the template can continue, and include a link to the workflow.
 3. **Decision.** Someone sends an update: from the **Update…** dialog on the details
-   page, or with another template whose `temporal:workflow:update` step. The plugin passes the access check, checks the update
+   page, or with another template's `temporal:workflow:update` step. The plugin passes the access check, checks the update
    permission, checks the name against `temporal.control.allowedUpdates`, opens an
    audit event and sends the update with the user's identity. The workflow's
    validator checks it, the handler records the decision, and the result (or the

@@ -147,7 +147,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporal-module-zigflow`            | `EntityTemporalDefinitionContent`                                         | `.`       | 舊系統的 Definition 分頁                                                                |
 |                                      | `default`、`temporalDefinitionContent`                                    | `./alpha` | `temporal` 的前端模組，含 `entity-content:temporal/definition`                          |
 | `temporal-backend-module-actions`    | `default`                                                                 | `.`       | 後端模組 `temporal` / `actions`：actions registry 的五個 action                         |
-| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | 後端模組 `scaffolder` / `temporal`：三個範本 action                                     |
+| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | 後端模組 `scaffolder` / `temporal`：四個範本 action                                     |
 | `scaffolder-module-temporal`         | `TemporalWorkflowPickerFieldExtension`、`TemporalWorkflowPickerUiOptions` | `.`       | 舊系統的表單欄位和它的 `ui:options`                                                     |
 |                                      | `default`、`temporalWorkflowPickerFormField`                              | `./alpha` | `scaffolder` 的前端模組，含 `scaffolder-form-field:scaffolder/temporal-workflow-picker` |
 
@@ -480,7 +480,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Scaffolder
 
-`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` 加上三個範本 action。它們以執行範本的使用者身分呼叫外掛的 HTTP API（可以在外掛以外的另一個後端執行）：
+`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` 加上四個範本 action。它們以執行範本的使用者身分呼叫外掛的 HTTP API（可以在外掛以外的另一個後端執行）：
 
 | Action                     | 輸入                                                                                                                                                | 輸出                                              |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |

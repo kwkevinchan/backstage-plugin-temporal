@@ -1422,8 +1422,8 @@ or updates with the actions of
 and let the user pick a workflow with the `TemporalWorkflowPicker` field of
 [`@kwkevinchan/backstage-plugin-scaffolder-module-temporal`](plugins/scaffolder-module-temporal).
 The actions run as the user who runs the template, through the plugin's own
-routes, so the same permissions and audit records apply. `start` and `signal`
-refuse a task that does not run as a user (for example one started with a
+routes, so the same permissions and audit records apply. `start`, `signal` and
+`update` refuse a task that does not run as a user (for example one started with a
 static token) unless `temporal.scaffolder.allowServiceWrites` is `true`, since
 the permission framework does not apply the policy to service principals;
 `wait` only reads and accepts any initiator. Other plugins can
