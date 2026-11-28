@@ -38,10 +38,3 @@ export function taskAtLine(
   }
   return best;
 }
-
-/** The task of a graph box: a task box, or the join or catch of a task. */
-export function pointerOfNode(id: string): string | undefined {
-  if (!id.startsWith('/')) return undefined;
-  const hash = id.indexOf('#');
-  return hash < 0 ? id : id.slice(0, hash);
-}

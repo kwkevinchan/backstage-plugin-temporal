@@ -117,12 +117,6 @@ export function LongText(props: { text: string; testId?: string }) {
   );
 }
 
-function bytesOfBase64(content: unknown): string {
-  if (typeof content !== 'string') return '';
-  const bytes = Math.floor((content.replace(/=+$/, '').length * 3) / 4);
-  return bytes < 1024 ? `${bytes} B` : `${Math.round(bytes / 102.4) / 10} KB`;
-}
-
 /** One part of a message. */
 function Part(props: { part: WorkflowLlmPart }) {
   const { part } = props;
@@ -159,20 +153,6 @@ function Part(props: { part: WorkflowLlmPart }) {
             <JsonView value={(part.response ?? null) as JsonValue} />
           )}
         </div>
-      );
-    case 'blob':
-      return (
-        <Text as="p" variant="body-small" color="secondary">
-          {String(part.modality ?? 'data')}
-          {part.mime_type ? ` (${String(part.mime_type)})` : ''},{' '}
-          {bytesOfBase64(part.content)} inline
-        </Text>
-      );
-    case 'uri':
-      return (
-        <Text as="p" variant="body-small" color="secondary">
-          {String(part.modality ?? 'file')}: {String(part.uri)}
-        </Text>
       );
     case 'file':
       return (
@@ -257,10 +237,9 @@ interface ToolCard {
   arguments?: JsonValue;
   ref?: WorkflowLlmToolCallRef;
   node?: WorkflowGraphNode;
-  execution?: WorkflowLlmRecord['toolExecutions'][number];
 }
 
-/** Tool calls of the output with their steps and runs inside the activity. */
+/** Tool calls of the output with their steps. */
 function toolCards(
   record: WorkflowLlmRecord | undefined,
   step: WorkflowGraphNode,
@@ -289,19 +268,6 @@ function toolCards(
       });
     }
   }
-  for (const e of record?.toolExecutions ?? []) {
-    const card = cards.find(c => c.id !== undefined && c.id === e.id);
-    if (card) card.execution = e;
-    else {
-      cards.push({
-        id: e.id,
-        name: e.name,
-        arguments: e.arguments,
-        execution: e,
-        ref: refFor(e.id, e.name),
-      });
-    }
-  }
   // Without a record: the tool calls from the summary.
   for (const r of refs) {
     if (used.has(r) || cards.some(c => c.ref === r)) continue;
@@ -314,40 +280,16 @@ function toolCards(
   return cards;
 }
 
-/**
- * The result of a tool step: the activity result, or for a local activity
- * the result in its marker.
- */
-function toolResult(node: WorkflowGraphNode): JsonValue | undefined {
-  if (node.kind !== 'marker') return node.result;
-  const input = node.input as { result?: JsonValue } | undefined;
-  return input?.result;
-}
-
 function cardStatus(card: ToolCard): WorkflowNodeStatus | undefined {
-  if (card.node) return card.node.status;
-  if (card.ref?.status) return card.ref.status;
-  if (!card.execution) return undefined;
-  return card.execution.error ? 'Failed' : 'Completed';
+  return card.node?.status ?? card.ref?.status;
 }
 
-/** The response of a tool call: from its step, or from the record. */
+/** The response of a tool call: from its step. */
 function ToolResponse(props: { card: ToolCard }) {
-  const { node, execution } = props.card;
-  if (node?.failure) return <FailureView failure={node.failure} />;
-  if (node) return <PayloadView payload={toolResult(node)} />;
-  if (execution?.error) {
-    return (
-      <Text as="p" variant="body-small" color="danger">
-        {execution.error.type ? `${execution.error.type}: ` : ''}
-        {execution.error.message}
-      </Text>
-    );
-  }
-  if (execution) {
-    return <JsonView value={(execution.result ?? null) as JsonValue} />;
-  }
-  return null;
+  const { node } = props.card;
+  if (!node) return null;
+  if (node.failure) return <FailureView failure={node.failure} />;
+  return <PayloadView payload={node.result} />;
 }
 
 function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
@@ -376,9 +318,6 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
               />
               <span className={tp('tp-llm-tool-name')}>{card.name}</span>
               {status && <WorkflowStatusLabel status={status} />}
-              {card.execution && !card.node && (
-                <span className={tp('tp-llm-tag')}>In the activity</span>
-              )}
               {card.node && card.ref?.inferred && (
                 <span
                   className={tp('tp-llm-tag')}
@@ -422,7 +361,7 @@ function ToolCards(props: { cards: ToolCard[]; onSelect?(id: string): void }) {
                 />
               </>
             )}
-            {(card.node || card.execution) && (
+            {card.node && (
               <Text as="p" variant="body-small" color="secondary">
                 Response
               </Text>
@@ -447,17 +386,12 @@ function UsageTiles(props: {
     ['Output tokens', formatTokens(usage.outputTokens)],
     ['Reasoning tokens', formatTokens(usage.reasoningTokens)],
     ['Cached input', formatTokens(usage.cacheReadInputTokens)],
+    ['Cache write', formatTokens(usage.cacheWriteInputTokens)],
     ['Duration', formatCallDuration(duration)],
   ];
   const shown = items.filter(([, v]) => v !== '');
-  const count = summary.callCount ?? 1;
   return (
     <>
-      {count > 1 && !props.record && shown.length > 0 && (
-        <Text as="p" variant="body-small" color="secondary">
-          Totals of the {count} model calls of this step.
-        </Text>
-      )}
       <div className={tp('tp-llm-usage')} data-testid="llm-usage-tiles">
         {shown.map(([label, value]) => (
           <div key={label}>
@@ -472,6 +406,50 @@ function UsageTiles(props: {
         </Text>
       )}
     </>
+  );
+}
+
+function hasRequestDetails(record: WorkflowLlmRecord): boolean {
+  return (
+    record.responseId !== undefined ||
+    record.parameters !== undefined ||
+    record.toolDefinitions !== undefined
+  );
+}
+
+/** What the call was sent with and the ID the provider gave the response. */
+function RequestDetails(props: { record: WorkflowLlmRecord }) {
+  const { responseId, parameters, toolDefinitions } = props.record;
+  return (
+    <Flex direction="column" gap="2">
+      {responseId !== undefined && (
+        <Text as="p" variant="body-small" color="secondary">
+          Response ID{' '}
+          <span
+            className={tp('tp-llm-tool-name')}
+            data-testid="llm-response-id"
+          >
+            {responseId}
+          </span>
+        </Text>
+      )}
+      {parameters !== undefined && (
+        <div data-testid="llm-parameters">
+          <Text as="p" variant="body-small" color="secondary">
+            Parameters
+          </Text>
+          <JsonView value={parameters} />
+        </div>
+      )}
+      {toolDefinitions !== undefined && (
+        <div data-testid="llm-tool-definitions">
+          <Text as="p" variant="body-small" color="secondary">
+            Tool definitions ({toolDefinitions.length})
+          </Text>
+          <JsonView value={toolDefinitions} />
+        </div>
+      )}
+    </Flex>
   );
 }
 
@@ -552,17 +530,8 @@ export function LlmPanel(props: {
       : []),
     ...(record?.inputMessages ?? []),
   ];
-  // A step with several model calls: the summary adds them all up, the
-  // record is one of them (the first). Name and model come from that one.
-  const count = data?.callCount ?? summary.callCount ?? 1;
-  const index = data?.index ?? 0;
-  const callModel = record?.responseModel ?? record?.requestModel;
-  const name =
-    count > 1
-      ? data?.call ?? summary.call ?? step.summary ?? callModel ?? step.name
-      : llmCallName(step);
   const facts = [
-    count > 1 ? callModel : modelText(summary),
+    modelText(summary),
     summary.provider,
     record?.finishReasons?.length
       ? `finish: ${record.finishReasons.join(', ')}`
@@ -572,12 +541,10 @@ export function LlmPanel(props: {
   return (
     <div data-testid="llm-panel">
       <Flex align="center" gap="2" style={{ flexWrap: 'wrap' }}>
-        <span className={tp('tp-llm-tag')}>LLM call {name}</span>
-        {count > 1 && (
-          <span className={tp('tp-llm-tag')} data-testid="llm-call-of">
-            Call {index + 1} of {count}
-          </span>
-        )}
+        <span className={tp('tp-llm-tag')}>LLM call {llmCallName(step)}</span>
+        <span className={tp('tp-llm-tag')} data-testid="llm-framework">
+          {summary.framework}
+        </span>
         <Text variant="body-small" color="secondary">
           {facts.join(' · ')}
         </Text>
@@ -603,11 +570,6 @@ export function LlmPanel(props: {
         </Text>
       )}
       {data?.external && <ExternalPayloadView external={data.external} />}
-      {data?.fromFailure && (
-        <Text as="p" variant="body-small" color="secondary">
-          Record of a failed attempt, from the failure details.
-        </Text>
-      )}
       {summary.record === 'pending' && (
         <Text as="p" variant="body-small" color="secondary">
           The model call has not ended; its record is written when it does.
@@ -719,6 +681,19 @@ export function LlmPanel(props: {
           >
             <UsageTiles step={step} record={record} />
           </Section>
+          {record && hasRequestDetails(record) && (
+            <Section
+              title="Details"
+              testId="llm-details"
+              copy={{
+                responseId: record.responseId,
+                parameters: record.parameters,
+                toolDefinitions: record.toolDefinitions,
+              }}
+            >
+              <RequestDetails record={record} />
+            </Section>
+          )}
         </>
       )}
     </div>

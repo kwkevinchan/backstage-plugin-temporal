@@ -21,6 +21,7 @@ import {
 } from '@backstage/backend-plugin-api';
 import { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonObject } from '@backstage/types';
+import { InputError, NotAllowedError, NotFoundError } from '@backstage/errors';
 import {
   isValidNamespaceName,
   WorkflowDetail,
@@ -76,12 +77,13 @@ export async function loadRequestWorkflow(
 
 /**
  * Checks a permission on the workflow's entity: the entity it was loaded
- * with (and on the related `TemporalWorkflow` entity it matched through,
- * when different), else the entity in its search attribute. A workflow
- * without an entity, or whose search attribute is not an entity reference,
- * is only allowed when the policy allows the permission for every entity (an
- * unconditional ALLOW). Returns the entity reference the permission was
- * checked on.
+ * with (and the related `TemporalWorkflow` entity it matched through, when
+ * different). A workflow loaded without one is checked on the entity of its
+ * search attribute only when the workflow opens with that entity as
+ * `?entityRef=` would (see {@link verifiedLinkedEntity}). A workflow without
+ * such an entity is only allowed when the policy allows the permission for
+ * every entity (an unconditional ALLOW). Returns the entity reference the
+ * permission was checked on.
  */
 export async function authorizeOnWorkflow(
   access: TemporalAccessService,
@@ -91,20 +93,52 @@ export async function authorizeOnWorkflow(
     'credentials' | 'context' | 'matchedEntityRef' | 'workflow'
   >,
 ): Promise<string | undefined> {
-  const entityRef =
-    loaded.context?.entityRef ??
-    (loaded.workflow.entityRef
-      ? canonicalEntityRef(loaded.workflow.entityRef)
-      : undefined);
+  const { context, matchedEntityRef } = loaded.context
+    ? loaded
+    : await verifiedLinkedEntity(access, loaded);
+  const entityRef = context?.entityRef;
   await access.authorizeOn(permission, entityRef, loaded.credentials);
-  if (loaded.matchedEntityRef && loaded.matchedEntityRef !== entityRef) {
-    await access.authorizeOn(
-      permission,
-      loaded.matchedEntityRef,
-      loaded.credentials,
-    );
+  if (matchedEntityRef && matchedEntityRef !== entityRef) {
+    await access.authorizeOn(permission, matchedEntityRef, loaded.credentials);
   }
   return entityRef;
+}
+
+/**
+ * The entity of the workflow's entity reference search attribute, loaded as
+ * `loadWorkflow` loads it for `?entityRef=`: the caller may read the entity,
+ * and the workflow is in its namespace and is one of its workflows. Whoever
+ * starts a workflow can set the search attribute, so it is not trusted
+ * alone. An entity that cannot be loaded this way counts as none.
+ */
+async function verifiedLinkedEntity(
+  access: TemporalAccessService,
+  loaded: Pick<LoadedWorkflow, 'credentials' | 'workflow'>,
+): Promise<Pick<LoadedWorkflow, 'context' | 'matchedEntityRef'>> {
+  const { workflow, credentials } = loaded;
+  const linked = workflow.entityRef
+    ? canonicalEntityRef(workflow.entityRef)
+    : undefined;
+  if (!linked) return {};
+  try {
+    return await access.loadWorkflow(
+      {
+        namespace: workflow.namespace,
+        workflowId: workflow.workflowId,
+        runId: workflow.runId,
+      },
+      { entityRef: linked, credentials },
+    );
+  } catch (error) {
+    if (
+      error instanceof NotFoundError ||
+      error instanceof NotAllowedError ||
+      error instanceof InputError
+    ) {
+      return {};
+    }
+    throw error;
+  }
 }
 
 /** Safe string field from a JSON object body for initial audit metadata. */

@@ -98,13 +98,12 @@ spec:
     target: ./workflows/order-fulfillment.yaml
 ```
 
-`spec.definition` has two required fields and one optional:
+`spec.definition` has two required fields:
 
 | Field    | Meaning                                                                                                                                                                             |
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format` | `serverless-workflow` (a YAML workflow, drawn as a graph), or `source` (the source code of a workflow written in code).                                                             |
+| `format` | `serverless-workflow` (a YAML workflow, drawn as a graph).                                                                                                                          |
 | `target` | A relative path within the entity's repository (`backstage.io/managed-by-location`), or an absolute `http(s)` URL allowed by `temporal.definitions.allow`. At most 2048 characters. |
-| `symbol` | `source` only: the function of the workflow, marked in the file (`orderWorkflow`, `OrderWorkflow.run`). Defaults to the workflow type.                                              |
 
 Why this shape: `target` means the same as `spec.target` of Backstage
 `Location` entities (relative or absolute), and an object with a `format`
@@ -114,27 +113,9 @@ of every file in every entity, without the size limit and the checks below,
 and would show changes only after the next refresh. The backend reads the
 file when the tab opens instead.
 
-Workflows written in code can show their source: `format: source` reads
-the file the same way (same locations and size limit) and shows it read-only
-with syntax colors (TypeScript, JavaScript, Python; Go, Java and others as
-plain text), with the workflow's function marked and scrolled into view.
-The function is found by text, not by parsing: a declaration of its name
-(`function name`, `const name = …`, a method, `def name`, `func name`), to
-its closing brace, or for Python its indented block.
-
-```yaml
-spec:
-  workflowType: orderWorkflow
-  definition:
-    format: source
-    target: ./src/workflows.ts
-    # symbol: orderWorkflow   # defaults to the workflow type
-```
-
 Without `spec.definition`, the Definition tab of a workflow written in code
 links to the source from the `backstage.io/source-location` and
-`backstage.io/view-url` annotations, without reading any file. The links
-also show above the source.
+`backstage.io/view-url` annotations, without reading any file.
 
 ## Reading the file
 
@@ -152,8 +133,8 @@ also show above the source.
   path of any other host. To narrow it, give the host `paths` in
   `backend.reading.allow`. S3 path-style hosts, where the first path segment
   is the bucket, are excluded. Paths climbing out with `..` or resolving to
-  another repository are rejected. `format: source` renders any file within
-  that allowed scope (the entity's repository or folder for relative targets, or
+  another repository are rejected. The file must be within that allowed
+  scope (the entity's repository or folder for relative targets, or
   the allowed `host` and `paths` for absolute URLs) up to `maxBytes`.
 - An absolute `http(s)` URL is rejected by default and read only when its host
   and `paths` prefix match `temporal.definitions.allow`. When `paths` is omitted

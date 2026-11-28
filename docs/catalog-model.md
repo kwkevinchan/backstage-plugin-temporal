@@ -111,6 +111,14 @@ attribute, only that entity is checked, and the policies on the
 limit who can declare such matches; see
 [the last section](#who-can-declare-that-a-workflow-belongs-to-an-entity).
 
+An operation on a workflow opened without an entity (from the Temporal page)
+uses the entity of the `entityRef` search attribute only after the same
+check: the caller may read the entity, and the workflow is in the entity's
+namespace and matches it by the rules above. Otherwise the workflow has no
+entity for the operation, and only a policy that allows it for every entity
+lets it through. The check loads the entity and describes the workflow (and
+its ancestors) once more.
+
 ## What a request costs
 
 The work of each request does not grow with the number of executions:

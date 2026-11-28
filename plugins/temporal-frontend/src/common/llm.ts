@@ -24,8 +24,8 @@ import type { ExternalPayload } from './types';
 /*
  * Model calls and tool calls: the steps of a run that call a model, and the
  * steps that run the tools a model asked for. LLM adapters in the backend
- * recognize them in the history (the official Temporal AI integrations,
- * and adapters that modules add) and turn them into the types below.
+ * recognize them in the history (the official Temporal AI integrations) and
+ * turn them into the types below.
  */
 
 /**
@@ -58,10 +58,8 @@ export interface WorkflowLlmToolCallRef {
   name: string;
   /** Graph node of the activity that ran the tool, when there is one. */
   nodeId?: string;
-  /** Status of that activity, or of the run recorded in the model call. */
+  /** Status of that activity. */
   status?: WorkflowNodeStatus;
-  /** True when the tool ran inside the model call's activity. */
-  inActivity?: boolean;
   /**
    * True when the step in `nodeId` was found by its name, arguments and
    * place in the run, not by a tool call ID the step recorded.
@@ -98,23 +96,14 @@ export type WorkflowLlmRecordState =
  */
 export interface WorkflowLlmSummary {
   /**
-   * Name of the call, when the step records one. Otherwise show the
-   * step's summary or the model.
-   */
-  call?: string;
-  /**
    * The LLM adapter that read the step, for example `vercel-ai-sdk` or
    * `openai-agents`.
    */
   framework: string;
-  /** Model calls in the step, when more than one: the numbers add up all. */
-  callCount?: number;
   record: WorkflowLlmRecordState;
-  /** `gen_ai.operation.name`, for example `chat`. */
-  operation?: string;
   /** The provider, for example `openai`, when the step records it. */
   provider?: string;
-  /** The response model, else the request model (of the last call). */
+  /** The response model, else the request model. */
   model?: string;
   usage?: WorkflowLlmUsage;
   /** Duration of the call, from the record, else from the activity. */
@@ -135,8 +124,6 @@ export interface WorkflowLlmSummary {
  * @alpha
  */
 export interface WorkflowToolLink {
-  /** Name of the model call, when it has one. */
-  call?: string;
   /** Tool call ID from the step, or from the model call it was linked to. */
   toolCallId?: string;
   /** Graph node of the model call. */
@@ -174,29 +161,6 @@ export interface WorkflowLlmMessage {
   role: string;
   name?: string;
   parts: WorkflowLlmPart[];
-  /** Deprecated in the conventions; read from older records. */
-  finishReason?: string;
-}
-
-/**
- * A tool that ran inside the model call's activity.
- *
- * Experimental: the shape changes before the first stable release.
- *
- * @alpha
- */
-export interface WorkflowLlmToolExecution {
-  /** `gen_ai.tool.call.id`. */
-  id?: string;
-  /** `gen_ai.tool.name`. */
-  name: string;
-  /** `gen_ai.tool.call.arguments`. */
-  arguments?: JsonValue;
-  /** `gen_ai.tool.call.result`. */
-  result?: JsonValue;
-  /** `error.type` and the message of a failed tool. */
-  error?: { type?: string; message: string };
-  durationMs?: number;
 }
 
 /**
@@ -208,13 +172,11 @@ export interface WorkflowLlmToolExecution {
  * @alpha
  */
 export interface WorkflowLlmRecord {
-  operation?: string;
   provider?: string;
   requestModel?: string;
   responseModel?: string;
   responseId?: string;
   finishReasons?: string[];
-  conversationId?: string;
   /** Other `gen_ai.request.*` attributes, for example the temperature. */
   parameters?: JsonObject;
   usage: WorkflowLlmUsage;
@@ -226,8 +188,6 @@ export interface WorkflowLlmRecord {
   outputMessages: WorkflowLlmMessage[];
   /** `gen_ai.tool.definitions`. */
   toolDefinitions?: JsonValue[];
-  toolExecutions: WorkflowLlmToolExecution[];
-  startTime?: string;
   durationMs?: number;
   error?: { type?: string; message: string };
 }
@@ -244,14 +204,8 @@ export interface WorkflowLlmCallResponse {
   nodeId: string;
   activityId: string;
   activityType: string;
-  /** Name of the call, when the step records one. */
-  call?: string;
   /** The LLM adapter that read the step. */
   framework: string;
-  /** Position of this call among the model calls of the step, from 0. */
-  index?: number;
-  /** Model calls in the step, when more than one (`?index=` picks one). */
-  callCount?: number;
   status: WorkflowNodeStatus;
   /** The record; left out with `unavailable`. */
   record?: WorkflowLlmRecord;
@@ -261,8 +215,6 @@ export interface WorkflowLlmCallResponse {
   unavailable?: string;
   /** The payload in External Storage that holds the record; with `unavailable`. */
   external?: ExternalPayload;
-  /** True when the record is of a failed attempt (failure details). */
-  fromFailure?: boolean;
 }
 
 /**

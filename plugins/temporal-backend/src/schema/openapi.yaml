@@ -89,7 +89,7 @@ components:
       in: query
       required: false
       allowReserved: true
-      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none)."
+      description: "The entity the workflow is opened from, for example `component:default/orders`. With it, the permission is checked on that entity, and the workflow must belong to it (its workflow sources, or a parent workflow that does, up to three levels): 404 otherwise. Without it, `temporal.workflow.list` allows the workflows it covers; only when it does not, the permission is checked on the entity in the workflow's entity reference search attribute (403 when there is none). An operation on a workflow that `temporal.workflow.list` allowed uses that entity only when the workflow opens with it as with `entityRef`; otherwise its permission must be allowed without conditions."
       schema:
         type: string
     scheduleEntityRef:
@@ -232,16 +232,6 @@ components:
       schema:
         type: string
         pattern: ^[0-9]{1,19}$
-    llmCallIndex:
-      name: index
-      in: query
-      required: false
-      allowReserved: true
-      description: Position of the model call in a step that made several, from 0.
-      schema:
-        type: string
-        pattern: ^[0-9]{1,4}$
-        default: '0'
   responses:
     BadRequest:
       description: Invalid parameters or body (`InputError`).
@@ -1234,20 +1224,9 @@ components:
           type: string
         activityType:
           type: string
-        call:
-          type: string
-          description: Name of the call, when the step records one.
         framework:
           type: string
           description: The LLM adapter that read the step, for example `vercel-ai-sdk`.
-        index:
-          type: integer
-          minimum: 0
-          description: Position of the call among the model calls of the step, when it made several.
-        callCount:
-          type: integer
-          minimum: 2
-          description: Model calls in the step, when it made several.
         status:
           $ref: '#/components/schemas/WorkflowNodeStatus'
         record:
@@ -1258,47 +1237,18 @@ components:
           type: string
         external:
           $ref: '#/components/schemas/ExternalPayload'
-        fromFailure:
-          type: boolean
       additionalProperties: {}
     WorkflowDefinitionResponse:
       type: object
       required:
-        - entityRef
         - format
         - target
-        - maxBytes
         - tasks
       properties:
-        entityRef:
-          type: string
         format:
           type: string
           enum:
             - serverless-workflow
-            - source
-        language:
-          type: string
-          enum:
-            - typescript
-            - javascript
-            - python
-            - go
-            - java
-            - text
-        symbol:
-          type: string
-        symbolLines:
-          type: object
-          required:
-            - startLine
-            - endLine
-          properties:
-            startLine:
-              type: integer
-            endLine:
-              type: integer
-          additionalProperties: false
         target:
           type: string
           description: '`spec.definition.target` as written.'
@@ -1307,13 +1257,10 @@ components:
           description: The URL the file was read from.
         content:
           type: string
-          description: The text of the file; absent when it could not be read.
+          description: The text of the file; absent when it could not be read or is not a valid definition.
         size:
           type: integer
           description: Size of the file in bytes.
-        maxBytes:
-          type: integer
-          description: Largest file the backend reads, in bytes.
         document:
           type: object
           description: The parsed file. Absent when it is not valid YAML.
@@ -1324,15 +1271,12 @@ components:
             type: object
             required:
               - pointer
-              - name
               - startLine
               - endLine
             properties:
               pointer:
                 type: string
                 description: JSON pointer of the task, for example `/do/1/checkStock`.
-              name:
-                type: string
               startLine:
                 type: integer
               endLine:
@@ -1354,8 +1298,6 @@ components:
             message:
               type: string
             line:
-              type: integer
-            column:
               type: integer
           additionalProperties: false
       additionalProperties: false
@@ -1848,7 +1790,7 @@ paths:
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
 
-        Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
+        Experimental: the shape changes before the first stable release.
       tags:
         - Experimental
       x-temporal-permissions:
@@ -1860,7 +1802,6 @@ paths:
         - $ref: '#/components/parameters/workflowId'
         - $ref: '#/components/parameters/runId'
         - $ref: '#/components/parameters/eventId'
-        - $ref: '#/components/parameters/llmCallIndex'
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':

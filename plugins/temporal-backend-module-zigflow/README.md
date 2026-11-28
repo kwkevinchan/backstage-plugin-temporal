@@ -38,8 +38,7 @@ The entity, the reading rules and the configuration
 [README of the frontend package](../temporal-module-zigflow/README.md). On any
 host backed by a Backstage integration, `temporal.definitions.allow` entries
 must specify `paths` so reading is limited to intended repositories, noting that
-`format: source` reads any allowed file in scope, `format: serverless-workflow`
-reads only `.yaml` and `.yml` files and returns their text only when they are
+the route reads only `.yaml` and `.yml` files and returns their text only when they are
 valid definitions (a file with a parse error is answered without its content),
 `file:` targets must be
 regular files in the folder of the entity file after symlinks are resolved,

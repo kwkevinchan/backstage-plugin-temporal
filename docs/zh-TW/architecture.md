@@ -92,7 +92,6 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 | 加一個會改動流程的後端 action  | `temporalControlExtensionPoint.addControlAction()`；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、它自己的權限、選用的 `filter` 和稽核紀錄 | `temporal-backend/alpha`                       |
 | 把後端 action 顯示成按鈕       | `TemporalControlActionBlueprint` 或 `createTemporalControlActionDef()`                                                                             | `temporal-frontend`（`/alpha`）                |
 | 替流程摘要補資料               | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`；它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`                      | `temporal-backend/alpha`                       |
-| 讓後端認得某個框架的模型呼叫   | `temporalLlmAdapterExtensionPoint.addLlmAdapter()`（實驗性）；轉接器讀得出的步驟會顯示成模型呼叫                                                   | `temporal-backend/alpha`                       |
 | 在自己的路由重用外掛的存取檢查 | `temporalAccessServiceRef`（`loadWorkflow()`、`authorizeOn()`）                                                                                    | `temporal-backend/alpha`                       |
 | 用別的方式決定存取             | 為 `temporalAccessServiceRef` 加自己的 factory；預設的 factory 就會被略過                                                                          | 後端                                           |
 | 為流程加權限規則               | 用 `temporalWorkflowPermissionResourceRef` 呼叫 `permissionsRegistry.addPermissionRules`                                                           | `temporal-backend/alpha`                       |
@@ -118,7 +117,7 @@ Temporal 的 client 不會替呼叫設期限：伺服器不回應時，呼叫會
 - **SDK 的 major 就是外掛的 major。** 後端用 `@temporalio/client` 1.x；它出新的 major，外掛的套件就出新的 major（[Compatibility](../../README.md#compatibility)）。
 - **選用的套件不進不需要的 app。** Zigflow 分頁拆成兩個套件，沒有 Zigflow 的 app 就不帶 YAML 編輯器。官方 Temporal AI 整合的 LLM 畫面放在 `components/llm/` 和 `services/llm/`，不需要設定；Event Groups 也是從事件紀錄直接讀。
 - **Worker 寫入的格式，兩邊都有測試。** 官方 Temporal AI 整合的 payload 和 Event Groups 以 history 錄在 `test-fixtures/llm-integrations` 與 `test-fixtures/event-groups`；後端用自己的程式碼讀回，前端畫面測試讀同一批 history 建出的 graph。
-- **同步查詢 `llmCall` 耗時遠低於 200 ms 門檻。** 在 Node `v24.22.2` 以約 5,000 筆事件的合成 agent history（涵蓋 Vercel AI SDK `toolCallId`、OpenAI Agents SDK 推斷、密集推斷與單步 50 次含反序呼叫等情境，分別對第一、中間與最後一個模型呼叫步驟做 3 次預熱與 15 次計時）實測 `AiWorkflowQueries.llmCall`：各情境中位數皆落在 `28.21–41.02 ms`（單次最高 `52.76 ms`），遠低於 `200 ms` 單次請求門檻，因此維持既有搭配 `MAX_STEP_EVENTS`（`5000`）的實作而不額外複雜化。
+- **同步查詢 `llmCall` 耗時遠低於 200 ms 門檻。** 在 Node `v24.22.2` 以約 5,000 筆事件的合成 agent history（涵蓋 Vercel AI SDK `toolCallId`、OpenAI Agents SDK 推斷、密集推斷等情境，分別對第一、中間與最後一個模型呼叫步驟做 3 次預熱與 15 次計時）實測 `AiWorkflowQueries.llmCall`：各情境中位數皆落在 `28.21–41.02 ms`（單次最高 `52.76 ms`），遠低於 `200 ms` 單次請求門檻，因此維持既有搭配 `MAX_STEP_EVENTS`（`5000`）的實作而不額外複雜化。
 - **大 Payload 建圖維持不截斷、同步解碼（尚無大小上限）。**
   Temporal 預設單一 payload 上限為 2 MB（512 KB 警告）、單次執行事件紀錄上限為 50 MB 或 51,200 筆事件（10 MB / 10,240 筆警告）。於 Node `v24.22.2` 直接對編譯後的 `plugins/temporal-backend/dist/services/graph.cjs.js` 執行程序內基準測試（使用 `plugins/temporal-backend/src/__testUtils__/syntheticHistory.ts` 的合成紀錄，3 次預熱與 10 次計時；無插樁量測 `buildWorkflowGraph` 與 `JSON.stringify`，另包裹 `convert.decodePayloads` 量測解碼佔比，期間 `toDisplayJson` 呼叫次數為 0），實測數字如下：
 
