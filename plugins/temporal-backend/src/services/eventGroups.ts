@@ -322,7 +322,7 @@ export class EventGroupCollector {
       for (const step of steps) {
         if (!step.llm) continue;
         usage = addLlmUsage(usage, step.llm.usage);
-        llmCalls += step.llm.callCount ?? 1;
+        llmCalls += 1;
       }
       const { name, source } = this.nameOf(draft, byFirstEvent, updates);
       const group: WorkflowEventGroup = dropUndefined({

@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-import type { TemporalLlmAdapter } from '../../node/alpha';
 import { buildWorkflowGraph } from '../graph';
-import { LlmAdapters } from './LlmAdapters';
 import { canonicalJson, MAX_CANONICAL_JSON_DEPTH } from './json';
-import { summarizeModelCalls } from './llm';
+import { summarizeModelCall } from './llm';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payload = (value: unknown) => ({
@@ -283,9 +281,9 @@ describe('the state of a model call without a record', () => {
   });
 
   it('is decided by the status of the step and by the decoded result', () => {
-    const read = { framework: 'x', calls: [{}] };
+    const read = { framework: 'x', call: {} };
     const record = (status: string, decoded: unknown) =>
-      summarizeModelCalls({ status } as any, read, decoded).summary.record;
+      summarizeModelCall({ status } as any, read, decoded).summary.record;
     expect(record('Running', undefined)).toBe('pending');
     expect(record('Retrying', undefined)).toBe('pending');
     expect(record('Completed', undefined)).toBe('missing');
@@ -303,108 +301,6 @@ describe('the state of a model call without a record', () => {
     expect(
       record('Completed', { encoding: 'json/protobuf', external: {} }),
     ).toBe('unreadable');
-  });
-});
-
-describe('failure details of a model call', () => {
-  /** An adapter that reads the record a failed call put in its failure. */
-  const failureAdapter: TemporalLlmAdapter = {
-    id: 'failure-details',
-    isModelCall: step => step.activityType === 'callModel',
-    readModelCalls: (_step, stepPayloads) => {
-      const details: any = stepPayloads.failureDetails?.[0];
-      if (!details) return [{}];
-      return [
-        {
-          record: {
-            requestModel: details.model,
-            usage: {},
-            systemInstructions: [],
-            inputMessages: [],
-            outputMessages: [],
-            toolExecutions: [],
-            error: details.error,
-          },
-        },
-      ];
-    },
-  };
-
-  it('gives the record of a failed call to the adapter', () => {
-    const adapters = new LlmAdapters();
-    adapters.add(failureAdapter);
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    const id = h.activity('callModel', 'call-1', {
-      failure: {
-        message: 'wrapped',
-        cause: {
-          message: 'rate limited',
-          applicationFailureInfo: {
-            details: payloads({
-              model: 'm',
-              error: { type: 'RateLimit', message: 'rate limited' },
-            }),
-          },
-        },
-      },
-    });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      status: 'Failed',
-      llmAdapters: adapters,
-    });
-    expect(graph.nodes.find(n => n.id === `activity-${id}`)!.llm).toMatchObject(
-      {
-        framework: 'failure-details',
-        record: 'available',
-        model: 'm',
-        error: 'RateLimit',
-      },
-    );
-  });
-
-  it('names the error by its type only, without the message', () => {
-    const adapters = new LlmAdapters();
-    adapters.add(failureAdapter);
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    const id = h.activity('callModel', 'call-1', {
-      failure: {
-        message: 'wrapped',
-        applicationFailureInfo: {
-          details: payloads({
-            model: 'm',
-            error: { message: 'quota of customer-7731 exceeded' },
-          }),
-        },
-      },
-    });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      status: 'Failed',
-      llmAdapters: adapters,
-    });
-    const node = graph.nodes.find(n => n.id === `activity-${id}`)!;
-    expect(node.llm).toMatchObject({ record: 'available', error: 'error' });
-    expect(JSON.stringify(node.llm)).not.toContain('customer-7731');
-  });
-
-  it('has no failure details for a step that completed', () => {
-    const seen: unknown[] = [];
-    const adapters = new LlmAdapters();
-    adapters.add({
-      ...failureAdapter,
-      readModelCalls: (_step, stepPayloads) => {
-        seen.push(stepPayloads.failureDetails);
-        return [{}];
-      },
-    });
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    h.activity('callModel', 'call-1', { result: { ok: true } });
-    buildWorkflowGraph(h.events, { ...options, llmAdapters: adapters });
-    expect(seen).toEqual([undefined]);
   });
 });
 
@@ -446,85 +342,46 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
     expect(canonicalJson(makeNested(5000))).toBeUndefined();
 
     // A graph with a 5000-level tool payload and tool request builds without throwing.
-    const adapters = new LlmAdapters();
-    adapters.add({
-      id: 'deep-test',
-      isModelCall: step => step.activityType === 'callModel',
-      readModelCalls: step =>
-        step.activityType === 'callModel'
-          ? [
-              {
-                record: {
-                  systemInstructions: [],
-                  inputMessages: [],
-                  toolExecutions: [],
-                  outputMessages: [
-                    {
-                      role: 'assistant',
-                      parts: [
-                        {
-                          type: 'tool_call',
-                          name: 'lookup',
-                          arguments: makeNested(5000) as any,
-                        },
-                      ],
-                    },
-                  ],
-                  usage: {},
-                },
-              },
-            ]
-          : [],
-    });
+    const depth = 5000;
+    const nested = `${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`;
     const h = history();
     h.add('WorkflowExecutionStarted', {});
-    h.activity('callModel', 'm-1', { result: { ok: true } });
+    h.activity('invokeModel', 'm-1', {
+      input: vercelInput,
+      rawResult: {
+        metadata: { encoding: b64('json/plain') },
+        data: b64(
+          `{"content":[{"type":"tool-call","toolCallId":"c-1","toolName":"lookup","input":${nested}}]}`,
+        ),
+      },
+    });
     const toolId = h.activity('lookup', 't-1', {
-      rawInput: nestedPayload(5000),
+      rawInput: nestedPayload(depth),
       result: { ok: true },
     });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      llmAdapters: adapters,
-    });
+    const graph = buildWorkflowGraph(h.events, options);
     expect(graph.nodes.find(n => n.id === `activity-${toolId}`)).toBeDefined();
+  });
+
+  /** A model call result that asks for `requests` tools, without call IDs. */
+  const asking = (requests: number) => ({
+    content: Array.from({ length: requests }, (_, i) => ({
+      type: 'tool-call',
+      toolName: 'lookup',
+      input: { idx: i },
+    })),
   });
 
   /** Model calls that each ask for `requests` tools; the tool node that follows each. */
   const toolNodesAfterModelCalls = (calls: number, requests: number) => {
-    const adapters = new LlmAdapters();
-    adapters.add({
-      id: 'limits-test',
-      isModelCall: step => step.activityType === 'callModel',
-      readModelCalls: step =>
-        step.activityType === 'callModel'
-          ? [
-              {
-                record: {
-                  systemInstructions: [],
-                  inputMessages: [],
-                  toolExecutions: [],
-                  outputMessages: [
-                    {
-                      role: 'assistant',
-                      parts: Array.from({ length: requests }, (_, i) => ({
-                        type: 'tool_call',
-                        name: 'lookup',
-                        arguments: { idx: i },
-                      })),
-                    },
-                  ],
-                  usage: {},
-                },
-              },
-            ]
-          : [],
-    });
     const h = history();
     h.add('WorkflowExecutionStarted', {});
     const tools: number[] = [];
     for (let i = 0; i < calls; i += 1) {
-      h.activity('callModel', `m-${i}`, { result: { ok: true } });
+      h.activity('invokeModel', `m-${i}`, {
+        input: vercelInput,
+        result: asking(requests),
+      });
       tools.push(
         h.activity('lookup', `t-${i}`, {
           input: { idx: 0 },
@@ -532,10 +389,7 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
         }),
       );
     }
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      llmAdapters: adapters,
-    });
+    const graph = buildWorkflowGraph(h.events, options);
     return tools.map(id => graph.nodes.find(n => n.id === `activity-${id}`)!);
   };
 
@@ -557,48 +411,8 @@ describe('graph building limits (deep payloads and many tool requests)', () => {
   });
 
   it('skips inference and keeps steps plain when unlinked tool requests exceed 500', () => {
-    const count = 501;
-    const adapters = new LlmAdapters();
-    adapters.add({
-      id: 'many-tools-test',
-      isModelCall: step => step.activityType === 'callModel',
-      readModelCalls: step =>
-        step.activityType === 'callModel'
-          ? [
-              {
-                record: {
-                  systemInstructions: [],
-                  inputMessages: [],
-                  toolExecutions: [],
-                  outputMessages: [
-                    {
-                      role: 'assistant',
-                      parts: Array.from({ length: count }, (_, i) => ({
-                        type: 'tool_call',
-                        name: 'lookup',
-                        arguments: { idx: i },
-                      })),
-                    },
-                  ],
-                  usage: {},
-                },
-              },
-            ]
-          : [],
-    });
-    const h = history();
-    h.add('WorkflowExecutionStarted', {});
-    h.activity('callModel', 'm-1', { result: { ok: true } });
-    const firstTool = h.activity('lookup', 't-0', {
-      input: { idx: 0 },
-      result: { ok: true },
-    });
-    const graph = buildWorkflowGraph(h.events, {
-      ...options,
-      llmAdapters: adapters,
-    });
-    const toolNode = graph.nodes.find(n => n.id === `activity-${firstTool}`)!;
-    expect(toolNode).toBeDefined();
-    expect(toolNode.tool).toBeUndefined();
+    const [tool] = toolNodesAfterModelCalls(1, 501);
+    expect(tool).toBeDefined();
+    expect(tool.tool).toBeUndefined();
   });
 });

@@ -35,7 +35,7 @@ import {
   layoutSteps,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import { definitionLayoutBaseline } from './definitionLayoutBaseline';
-import { pointerOfNode, taskAtLine } from './lines';
+import { taskAtLine } from './lines';
 import { overlayRun, taskIdentities, zigflowActivityType } from './overlay';
 
 const text = readFileSync(
@@ -57,7 +57,6 @@ const fixtureTasks = [
   ['/do/4/waitForPayment', 53, 59],
 ].map(([pointer, startLine, endLine]) => ({
   pointer: pointer as string,
-  name: String(pointer).split('/').pop()!,
   startLine: startLine as number,
   endLine: endLine as number,
 }));
@@ -197,6 +196,117 @@ describe('definition graph', () => {
     expect(from('/do/3/d/do/1/f')).toEqual([END_ID]);
   });
 
+  describe('then of tasks inside a task', () => {
+    const targets = (g: ReturnType<typeof buildDefinitionGraph>, id: string) =>
+      g.edges.filter(e => e.source === id).map(e => [e.target, e.label ?? '']);
+
+    it('hands exit and continue of a body to the then of its task', () => {
+      const g = buildDefinitionGraph({
+        do: [
+          {
+            a: {
+              do: [
+                { x: { set: {}, then: 'exit' } },
+                { y: { set: {}, then: 'continue' } },
+              ],
+              then: 'c',
+            },
+          },
+          { b: { set: {} } },
+          { c: { set: {} } },
+        ],
+      });
+      // Not on to `b`, and not out of the whole list.
+      expect(targets(g, '/do/0/a/do/0/x')).toEqual([['/do/2/c', '']]);
+      expect(targets(g, '/do/0/a/do/1/y')).toEqual([['/do/2/c', '']]);
+      expect(targets(g, '/do/1/b')).toEqual([['/do/2/c', '']]);
+    });
+
+    it('goes on to the next task when the task has no then', () => {
+      const g = buildDefinitionGraph({
+        do: [
+          { a: { do: [{ x: { set: {}, then: 'exit' } }] } },
+          { b: { set: {} } },
+        ],
+      });
+      expect(targets(g, '/do/0/a/do/0/x')).toEqual([['/do/1/b', '']]);
+    });
+
+    it('applies the then of a try to its body and its catch', () => {
+      const g = buildDefinitionGraph({
+        do: [
+          {
+            t: {
+              try: [{ x: { set: {}, then: 'exit' } }],
+              catch: { do: [{ r: { set: {}, then: 'exit' } }] },
+              then: 'c',
+            },
+          },
+          { b: { set: {} } },
+          { c: { set: {} } },
+        ],
+      });
+      expect(targets(g, '/do/0/t/try/0/x')).toEqual([['/do/2/c', '']]);
+      expect(targets(g, '/do/0/t/catch/do/0/r')).toEqual([['/do/2/c', '']]);
+    });
+
+    it('applies the then of a for after the loop, and loops back on exit', () => {
+      const g = buildDefinitionGraph({
+        do: [
+          {
+            l: {
+              for: { each: 'i', in: '$input.items' },
+              do: [{ x: { set: {}, then: 'exit' } }],
+              then: 'c',
+            },
+          },
+          { b: { set: {} } },
+          { c: { set: {} } },
+        ],
+      });
+      expect(targets(g, '/do/0/l/do/0/x')).toEqual([['/do/0/l', 'next']]);
+      expect(targets(g, '/do/0/l')).toEqual([
+        ['/do/0/l/do/0/x', 'each'],
+        ['/do/2/c', 'done'],
+      ]);
+    });
+
+    it('applies the then of a task to the cases of a switch inside it', () => {
+      const g = buildDefinitionGraph({
+        do: [
+          {
+            a: {
+              do: [
+                {
+                  s: {
+                    switch: [
+                      { one: { when: '${ $input.x }', then: 'exit' } },
+                      { two: { when: '${ $input.y }', then: 'continue' } },
+                    ],
+                  },
+                },
+                { z: { set: {} } },
+              ],
+              then: 'c',
+            },
+          },
+          { b: { set: {} } },
+          { c: { set: {} } },
+        ],
+      });
+      // `exit` leaves the body, `continue` goes to `z`, no match goes to `z`.
+      expect(targets(g, '/do/0/a/do/0/s')).toEqual(
+        expect.arrayContaining([
+          ['/do/2/c', 'one'],
+          ['/do/0/a/do/1/z', 'two'],
+          ['/do/0/a/do/1/z', 'no match'],
+        ]),
+      );
+      expect(targets(g, '/do/0/a/do/0/s')).toHaveLength(3);
+      expect(targets(g, '/do/0/a/do/1/z')).toEqual([['/do/2/c', '']]);
+    });
+  });
+
   it('survives documents of any shape', () => {
     for (const bad of [null, 'text', [], { do: 'x' }, { do: [1, 'a', {}] }]) {
       const result = buildDefinitionGraph(bad);
@@ -226,12 +336,6 @@ describe('lines and tasks', () => {
     expect(at(36)).toBe('/do/3/checks');
     expect(at(43)).toBe('/do/3/checks/fork/branches/1/stock');
     expect(at(50)).toBe('/do/3/checks/fork/branches/1/stock/do/0/reserve');
-  });
-
-  it('maps boxes to their task', () => {
-    expect(pointerOfNode('/do/3/checks#join')).toBe('/do/3/checks');
-    expect(pointerOfNode('/do/0/validate')).toBe('/do/0/validate');
-    expect(pointerOfNode(START_ID)).toBeUndefined();
   });
 });
 

@@ -189,11 +189,8 @@ describe('definition route', () => {
       'https://git.example.com/org/repo/blob/main/flow.yaml',
     );
     expect(res.body).toMatchObject({
-      entityRef: 'temporalworkflow:default/yaml-flow',
       content: text,
-      tasks: [
-        { pointer: '/do/0/first', name: 'first', startLine: 4, endLine: 6 },
-      ],
+      tasks: [{ pointer: '/do/0/first', startLine: 4, endLine: 6 }],
     });
   });
 
@@ -267,8 +264,6 @@ describe('definition route', () => {
     expect(res.status).toBe(200);
     expect(readUrl).toHaveBeenCalledWith('https://raw.example.com/flow.yaml');
     expect(res.body).toMatchObject({
-      entityRef: 'temporalworkflow:default/remote-flow',
-      maxBytes: 16,
       error: {
         kind: 'tooLarge',
         message: 'The file is larger than 16 bytes',

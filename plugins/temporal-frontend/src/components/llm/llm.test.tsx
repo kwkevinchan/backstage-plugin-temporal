@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import { renderInTestApp, TestApiProvider } from '@backstage/test-utils';
 import { temporalApiRef } from '../../extensions';
 import {
@@ -83,7 +83,7 @@ describe('LLM steps in the graph', () => {
     );
     const call = screen.getByTestId('step-activity-5');
     expect(call).toHaveAttribute('data-llm', 'call');
-    expect(call).toHaveTextContent('callModel');
+    expect(call).toHaveTextContent('r1');
     expect(call).toHaveTextContent('fake-reasoner-1');
     expect(call).toHaveTextContent('1.2k in · 96 out · 1.5s · 1 tool');
     const tool = screen.getByTestId('step-activity-8');
@@ -129,17 +129,15 @@ describe('LLM panel', () => {
     expect(screen.getByTestId('llm-output')).not.toHaveTextContent(
       'I should search',
     );
-    // Tool calls: the activity and the tool run inside the model call.
+    // Tool calls: the step of the tool the model asked for.
     const cards = within(screen.getByTestId('llm-tools')).getAllByTestId(
       'llm-tool-card',
     );
-    expect(cards).toHaveLength(2);
+    expect(cards).toHaveLength(1);
     expect(cards[0]).toHaveTextContent('search');
     expect(cards[0]).toHaveTextContent('"query": "storage"');
     expect(cards[0]).toHaveTextContent('Attempt 2');
     expect(cards[0]).toHaveTextContent('hits');
-    expect(cards[1]).toHaveTextContent('user_profile');
-    expect(cards[1]).toHaveTextContent('In the activity');
     fireEvent.click(
       within(cards[0]).getByRole('button', {
         name: 'Go to the step of search',
@@ -149,9 +147,31 @@ describe('LLM panel', () => {
     const usage = screen.getByTestId('llm-usage');
     expect(usage).toHaveTextContent('Input tokens1.2k');
     expect(usage).toHaveTextContent('Reasoning tokens40');
+    expect(usage).toHaveTextContent('Cached input800');
+    expect(usage).toHaveTextContent('Cache write440');
     expect(usage).toHaveTextContent('Duration1.5s');
+    // What the call was sent with and the ID of the response.
+    expect(screen.getByTestId('llm-framework')).toHaveTextContent(
+      'vercel-ai-sdk',
+    );
+    expect(screen.getByTestId('llm-response-id')).toHaveTextContent(
+      'resp_9f2c',
+    );
+    expect(screen.getByTestId('llm-parameters')).toHaveTextContent(
+      'maxOutputTokens',
+    );
+    expect(screen.getByTestId('llm-tool-definitions')).toHaveTextContent(
+      'Tool definitions (1)',
+    );
     // Every section has a copy button.
-    for (const name of ['input', 'thinking', 'output', 'tool calls', 'usage']) {
+    for (const name of [
+      'input',
+      'thinking',
+      'output',
+      'tool calls',
+      'usage',
+      'details',
+    ]) {
       expect(
         screen.getByRole('button', { name: `Copy ${name}` }),
       ).toBeInTheDocument();
@@ -204,6 +224,26 @@ describe('LLM panel', () => {
     expect(text).toContain('image: file-9');
     expect(text).toContain('file (text/plain)');
     expect(text).not.toContain('undefined');
+  });
+
+  it('leaves out the details and the cache write tile that the record lacks', async () => {
+    const api = mockTemporalApi();
+    const {
+      responseId: _responseId,
+      parameters: _parameters,
+      toolDefinitions: _toolDefinitions,
+      ...bare
+    } = llmCallResponse.record!;
+    (api.getLlmCall as jest.Mock).mockResolvedValue({
+      ...llmCallResponse,
+      record: { ...bare, usage: { inputTokens: 5 } },
+    });
+    await renderDrawer('activity-5', { api });
+    expect(await screen.findByTestId('llm-input')).toBeInTheDocument();
+    expect(screen.queryByTestId('llm-details')).toBeNull();
+    expect(screen.getByTestId('llm-usage')).not.toHaveTextContent(
+      'Cache write',
+    );
   });
 
   it('shows where a record in External Storage is', async () => {
@@ -292,15 +332,13 @@ const officialGraph: WorkflowGraphResponse = {
   ],
 };
 
-describe('Model calls without a call name', () => {
+describe('Model calls of the official integrations', () => {
   it('are titled by the summary, else the model', () => {
     const [call] = officialGraph.nodes;
     expect(llmCallName(call)).toBe('plan call');
     expect(llmBoxTitle(call)).toBe('plan call');
     const { summary: _summary, ...withoutSummary } = call;
     expect(llmBoxTitle(withoutSummary)).toBe('fake-model-2026-11');
-    // A call with a name keeps the activity type as the box title.
-    expect(llmBoxTitle(node('activity-5'))).toBe('callModel');
     expect(llmCallName(node('activity-5'))).toBe('r1');
   });
 
@@ -314,52 +352,5 @@ describe('Model calls without a call name', () => {
     const tool = screen.getByTestId('step-activity-17');
     expect(tool).toHaveTextContent('search_docs');
     expect(tool).toHaveTextContent('Inferred link');
-  });
-});
-
-describe('A step with several model calls', () => {
-  it('shows one call, labeled, with its own model', async () => {
-    const step = {
-      ...node('activity-5'),
-      llm: {
-        ...node('activity-5').llm!,
-        call: undefined,
-        callCount: 2,
-        model: 'model-b',
-        usage: { inputTokens: 30 },
-      },
-    };
-    const api = mockTemporalApi();
-    api.getLlmCall.mockResolvedValue({
-      ...llmCallResponse,
-      call: undefined,
-      index: 0,
-      callCount: 2,
-      record: {
-        ...llmCallResponse.record!,
-        requestModel: 'model-a',
-        responseModel: undefined,
-        usage: { inputTokens: 10 },
-      },
-    });
-    await renderInTestApp(
-      <TestApiProvider apis={[[temporalApiRef, api]]}>
-        <StepDrawer
-          step={step}
-          workflowHref={() => '/x'}
-          onClose={() => {}}
-          nodes={llmGraphResponse.nodes}
-          workflowRef={ref}
-          entityRef="component:default/agents"
-        />
-      </TestApiProvider>,
-    );
-    expect(await screen.findByTestId('llm-call-of')).toHaveTextContent(
-      'Call 1 of 2',
-    );
-    const panel = screen.getByTestId('llm-panel');
-    await waitFor(() => expect(panel).toHaveTextContent('model-a'));
-    expect(panel).not.toHaveTextContent('model-b');
-    expect(screen.getByTestId('llm-usage-tiles')).toHaveTextContent('10');
   });
 });

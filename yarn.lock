@@ -3599,7 +3599,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/autocomplete@npm:^6.0.0, @codemirror/autocomplete@npm:^6.3.2":
+"@codemirror/autocomplete@npm:^6.0.0":
   version: 6.20.4
   resolution: "@codemirror/autocomplete@npm:6.20.4"
   dependencies:
@@ -3623,34 +3623,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/lang-javascript@npm:^6.0.0":
-  version: 6.2.5
-  resolution: "@codemirror/lang-javascript@npm:6.2.5"
-  dependencies:
-    "@codemirror/autocomplete": "npm:^6.0.0"
-    "@codemirror/language": "npm:^6.6.0"
-    "@codemirror/lint": "npm:^6.0.0"
-    "@codemirror/state": "npm:^6.0.0"
-    "@codemirror/view": "npm:^6.17.0"
-    "@lezer/common": "npm:^1.0.0"
-    "@lezer/javascript": "npm:^1.0.0"
-  checksum: 10c0/a9b10c58ad9dbcc54e17a641a114fc7718e362281dc9533828ed2a3a09270eb5677febb4ddad6d0cc2c439496f0ba0b7aa893d08de0b1ddc44df5c9ab0d7d299
-  languageName: node
-  linkType: hard
-
-"@codemirror/lang-python@npm:^6.0.0":
-  version: 6.2.1
-  resolution: "@codemirror/lang-python@npm:6.2.1"
-  dependencies:
-    "@codemirror/autocomplete": "npm:^6.3.2"
-    "@codemirror/language": "npm:^6.8.0"
-    "@codemirror/state": "npm:^6.0.0"
-    "@lezer/common": "npm:^1.2.1"
-    "@lezer/python": "npm:^1.1.4"
-  checksum: 10c0/6e92ac7e5e6e3162cfbbef40be6314278b9b9ff6f65cfc207a75ec95d84a404b9930913240e1a15e3d18c538f6b243f6a0bba4c3e37fa4e318939dfebc51ebd0
-  languageName: node
-  linkType: hard
-
 "@codemirror/lang-yaml@npm:^6.0.0":
   version: 6.1.3
   resolution: "@codemirror/lang-yaml@npm:6.1.3"
@@ -3666,7 +3638,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@codemirror/language@npm:^6.0.0, @codemirror/language@npm:^6.6.0, @codemirror/language@npm:^6.8.0":
+"@codemirror/language@npm:^6.0.0":
   version: 6.13.1
   resolution: "@codemirror/language@npm:6.13.1"
   dependencies:
@@ -5694,8 +5666,6 @@ __metadata:
     "@backstage/test-utils": "backstage:^"
     "@backstage/types": "backstage:^"
     "@backstage/ui": "backstage:^"
-    "@codemirror/lang-javascript": "npm:^6.0.0"
-    "@codemirror/lang-python": "npm:^6.0.0"
     "@codemirror/lang-yaml": "npm:^6.0.0"
     "@codemirror/language": "npm:^6.0.0"
     "@codemirror/state": "npm:^6.0.0"
@@ -5734,14 +5704,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.2.1, @lezer/common@npm:^1.3.0, @lezer/common@npm:^1.5.0":
+"@lezer/common@npm:^1.0.0, @lezer/common@npm:^1.1.0, @lezer/common@npm:^1.2.0, @lezer/common@npm:^1.3.0, @lezer/common@npm:^1.5.0":
   version: 1.5.5
   resolution: "@lezer/common@npm:1.5.5"
   checksum: 10c0/d989bd7453d1fd90f2c0baf33fcf6e5f2082fcf3f1faf8b271ae51bef1ad388e2e53f5d91c16e841b70fe4d2ed7ed08adb3fb23cb03fee6455dad3c72f6ff998
   languageName: node
   linkType: hard
 
-"@lezer/highlight@npm:^1.0.0, @lezer/highlight@npm:^1.1.3, @lezer/highlight@npm:^1.2.0":
+"@lezer/highlight@npm:^1.0.0, @lezer/highlight@npm:^1.2.0":
   version: 1.2.5
   resolution: "@lezer/highlight@npm:1.2.5"
   dependencies:
@@ -5750,34 +5720,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@lezer/javascript@npm:^1.0.0":
-  version: 1.5.6
-  resolution: "@lezer/javascript@npm:1.5.6"
-  dependencies:
-    "@lezer/common": "npm:^1.2.0"
-    "@lezer/highlight": "npm:^1.1.3"
-    "@lezer/lr": "npm:^1.3.0"
-  checksum: 10c0/9cb004eb81cab833bdc25504e5632edf154f62f67c22b1fdc0023c1fc4deccab2be48f016a77e70198b2b49d13b16bc6a65d9826f54f81acf8ffd3edcf1f44cc
-  languageName: node
-  linkType: hard
-
-"@lezer/lr@npm:^1.0.0, @lezer/lr@npm:^1.3.0, @lezer/lr@npm:^1.4.0":
+"@lezer/lr@npm:^1.0.0, @lezer/lr@npm:^1.4.0":
   version: 1.4.12
   resolution: "@lezer/lr@npm:1.4.12"
   dependencies:
     "@lezer/common": "npm:^1.0.0"
   checksum: 10c0/3912ecd5f9ed916a13e929ab5f7d2cfc26d6d389b0b0d0673cbfb4d957042069f7c7182c991ebcb2019c4bba289102f81662200277b6c365911e62969fa67d74
-  languageName: node
-  linkType: hard
-
-"@lezer/python@npm:^1.1.4":
-  version: 1.1.19
-  resolution: "@lezer/python@npm:1.1.19"
-  dependencies:
-    "@lezer/common": "npm:^1.2.0"
-    "@lezer/highlight": "npm:^1.0.0"
-    "@lezer/lr": "npm:^1.0.0"
-  checksum: 10c0/e1e337d78b161ae0754a8969f956273fbd3e3a0b8d00005dab209b585a8ccb4d8fb132960cee7571c159a75cfa9bf2609894b9cc1eec9c059593495da4d4beb0
   languageName: node
   linkType: hard
 

@@ -221,10 +221,7 @@ export function stringifyTemporalWorkflowResourceRef(ref: {
 }): string;
 
 // @public
-export const TEMPORAL_DEFINITION_FORMATS: readonly [
-  'serverless-workflow',
-  'source',
-];
+export const TEMPORAL_DEFINITION_FORMATS: readonly ['serverless-workflow'];
 
 // @public
 export const TEMPORAL_NAMESPACE_ANNOTATION = 'temporal.io/namespace';
@@ -311,7 +308,6 @@ export const temporalWorkflowCancelPermission: ResourcePermission<'catalog-entit
 // @public
 export interface TemporalWorkflowDefinitionSpec {
   format: TemporalDefinitionFormat;
-  symbol?: string;
   target: string;
 }
 
@@ -335,7 +331,6 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
     definition?: {
       format: string;
       target: string;
-      symbol?: string;
     };
   };
 }
@@ -519,25 +514,20 @@ export const temporalWorkflowEntityV1alpha1Schema: {
             };
             readonly definition: {
               readonly type: 'object';
-              readonly description: 'The file of the workflow: a workflow DSL file, or its source code.';
+              readonly description: 'The file of the workflow: a workflow DSL file.';
               readonly required: readonly ['format', 'target'];
               readonly additionalProperties: false;
               readonly properties: {
                 readonly format: {
                   readonly type: 'string';
-                  readonly enum: readonly ['serverless-workflow', 'source'];
-                  readonly description: 'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow), or source (the source code of a workflow written in code).';
+                  readonly enum: readonly ['serverless-workflow'];
+                  readonly description: 'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow).';
                 };
                 readonly target: {
                   readonly type: 'string';
                   readonly minLength: 1;
                   readonly maxLength: 2048;
                   readonly description: 'Path relative to the file of the entity, or an absolute URL.';
-                };
-                readonly symbol: {
-                  readonly type: 'string';
-                  readonly pattern: '^[A-Za-z_$][A-Za-z0-9_$.]{0,199}$';
-                  readonly description: 'For the source format: the function of the workflow, marked in the file. Defaults to the workflow type.';
                 };
               };
             };
@@ -806,12 +796,8 @@ export interface WorkflowLlmCallResponse {
   activityId: string;
   // (undocumented)
   activityType: string;
-  call?: string;
-  callCount?: number;
   external?: ExternalPayload;
   framework: string;
-  fromFailure?: boolean;
-  index?: number;
   nodeId: string;
   raw?: JsonValue;
   record?: WorkflowLlmRecord;
@@ -822,7 +808,6 @@ export interface WorkflowLlmCallResponse {
 
 // @alpha
 export interface WorkflowLlmMessage {
-  finishReason?: string;
   // (undocumented)
   name?: string;
   // (undocumented)
@@ -838,8 +823,6 @@ export type WorkflowLlmPart = JsonObject & {
 // @alpha
 export interface WorkflowLlmRecord {
   // (undocumented)
-  conversationId?: string;
-  // (undocumented)
   durationMs?: number;
   // (undocumented)
   error?: {
@@ -849,8 +832,6 @@ export interface WorkflowLlmRecord {
   // (undocumented)
   finishReasons?: string[];
   inputMessages: WorkflowLlmMessage[];
-  // (undocumented)
-  operation?: string;
   outputMessages: WorkflowLlmMessage[];
   parameters?: JsonObject;
   // (undocumented)
@@ -861,12 +842,8 @@ export interface WorkflowLlmRecord {
   responseId?: string;
   // (undocumented)
   responseModel?: string;
-  // (undocumented)
-  startTime?: string;
   systemInstructions: WorkflowLlmPart[];
   toolDefinitions?: JsonValue[];
-  // (undocumented)
-  toolExecutions: WorkflowLlmToolExecution[];
   // (undocumented)
   usage: WorkflowLlmUsage;
 }
@@ -880,15 +857,12 @@ export type WorkflowLlmRecordState =
 
 // @alpha
 export interface WorkflowLlmSummary {
-  call?: string;
-  callCount?: number;
   durationMs?: number;
   error?: string;
   // (undocumented)
   finishReasons?: string[];
   framework: string;
   model?: string;
-  operation?: string;
   provider?: string;
   reasoning: boolean;
   // (undocumented)
@@ -902,26 +876,11 @@ export interface WorkflowLlmSummary {
 // @alpha
 export interface WorkflowLlmToolCallRef {
   id?: string;
-  inActivity?: boolean;
   inferred?: boolean;
   // (undocumented)
   name: string;
   nodeId?: string;
   status?: WorkflowNodeStatus;
-}
-
-// @alpha
-export interface WorkflowLlmToolExecution {
-  arguments?: JsonValue;
-  // (undocumented)
-  durationMs?: number;
-  error?: {
-    type?: string;
-    message: string;
-  };
-  id?: string;
-  name: string;
-  result?: JsonValue;
 }
 
 // @alpha
@@ -1127,7 +1086,6 @@ export interface WorkflowSummary {
 
 // @alpha
 export interface WorkflowToolLink {
-  call?: string;
   inferred?: boolean;
   llmNodeId?: string;
   name?: string;

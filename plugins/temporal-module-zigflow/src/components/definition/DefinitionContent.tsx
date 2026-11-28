@@ -14,7 +14,14 @@
  * limitations under the License.
  */
 
-import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useSearchParams } from 'react-router-dom';
 import useAsync from 'react-use/esm/useAsync';
 import useAsyncRetry from 'react-use/esm/useAsyncRetry';
@@ -42,6 +49,7 @@ import {
   WorkflowSummary,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import {
+  AUTO_REFRESH_MS,
   DefinitionList,
   entityContentRouteRef,
   ErrorAlert,
@@ -50,6 +58,7 @@ import {
   PanelCard,
   statusLabel,
   useGraphFullscreenState,
+  usePageVisible,
   workflowLink,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
 import {
@@ -62,12 +71,10 @@ import { tp } from '../styles';
 import { DefinitionGraph } from './DefinitionGraph';
 import { markLabel } from './DefinitionNode';
 import { buildDefinitionGraph, DefinitionGraph as Graph } from './dslGraph';
-import { pointerOfNode, taskAtLine } from './lines';
+import { taskAtLine } from './lines';
 import { DefinitionOverlay, overlayRun } from './overlay';
 import { YamlView } from './YamlView';
 
-/** Time between reloads of a running run. */
-const RUN_REFRESH_MS = 5000;
 const NO_RUN = 'none';
 
 /** A link from a location annotation (`url:https://...`), or the URL itself. */
@@ -96,8 +103,8 @@ function SourceLinks(props: { entity: Entity }) {
             <Text as="p" variant="body-medium" color="secondary">
               The entity has no {ANNOTATION_SOURCE_LOCATION} or{' '}
               {ANNOTATION_VIEW_URL} annotation. Add one to link the code here,
-              or add spec.definition: format source to show the code, or
-              serverless-workflow for a workflow written in YAML.
+              or add spec.definition with format serverless-workflow for a
+              workflow written in YAML.
             </Text>
           }
         />
@@ -149,64 +156,6 @@ function SourceLinkButtons(props: { entity: Entity; empty?: ReactNode }) {
     </Flex>
   ) : (
     <>{props.empty ?? null}</>
-  );
-}
-
-/**
- * The source code of a workflow written in code (`format: source`), with
- * the workflow's function marked and scrolled into view.
- */
-function SourceView(props: {
-  entity: Entity;
-  definition: WorkflowDefinitionResponse;
-}) {
-  const { definition } = props;
-  const [cursor, setCursor] = useState<number>();
-  const where = definition.url ?? definition.target;
-  let symbolText: string | undefined;
-  if (definition.symbol && definition.symbolLines) {
-    const { startLine, endLine } = definition.symbolLines;
-    symbolText = `${definition.symbol}, lines ${startLine}–${endLine}`;
-  } else if (definition.symbol) {
-    symbolText = `${definition.symbol} was not found in the file`;
-  }
-  return (
-    <Flex direction="column" gap="3">
-      <PanelCard
-        title="Definition"
-        subtitle="This workflow is written in code."
-        testId="definition-source"
-      >
-        <Flex direction="column" gap="2">
-          <Text as="p" variant="body-small" color="secondary">
-            {[where, definition.language, symbolText]
-              .filter(Boolean)
-              .join(' · ')}
-          </Text>
-          <SourceLinkButtons entity={props.entity} />
-        </Flex>
-      </PanelCard>
-      {definition.error ? (
-        <Alert
-          status="danger"
-          icon
-          title={errorTitle(definition.error)}
-          description={definition.error.message}
-          data-testid="definition-error"
-        />
-      ) : null}
-      {definition.content !== undefined ? (
-        <YamlView
-          content={definition.content}
-          language={definition.language}
-          label="Workflow source"
-          highlight={definition.symbolLines}
-          scrollKey={definition.symbolLines ? 'symbol' : undefined}
-          cursorLine={cursor}
-          onLineSelect={setCursor}
-        />
-      ) : null}
-    </Flex>
   );
 }
 
@@ -334,14 +283,20 @@ function DefinitionView(props: {
   const [cursorLine, setCursorLine] = useState<number>();
   const [scrollKey, setScrollKey] = useState<number>();
   const tasks = definition.tasks;
-  const selectedPointer = selectedNode
-    ? pointerOfNode(selectedNode)
-    : undefined;
+  // A box of a task, or the join or catch box of a task, has its task's
+  // pointer.
+  const pointerOf = useCallback(
+    (id: string | undefined) =>
+      id ? graph?.nodes.find(n => n.id === id)?.pointer : undefined,
+    [graph],
+  );
+  const selectedPointer = pointerOf(selectedNode);
   const selectedTask = tasks.find(t => t.pointer === selectedPointer);
 
-  // The run to show: `?workflowId=...&runId=...`.
+  // The run to show: `?workflowId=...&runId=...`. A link carries both.
   const workflowId = search.get('workflowId') ?? undefined;
   const runId = search.get('runId') ?? undefined;
+  const shownRun = workflowId && runId ? { workflowId, runId } : undefined;
   const runs = useAsync(
     async () =>
       (await api.listEntityWorkflows(entityRef, { pageSize: 20 })).items,
@@ -357,39 +312,38 @@ function DefinitionView(props: {
     runs.value?.find(r => r.workflowId === workflowId)?.namespace ??
     runs.value?.[0]?.namespace;
   const namespace = listedNamespace ?? entityNamespace ?? 'default';
-  // Without a run ID, the latest run: from the list of the entity's runs,
-  // else from the run list of the workflow ID.
-  const listedRunId = runId
-    ? undefined
-    : runs.value?.find(r => r.workflowId === workflowId)?.runId;
-  const runsLoading = runs.loading;
   const ready =
-    Boolean(workflowId) &&
-    (!runsLoading || (Boolean(runId) && Boolean(entityNamespace)));
+    Boolean(shownRun) && (!runs.loading || Boolean(entityNamespace));
   const run = useAsyncRetry(async () => {
-    if (!workflowId || !ready) return undefined;
-    const shown =
-      runId ??
-      listedRunId ??
-      (
-        await api.listWorkflowRuns(
-          { namespace, workflowId },
-          { entityRef, pageSize: 1 },
-        )
-      ).items[0]?.runId;
-    if (!shown) throw new Error(`No run of workflow ${workflowId} was found`);
+    if (!workflowId || !runId || !ready) return undefined;
     return api.getWorkflowGraph(
-      { namespace, workflowId, runId: shown },
+      { namespace, workflowId, runId },
       { entityRef },
     );
-  }, [api, entityRef, namespace, ready, workflowId, runId, listedRunId]);
+  }, [api, entityRef, namespace, ready, workflowId, runId]);
   const running = run.value?.status === 'Running';
   const { retry } = run;
+  // Reloads a running run like the run page does: every AUTO_REFRESH_MS,
+  // not in a background tab (it reloads once when the tab is shown again),
+  // and not while a load is running. A failed load drops the run, so the
+  // reloads stop with it.
+  const pageVisible = usePageVisible();
+  const loading = useRef(false);
+  loading.current = run.loading;
+  const wasHidden = useRef(false);
   useEffect(() => {
+    if (!pageVisible) {
+      wasHidden.current = true;
+      return undefined;
+    }
     if (!running) return undefined;
-    const timer = window.setInterval(retry, RUN_REFRESH_MS);
+    if (wasHidden.current) retry();
+    wasHidden.current = false;
+    const timer = window.setInterval(() => {
+      if (!loading.current) retry();
+    }, AUTO_REFRESH_MS);
     return () => window.clearInterval(timer);
-  }, [running, retry]);
+  }, [running, pageVisible, retry]);
   const overlay = useMemo(
     () =>
       run.value && definition.document
@@ -401,12 +355,12 @@ function DefinitionView(props: {
   const selectNode = useCallback(
     (id: string | undefined) => {
       setSelectedNode(id);
-      const pointer = id ? pointerOfNode(id) : undefined;
+      const pointer = pointerOf(id);
       const task = tasks.find(t => t.pointer === pointer);
       setCursorLine(task?.startLine);
       setScrollKey(key => (key ?? 0) + 1);
     },
-    [tasks],
+    [tasks, pointerOf],
   );
   const selectLine = useCallback(
     (line: number) => {
@@ -423,7 +377,7 @@ function DefinitionView(props: {
   const node = graph?.nodes.find(n => n.id === selectedNode);
   const temporalTab = temporalTabRoute?.();
   const runLink =
-    workflowId && run.value && temporalTab
+    workflowId && runId && run.value && temporalTab
       ? `${temporalTab.replace(/\/+$/, '')}/${workflowLink({
           namespace,
           workflowId,
@@ -470,7 +424,7 @@ function DefinitionView(props: {
           ) : (
             <RunSelect
               runs={runs.value ?? []}
-              value={workflowId ? { workflowId, runId } : undefined}
+              value={shownRun}
               onChange={next => {
                 setSearch(
                   current => {
@@ -572,7 +526,7 @@ function DefinitionView(props: {
         >
           <DefinitionList
             items={[
-              ['Kind', node.kind === 'unsupported' ? 'unsupported' : node.kind],
+              ['Kind', node.kind],
               ['Lines', `${selectedTask.startLine}–${selectedTask.endLine}`],
               ['Pointer', selectedTask.pointer],
               ...(overlay
@@ -610,9 +564,6 @@ function LoadedDefinition(props: { entity: Entity }) {
         error={state.error}
       />
     );
-  }
-  if (state.value!.format === 'source') {
-    return <SourceView entity={props.entity} definition={state.value!} />;
   }
   let entityNamespace: string | undefined;
   try {

@@ -18,20 +18,17 @@ import { performance } from 'node:perf_hooks';
 import type { WorkflowGraphEdge } from '../common';
 import {
   agentInferredToolsHistory,
-  agentMultiCallReversedHistory,
   agentToolCallIdHistory,
   largePayloadFewStepsHistory,
   largePayloadManyEventsHistory,
   localActivitiesHistory,
   plainParallelBatchHistory,
-  syntheticMultiCallAdapter,
 } from '../__testUtils__/syntheticHistory';
 import {
   buildWorkflowGraph,
   buildWorkflowGraphWithLlm,
   MAX_GRAPH_EDGES,
 } from './graph';
-import { LlmAdapters } from './llm/LlmAdapters';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const enc = (v: unknown) => ({
@@ -233,35 +230,6 @@ describe('graph building performance and edge/linking equivalence', () => {
         n => n.tool?.llmNodeId && n.tool.inferred,
       ),
     ).toHaveLength(940);
-  });
-
-  it('builds a reversed multi-call 1,550-tool agent workflow accurately within budget', () => {
-    const adapters = LlmAdapters.builtIn();
-    adapters.add(syntheticMultiCallAdapter);
-    const events = agentMultiCallReversedHistory();
-
-    const t0 = performance.now();
-    const { graph, llm } = buildWorkflowGraphWithLlm(events, {
-      namespace: 'default',
-      workflowId: 'perf-multi-rev',
-      status: 'Completed',
-      truncated: false,
-      llmAdapters: adapters,
-    });
-    const elapsed = performance.now() - t0;
-
-    expect(elapsed).toBeLessThan(CI_BUDGET_MS);
-    expect(llm.calls.size).toBe(31);
-    const linked = graph.nodes.filter(
-      n => n.tool?.llmNodeId && n.tool.inferred,
-    );
-    expect(linked).toHaveLength(1550);
-
-    // Call 0-0 requested item-0-0; reversed scheduling placed it at tool-0-49.
-    const firstAgent = graph.nodes.find(n => n.llm)!;
-    const firstToolRef = firstAgent.llm!.toolCalls[0];
-    const matchedNode = graph.nodes.find(n => n.id === firstToolRef.nodeId);
-    expect(matchedNode?.stepId).toBe('tool-0-49');
   });
 
   it('builds edges for 4,400 local activities (~5,000 events) within budget', () => {

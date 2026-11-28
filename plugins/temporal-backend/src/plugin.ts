@@ -27,8 +27,6 @@ import {
   TemporalControlAction,
   temporalAccessServiceRef,
   temporalControlExtensionPoint,
-  TemporalLlmAdapter,
-  temporalLlmAdapterExtensionPoint,
   TemporalWorkflowEnricher,
   temporalWorkflowEnricherExtensionPoint,
   temporalWorkflowPermissionResourceRef,
@@ -41,7 +39,6 @@ import express from 'express';
 import { createRouter } from './routes/router';
 import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
-import { LlmAdapters } from './services/llm/LlmAdapters';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
 import { mapInBatches } from './services/mapInBatches';
@@ -87,16 +84,6 @@ export const temporalPlugin = createBackendPlugin({
           throw new Error(`Duplicate control action id: ${action.id}`);
         }
         actions.push(action);
-      },
-    });
-    // LLM adapters of modules, asked before the built-in ones.
-    const llmAdapters: TemporalLlmAdapter[] = [];
-    env.registerExtensionPoint(temporalLlmAdapterExtensionPoint, {
-      addLlmAdapter(adapter) {
-        if (llmAdapters.some(a => a.id === adapter.id)) {
-          throw new Error(`Duplicate LLM adapter id: ${adapter.id}`);
-        }
-        llmAdapters.push(adapter);
       },
     });
 
@@ -159,18 +146,12 @@ export const temporalPlugin = createBackendPlugin({
         // modules through temporalAccessServiceRef) → services (use cases)
         // → repositories (Temporal).
         const temporalReads = new TemporalReadRepository(temporal, logger);
-        // The built-in adapters go through the same registration; an ID a
-        // module took fails the start.
-        const adapters = new LlmAdapters(logger);
-        for (const adapter of llmAdapters) adapters.add(adapter);
-        adapters.addBuiltIns();
         const queries = new WorkflowQueries(
           temporal,
           enrichers,
           logger,
           sources,
           temporalReads,
-          { llmAdapters: adapters },
         );
         const overviewRatePerSecond = config.getOptionalNumber(
           'temporal.overview.maxVisibilityCallsPerSecond',

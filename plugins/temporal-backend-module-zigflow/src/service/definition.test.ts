@@ -100,7 +100,7 @@ describe('parseDefinition', () => {
     expect(byName['/do/5/charge/try/0/chargeCard']).toEqual([62, 66]);
     expect(byName['/do/5/charge/catch/do/0/refund']).toEqual([74, 77]);
     expect(byName['/do/11/expressShipping']).toEqual([97, 103]);
-    expect(tasks.map(t => t.name)).toEqual([
+    expect(tasks.map(t => t.pointer.split('/').pop())).toEqual([
       'validate',
       'route',
       'packItems',
@@ -121,6 +121,11 @@ describe('parseDefinition', () => {
       'expressShipping',
       'book',
     ]);
+    expect(tasks[0]).toEqual({
+      pointer: '/do/0/validate',
+      startLine: 10,
+      endLine: 14,
+    });
   });
 
   it('reports the line of a syntax error', () => {
@@ -336,48 +341,16 @@ describe('DefinitionReader', () => {
       'https://git.example.com/org/repo/blob/main/workflows/order.yaml',
     );
     expect(result).toMatchObject({
-      entityRef: 'temporalworkflow:default/order-flow',
       format: 'serverless-workflow',
       target: './workflows/order.yaml',
       url: 'https://git.example.com/org/repo/blob/main/workflows/order.yaml',
       size: Buffer.byteLength(fixture),
-      maxBytes: 1024 * 1024,
     });
+    expect(result).not.toHaveProperty('entityRef');
+    expect(result).not.toHaveProperty('maxBytes');
     expect(result.content).toBe(fixture);
     expect(result.tasks).toHaveLength(19);
     expect(result.error).toBeUndefined();
-  });
-
-  it('reads source code and marks the function of the workflow', async () => {
-    const source =
-      "import { sleep } from '@temporalio/workflow';\n\nexport async function orderFlow() {\n  await sleep(1);\n}\n";
-    const readUrl = jest.fn(async () => ({
-      buffer: async () => Buffer.from(source),
-      stream: () => Readable.from([Buffer.from(source)]),
-    }));
-    const workflowEntity = entity(
-      'url:https://git.example.com/org/repo/blob/main/catalog-info.yaml',
-    );
-    const read = (symbol?: string) =>
-      readerOf(readUrl).read(workflowEntity, {
-        format: 'source',
-        target: './src/workflows.ts',
-        ...(symbol ? { symbol } : {}),
-      });
-    const result = await read('orderFlow');
-    expect(result).toMatchObject({
-      format: 'source',
-      language: 'typescript',
-      symbol: 'orderFlow',
-      symbolLines: { startLine: 3, endLine: 5 },
-      content: source,
-      tasks: [],
-    });
-    expect(result.error).toBeUndefined();
-    // Without a symbol: the workflow type, which is not in this file.
-    const byType = await read();
-    expect(byType.symbol).toBe('order-flow');
-    expect(byType.symbolLines).toBeUndefined();
   });
 
   it('rejects absolute URLs by default and reads them only when matching temporal.definitions.allow', async () => {
@@ -1654,12 +1627,6 @@ describe('DefinitionReader', () => {
         (await reader.read(located, spec(target))).error?.message,
       ).not.toContain('.yaml or .yml');
     }
-    const source = await reader.read(located, {
-      format: 'source',
-      target: './.env',
-    });
-    expect(source.error).toBeUndefined();
-    expect(source.content).toBe('SECRET=1\n');
   });
 
   it('checks the extension in the path parameter of Azure DevOps URLs', async () => {

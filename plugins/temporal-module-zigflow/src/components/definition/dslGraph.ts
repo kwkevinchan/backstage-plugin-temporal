@@ -104,13 +104,13 @@ interface Built {
   exits: Exit[];
 }
 
-type Obj = Record<string, unknown>;
+export type Obj = Record<string, unknown>;
 
-function isObject(value: unknown): value is Obj {
+export function isObject(value: unknown): value is Obj {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function str(value: unknown): string | undefined {
+export function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
@@ -345,6 +345,13 @@ function retryText(handler: Obj): string | undefined {
     : 'retry';
 }
 
+function clearThen(exit: Exit): Exit {
+  const cleared: Exit = { from: exit.from };
+  if (exit.label) cleared.label = exit.label;
+  if (exit.kind) cleared.kind = exit.kind;
+  return cleared;
+}
+
 /** Builds the graph of a parsed definition. */
 export function buildDefinitionGraph(document: unknown): DefinitionGraph {
   const nodes: DefinitionGraphNode[] = [];
@@ -419,7 +426,9 @@ export function buildDefinitionGraph(document: unknown): DefinitionGraph {
       }
     }
     exits.push(...waiting);
-    return { entry: built[0].built.entry, exits };
+    // Leaving a list ends the `then` of its tasks: the task that holds the
+    // list goes on with its own `then`.
+    return { entry: built[0].built.entry, exits: exits.map(clearThen) };
   }
 
   function buildTask(
@@ -488,7 +497,13 @@ export function buildDefinitionGraph(document: unknown): DefinitionGraph {
             depth + 1,
           );
           addEdge({ from: id, label: item.name }, branch.entry);
-          for (const exit of branch.exits) addEdge(exit, join);
+          for (const exit of branch.exits) {
+            // A switch as a branch ends the branch, or leaves it.
+            if (exit.then === 'end') addEdge(exit, END_ID, 'jump');
+            else if (exit.then && !['exit', 'continue'].includes(exit.then)) {
+              jumps.push({ exit, scope: new Map() });
+            } else addEdge(exit, join);
+          }
         });
         return { entry: id, exits: [{ from: join }] };
       }

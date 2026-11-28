@@ -15,21 +15,21 @@
  */
 
 import type { JsonValue } from '@backstage/types';
-import { addLlmUsage } from '../../common';
 import type {
   WorkflowGraphNode,
   WorkflowLlmRecord,
   WorkflowLlmSummary,
   WorkflowLlmToolCallRef,
-  WorkflowNodeStatus,
 } from '../../common';
-import type {
-  TemporalLlmModelCall,
-  TemporalLlmStep,
-  TemporalLlmStepPayloads,
-} from '../../node/alpha';
+import { decodePayloads } from '../convert';
 import { canonicalJson, isObject, Json, str } from './json';
-import type { LlmModelCalls, LlmStepReader } from './LlmAdapters';
+import {
+  LlmModelRead,
+  LlmStep,
+  LlmStepPayloads,
+  readModelCall,
+  readToolCall,
+} from './LlmAdapters';
 
 /*
  * Model calls and tool calls of a run. The LLM adapters (`LlmAdapters`)
@@ -56,15 +56,13 @@ export interface LlmLinkNode extends WorkflowGraphNode {
 /** A step to read with the adapters, and its payloads (protobuf JSON). */
 export interface LlmStepEntry {
   node: LlmLinkNode;
-  step: TemporalLlmStep;
+  step: LlmStep;
   /** `{ payloads }` of the input. */
   input?: Json;
   /** `{ payloads }` of the result, when the step completed with one. */
   result?: Json;
   /** Failures of failed attempts, newest first. */
   failures: Json[];
-  /** Decoded result of a local activity (from its marker). */
-  localResult?: unknown;
 }
 
 /** The values of decoded payloads, or undefined when one is not readable. */
@@ -78,11 +76,8 @@ function values(decoded: unknown): JsonValue[] | undefined {
   return out;
 }
 
-/** Decodes `{ payloads }` (protobuf JSON) like `decodePayloads` of convert. */
-export type DecodePayloads = (raw: Json) => JsonValue | undefined;
-
 /** The failure details of a failure and its causes. */
-function failureDetails(failure: Json, decodePayloads: DecodePayloads) {
+function failureDetails(failure: Json) {
   const out: JsonValue[] = [];
   for (let f = failure, depth = 0; f && depth < 5; f = f.cause, depth++) {
     const decoded = decodePayloads(f.applicationFailureInfo?.details);
@@ -116,19 +111,16 @@ function lazy<T extends object, K extends keyof T>(
  * The decoded payloads of a step for the adapters. Each payload is decoded
  * when it is first read: most steps are read by no adapter.
  */
-export function stepPayloads(
-  entry: LlmStepEntry,
-  decodePayloads: DecodePayloads,
-): {
-  payloads: TemporalLlmStepPayloads;
+export function stepPayloads(entry: LlmStepEntry): {
+  payloads: LlmStepPayloads;
   /** The decoded result, also when it is not readable. */
   decodedResult: () => unknown;
 } {
-  const payloads: TemporalLlmStepPayloads = {};
+  const payloads: LlmStepPayloads = {};
   let decoded: unknown;
   let decodedOnce = false;
   const decodedResult = () => {
-    if (!decodedOnce && entry.step.kind === 'activity' && entry.result) {
+    if (!decodedOnce && entry.result) {
       decoded = decodePayloads(entry.result) ?? null;
     }
     decodedOnce = true;
@@ -140,18 +132,14 @@ export function stepPayloads(
       return input === undefined ? undefined : values(input);
     });
   }
-  if (entry.step.kind === 'localActivity') {
-    if (entry.localResult !== undefined) {
-      payloads.result = entry.localResult as JsonValue;
-    }
-  } else if (entry.result) {
+  if (entry.result) {
     lazy(payloads, 'result', () => {
       const result = values(decodedResult());
       return result && result.length === 1 ? result[0] : result;
     });
   } else if (entry.failures.length > 0) {
     lazy(payloads, 'failureDetails', () =>
-      entry.failures.flatMap(f => failureDetails(f, decodePayloads)),
+      entry.failures.flatMap(f => failureDetails(f)),
     );
   }
   return { payloads, decodedResult };
@@ -209,34 +197,30 @@ function between(start?: string, end?: string): number | undefined {
 const OPEN = ['Scheduled', 'Running', 'Retrying', 'Waiting'];
 
 /**
- * The summary of the model calls of one step. `decodedResult` is the
+ * The summary of the model call of one step. `decodedResult` is the
  * decoded result payload (`{ encoding, value }`, a stored payload, or
  * undecodable), for the state of a call without a record.
  */
-export function summarizeModelCalls(
+export function summarizeModelCall(
   node: Pick<
     WorkflowGraphNode,
     'status' | 'startTime' | 'endTime' | 'attempts'
   >,
-  read: LlmModelCalls,
+  read: LlmModelRead,
   decodedResult: unknown,
 ): { summary: WorkflowLlmSummary; requests: ToolRequest[] } {
-  const { calls, framework } = read;
+  const { call, framework } = read;
   const summary: WorkflowLlmSummary = {
     framework,
     record: 'pending',
     toolCalls: [],
     reasoning: false,
   };
-  if (calls[0]?.name) summary.call = calls[0].name;
-  if (calls.length > 1) summary.callCount = calls.length;
   const startedTime = node.attempts?.[node.attempts.length - 1]?.startedTime;
   const activityMs = between(startedTime ?? node.startTime, node.endTime);
   if (activityMs !== undefined && node.endTime) summary.durationMs = activityMs;
-  const records = calls
-    .map(c => c.record)
-    .filter((r): r is WorkflowLlmRecord => r !== undefined);
-  if (records.length === 0) {
+  const record = call.record;
+  if (!record) {
     if (isObject(decodedResult)) {
       summary.record = 'value' in decodedResult ? 'missing' : 'unreadable';
     } else if (!OPEN.includes(node.status)) {
@@ -245,47 +229,20 @@ export function summarizeModelCalls(
     return { summary, requests: [] };
   }
   summary.record = 'available';
-  const last = records[records.length - 1];
-  if (records[0].operation) summary.operation = records[0].operation;
-  const providers = new Set(records.map(r => r.provider));
-  if (providers.size === 1 && last.provider) summary.provider = last.provider;
-  const model = last.responseModel ?? last.requestModel;
+  if (record.provider) summary.provider = record.provider;
+  const model = record.responseModel ?? record.requestModel;
   if (model) summary.model = model;
-  let usage = undefined as WorkflowLlmSummary['usage'];
-  for (const r of records) {
-    if (Object.keys(r.usage).length > 0) usage = addLlmUsage(usage, r.usage);
+  if (Object.keys(record.usage).length > 0) {
+    summary.usage = { ...record.usage };
   }
-  if (usage) summary.usage = usage;
-  if (records.length === 1 && last.durationMs !== undefined)
-    summary.durationMs = last.durationMs;
-  if (last.finishReasons?.length) summary.finishReasons = last.finishReasons;
-  const error = [...records].reverse().find(r => r.error)?.error;
+  if (record.durationMs !== undefined) summary.durationMs = record.durationMs;
+  if (record.finishReasons?.length)
+    summary.finishReasons = record.finishReasons;
   // The summary keeps the error type; the message is in the full record.
-  if (error) summary.error = error.type || 'error';
-  summary.reasoning = records.some(hasReasoning);
-  const requests = records.flatMap(outputToolCalls);
+  if (record.error) summary.error = record.error.type || 'error';
+  summary.reasoning = hasReasoning(record);
+  const requests = outputToolCalls(record);
   summary.toolCalls = requests.map(r => r.ref);
-  for (const record of records) {
-    for (const execution of record.toolExecutions) {
-      const status: WorkflowNodeStatus = execution.error
-        ? 'Failed'
-        : 'Completed';
-      const listed = summary.toolCalls.find(
-        c => c.id !== undefined && c.id === execution.id,
-      );
-      if (listed) {
-        listed.inActivity = true;
-        listed.status = status;
-      } else {
-        summary.toolCalls.push({
-          ...(execution.id ? { id: execution.id } : {}),
-          name: execution.name,
-          inActivity: true,
-          status,
-        });
-      }
-    }
-  }
   return { summary, requests };
 }
 
@@ -296,7 +253,6 @@ function nameKey(name: string | undefined): string {
 
 interface ModelStep {
   entry: LlmStepEntry;
-  calls: TemporalLlmModelCall[];
   requests: ToolRequest[];
   answered: Set<string>;
 }
@@ -304,65 +260,54 @@ interface ModelStep {
 interface ToolStep {
   entry: LlmStepEntry;
   /** Read for the arguments only when the step is a candidate. */
-  payloads: TemporalLlmStepPayloads;
+  payloads: LlmStepPayloads;
   toolName?: string;
   toolCallId?: string;
-  modelCall?: string;
 }
 
 /** The result of reading the steps of a run. */
 export interface LlmSteps {
-  /** The model calls of each model call step, by node ID. */
-  calls: Map<string, LlmModelCalls>;
+  /** The model call of each model call step, by node ID. */
+  calls: Map<string, LlmModelRead>;
 }
 
 /**
  * Reads the steps of a run with the adapters: sets `llm` on the model
  * calls and `tool` on the tool calls, and links them.
  */
-export function readLlmSteps(
-  entries: LlmStepEntry[],
-  reader: LlmStepReader,
-  decodePayloads: DecodePayloads,
-): LlmSteps {
-  const calls = new Map<string, LlmModelCalls>();
+export function readLlmSteps(entries: LlmStepEntry[]): LlmSteps {
+  const calls = new Map<string, LlmModelRead>();
   const models: ModelStep[] = [];
   const tools: ToolStep[] = [];
   const plain: ToolStep[] = [];
   for (const entry of [...entries].sort(
     (a, b) => a.node.first - b.node.first,
   )) {
-    const { payloads, decodedResult } = stepPayloads(entry, decodePayloads);
-    const eventId = String(entry.node.first);
-    const read = reader.readModelCalls(entry.step, payloads, eventId);
+    const { payloads, decodedResult } = stepPayloads(entry);
+    const read = readModelCall(entry.step, payloads);
     if (read) {
-      const { summary, requests } = summarizeModelCalls(
+      const { summary, requests } = summarizeModelCall(
         entry.node,
         read,
         decodedResult(),
       );
       entry.node.llm = summary;
       calls.set(entry.node.id, read);
-      const answered = new Set<string>();
-      for (const c of read.calls) {
-        if (c.record)
-          answeredToolCalls(c.record).forEach(id => answered.add(id));
-      }
-      models.push({ entry, calls: read.calls, requests, answered });
+      const answered = read.call.record
+        ? answeredToolCalls(read.call.record)
+        : new Set<string>();
+      models.push({ entry, requests, answered });
       continue;
     }
-    const tool = reader.readToolCall(entry.step, payloads, eventId)?.tool;
+    const tool = readToolCall(entry.step, payloads);
     const step: ToolStep = { entry, payloads, ...tool };
-    // A local activity that ran a tool is shown by its activity type.
-    if (tool && entry.step.kind === 'localActivity' && entry.step.activityType)
-      entry.node.name = entry.step.activityType;
     (tool ? tools : plain).push(step);
   }
   linkByToolCallId(models, tools);
   linkByInference(
     models,
     tools.filter(t => !t.toolCallId && !t.entry.node.tool),
-    plain.filter(p => p.entry.step.kind === 'activity'),
+    plain,
   );
   return { calls };
 }
@@ -375,8 +320,6 @@ function link(
 ) {
   const node = tool.entry.node;
   node.tool = {};
-  const call = tool.modelCall ?? owner?.entry.node.llm?.call;
-  if (call !== undefined) node.tool.call = call;
   const toolCallId = tool.toolCallId ?? ref?.id;
   if (toolCallId !== undefined) node.tool.toolCallId = toolCallId;
   if (owner) node.tool.llmNodeId = owner.entry.node.id;
@@ -386,7 +329,6 @@ function link(
   if (!ref) return;
   ref.nodeId = node.id;
   ref.status = node.status;
-  delete ref.inActivity;
   if (inferred) ref.inferred = true;
 }
 
@@ -442,7 +384,6 @@ function firstNumberAfter(
 /** Steps that record a tool call ID: the model call that asked for it. */
 function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
   const byToolCallId = new Map<string, ModelStep[]>();
-  const byCallName = new Map<string, ModelStep[]>();
   for (const model of models) {
     const seenIds = new Set<string>();
     for (const callRef of model.entry.node.llm!.toolCalls) {
@@ -450,10 +391,6 @@ function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
         seenIds.add(callRef.id);
         pushBucket(byToolCallId, callRef.id, model);
       }
-    }
-    const callName = model.entry.node.llm?.call;
-    if (callName !== undefined) {
-      pushBucket(byCallName, callName, model);
     }
   }
 
@@ -476,23 +413,7 @@ function linkByToolCallId(models: ModelStep[], tools: ToolStep[]) {
       }
     }
 
-    let ref = refOf(owner);
-    if (!owner && tool.modelCall !== undefined) {
-      // The model call by its name, when its record is not readable.
-      const candidates = byCallName.get(tool.modelCall);
-      if (candidates) {
-        const idx = lastIndexBefore(candidates, toolFirst);
-        if (idx >= 0) owner = candidates[idx];
-      }
-      if (owner && id !== undefined) {
-        ref = refOf(owner);
-        if (!ref) {
-          ref = { id, name: tool.entry.node.name };
-          owner.entry.node.llm!.toolCalls.push(ref);
-        }
-      }
-    }
-    if (owner || id !== undefined) link(tool, owner, ref, false);
+    if (owner || id !== undefined) link(tool, owner, refOf(owner), false);
   }
 }
 
@@ -526,7 +447,7 @@ function linkByInference(
   for (const model of models) {
     let callUnlinked = 0;
     for (const request of model.requests) {
-      if (!request.ref.nodeId && !request.ref.inActivity) {
+      if (!request.ref.nodeId) {
         callUnlinked += 1;
         totalUnlinked += 1;
         if (totalUnlinked > MAX_INFERRED_TOOL_REQUESTS) return;
@@ -563,7 +484,7 @@ function linkByInference(
 
     for (const request of model.requests) {
       const { ref } = request;
-      if (ref.nodeId || ref.inActivity) continue;
+      if (ref.nodeId) continue;
       let next: ModelStep | undefined;
       if (ref.id !== undefined) {
         const idxList = answeredById.get(ref.id);
@@ -601,40 +522,4 @@ function linkByInference(
       link(found, model, ref, true);
     }
   });
-}
-
-/** Activity ID of a local activity from its marker details, when readable. */
-export function localActivityId(details: unknown): string | undefined {
-  return localActivityData(details, 'activity_id', 'activityId');
-}
-
-/** Activity type of a local activity from its marker details, when readable. */
-export function localActivityType(details: unknown): string | undefined {
-  return localActivityData(details, 'activity_type', 'activityType');
-}
-
-function localActivityData(
-  details: unknown,
-  ...keys: string[]
-): string | undefined {
-  if (!isObject(details)) return undefined;
-  for (const key of ['data', 'meta']) {
-    const decoded = details[key];
-    const value =
-      isObject(decoded) && 'value' in decoded ? decoded.value : undefined;
-    if (isObject(value)) {
-      for (const k of keys) {
-        const found = str(value[k]);
-        if (found) return found;
-      }
-    }
-  }
-  return undefined;
-}
-
-/** The decoded result of a local activity from its marker details. */
-export function localActivityResult(details: unknown): unknown {
-  if (!isObject(details)) return undefined;
-  const decoded = details.result;
-  return isObject(decoded) && 'value' in decoded ? decoded.value : undefined;
 }
