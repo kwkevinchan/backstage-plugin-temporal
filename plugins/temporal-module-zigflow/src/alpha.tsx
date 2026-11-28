@@ -41,7 +41,7 @@ export const temporalDefinitionContent = EntityContentBlueprint.make({
     title: 'Definition',
     filter: isTemporalWorkflowEntity,
     loader: () =>
-      import('./components/definition/DefinitionContent').then(m =>
+      import('./components/definition/DefinitionContentPage').then(m =>
         compatWrapper(<m.EntityTemporalDefinitionContentPage />),
       ),
   },

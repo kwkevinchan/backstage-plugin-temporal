@@ -45,19 +45,16 @@ export const listResponse: WorkflowListResponse = {
  * Mock of what the Definition tab reads: the runs and graphs of the Temporal
  * plugin and the definition file.
  */
-export const mockGetEntityDefinition = jest.fn();
-
 export function mockTemporalApi() {
-  mockGetEntityDefinition
-    .mockReset()
-    .mockRejectedValue(new Error('No definition'));
   return {
     listEntityWorkflows: jest.fn().mockResolvedValue(listResponse),
     listWorkflowRuns: jest
       .fn()
       .mockResolvedValue({ namespace: 'default', items: [] }),
     getWorkflowGraph: jest.fn(),
-    /** Stands for the definition route; see the jest.mock of ./api. */
-    getEntityDefinition: mockGetEntityDefinition,
+    /** Stands for the definition route: the tab is given this object. */
+    getEntityDefinition: jest
+      .fn()
+      .mockRejectedValue(new Error('No definition')),
   };
 }

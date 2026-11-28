@@ -40,22 +40,35 @@ export async function hasErrorBody(response: Response): Promise<boolean> {
 }
 
 /**
+ * Where the Definition tab reads the definition file of a `TemporalWorkflow`
+ * entity from. The tab is given one, so that a test can give it another.
+ */
+export interface DefinitionSource {
+  getEntityDefinition(entityRef: string): Promise<WorkflowDefinitionResponse>;
+}
+
+/**
  * Reads the definition file of a `TemporalWorkflow` entity from the
  * Temporal backend plugin (the route of
  * `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`).
  */
-export async function loadEntityDefinition(
-  apis: { discoveryApi: DiscoveryApi; fetchApi: FetchApi },
-  entityRef: string,
-): Promise<WorkflowDefinitionResponse> {
-  const baseUrl = await apis.discoveryApi.getBaseUrl('temporal');
-  const response = await apis.fetchApi.fetch(
-    `${baseUrl}${buildEntityDefinitionPath(parseEntityRef(entityRef))}`,
-  );
-  if (response.status === 404 && !(await hasErrorBody(response.clone()))) {
-    // No such route: the backend module is not installed.
-    throw new Error(MODULE_MISSING_MESSAGE);
+export class DefinitionClient implements DefinitionSource {
+  constructor(
+    private readonly apis: { discoveryApi: DiscoveryApi; fetchApi: FetchApi },
+  ) {}
+
+  async getEntityDefinition(
+    entityRef: string,
+  ): Promise<WorkflowDefinitionResponse> {
+    const baseUrl = await this.apis.discoveryApi.getBaseUrl('temporal');
+    const response = await this.apis.fetchApi.fetch(
+      `${baseUrl}${buildEntityDefinitionPath(parseEntityRef(entityRef))}`,
+    );
+    if (response.status === 404 && !(await hasErrorBody(response.clone()))) {
+      // No such route: the backend module is not installed.
+      throw new Error(MODULE_MISSING_MESSAGE);
+    }
+    if (!response.ok) throw await ResponseError.fromResponse(response);
+    return (await response.json()) as WorkflowDefinitionResponse;
   }
-  if (!response.ok) throw await ResponseError.fromResponse(response);
-  return (await response.json()) as WorkflowDefinitionResponse;
 }
