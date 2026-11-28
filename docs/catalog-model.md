@@ -129,9 +129,6 @@ The work of each request does not grow with the number of executions:
 | One workflow                                       | Loads the entity and its related entities as above, describes the workflow (and reads its last event when it failed, timed out, was terminated or continued as new), and describes up to 3 ancestors when the workflow does not match by itself. Without `workflowEntityRef`, and when the opened entity is not the `TemporalWorkflow` entity of this workflow type, it also queries the catalog once with the user's credentials (by kind and `spec.workflowType`); the result only shows a link |
 | The statistics card of a `TemporalWorkflow` entity | Loads the entity as above, then the overview of the entity (`POST /workflow-types/overview`): at most three visibility calls, kept for 60 seconds; Refresh reads them again                                                                                                                                                                                                                                                                                                                       |
 
-Workflow enrichers registered by modules run on the returned items; their cost
-depends on the module.
-
 Temporal's visibility store answers the query. The catalog does no work when
 executions start or end.
 

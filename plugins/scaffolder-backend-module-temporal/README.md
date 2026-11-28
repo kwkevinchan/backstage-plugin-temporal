@@ -170,7 +170,8 @@ steps:
 ```
 
 `workflowUrl` links to the Temporal page of the frontend plugin
-(`/temporal/...` under `app.baseUrl`).
+(`/temporal/...` under `app.baseUrl`; set `temporal.pagePath` when the app
+mounts the page elsewhere).
 
 ## Notify when a decision is needed
 

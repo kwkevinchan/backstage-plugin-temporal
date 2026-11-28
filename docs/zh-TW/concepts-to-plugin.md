@@ -150,7 +150,7 @@ export async function releaseWorkflow(input: ReleaseInput) {
 
 ### 擴充點
 
-不用改外掛，就能加自己的按鈕、分頁、清單操作、後端 action 和資料補充。[架構](architecture.md#擴充點)列出了全部。
+不用改外掛，就能加自己的按鈕、分頁、清單操作和後端 action。[架構](architecture.md#擴充點)列出了全部。
 
 ### AI 流程（實驗性形狀）
 

@@ -61,12 +61,12 @@ Temporal SDK.
 
 ## Exports
 
-| Entry point | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.`         | Default: a feature loader with the plugin, the default factory of its access service and the catalog module. Named: `temporalPlugin`, `catalogModuleTemporalWorkflowKind`, to add them one by one; `temporalPlugin` needs `temporalAccessServiceFactory` (`./alpha`) or a factory of your own for `temporalAccessServiceRef` next to it.                                                                                                                                                                                                                                                                      |
-| `./node`    | `temporalServiceRef`: a root-scoped service with one shared Temporal connection (`temporal.connection`: address, namespaces, `tls`, `auth` with `none` or `bearer`; only `@temporalio/client` is used).                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `./alpha`   | `temporalAccessServiceRef` (the access checks of the plugin) and `temporalAccessServiceFactory`, `temporalControlExtensionPoint` (custom actions: `addControlAction()`), `temporalWorkflowEnricherExtensionPoint` (`addWorkflowEnricher()`; it only adds enrichers), `temporalWorkflowPermissionResourceRef`, `temporalWorkflowConditions` and `createTemporalWorkflowConditionalDecision` for policies, and `inCondition` and `quote` to build the visibility query that a permission rule's `toQuery` returns (the plugin rejects an empty query, an unclosed quote, a comment and unbalanced parentheses). |
-| `./common`  | The permissions (`temporalPermissions`, `temporalWorkflowReadPermission` and the others) for permission policies, the annotation constants, the `TemporalWorkflow` kind (schema and type guards) and the types and paths of the API.                                                                                                                                                                                                                                                                                                                                                                          |
+| Entry point | Exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.`         | Default: a feature loader with the plugin, the default factory of its access service and the catalog module. Named: `temporalPlugin`, `catalogModuleTemporalWorkflowKind`, to add them one by one; `temporalPlugin` needs `temporalAccessServiceFactory` (`./alpha`) or a factory of your own for `temporalAccessServiceRef` next to it.                                                                                                                                                                          |
+| `./node`    | `temporalServiceRef`: a root-scoped service with one shared Temporal connection (`temporal.connection`: address, namespaces, `tls`, `auth` with `none` or `bearer`; only `@temporalio/client` is used), and `DefaultTemporalService` with `readTemporalServiceOptions`, to extend the default connection (for example with client certificates).                                                                                                                                                                  |
+| `./alpha`   | `temporalAccessServiceRef` (the access checks of the plugin) and `temporalAccessServiceFactory`, `temporalControlExtensionPoint` (custom actions: `addControlAction()`), `temporalWorkflowPermissionResourceRef`, `temporalWorkflowConditions` and `createTemporalWorkflowConditionalDecision` for policies, and `inCondition` and `quote` to build the visibility query that a permission rule's `toQuery` returns (the plugin rejects an empty query, an unclosed quote, a comment and unbalanced parentheses). |
+| `./common`  | The permissions (`temporalPermissions`, `temporalWorkflowReadPermission` and the others) for permission policies, the annotation constants, the `TemporalWorkflow` kind (type and type guards) and the types and paths of the API.                                                                                                                                                                                                                                                                                |
 
 `./node`, `./alpha` and `./common` do not load the plugin itself. A module
 that imports this package gets a warning from the Backstage lint rule
@@ -125,7 +125,7 @@ be listed (400): open its run by run ID.
 Query parameters: `status`, `pageSize`, `pageToken`, `allRuns` (lists;
 without `allRuns=true` or a `status`, runs that continued as new are left out,
 so a workflow that keeps continuing as new is listed once); `namespace`,
-`workflowType`, `workflowId` (start of the workflow ID) on `/workflows`;
+`workflowType`, `workflowIdPrefix` (start of the workflow ID) on `/workflows`;
 `searchAttribute` (both lists: a Bool search attribute that must be true);
 `pageSize`, `pageToken` (history);
 `entityRef` on every route under `.../workflows/:workflowId/runs/:runId`
@@ -187,19 +187,7 @@ fields change before the first stable release) and the definition route of
 the Zigflow backend module (`x-temporal-module`). The tests of the routes
 check their requests and responses against it.
 
-The backend serves the same document as JSON at `GET /api/temporal/openapi.json`,
-with the paths under `/api/temporal` (the file in the package has them
-relative and does not list this route), and without the operations that change workflows when
-`temporal.control.enabled` is false. It needs Backstage credentials, like
-every route, and checks no permission. The definition route of the Zigflow
-backend module stays in it whether or not the module is installed.
-
-To show it in the catalog, use the catalog module
-`@backstage/plugin-catalog-backend-module-backstage-openapi`, which reads
-the document of every plugin it is configured for from this route, or read
-`/api/temporal/openapi.json` with another tool.
-
-Alternatively, register an `API` entity that reads the file of
+To show it in the catalog, register an `API` entity that reads the file of
 the version you run. Replace `main` with the commit SHA of that release, not
 its tag: the tags (`@kwkevinchan/backstage-plugin-temporal-backend@<version>`)
 contain slashes, and the GitHub URL reader takes the first segment after

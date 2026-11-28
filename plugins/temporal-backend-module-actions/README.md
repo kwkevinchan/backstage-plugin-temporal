@@ -32,8 +32,9 @@ backend.add(
 
 The module uses the actions registry service of Backstage (`@alpha` in
 `@backstage/backend-plugin-api/alpha`), which `createBackend()` of
-`@backstage/backend-defaults` already provides. It reads `app.baseUrl` (for the
-links to the workflow pages) and, as the Temporal plugin does,
+`@backstage/backend-defaults` already provides. It reads `app.baseUrl` and
+`temporal.pagePath` (for the links to the workflow pages, `/temporal` by
+default) and, as the Temporal plugin does,
 `temporal.connection.defaultNamespace`. Workflow-changing actions reject service
 principals by default; set `temporal.actions.allowServiceWrites: true` to allow
 them (see [Permissions, audit and errors](#permissions-audit-and-errors)).
