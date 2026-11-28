@@ -513,8 +513,14 @@ for.
   they may not read) gets the same `404` as a workflow that does not exist.
 - An operation then checks its own permission on the entity it was read
   through (and on the matched `TemporalWorkflow` entity when matched through
-  one), else on the entity of its search attribute; a workflow with neither
-  needs the permission allowed without conditions.
+  one). A workflow that the list permission allowed is read through no
+  entity: the operation then uses the entity of its search attribute only
+  when the workflow opens with it as with `entityRef` (the caller may read
+  the entity, and the workflow is in its namespace and one of its
+  workflows), and checks the matched `TemporalWorkflow` entity too. Anyone
+  who starts a workflow can set that attribute, so an entity that does not
+  pass, does not exist or cannot be read counts as none. A workflow without
+  an entity needs the permission allowed without conditions.
 
 Errors are Backstage error bodies: `400` input, `401` no valid
 credentials, `403` denied, `404` not found, `409` a conflict (`signal` on a

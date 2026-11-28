@@ -228,9 +228,10 @@ export function createControlRouter(
     loadRequestWorkflow({ httpAuth, access }, req);
 
   /**
-   * Checks a control permission on the workflow's entity. A bad entity
-   * reference in the workflow's search attribute counts as no entity: the
-   * permission must then be allowed for every entity.
+   * Checks a control permission on the workflow's entity. An entity
+   * reference in the workflow's search attribute that is bad, or that the
+   * workflow does not open with, counts as no entity: the permission must
+   * then be allowed for every entity.
    */
   const authorizeControl = (
     permission: ResourcePermission<'catalog-entity'>,
