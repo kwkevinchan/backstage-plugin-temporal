@@ -67,6 +67,10 @@ function readerOf(
   readUrl: jest.Mock,
   options: {
     maxBytes?: number;
+    cacheTtlSeconds?: number;
+    cacheMaxEntries?: number;
+    maxConcurrentReads?: number;
+    maxReadsPerMinute?: number;
     readFileLocations?: boolean;
     allow?: DefinitionAllowRule[];
     integrations?: ScmIntegrations;
@@ -753,7 +757,7 @@ describe('DefinitionReader', () => {
         },
       }),
     );
-    const reader = readerOf(readUrl, { integrations });
+    const reader = readerOf(readUrl, { integrations, cacheTtlSeconds: 0 });
 
     const ghSubdir = entity(
       'url:https://github.com/my-org/my-repo/blob/main/services/orders/catalog-info.yaml',
@@ -1665,7 +1669,10 @@ describe('DefinitionReader', () => {
     const readUrl = jest.fn(async () => ({
       buffer: async () => Buffer.from(await text()),
     }));
-    const reader = readerOf(readUrl, { allow: [{ host: 'raw.example.com' }] });
+    const reader = readerOf(readUrl, {
+      allow: [{ host: 'raw.example.com' }],
+      cacheTtlSeconds: 0,
+    });
     const read = () =>
       reader.read(entity(), spec('https://raw.example.com/order.yaml'));
 
@@ -1792,5 +1799,162 @@ describe('DefinitionReader', () => {
       },
     });
     expect(nonIntegration.logger.warn).not.toHaveBeenCalled();
+  });
+
+  describe('URL read cache and limits', () => {
+    const location =
+      'url:https://git.example.com/org/repo/blob/main/catalog-info.yaml';
+    const target = (name: string) => spec(`./${name}.yaml`);
+    const ok = () => ({
+      buffer: async () => Buffer.from(fixture),
+    });
+
+    beforeEach(() => {
+      jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+      jest.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    });
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('serves a repeated read from memory until the TTL ends', async () => {
+      const readUrl = jest.fn(async () => ok());
+      const reader = readerOf(readUrl, { cacheTtlSeconds: 30 });
+      await reader.read(entity(location), target('a'));
+      jest.advanceTimersByTime(29_000);
+      const hit = await reader.read(entity(location), target('a'));
+      expect(hit.size).toBe(Buffer.byteLength(fixture));
+      expect(readUrl).toHaveBeenCalledTimes(1);
+
+      jest.advanceTimersByTime(2_000);
+      await reader.read(entity(location), target('a'));
+      expect(readUrl).toHaveBeenCalledTimes(2);
+
+      await reader.read(entity(location), target('b'));
+      expect(readUrl).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not cache when the TTL is 0', async () => {
+      const readUrl = jest.fn(async () => ok());
+      const reader = readerOf(readUrl, { cacheTtlSeconds: 0 });
+      await reader.read(entity(location), target('a'));
+      await reader.read(entity(location), target('a'));
+      expect(readUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not cache a failed read', async () => {
+      const readUrl = jest
+        .fn()
+        .mockRejectedValueOnce(new Error('connection reset'))
+        .mockResolvedValue(ok());
+      const reader = readerOf(readUrl);
+      const failed = await reader.read(entity(location), target('a'));
+      expect(failed.error?.kind).toBe('read');
+      const retried = await reader.read(entity(location), target('a'));
+      expect(retried.error).toBeUndefined();
+      expect(readUrl).toHaveBeenCalledTimes(2);
+    });
+
+    it('drops the least recently used entry above the capacity', async () => {
+      const readUrl = jest.fn(async () => ok());
+      const reader = readerOf(readUrl, { cacheMaxEntries: 2 });
+      await reader.read(entity(location), target('a'));
+      await reader.read(entity(location), target('b'));
+      await reader.read(entity(location), target('a')); // a is now newest
+      await reader.read(entity(location), target('c')); // drops b
+      expect(readUrl).toHaveBeenCalledTimes(3);
+      await reader.read(entity(location), target('a'));
+      expect(readUrl).toHaveBeenCalledTimes(3);
+      await reader.read(entity(location), target('b'));
+      expect(readUrl).toHaveBeenCalledTimes(4);
+    });
+
+    it('shares one read between simultaneous requests for a URL', async () => {
+      let release: () => void = () => {};
+      const readUrl = jest.fn(
+        () =>
+          new Promise(resolve => {
+            release = () => resolve(ok());
+          }),
+      );
+      const reader = readerOf(readUrl);
+      const first = reader.read(entity(location), target('a'));
+      const second = reader.read(entity(location), target('a'));
+      await Promise.resolve();
+      release();
+      const [one, two] = await Promise.all([first, second]);
+      expect(readUrl).toHaveBeenCalledTimes(1);
+      expect(one.error).toBeUndefined();
+      expect(two.error).toBeUndefined();
+    });
+
+    it('runs at most maxConcurrentReads reads at once', async () => {
+      const releases: Array<() => void> = [];
+      const readUrl = jest.fn(
+        () =>
+          new Promise(resolve => {
+            releases.push(() => resolve(ok()));
+          }),
+      );
+      const reader = readerOf(readUrl, { maxConcurrentReads: 2 });
+      const reads = ['a', 'b', 'c'].map(name =>
+        reader.read(entity(location), target(name)),
+      );
+      await new Promise(resolve => setImmediate(resolve));
+      expect(readUrl).toHaveBeenCalledTimes(2);
+      releases[0]();
+      await new Promise(resolve => setImmediate(resolve));
+      expect(readUrl).toHaveBeenCalledTimes(3);
+      releases[1]();
+      releases[2]();
+      const results = await Promise.all(reads);
+      expect(results.every(r => !r.error)).toBe(true);
+    });
+
+    it('refuses reads above maxReadsPerMinute until the minute ends', async () => {
+      const readUrl = jest.fn(async () => ok());
+      const reader = readerOf(readUrl, {
+        maxReadsPerMinute: 2,
+        cacheTtlSeconds: 0,
+      });
+      await reader.read(entity(location), target('a'));
+      await reader.read(entity(location), target('b'));
+      const limited = await reader.read(entity(location), target('c'));
+      expect(limited.error).toMatchObject({ kind: 'read' });
+      expect(limited.error?.message).toMatch(/try again/);
+      expect(readUrl).toHaveBeenCalledTimes(2);
+
+      jest.advanceTimersByTime(60_000);
+      const again = await reader.read(entity(location), target('c'));
+      expect(again.error).toBeUndefined();
+      expect(readUrl).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not count cache hits against maxReadsPerMinute', async () => {
+      const readUrl = jest.fn(async () => ok());
+      const reader = readerOf(readUrl, { maxReadsPerMinute: 1 });
+      for (let i = 0; i < 5; i++) {
+        const result = await reader.read(entity(location), target('a'));
+        expect(result.error).toBeUndefined();
+      }
+      expect(readUrl).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects invalid cache and limit settings', () => {
+      const build = (definitions: Record<string, number>) =>
+        DefinitionReader.fromConfig(
+          new ConfigReader({ temporal: { definitions } }),
+          mockServices.urlReader.mock(),
+        );
+      expect(() => build({ cacheTtlSeconds: -1 })).toThrow(/cacheTtlSeconds/);
+      expect(() => build({ cacheMaxEntries: 0 })).toThrow(/cacheMaxEntries/);
+      expect(() => build({ maxConcurrentReads: 0 })).toThrow(
+        /maxConcurrentReads/,
+      );
+      expect(() => build({ maxReadsPerMinute: 1.5 })).toThrow(
+        /maxReadsPerMinute/,
+      );
+      expect(() => build({ cacheTtlSeconds: 0 })).not.toThrow();
+    });
   });
 });

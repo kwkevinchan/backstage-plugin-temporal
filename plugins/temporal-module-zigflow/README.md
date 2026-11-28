@@ -151,6 +151,12 @@ links to the source from the `backstage.io/source-location` and
   integration readers follow default `fetch` redirects).
 - Files above `temporal.definitions.maxBytes` (default 1 MiB, at most 8 MiB)
   are not read; the backend stops reading at the limit.
+- A successful read of a URL is kept in memory for
+  `temporal.definitions.cacheTtlSeconds` (default 30 seconds), so a change in
+  the repository shows after at most that time. Failed reads are not cached.
+  Simultaneous requests for one URL share one read, and
+  `maxConcurrentReads` and `maxReadsPerMinute` cap the reads to the source
+  host. The cache is per backend process; instances do not share it.
 - A `serverless-workflow` target must be a `.yaml` or `.yml` file.
 - The YAML is parsed without running anything: YAML 1.2 core schema, no
   custom tags, no merge keys, unique keys, at most 20 aliases, at most 64
@@ -226,6 +232,10 @@ Under `temporal` in `app-config.yaml`, read by the backend module:
 temporal:
   definitions:
     maxBytes: 1048576
+    cacheTtlSeconds: 30
+    cacheMaxEntries: 100
+    maxConcurrentReads: 4
+    maxReadsPerMinute: 120
     readFileLocations: false
     # allow:
     #   - host: raw.githubusercontent.com
@@ -233,8 +243,12 @@ temporal:
     #       - /my-org/my-workflows/
 ```
 
-| Key                             | Default   | Description                                                                                                                                                                                                           |
-| ------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `definitions.allow`             | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` `target` URLs; `paths` must be set on hosts backed by a Backstage integration. |
-| `definitions.maxBytes`          | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                               |
-| `definitions.readFileLocations` | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                      |
+| Key                              | Default   | Description                                                                                                                                                                                                           |
+| -------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `definitions.allow`              | `[]`      | Hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` `target` URLs; `paths` must be set on hosts backed by a Backstage integration. |
+| `definitions.maxBytes`           | `1048576` | Largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                               |
+| `definitions.cacheTtlSeconds`    | `30`      | How long a definition read from a URL stays in the memory of the backend process, in seconds (`0` turns the cache off, at most 600). The cache is not shared between backend processes.                               |
+| `definitions.cacheMaxEntries`    | `100`     | Most definition files the cache keeps; the least recently used is dropped.                                                                                                                                            |
+| `definitions.maxConcurrentReads` | `4`       | Most URL reads that run at the same time per backend process; the others wait.                                                                                                                                        |
+| `definitions.maxReadsPerMinute`  | `120`     | Most URL reads (cache hits not counted) started per minute per backend process; above it the tab shows an error until the minute ends.                                                                                |
+| `definitions.readFileLocations`  | `false`   | Read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                      |

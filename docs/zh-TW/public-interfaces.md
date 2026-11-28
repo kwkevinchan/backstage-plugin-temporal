@@ -403,20 +403,21 @@ Zigflow 後端模組另外加上 `GET /entities/:kind/:namespace/:name/definitio
 
 所有鍵都在 `temporal` 底下。schema 是四個套件的 `config.d.ts`：[`temporal-backend`](../../plugins/temporal-backend/config.d.ts)（下表核心設定）、[`temporal-frontend`](../../plugins/temporal-frontend/config.d.ts)（瀏覽器看得到的鍵）、[`temporal-backend-module-zigflow`](../../plugins/temporal-backend-module-zigflow/config.d.ts)（`definitions.*`）和 [`temporal-backend-module-actions`](../../plugins/temporal-backend-module-actions/config.d.ts)（`actions.allowServiceWrites`）。預設值和意思見 [README](../../README.md#configuration)。
 
-| 鍵                                                                           | 誰讀                                               | 瀏覽器看得到 |
-| ---------------------------------------------------------------------------- | -------------------------------------------------- | ------------ |
-| `connection.address`                                                         | 後端（`temporalServiceRef`）                       |              |
-| `connection.namespaces`、`connection.tls`、`connection.auth.type`            | 後端                                               |              |
-| `connection.auth.token`                                                      | 後端；secret                                       |              |
-| `connection.defaultNamespace`                                                | 後端、前端、Scaffolder 後端模組                    | 是           |
-| `webUi.baseUrl`                                                              | 後端、前端                                         | 是           |
-| `searchAttributes.entityRef`、`searchAttributes.initiator`                   | 後端                                               |              |
-| `control.enabled`                                                            | 後端（掛上操作路由）、前端（顯示按鈕）             | 是           |
-| `control.allowedSignals`、`control.allowedUpdates`                           | 後端（拒絕）、前端（提供選項）                     | 是           |
-| `externalStorage.objectUrl`                                                  | 前端                                               | 是           |
-| `overview.maxVisibilityCallsPerSecond`                                       | 後端（每個 process、每個 namespace 預設每秒 5 次） |              |
-| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations` | Zigflow 後端模組                                   |              |
-| `actions.allowServiceWrites`                                                 | Actions registry 後端模組                          |              |
+| 鍵                                                                                                                              | 誰讀                                                 | 瀏覽器看得到 |
+| ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
+| `connection.address`                                                                                                            | 後端（`temporalServiceRef`）                         |              |
+| `connection.namespaces`、`connection.tls`、`connection.auth.type`                                                               | 後端                                                 |              |
+| `connection.auth.token`                                                                                                         | 後端；secret                                         |              |
+| `connection.defaultNamespace`                                                                                                   | 後端、前端、Scaffolder 後端模組                      | 是           |
+| `webUi.baseUrl`                                                                                                                 | 後端、前端                                           | 是           |
+| `searchAttributes.entityRef`、`searchAttributes.initiator`                                                                      | 後端                                                 |              |
+| `control.enabled`                                                                                                               | 後端（掛上操作路由）、前端（顯示按鈕）               | 是           |
+| `control.allowedSignals`、`control.allowedUpdates`                                                                              | 後端（拒絕）、前端（提供選項）                       | 是           |
+| `externalStorage.objectUrl`                                                                                                     | 前端                                                 | 是           |
+| `overview.maxVisibilityCallsPerSecond`                                                                                          | 後端（每個 process、每個 namespace 預設每秒 5 次）   |              |
+| `definitions.allow`、`definitions.maxBytes`、`definitions.readFileLocations`                                                    | Zigflow 後端模組                                     |              |
+| `definitions.cacheTtlSeconds`、`definitions.cacheMaxEntries`、`definitions.maxConcurrentReads`、`definitions.maxReadsPerMinute` | Zigflow 後端模組（每個 process：URL 讀取快取與上限） |              |
+| `actions.allowServiceWrites`                                                                                                    | Actions registry 後端模組                            |              |
 
 Scaffolder 後端模組另外讀 Backstage 本身的 `app.baseUrl`，用來產生 `workflowUrl` 輸出。
 
@@ -497,7 +498,7 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Zigflow
 
-`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；這條路由只讀 `.yaml` 和 `.yml` 檔，而且只有檔案是有效的定義時才回傳它的文字（解析有錯時，回應不含檔案內容），`file:` 目標必須是實體檔所在資料夾內的一般檔案（解析 symlink 之後也一樣），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
+`temporal-backend-module-zigflow` 提供 `TemporalWorkflow` 實體的定義檔（路由見上，設定鍵 `definitions.*`）；`temporal-module-zigflow` 把它顯示在 **Definition** 分頁（舊系統是 `EntityTemporalDefinitionContent`，掛在流程實體頁的 `/definition`；新系統是 `entity-content:temporal/definition`）。在有設定 Backstage integration 的主機上，`temporal.definitions.allow` 必須指定 `paths`（未設時啟動會記警告），否則實體作者能讀取該 integration 憑證可存取的任何儲存庫；這條路由只讀 `.yaml` 和 `.yml` 檔，而且只有檔案是有效的定義時才回傳它的文字（解析有錯時，回應不含檔案內容），`file:` 目標必須是實體檔所在資料夾內的一般檔案（解析 symlink 之後也一樣），成功讀取的 URL 會在記憶體快取 `temporal.definitions.cacheTtlSeconds` 秒（預設 30，單一 process，不跨實例共享；失敗不快取），同時讀取數和每分鐘讀取數也有上限（`maxConcurrentReads`、`maxReadsPerMinute`），HTTP redirect 則依 Backstage 的 `UrlReader` 規則處理，而不會重新檢查 `temporal.definitions.allow`。這條路由的回應（`WorkflowDefinitionResponse`）不匯出：兩個模組一起發佈，路由只給這個分頁用。
 
 ## 實驗性：模型呼叫和 Event Groups
 

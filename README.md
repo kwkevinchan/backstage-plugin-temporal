@@ -831,6 +831,10 @@ temporal:
   # Optional (Zigflow backend module): limits of the Definition tab.
   definitions:
     maxBytes: 1048576
+    cacheTtlSeconds: 30
+    cacheMaxEntries: 100
+    maxConcurrentReads: 4
+    maxReadsPerMinute: 120
     readFileLocations: false
     # allow:
     #   - host: raw.githubusercontent.com
@@ -860,6 +864,10 @@ temporal:
 | `overview.maxVisibilityCallsPerSecond` | `5`                  | Maximum visibility calls per second that `POST /api/temporal/workflow-types/overview` starts in each namespace, per backend process (with at most 4 in flight). Rows whose calls wait longer than 15 seconds show `Temporal did not answer in time`, as described for the Workflows tab.                                                                                          |
 | `definitions.allow`                    | `[]`                 | Zigflow module: hosts (`host`, supporting leading `*.` wildcard and `:port` or `:start-end` range) and `paths` prefixes allowed for absolute `http(s)` definition URLs. `paths` must be set on hosts backed by a Backstage integration (otherwise startup logs a warning).                                                                                                        |
 | `definitions.maxBytes`                 | `1048576`            | Zigflow module: largest definition file read, in bytes (at most 8 MiB).                                                                                                                                                                                                                                                                                                           |
+| `definitions.cacheTtlSeconds`          | `30`                 | Zigflow module: how long a definition read from a URL stays in this process's memory, in seconds (`0` turns the cache off, at most 600). Single-instance cache, not shared between backend processes.                                                                                                                                                                             |
+| `definitions.cacheMaxEntries`          | `100`                | Zigflow module: most definition files the cache keeps; the least recently used is dropped.                                                                                                                                                                                                                                                                                        |
+| `definitions.maxConcurrentReads`       | `4`                  | Zigflow module: most URL reads that run at the same time per backend process; the others wait.                                                                                                                                                                                                                                                                                    |
+| `definitions.maxReadsPerMinute`        | `120`                | Zigflow module: most URL reads (cache hits not counted) started per minute per backend process; above it the Definition tab shows an error until the minute ends.                                                                                                                                                                                                                 |
 | `definitions.readFileLocations`        | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |
 | `actions.allowServiceWrites`           | `false`              | Actions module: allow service principals (for example static `backend.auth.externalAccess` tokens) to call write actions (`start-workflow`, `signal-workflow`, `update-workflow`). Read actions remain available regardless of this setting.                                                                                                                                      |
 
@@ -1662,7 +1670,10 @@ warning; it does not fail the lint.
     integration-backed entry omits `paths`). `serverless-workflow` definitions read only `.yaml` and `.yml` files
     within the allowed scope (the entity's repository/folder for relative
     targets, or the allowed `host` and `paths` for absolute URLs) up to
-    `maxBytes`, and return their text only when they are valid definitions. `file:` targets
+    `maxBytes`, and return their text only when they are valid definitions. Successful
+    URL reads are cached in memory for `definitions.cacheTtlSeconds` (default 30 s, per
+    process), and concurrent and per-minute reads are capped, so page views do not use
+    up the API quota of the source host. `file:` targets
     (`definitions.readFileLocations: true`) must be regular files in the
     folder of the entity file, also after symlinks are resolved; keep
     `readFileLocations: false` outside local development. HTTP
