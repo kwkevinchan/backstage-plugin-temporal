@@ -503,7 +503,6 @@ class StepReader {
 
   /** Updates, by update ID. */
   private updateEvent(event: Json, time: string | undefined): boolean {
-    let a: Json;
     const updateAdmitted = event.workflowExecutionUpdateAdmittedEventAttributes;
     const updateAccepted = event.workflowExecutionUpdateAcceptedEventAttributes;
     const updateRejected = event.workflowExecutionUpdateRejectedEventAttributes;
@@ -547,7 +546,7 @@ class StepReader {
       }
       return true;
     }
-    a = event.workflowExecutionUpdateCompletedEventAttributes;
+    const a: Json = event.workflowExecutionUpdateCompletedEventAttributes;
     if (a) {
       const updateId: string = a.meta?.updateId ?? '';
       const node = this.byKey.get(`update-${updateId}`);
@@ -646,8 +645,7 @@ class StepReader {
 
   /** Markers, for example local activities and side effects. */
   private markerEvent(event: Json): boolean {
-    let a: Json;
-    a = event.markerRecordedEventAttributes;
+    const a: Json = event.markerRecordedEventAttributes;
     if (a) {
       const markerName: string = a.markerName ?? 'Marker';
       const isLocalActivity = isLocalActivityMarker(markerName);
