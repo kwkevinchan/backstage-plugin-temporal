@@ -1305,41 +1305,14 @@ components:
     WorkflowDefinitionResponse:
       type: object
       required:
-        - entityRef
         - format
         - target
-        - maxBytes
         - tasks
       properties:
-        entityRef:
-          type: string
         format:
           type: string
           enum:
             - serverless-workflow
-            - source
-        language:
-          type: string
-          enum:
-            - typescript
-            - javascript
-            - python
-            - go
-            - java
-            - text
-        symbol:
-          type: string
-        symbolLines:
-          type: object
-          required:
-            - startLine
-            - endLine
-          properties:
-            startLine:
-              type: integer
-            endLine:
-              type: integer
-          additionalProperties: false
         target:
           type: string
           description: '`spec.definition.target` as written.'
@@ -1348,13 +1321,10 @@ components:
           description: The URL the file was read from.
         content:
           type: string
-          description: The text of the file; absent when it could not be read.
+          description: The text of the file; absent when it could not be read or is not a valid definition.
         size:
           type: integer
           description: Size of the file in bytes.
-        maxBytes:
-          type: integer
-          description: Largest file the backend reads, in bytes.
         document:
           type: object
           description: The parsed file. Absent when it is not valid YAML.
@@ -1365,15 +1335,12 @@ components:
             type: object
             required:
               - pointer
-              - name
               - startLine
               - endLine
             properties:
               pointer:
                 type: string
                 description: JSON pointer of the task, for example `/do/1/checkStock`.
-              name:
-                type: string
               startLine:
                 type: integer
               endLine:
@@ -1395,8 +1362,6 @@ components:
             message:
               type: string
             line:
-              type: integer
-            column:
               type: integer
           additionalProperties: false
       additionalProperties: false

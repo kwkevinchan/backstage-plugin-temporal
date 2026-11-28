@@ -40,8 +40,6 @@ import {
 } from 'yaml';
 import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import {
-  findSymbolLines,
-  sourceLanguageOf,
   walkDefinitionTasks,
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
@@ -734,7 +732,7 @@ export function parseDefinition(text: string): {
     error: {
       kind: 'parse' as const,
       message,
-      ...(pos ? { line: pos.line, column: pos.col } : {}),
+      ...(pos ? { line: pos.line } : {}),
     },
   });
   if (doc.errors.length > 0) {
@@ -824,7 +822,6 @@ export function parseDefinition(text: string): {
     if (!range) return;
     tasks.push({
       pointer: visit.pointer,
-      name: visit.name,
       startLine: lineCounter.linePos(range[0]).line,
       endLine: lastLine(text, lineCounter, range[0], range[1]),
     });
@@ -841,13 +838,6 @@ export function parseDefinition(text: string): {
     };
   }
   return { document, tasks };
-}
-
-/** The workflow type of a `TemporalWorkflow` entity (`spec.workflowType`). */
-function workflowTypeOf(entity: Entity): string | undefined {
-  const type = (entity.spec as { workflowType?: unknown } | undefined)
-    ?.workflowType;
-  return typeof type === 'string' ? type : undefined;
 }
 
 /**
@@ -926,16 +916,12 @@ export class DefinitionReader {
    * `temporal.definitions.allow` and has no user name or password, while a
    * relative path must stay inside the repository of the entity's
    * `backstage.io/managed-by-location` (or inside the entity folder for
-   * allowed `file:` locations). A `serverless-workflow` target must be a
-   * `.yaml` or `.yml` file.
+   * allowed `file:` locations). The target must be a `.yaml` or `.yml`
+   * file.
    */
-  resolve(
-    entity: Entity,
-    rawTarget: string,
-    format: TemporalWorkflowDefinitionSpec['format'],
-  ): DefinitionLocation {
+  resolve(entity: Entity, rawTarget: string): DefinitionLocation {
     const where = this.resolveLocation(entity, rawTarget);
-    if (format === 'serverless-workflow' && !this.isYamlFile(where)) {
+    if (!this.isYamlFile(where)) {
       throw new TargetError(
         'A serverless-workflow definition must be a .yaml or .yml file',
       );
@@ -1148,19 +1134,18 @@ export class DefinitionReader {
     entity: Entity,
     spec: TemporalWorkflowDefinitionSpec,
   ): Promise<WorkflowDefinitionResponse> {
+    const entityRef = stringifyEntityRef(entity);
     const base: WorkflowDefinitionResponse = {
-      entityRef: stringifyEntityRef(entity),
       format: spec.format,
       target: spec.target,
-      maxBytes: this.maxBytes,
       tasks: [],
     };
     let where: DefinitionLocation;
     try {
-      where = this.resolve(entity, spec.target, spec.format);
+      where = this.resolve(entity, spec.target);
     } catch (error) {
       this.logger
-        ?.child({ entityRef: base.entityRef })
+        ?.child({ entityRef: entityRef })
         .debug('The target of a definition cannot be used', error as Error);
       return {
         ...base,
@@ -1198,7 +1183,7 @@ export class DefinitionReader {
       }
       const name = error instanceof Error ? error.name : '';
       this.logger
-        ?.child({ entityRef: base.entityRef, targetType: where.type })
+        ?.child({ entityRef: entityRef, targetType: where.type })
         .warn('Could not read the definition of an entity', error as Error);
       return {
         ...base,
@@ -1216,24 +1201,6 @@ export class DefinitionReader {
       };
     }
     const content = buffer.toString('utf8');
-    if (spec.format === 'source') {
-      // Source code: shown as text with the workflow's function marked.
-      const language = sourceLanguageOf(spec.target);
-      const symbol = spec.symbol ?? workflowTypeOf(entity);
-      const result: WorkflowDefinitionResponse = {
-        ...base,
-        url,
-        content,
-        size: buffer.length,
-        language,
-      };
-      if (symbol) {
-        result.symbol = symbol;
-        const lines = findSymbolLines(content, symbol, language);
-        if (lines) result.symbolLines = lines;
-      }
-      return result;
-    }
     const parsed = parseDefinition(content);
     // A file that is not a valid definition may be another file of the
     // repository: its text is not returned.

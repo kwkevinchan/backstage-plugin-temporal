@@ -29,8 +29,8 @@ import { isTemporalWorkflowEntity } from '@kwkevinchan/backstage-plugin-temporal
 /**
  * Definition tab of `TemporalWorkflow` entities
  * (`entity-content:temporal/definition`): the YAML of a workflow written in
- * the Serverless Workflow DSL next to its graph, with one run on top; links
- * to the source for workflows written in code.
+ * the Serverless Workflow DSL next to its graph, with one run on top. An
+ * entity without `spec.definition` gets links to its source location.
  *
  * @alpha
  */

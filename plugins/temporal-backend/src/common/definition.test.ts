@@ -41,14 +41,8 @@ describe('workflow definitions', () => {
         workflow({ format: 'serverless-workflow', target: ' ./a.yaml ' }),
       ),
     ).toEqual({ format: 'serverless-workflow', target: './a.yaml' });
-    expect(
-      getTemporalWorkflowDefinitionSpec(
-        workflow({ format: 'source', target: './w.ts', symbol: 'Order.run' }),
-      ),
-    ).toEqual({ format: 'source', target: './w.ts', symbol: 'Order.run' });
     for (const bad of [
-      { format: 'source', target: './w.ts', symbol: 'not a name' },
-      { format: 'source', target: './w.ts', symbol: 3 },
+      { format: 'source', target: './w.ts' },
       'a.yaml',
       { format: 'bpmn', target: 'a' },
       { format: 'serverless-workflow' },

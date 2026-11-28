@@ -1013,8 +1013,7 @@ spec:
 
 `spec.definition` (`format`, `target`) points to the file of the workflow
 for its **Definition** tab: a YAML workflow (`serverless-workflow`), drawn as
-a graph, or the source code (`source`), with the workflow's function marked;
-see [Workflow definitions](#workflow-definitions).
+a graph; see [Workflow definitions](#workflow-definitions).
 
 The workflow executions of the entity are those with that workflow type (and task
 queue, when set), or with the entity reference
@@ -1660,11 +1659,10 @@ warning; it does not fail the lint.
     integration, entity authors can read any repository accessible to that
     integration's credentials, so **`paths` must be set on integration-backed
     hosts** (at startup `DefinitionReader.fromConfig` logs a warning if an
-    integration-backed entry omits `paths`). `format: source` displays any readable file within the allowed
-    scope (the entity's repository/folder for relative targets, or the allowed
-    `host` and `paths` for absolute URLs) up to `maxBytes`.
-    `format: serverless-workflow` reads only `.yaml` and `.yml` files and
-    returns their text only when they are valid definitions. `file:` targets
+    integration-backed entry omits `paths`). `serverless-workflow` definitions read only `.yaml` and `.yml` files
+    within the allowed scope (the entity's repository/folder for relative
+    targets, or the allowed `host` and `paths` for absolute URLs) up to
+    `maxBytes`, and return their text only when they are valid definitions. `file:` targets
     (`definitions.readFileLocations: true`) must be regular files in the
     folder of the entity file, also after symlinks are resolved; keep
     `readFileLocations: false` outside local development. HTTP

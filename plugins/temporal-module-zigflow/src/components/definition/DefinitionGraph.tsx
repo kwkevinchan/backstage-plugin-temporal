@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ReactNode, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Edge, MarkerType, ReactFlowProvider } from '@xyflow/react';
 import { Flex } from '@backstage/ui';
 import {
@@ -40,8 +40,6 @@ export interface DefinitionGraphProps {
   overlay?: DefinitionOverlay;
   selectedId?: string;
   onSelect(id: string | undefined): void;
-  /** Shown left of the view buttons. */
-  toolbar?: ReactNode;
 }
 
 /**
@@ -94,7 +92,7 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
         labelBgStyle: { fill: 'var(--bui-bg-neutral-1)' },
         labelBgPadding: [4, 2] as [number, number],
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
-        className: `${tp(`tp-def-edge-${edge.kind}`)} temporal-definition-edge`,
+        className: tp(`tp-def-edge-${edge.kind}`),
         focusable: false,
       })),
     [graph],
@@ -111,7 +109,6 @@ export function DefinitionGraph(props: DefinitionGraphProps) {
           justify="end"
           gap="2"
         >
-          {props.toolbar}
           <ViewButtons />
         </Flex>
         <div
