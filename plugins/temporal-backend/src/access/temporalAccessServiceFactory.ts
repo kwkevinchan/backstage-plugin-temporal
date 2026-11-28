@@ -24,6 +24,7 @@ import {
   temporalAccessServiceRef,
   temporalWorkflowPermissionResourceRef,
 } from '../node/alpha';
+import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 import { DefaultTemporalAccessService } from './DefaultTemporalAccessService';
@@ -49,7 +50,12 @@ export const temporalAccessServiceFactory = createServiceFactory({
   },
   factory({ logger, permissions, permissionsRegistry, catalog, temporal }) {
     const sources = new EntityWorkflowSources(temporal, logger);
-    const queries = new WorkflowQueries(temporal, logger, sources);
+    const queries = new WorkflowQueries(
+      temporal,
+      logger,
+      sources,
+      new TemporalReadRepository(temporal, logger),
+    );
     return new DefaultTemporalAccessService(
       permissions,
       catalog,

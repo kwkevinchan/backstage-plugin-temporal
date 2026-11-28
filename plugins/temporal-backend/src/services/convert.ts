@@ -24,12 +24,12 @@ import {
   WorkflowStatus,
   WorkflowSummary,
 } from '../common';
-import { describeUndecodable } from './payloads';
+import { describeUndecodable } from '../lib/payloads';
 import {
   referenceInfo,
   referenceOf,
   REFERENCE_ENCODING,
-} from '../repositories/storageReference';
+} from '../lib/storageReference';
 
 /*
  * Conversion from Temporal API messages to the plugin's JSON types. The input

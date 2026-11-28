@@ -15,7 +15,7 @@
  */
 
 import styles from './temporal.module.css';
-import type { Tone } from './WorkflowStatusLabel';
+import type { Tone } from './status';
 
 /**
  * Scoped class names of the plugin styles, joined with spaces. A name that

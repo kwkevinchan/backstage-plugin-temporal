@@ -22,7 +22,7 @@ import type {
   WorkflowStatus,
 } from '../../common';
 import { isMarkerStep, isOpenStep } from '../steps';
-import { statusTone, Tone } from '../WorkflowStatusLabel';
+import { statusTone, Tone } from '../status';
 import { boxChain, GroupPlan, planGroups } from '../graph/eventGroups';
 
 /*

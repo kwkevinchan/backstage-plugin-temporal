@@ -31,7 +31,7 @@ import {
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
-import { decodeJsonPayloads, encodeJsonPayloads } from './payloads';
+import { decodeJsonPayloads, encodeJsonPayloads } from '../lib/payloads';
 import {
   ConvertOptions,
   decodePageToken,
@@ -41,7 +41,7 @@ import {
   resultFromCloseEvent,
 } from './convert';
 import { buildWorkflowGraph, MAX_GRAPH_EDGES } from './graph';
-import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import type { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import {
   matchedWorkflowEntity,
   matchingWorkflowEntity,
@@ -102,10 +102,7 @@ export class WorkflowQueries {
     private readonly temporal: TemporalService,
     private readonly logger: LoggerService,
     private readonly sources: EntityWorkflowSources,
-    private readonly temporalReads: TemporalReadRepository = new TemporalReadRepository(
-      temporal,
-      logger,
-    ),
+    private readonly temporalReads: TemporalReadRepository,
   ) {}
 
   /** The conversion options of a namespace; the list queries use them too. */

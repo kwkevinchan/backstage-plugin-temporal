@@ -42,13 +42,10 @@ import {
   modelText,
   toolName,
 } from '../llm/llmText';
-import {
-  isActiveStatus,
-  statusLabel,
-  statusTone,
-} from '../WorkflowStatusLabel';
+import { isActiveStatus, statusLabel, statusTone } from '../status';
 import { isOpenStep, retryBadge, stepBoxText, stepSubtitle } from '../steps';
 import { tp } from '../styles';
+import { kindTint } from './edgeKind';
 
 export type StepNodeData = {
   step: WorkflowGraphNode;
@@ -89,30 +86,6 @@ function KindIcon(props: { kind: WorkflowNodeKind; ended?: boolean }) {
       return <RiHourglassLine {...p} />;
     default:
       return <RiSettings3Line {...p} />;
-  }
-}
-
-/**
- * The kind tint of a step box: a pale background by kind, so that the
- * kinds stand apart from far away. The status stays on the left bar and
- * the border. Start, end and waiting boxes stay neutral.
- */
-export function kindTint(kind: WorkflowNodeKind): string | undefined {
-  switch (kind) {
-    case 'activity':
-      return 'activity';
-    case 'timer':
-      return 'timer';
-    case 'signal':
-    case 'signalSent':
-    case 'update':
-      return 'message';
-    case 'childWorkflow':
-      return 'child';
-    case 'marker':
-      return 'marker';
-    default:
-      return undefined;
   }
 }
 

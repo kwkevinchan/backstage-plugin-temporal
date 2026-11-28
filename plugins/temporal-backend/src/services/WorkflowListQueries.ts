@@ -32,7 +32,7 @@ import type { TemporalEntityContext } from '../node/alpha';
 import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
 import { toTemporalSchedule } from './schedules';
 import { scheduleClientOf } from '../repositories/scheduleClient';
-import { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import type { TemporalReadRepository } from '../repositories/TemporalReadRepository';
 import {
   isDeadlineError,
   isRateLimitedError,

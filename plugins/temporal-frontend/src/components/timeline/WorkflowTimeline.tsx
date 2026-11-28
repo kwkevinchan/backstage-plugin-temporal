@@ -41,7 +41,7 @@ import {
 } from '../groupText';
 import { groupHues, GroupHue } from '../graph/eventGroups';
 import { kindLabel } from '../steps';
-import { statusLabel } from '../WorkflowStatusLabel';
+import { statusLabel } from '../status';
 import { tp } from '../styles';
 import {
   buildTimeline,

@@ -41,7 +41,7 @@ import {
   decodeJsonPayloads,
   encodeJsonPayloads,
   TemporalJsonPayload,
-} from './payloads';
+} from '../lib/payloads';
 import {
   isScheduleNotFound,
   mapActionError,
