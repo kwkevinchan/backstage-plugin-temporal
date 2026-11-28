@@ -127,6 +127,18 @@ describe('TemporalPluginClient', () => {
     );
   });
 
+  it('builds the link to a run under another page path', () => {
+    const ref = { namespace: 'default', workflowId: 'w', runId: 'r' };
+    expect(
+      buildWorkflowUrl('http://backstage', ref, { pagePath: '/ops/temporal/' }),
+    ).toBe(
+      'http://backstage/ops/temporal/namespaces/default/workflows/w/runs/r',
+    );
+    expect(buildWorkflowUrl('http://backstage', ref, { pagePath: '/' })).toBe(
+      'http://backstage/namespaces/default/workflows/w/runs/r',
+    );
+  });
+
   it('reads the run that a refused operation continued as', async () => {
     const response = new Response(
       JSON.stringify({

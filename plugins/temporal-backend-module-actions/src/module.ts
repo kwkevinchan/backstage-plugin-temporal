@@ -52,6 +52,7 @@ export const temporalActionsModule = createBackendModule({
           auth,
           catalog,
           appBaseUrl: config.getString('app.baseUrl'),
+          pagePath: config.getOptionalString('temporal.pagePath'),
           allowServiceWrites:
             config.getOptionalBoolean('temporal.actions.allowServiceWrites') ??
             false,

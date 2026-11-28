@@ -54,6 +54,8 @@ export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   allowServiceWrites?: boolean;
   /** `app.baseUrl`, for the link to the workflow. */
   appBaseUrl: string;
+  /** The path of the Temporal page (`temporal.pagePath`), for the link. */
+  pagePath?: string;
 }
 
 /**
@@ -235,7 +237,12 @@ export function createTemporalWorkflowStartAction(
           runId: 'dry-run',
         };
         for (const [k, v] of Object.entries(ref)) ctx.output(k as any, v);
-        ctx.output('workflowUrl', buildWorkflowUrl(options.appBaseUrl, ref));
+        ctx.output(
+          'workflowUrl',
+          buildWorkflowUrl(options.appBaseUrl, ref, {
+            pagePath: options.pagePath,
+          }),
+        );
         return;
       }
       const credentials = await ctx.getInitiatorCredentials();
@@ -289,7 +296,12 @@ export function createTemporalWorkflowStartAction(
       ctx.output('namespace', started.namespace);
       ctx.output('workflowId', started.workflowId);
       ctx.output('runId', started.runId);
-      ctx.output('workflowUrl', buildWorkflowUrl(options.appBaseUrl, started));
+      ctx.output(
+        'workflowUrl',
+        buildWorkflowUrl(options.appBaseUrl, started, {
+          pagePath: options.pagePath,
+        }),
+      );
     },
   });
 }

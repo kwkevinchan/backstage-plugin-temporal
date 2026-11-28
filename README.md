@@ -147,12 +147,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                                 |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                             |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                   |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                 |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                                                                                                                                        |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24** (`~1.24.0`): it takes the patches of 1.24, and a newer minor of the SDK comes with a new version of the plugin packages, once it is tested; a new major of it is a new major of the plugin packages. Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -160,7 +160,10 @@ load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
 [React Flow](https://reactflow.dev) (`@xyflow/react`) with the
 [dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed; the
 timeline is drawn with plain HTML and CSS.
-The backend parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
+The Zigflow backend module parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
+The frontend uses `@rjsf/core`, `@rjsf/utils` and `@rjsf/validator-ajv8` at
+the exact version that Backstage 1.56's Scaffolder uses (5.24.13), so an app
+with the Scaffolder has one copy of them.
 
 ## Installation
 

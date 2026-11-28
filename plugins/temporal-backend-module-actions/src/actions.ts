@@ -57,6 +57,8 @@ export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   auth: AuthService;
   /** `app.baseUrl`, for the link to the workflow. */
   appBaseUrl: string;
+  /** The path of the Temporal page (`temporal.pagePath`), for the link. */
+  pagePath?: string;
   /**
    * Allow service principals to invoke workflow-changing actions. Defaults to
    * false.
@@ -321,7 +323,9 @@ export function registerTemporalActions(
             startTime: w.startTime,
             closeTime: w.closeTime,
             initiator: w.initiator,
-            workflowUrl: buildWorkflowUrl(options.appBaseUrl, w),
+            workflowUrl: buildWorkflowUrl(options.appBaseUrl, w, {
+              pagePath: options.pagePath,
+            }),
           })),
           hasMore: Boolean(page.nextPageToken) || page.items.length > limit,
         },
@@ -451,7 +455,9 @@ export function registerTemporalActions(
           closeTime: detail.closeTime,
           initiator: detail.initiator,
           continuedAsNewRunId: detail.continuedAsNewRunId,
-          workflowUrl: buildWorkflowUrl(options.appBaseUrl, detail),
+          workflowUrl: buildWorkflowUrl(options.appBaseUrl, detail, {
+            pagePath: options.pagePath,
+          }),
           steps: summarizeSteps(graph),
           failure: detail.failure ? describeFailure(detail.failure) : undefined,
         },
@@ -531,7 +537,9 @@ export function registerTemporalActions(
           namespace: started.namespace,
           workflowId: started.workflowId,
           runId: started.runId,
-          workflowUrl: buildWorkflowUrl(options.appBaseUrl, started),
+          workflowUrl: buildWorkflowUrl(options.appBaseUrl, started, {
+            pagePath: options.pagePath,
+          }),
         },
       };
     },

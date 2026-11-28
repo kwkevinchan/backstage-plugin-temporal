@@ -244,8 +244,8 @@ false` removes the routes that change workflows (404, not 403) and their
   (`1200`) rejects deeper chains before entering dagre and directs users to
   the Steps tab alongside `COMPOUND_LIMIT` (`1000`).
 - **The SDK's major is the plugin's major.** The backend uses `@temporalio/client`
-  1.x; a new major of it is a new major of the plugin packages
-  ([Compatibility](../README.md#compatibility)).
+  1.x, one minor at a time (`~`); a new major of it is a new major of the
+  plugin packages ([Compatibility](../README.md#compatibility)).
 - **Optional packages stay out of apps that do not need them.** The Zigflow tab is
   two packages, so apps without Zigflow carry no YAML editor. The LLM views of
   the official Temporal AI integrations live in `components/llm/` and
