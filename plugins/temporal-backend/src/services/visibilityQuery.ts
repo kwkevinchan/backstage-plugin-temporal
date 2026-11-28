@@ -225,18 +225,19 @@ function sourceCondition(source: {
 }
 
 /**
- * Builds the visibility query for an entity's workflows:
- * `(TaskQueue = 'q' AND WorkflowType IN ('a', 'b')) OR (BackstageEntityRef = 'ref')`,
- * with one more alternative for each related TemporalWorkflow entity, plus an
- * optional status condition.
- */
-/**
- * Runs that continued as new are left out unless `allRuns` is set or a
- * status is chosen: a workflow that keeps continuing as new is listed once,
- * with its latest run.
+ * Condition that leaves out the runs that continued as new, so a workflow
+ * that keeps continuing as new is listed once, with its latest run.
+ * `buildEntityVisibilityQuery` adds it when `allRuns` is false and no status
+ * is chosen.
  */
 const LATEST_RUNS = `ExecutionStatus != 'ContinuedAsNew'`;
 
+/**
+ * Builds the visibility query for an entity's workflows:
+ * `(TaskQueue = 'q' AND WorkflowType IN ('a', 'b')) OR (BackstageEntityRef = 'ref')`,
+ * with one more alternative for each related TemporalWorkflow entity, plus
+ * the optional status, search attribute and workflow ID conditions.
+ */
 export function buildEntityVisibilityQuery(
   filter: EntityWorkflowFilter,
   options?: {

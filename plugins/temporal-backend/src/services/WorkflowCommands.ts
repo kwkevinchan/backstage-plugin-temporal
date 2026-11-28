@@ -227,7 +227,7 @@ export class WorkflowCommands {
       if (!ref.runId) {
         throw new InputError('firstExecutionRunId or runId is required');
       }
-      // No chain ID: the request is locked to one run, as before.
+      // No chain ID: the request is locked to one run.
       return this.call(temporalCall, ref.namespace, timeoutMs, fn);
     }
     return callTemporal(

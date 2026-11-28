@@ -62,7 +62,8 @@ export interface TemporalService {
 /**
  * Authentication of the Temporal connection. `bearer` sends
  * `Authorization: Bearer <token>` with every call, as the JWT authorizer of a
- * self-hosted Temporal server expects. The connection does not use TLS.
+ * self-hosted Temporal server expects. Whether the connection uses TLS is a
+ * separate option, `tls`.
  */
 export type TemporalConnectionAuth =
   | { type: 'none' }
@@ -85,7 +86,7 @@ export interface TemporalServiceOptions {
 
 const SEARCH_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-/** Authentication methods for the connection. */
+/** Values `temporal.connection.auth.type` accepts. */
 const AUTH_TYPES = ['none', 'bearer'];
 
 function readAuth(connection: Config): TemporalConnectionAuth {

@@ -17,7 +17,10 @@
 /**
  * Actions of the unofficial Backstage Temporal plugin for the actions
  * registry: list and read workflows, start them, send signals and updates.
- * AI assistants and MCP clients call them as the signed-in user.
+ * AI assistants and MCP clients call them as the signed-in user. A service
+ * principal can list and read workflows; it can change them only with
+ * `temporal.actions.allowServiceWrites`, and the Temporal backend does not
+ * apply permission policies to it.
  *
  * @packageDocumentation
  */

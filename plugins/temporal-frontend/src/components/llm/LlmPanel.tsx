@@ -94,7 +94,7 @@ function asText(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
 
-/** A copy button for the JSON (or text) of a section. */
+/** The text the copy button of a section copies: the JSON, or the text. */
 function copyText(value: unknown): string {
   return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
 }
