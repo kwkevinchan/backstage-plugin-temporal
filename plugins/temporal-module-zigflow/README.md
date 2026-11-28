@@ -1,11 +1,11 @@
 # @kwkevinchan/backstage-plugin-temporal-module-zigflow
 
 Unofficial module of the Backstage Temporal plugin
-([`@kwkevinchan/backstage-plugin-temporal-frontend`](../temporal-frontend/README.md)) with the
+([`@kwkevinchan/backstage-plugin-temporal-frontend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-frontend/README.md)) with the
 **Definition** tab for workflows written in the Serverless Workflow DSL and
 run by [Zigflow](https://github.com/zigflow/zigflow). It reads the
 definitions through the backend module
-[`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](../temporal-backend-module-zigflow/README.md).
+[`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-backend-module-zigflow/README.md).
 Apps without Zigflow workflows do not need either package.
 
 Workflows written in YAML can show their definition on the **Definition**
@@ -15,15 +15,15 @@ that [Zigflow](https://github.com/zigflow/zigflow) 0.18 runs on Temporal:
 `document.dsl: 1.0.0`, `document.workflowType` and `document.taskQueue`
 (the standard `document.name` works too).
 
-| Definition tab: YAML and graph                              | A run on top of the graph                                               |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------- |
-| ![YAML next to its graph](../../docs/images/definition.png) | ![A run laid over the definition](../../docs/images/definition-run.png) |
+| Definition tab: YAML and graph                                                                                                     | A run on top of the graph                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![YAML next to its graph](https://raw.githubusercontent.com/kwkevinchan/backstage-plugin-temporal/main/docs/images/definition.png) | ![A run laid over the definition](https://raw.githubusercontent.com/kwkevinchan/backstage-plugin-temporal/main/docs/images/definition-run.png) |
 
 ## Installation
 
 Install the Temporal plugin first, the backend plugin (which brings the
 `TemporalWorkflow` kind) and the frontend plugin (see the
-[main README](../../README.md)). Without the backend module below, the tab
+[main README](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/README.md)). Without the backend module below, the tab
 shows "The definition could not be loaded" and says that the backend serves
 no workflow definitions.
 

@@ -103,7 +103,7 @@ export interface TemporalServiceOptions {
 
 const SEARCH_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
-/** Authentication methods for the connection. */
+/** Values `temporal.connection.auth.type` accepts. */
 const AUTH_TYPES = ['none', 'bearer'];
 
 function readAuth(connection: Config): TemporalConnectionAuth {

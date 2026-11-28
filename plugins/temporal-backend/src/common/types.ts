@@ -110,7 +110,8 @@ export interface WorkflowSummary {
 }
 
 /**
- * A failure with its cause chain flattened, outermost first.
+ * A failure with its cause chain: each `cause` is the next failure, outermost
+ * first.
  *
  * @public
  */

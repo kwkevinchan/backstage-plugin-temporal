@@ -281,9 +281,12 @@ export const temporalApiRef = createApiRef<TemporalApi>({
 
 /**
  * API reference of {@link TemporalWorkflowExtensionsApi}: the shared mount
- * point of workflow actions and sections. The Temporal frontend plugin
- * provides it in the new frontend system and collects the extensions of
- * `TemporalWorkflowActionBlueprint` and `TemporalWorkflowSectionBlueprint`.
+ * point of workflow actions, list actions, schedule actions and sections.
+ * The Temporal frontend plugin provides it in the new frontend system and
+ * collects the extensions of `TemporalWorkflowActionBlueprint`,
+ * `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`,
+ * `TemporalWorkflowSectionBlueprint` and `TemporalControlActionBlueprint` (a
+ * workflow action for a custom backend action).
  */
 export const temporalWorkflowExtensionsApiRef =
   createApiRef<TemporalWorkflowExtensionsApi>({

@@ -75,10 +75,13 @@ export const EntityTemporalContent: (
 );
 
 /**
- * Temporal page: every workflow of the default namespace, with filters,
- * and the workflow details, with the operations that change workflows
- * (unless `temporal.control.enabled` is false). Needs the
- * `temporal.workflow.list` permission. Mount it on `/temporal` and add a
+ * Temporal page with two tabs. Workflows, the default tab, lists the
+ * `TemporalWorkflow` entities with the numbers of their runs; it needs the
+ * `temporal.workflow.read` permission on the entities. Executions lists
+ * every run of the default namespace, with filters, and the schedules; it
+ * needs the `temporal.workflow.list` permission. The page also has the
+ * workflow details, with the operations that change workflows (unless
+ * `temporal.control.enabled` is false). Mount it on `/temporal` and add a
  * sidebar item.
  *
  * @public

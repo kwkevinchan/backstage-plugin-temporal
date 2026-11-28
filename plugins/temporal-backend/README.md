@@ -82,6 +82,7 @@ in the repository README for examples.
 | GET    | `/entities/:kind/:namespace/:name/workflows`                                         | `temporal.workflow.read`                      |
 | GET    | `/schedules`                                                                         | `temporal.workflow.list` (without conditions) |
 | GET    | `/entities/:kind/:namespace/:name/schedules`                                         | `temporal.workflow.read`                      |
+| POST   | `/workflow-types/overview`                                                           | `temporal.workflow.read` on each entity       |
 | GET    | `/namespaces/:namespace/workflows/:workflowId`                                       | `temporal.workflow.read` or list              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId`                           | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.read`                      |

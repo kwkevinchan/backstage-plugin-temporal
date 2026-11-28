@@ -851,9 +851,9 @@ components:
           items:
             $ref: '#/components/schemas/WorkflowNodeAttempt'
         input:
-          description: Decoded input; left out when the caller may not read payloads.
+          description: Decoded input.
         result:
-          description: Decoded result; left out when the caller may not read payloads.
+          description: Decoded result.
         failure:
           $ref: '#/components/schemas/WorkflowFailure'
         workflow:

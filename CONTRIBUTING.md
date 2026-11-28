@@ -195,6 +195,17 @@ When making an intentional change to graph layout:
 3. **Explain and show the change:** state in the pull request description **what** changed in the layout and **why**, and attach **before and after screenshots**.
 4. **If randomized counts increase:** when a change raises `KNOWN_PROBLEMS` or `KNOWN_PREEXISTING_THROUGH_BOXES`, inspect the added hits and weigh the trade-off. Document them as known limits in the pull request description and raise the bound only if the trade-off is worthwhile — do not automatically add another layout rule just to push randomized seed counts back down.
 
+## Comments
+
+1. A comment says why. It does not say what the code already shows.
+2. A comment does not keep a change history. Words such as "now",
+   "no longer" and "as before", and issue numbers, belong in the commit
+   message and the changeset.
+3. When you change a function or a type, read its comments in the same pass.
+   A comment that does not match the code is a defect, not a small issue.
+4. When you remove a feature, search for its name, and change the comments,
+   the READMEs and the descriptions in the OpenAPI spec that mention it.
+
 ## Git hooks and boundary checks
 
 The `pre-commit` hook runs `scripts/check-boundaries.mjs` on the staged changes,

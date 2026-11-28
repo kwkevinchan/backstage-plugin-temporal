@@ -358,9 +358,8 @@ function RowLabel(props: {
 }
 
 /**
- * The header row of a group of rows (a loop round or an event group): a
- * button that expands or collapses it, and a bar over the time of its
- * steps.
+ * The header row of an event group: a button that expands or collapses it,
+ * and a bar over the time of its steps.
  */
 function GroupRow(props: {
   testId: string;

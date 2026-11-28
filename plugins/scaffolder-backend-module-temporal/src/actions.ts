@@ -41,7 +41,6 @@ import {
   type WorkflowNamespaceOptions,
 } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 
-/** Options of the Temporal template actions. */
 export interface TemporalActionsOptions extends WorkflowNamespaceOptions {
   client: TemporalPluginClient;
   auth: AuthService;

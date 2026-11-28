@@ -122,8 +122,8 @@ export interface GroupPlan {
  * Whether a group starts expanded: an outermost group does, and so does a
  * group with no other group next to it. Of several groups in one group
  * (the rounds of a loop) only the running one does, else the last failed
- * one; the others are a row of collapsed boxes. Groups deeper than
- * `COLLAPSED_DEPTH` start collapsed.
+ * one; the others are a row of collapsed boxes. Groups at `COLLAPSED_DEPTH`
+ * or deeper start collapsed.
  */
 export function defaultExpanded(
   group: WorkflowEventGroup,

@@ -109,7 +109,10 @@ export interface WorkflowLlmSummary {
   /** Duration of the call, from the record, else from the activity. */
   durationMs?: number;
   toolCalls: WorkflowLlmToolCallRef[];
-  /** True when the output has reasoning (thinking). */
+  /**
+   * True when the output has a reasoning (thinking) part, or the usage
+   * counts reasoning tokens.
+   */
   reasoning: boolean;
   finishReasons?: string[];
   /** Error type of a failed call, or `error` when the record has none. */

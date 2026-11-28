@@ -130,7 +130,10 @@ export interface WorkflowGraphNode {
   /** Stable within the run, for example `activity-5` (scheduled event ID). */
   id: string;
   kind: WorkflowNodeKind;
-  /** Activity type, timer ID, signal or update name, child workflow type. */
+  /**
+   * Activity type, signal or update name, child workflow type, marker name,
+   * or a label the plugin makes (`Timer 5s`, `Start`, `End`, `Waiting`).
+   */
   name: string;
   /**
    * One-line summary the workflow gave the step (Temporal user metadata,
@@ -151,18 +154,21 @@ export interface WorkflowGraphNode {
   deadline?: WorkflowDeadline;
   startTime?: string;
   endTime?: string;
-  /** Activity ID, timer ID or update ID. */
+  /** Activity ID, timer ID, update ID or child workflow ID. */
   stepId?: string;
   /** Last or current attempt of an activity. */
   attempt?: number;
   maximumAttempts?: number;
   attempts?: WorkflowNodeAttempt[];
-  /** Decoded input; left out when the caller may not read payloads. */
+  /** Decoded input. */
   input?: JsonValue;
-  /** Decoded result; left out when the caller may not read payloads. */
+  /** Decoded result. */
   result?: JsonValue;
   failure?: WorkflowFailure;
-  /** The child workflow, or the next run of a continued-as-new workflow. */
+  /**
+   * The child workflow, the target of a sent signal, or the next run of a
+   * continued-as-new workflow.
+   */
   workflow?: { namespace: string; workflowId: string; runId?: string };
   /** Other details, for example the timer duration or a signal's sender. */
   details?: JsonObject;
@@ -211,10 +217,14 @@ export interface WorkflowGraphResponse {
   current?: string;
   /** Deadline of the step in `current`, shown in the user's time zone. */
   currentDeadline?: WorkflowDeadline;
-  /** Steps that are done (completed activities, timers, children, updates). */
+  /**
+   * Steps that are done (completed activities, timers, children, updates,
+   * sent signals).
+   */
   completedSteps: number;
   /**
-   * Activities, timers, children and updates seen so far in the history read.
+   * Activities, timers, children, updates and sent signals seen so far in the
+   * history read.
    * Not a total for a running workflow, because later steps are not known until
    * they run; when `truncated` is true it covers only the first events read.
    */
@@ -244,8 +254,8 @@ export interface WorkflowProgressResponse {
   /** Current execution status of the run. */
   status: WorkflowStatus;
   /**
-   * Steps that are done (completed activities, timers, children, updates) in
-   * the events read.
+   * Steps that are done (completed activities, timers, children, updates,
+   * sent signals) in the events read.
    */
   completedSteps: number;
   /**

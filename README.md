@@ -517,8 +517,9 @@ The details page keeps its tab and selected step in the URL
 (`?tab=timeline&step=activity-11`), so a link to it opens the same view.
 A tab or step the run does not have is ignored.
 
-Workflow lists start with the workflow type, then the workflow ID, status
-and progress. **Show all runs** also lists the earlier runs of workflows that
+Workflow lists start with the status, then the workflow ID, the run ID, the
+workflow type and the progress; the task queue, start time, duration and
+entity follow where the list has them. **Show all runs** also lists the earlier runs of workflows that
 continued as new; without it each execution chain shows its latest run.
 A page size from the URL that is not one of the offered sizes
 (`?pageSize=5`) is added to the **Per page** choices.
@@ -691,7 +692,8 @@ out (`eventGroupsTruncated`).
 On the workflow page:
 
 - **Graph.** Each group is a box around its steps, inside the box of the
-  group it is in, any number of groups deep. The title bar has the name,
+  group it is in, up to five groups deep (a group deeper inside is a label,
+  see "Where a box cannot be drawn"). The title bar has the name,
   `×3` when three groups are directly inside, the status (in the colors of
   the steps), the duration (the time so far while it runs) and the tokens
   of its model calls; a narrow frame shows the name and the status, and the
@@ -1486,6 +1488,34 @@ the pages of the entity tab and of the Temporal page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
 `scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow, `reload` and
 `workflowHref` as props (`TemporalWorkflowExtensionProps`).
+
+### Entry points and the two frontend systems
+
+The package `@kwkevinchan/backstage-plugin-temporal-frontend` has one entry
+point for each frontend system:
+
+- `.` is the legacy frontend system: `temporalPlugin`, the page components
+  (`EntityTemporalContent`, `TemporalPage`, the cards), the definitions you
+  pass as props (`TemporalWorkflowActionDef` and the others) and
+  `createTemporalControlActionDef()`.
+- `./alpha` is the new frontend system: the plugin as the default export and
+  the blueprints. It is `@alpha`, so its shape can change before a stable
+  release.
+
+Both entry points show the same pages, and both read the same shared
+extensions, so an action or tab from either system appears on the entity tab
+and on the Temporal page. The two systems differ in five ways:
+
+| Topic                      | Legacy (`.`)                                                                                                                                                                    | New (`./alpha`)                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Extension ID               | `id` is a string you choose. When two definitions have the same `id`, the first one is used; yours come before the shared ones.                                                 | The ID is the extension ID that Backstage makes from the kind, the namespace and the name (`temporal-workflow-action:my-plugin/approve`), and it is unique in the app.          |
+| Error and loading handling | The component renders as it is. An error in it is not caught here.                                                                                                              | The blueprint wraps the component in `ExtensionBoundary` and `Suspense` (with no fallback). An error stays in the extension, and the loader runs lazily.                        |
+| Section title              | `title` is not checked; an empty `title` gives a tab with no name.                                                                                                              | `TemporalWorkflowSectionBlueprint` throws an error for an empty `title`.                                                                                                        |
+| Page frame                 | `TemporalPage` draws its own page and a `Temporal` header.                                                                                                                      | The page shows inside the app's page, under the header that the app draws from the plugin title.                                                                                |
+| Order and custom ID        | The buttons of the operations come first, then your definitions in the order of the prop. `createTemporalControlActionDef({ id })` sets the `id`; it defaults to the action ID. | The order is the one in which Backstage gives the extensions attached to the mount point. `TemporalControlActionBlueprint` has no `id` option; the extension name gives the ID. |
+
+When you move an app from the legacy system to the new one, check these five
+points for each extension you wrote.
 
 To change one of the plugin's own extensions, such as the Temporal page,
 take it from the plugin with `getExtension()` and install the plugin with
