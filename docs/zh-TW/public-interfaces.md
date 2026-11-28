@@ -798,6 +798,6 @@ yarn build:api-reports   # 型別檢查，再寫出 report
 
 把改過的 report 和程式一起提交。公開接口有變動時，pull request 裡就會出現 report 的 diff。HTTP API 另有自己的合約：[OpenAPI 規格](../../plugins/temporal-backend/src/schema/openapi.yaml)，改路由時一起改它；路由的測試、對帳測試和 `yarn lint:openapi` 會檢查它。如果變動新增、移除或改名了這篇列出的名稱，在同一個 pull request 更新這篇。
 
-有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。大部分是預期的：一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。其餘是步驟圖型別上的實驗性欄位（`@public` 型別引用 `@alpha` 型別），會跟實驗性畫面一起改。
+有些 report 帶著 API Extractor 寫進去的警告（`// Warning: ...`），`temporal-backend` 和 `temporal` 允許這些警告（`--allow-warnings`）；新增的警告仍然會出現在 report 的 diff 裡。這些警告全都是一個入口的型別引用了同一套件另一個入口的型別（例如 `TemporalApi` 和 `./common` 的回應型別），這個版本庫不會重複匯出。步驟圖型別上的三個實驗性欄位（`WorkflowGraphNode.llm`、`.tool` 和 `WorkflowGraphResponse.eventGroups`）標成 `@alpha`：它們可能在 minor 版本改變。
 
 回到[文件索引](README.md)。

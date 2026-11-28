@@ -1277,11 +1277,12 @@ renames a name listed here.
 
 Some reports carry warnings that API Extractor writes into them
 (`// Warning: ...`), allowed for `temporal-backend` and `temporal`
-(`--allow-warnings`); a new warning still shows up in the report diff. Most
-are expected: a type of one entry point that names a type of another entry
+(`--allow-warnings`); a new warning still shows up in the report diff. Every
+one of them is a type of one entry point that names a type of another entry
 point of the same package (for example `TemporalApi` and the response types
-of `./common`), which this repository does not export twice. The others are
-the experimental fields of the graph types (`@public` types that reference
-`@alpha` ones), which change with the experimental views.
+of `./common`), which this repository does not export twice. The three
+experimental fields of the graph types (`WorkflowGraphNode.llm` and `.tool`,
+`WorkflowGraphResponse.eventGroups`) are marked `@alpha`: they can change in
+a minor version.
 
 Back to [the documentation index](README.md).

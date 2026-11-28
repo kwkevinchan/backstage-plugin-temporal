@@ -178,11 +178,15 @@ export interface WorkflowGraphNode {
   /**
    * A model call, recognized by an LLM adapter: model, tokens and tool
    * calls. Experimental: the shape changes before the first stable release.
+   *
+   * @alpha
    */
   llm?: WorkflowLlmSummary;
   /**
    * A tool call of a model call. Experimental: the shape changes before
    * the first stable release.
+   *
+   * @alpha
    */
   tool?: WorkflowLlmToolLink;
   /**
@@ -239,6 +243,8 @@ export interface WorkflowGraphResponse {
   /**
    * Temporal event groups of the run, in the order they started; left out
    * when the history has none. Experimental, like Event Groups in Temporal.
+   *
+   * @alpha
    */
   eventGroups?: WorkflowEventGroup[];
   /**
