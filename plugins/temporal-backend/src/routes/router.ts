@@ -385,14 +385,11 @@ export async function createRouter(
   });
 
   // The full record of one model call: messages, reasoning, tool calls.
-  // `index` picks a later call of a step that made several.
   router.get(workflowRunSubpath('llm-calls/:eventId'), async (req, res) => {
     const eventId = req.params.eventId;
     if (!/^\d{1,19}$/.test(eventId)) throw new InputError('Invalid eventId');
-    const index = optionalString(req.query.index, 'index') ?? '0';
-    if (!/^\d{1,4}$/.test(index)) throw new InputError('Invalid index');
     const { workflow } = await loadWorkflow(req);
-    res.json(await ai.llmCall(workflow, eventId, Number(index)));
+    res.json(await ai.llmCall(workflow, eventId));
   });
 
   router.get(workflowRunSubpath('progress'), async (req, res) => {

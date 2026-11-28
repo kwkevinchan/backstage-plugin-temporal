@@ -35,6 +35,7 @@ export type {
 export type { NodeSize, StepLayout } from './components/graph/layout';
 export type { AnyStatus, Tone } from './components/WorkflowStatusLabel';
 export { tp } from './components/styles';
+export { AUTO_REFRESH_MS, usePageVisible } from './components/useWorkflowData';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
 export { DefinitionList } from './components/StepDrawer';

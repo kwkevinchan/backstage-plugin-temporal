@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactElement, ReactNode, useEffect, useState } from 'react';
 import { usePermission } from '@backstage/plugin-permission-react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
-import { Flex, Link, Text } from '@backstage/ui';
+import { Button, Flex, Link, Text } from '@backstage/ui';
 import type { TemporalWorkflowExtensionProps } from '../../extensions';
 import { ErrorAlert } from '../feedback';
 import { tp } from '../styles';
@@ -118,6 +118,58 @@ export function WithReason(props: { reason?: string; children: ReactNode }) {
     <span className={tp('tp-disabled-control')} title={props.reason}>
       {props.children}
     </span>
+  );
+}
+
+/**
+ * A button for an operation that needs a permission. It is disabled, with
+ * the reason as a tooltip, when the user does not have `permission` on the
+ * entity `resourceRef` (or `additionalResourceRef`, when set). The reason
+ * reads "You do not have permission to `action` `noun`".
+ */
+export function PermissionButton(props: {
+  label: string;
+  permission: ResourcePermission<'catalog-entity'>;
+  resourceRef?: string;
+  additionalResourceRef?: string;
+  onPress(): void;
+  /** What the button does, in the reason. Defaults to the label in lower case. */
+  action?: string;
+  /** What the button acts on, in the reason. Defaults to "this workflow". */
+  noun?: string;
+  variant?: 'primary' | 'secondary';
+  size?: 'small' | 'medium';
+  iconStart?: ReactElement;
+  isPending?: boolean;
+  destructive?: boolean;
+}) {
+  const { allowed, loading } = useControlPermission(
+    props.permission,
+    props.resourceRef,
+    props.additionalResourceRef,
+  );
+  const action =
+    props.action ?? props.label.replace(/…$/, '').toLocaleLowerCase('en-US');
+  const reason =
+    !allowed && !loading
+      ? `You do not have permission to ${action} ${
+          props.noun ?? 'this workflow'
+        } (${props.permission.name})`
+      : undefined;
+  return (
+    <WithReason reason={reason}>
+      <Button
+        variant={props.variant ?? 'secondary'}
+        size={props.size}
+        iconStart={props.iconStart}
+        destructive={props.destructive}
+        isPending={props.isPending}
+        isDisabled={!allowed}
+        onPress={props.onPress}
+      >
+        {props.label}
+      </Button>
+    </WithReason>
   );
 }
 

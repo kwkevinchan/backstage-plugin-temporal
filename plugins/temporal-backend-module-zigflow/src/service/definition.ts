@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { constants, open, realpath, stat } from 'node:fs/promises';
+import { constants, lstat, open, realpath, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import type {
@@ -40,8 +40,6 @@ import {
 } from 'yaml';
 import type { TemporalWorkflowDefinitionSpec } from '@kwkevinchan/backstage-plugin-temporal-backend/common';
 import {
-  findSymbolLines,
-  sourceLanguageOf,
   walkDefinitionTasks,
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
@@ -53,9 +51,9 @@ export const DEFAULT_DEFINITION_MAX_BYTES = 1024 * 1024;
 /** Upper limit of `temporal.definitions.maxBytes`: 8 MiB. */
 const MAX_DEFINITION_MAX_BYTES = 8 * 1024 * 1024;
 /**
- * Most aliases in a definition file, and most copies of one anchor (the
- * anchor and its aliases, with the aliases inside it; `maxAliasCount` of the
- * `yaml` package). The `yaml` package looks up the anchor of each alias in a
+ * Most aliases in a definition file. The `yaml` package counts the anchor
+ * itself as one of the copies, so one anchor takes at most
+ * `MAX_ALIAS_COUNT - 1` aliases (`maxAliasCount` of the `yaml` package). The `yaml` package looks up the anchor of each alias in a
  * scan of the whole document, so the time to turn a file into data grows
  * with aliases times nodes; a small limit keeps it linear.
  */
@@ -567,25 +565,52 @@ function isInside(root: string, path: string): boolean {
  * `maxBytes`. Symlinks may point only to files in the real folder of `root`.
  */
 async function readFileLimited(path: string, root: string, maxBytes: number) {
+  // A file outside the folder, a missing file and one that cannot be read
+  // all give the same answer, and nothing outside the folder is opened.
+  let realRoot: string;
+  try {
+    realRoot = await realpath(root);
+  } catch {
+    throw new TargetError(FILE_FOLDER_MESSAGE);
+  }
+  let realFile: string;
+  try {
+    realFile = await realpath(path);
+  } catch (error) {
+    // Only a name that is missing in a real folder inside `root` is reported
+    // as missing; a link that leads nowhere, or to a place without access,
+    // looks like any other file outside the folder.
+    if ((error as { code?: string }).code === 'ENOENT') {
+      const exists = await lstat(path).then(
+        () => true,
+        () => false,
+      );
+      const parent = await realpath(dirname(path)).catch(() => undefined);
+      if (
+        !exists &&
+        parent !== undefined &&
+        (parent === realRoot || isInside(realRoot, parent))
+      ) {
+        throw error;
+      }
+    }
+    throw new TargetError(FILE_FOLDER_MESSAGE);
+  }
+  if (!isInside(realRoot, realFile)) throw new TargetError(FILE_FOLDER_MESSAGE);
   // Without O_NONBLOCK, opening a FIFO waits until another process writes.
-  const handle = await open(path, constants.O_RDONLY | constants.O_NONBLOCK);
+  const handle = await open(
+    realFile,
+    constants.O_RDONLY | constants.O_NONBLOCK,
+  );
   try {
     const opened = await handle.stat();
     if (!opened.isFile()) {
       throw new TargetError('The target is not a regular file');
     }
-    const [realRoot, realFile] = await Promise.all([
-      realpath(root),
-      realpath(path),
-    ]);
     // The opened file must be the checked one: a link that changes between
-    // `open` and `realpath` gives another device or inode.
+    // `realpath` and `open` gives another device or inode.
     const checked = await stat(realFile);
-    if (
-      !isInside(realRoot, realFile) ||
-      checked.dev !== opened.dev ||
-      checked.ino !== opened.ino
-    ) {
+    if (checked.dev !== opened.dev || checked.ino !== opened.ino) {
       throw new TargetError(FILE_FOLDER_MESSAGE);
     }
     if (opened.size > maxBytes) throw new TooLargeError();
@@ -707,7 +732,7 @@ export function parseDefinition(text: string): {
     error: {
       kind: 'parse' as const,
       message,
-      ...(pos ? { line: pos.line, column: pos.col } : {}),
+      ...(pos ? { line: pos.line } : {}),
     },
   });
   if (doc.errors.length > 0) {
@@ -751,7 +776,9 @@ export function parseDefinition(text: string): {
       lineCounter.linePos(duplicate),
     );
   }
-  const tooManyAliases = `The file uses too many aliases (more than ${MAX_ALIAS_COUNT})`;
+  const tooManyAliases = `The file uses too many aliases (at most ${MAX_ALIAS_COUNT} aliases in all, and at most ${
+    MAX_ALIAS_COUNT - 1
+  } for one anchor)`;
   if (aliases > MAX_ALIAS_COUNT) return parseError(tooManyAliases);
   let document: JsonObject;
   try {
@@ -795,7 +822,6 @@ export function parseDefinition(text: string): {
     if (!range) return;
     tasks.push({
       pointer: visit.pointer,
-      name: visit.name,
       startLine: lineCounter.linePos(range[0]).line,
       endLine: lastLine(text, lineCounter, range[0], range[1]),
     });
@@ -812,13 +838,6 @@ export function parseDefinition(text: string): {
     };
   }
   return { document, tasks };
-}
-
-/** The workflow type of a `TemporalWorkflow` entity (`spec.workflowType`). */
-function workflowTypeOf(entity: Entity): string | undefined {
-  const type = (entity.spec as { workflowType?: unknown } | undefined)
-    ?.workflowType;
-  return typeof type === 'string' ? type : undefined;
 }
 
 /**
@@ -897,16 +916,12 @@ export class DefinitionReader {
    * `temporal.definitions.allow` and has no user name or password, while a
    * relative path must stay inside the repository of the entity's
    * `backstage.io/managed-by-location` (or inside the entity folder for
-   * allowed `file:` locations). A `serverless-workflow` target must be a
-   * `.yaml` or `.yml` file.
+   * allowed `file:` locations). The target must be a `.yaml` or `.yml`
+   * file.
    */
-  resolve(
-    entity: Entity,
-    rawTarget: string,
-    format: TemporalWorkflowDefinitionSpec['format'],
-  ): DefinitionLocation {
+  resolve(entity: Entity, rawTarget: string): DefinitionLocation {
     const where = this.resolveLocation(entity, rawTarget);
-    if (format === 'serverless-workflow' && !this.isYamlFile(where)) {
+    if (!this.isYamlFile(where)) {
       throw new TargetError(
         'A serverless-workflow definition must be a .yaml or .yml file',
       );
@@ -1119,19 +1134,18 @@ export class DefinitionReader {
     entity: Entity,
     spec: TemporalWorkflowDefinitionSpec,
   ): Promise<WorkflowDefinitionResponse> {
+    const entityRef = stringifyEntityRef(entity);
     const base: WorkflowDefinitionResponse = {
-      entityRef: stringifyEntityRef(entity),
       format: spec.format,
       target: spec.target,
-      maxBytes: this.maxBytes,
       tasks: [],
     };
     let where: DefinitionLocation;
     try {
-      where = this.resolve(entity, spec.target, spec.format);
+      where = this.resolve(entity, spec.target);
     } catch (error) {
       this.logger
-        ?.child({ entityRef: base.entityRef })
+        ?.child({ entityRef: entityRef })
         .debug('The target of a definition cannot be used', error as Error);
       return {
         ...base,
@@ -1169,7 +1183,7 @@ export class DefinitionReader {
       }
       const name = error instanceof Error ? error.name : '';
       this.logger
-        ?.child({ entityRef: base.entityRef, targetType: where.type })
+        ?.child({ entityRef: entityRef, targetType: where.type })
         .warn('Could not read the definition of an entity', error as Error);
       return {
         ...base,
@@ -1187,24 +1201,6 @@ export class DefinitionReader {
       };
     }
     const content = buffer.toString('utf8');
-    if (spec.format === 'source') {
-      // Source code: shown as text with the workflow's function marked.
-      const language = sourceLanguageOf(spec.target);
-      const symbol = spec.symbol ?? workflowTypeOf(entity);
-      const result: WorkflowDefinitionResponse = {
-        ...base,
-        url,
-        content,
-        size: buffer.length,
-        language,
-      };
-      if (symbol) {
-        result.symbol = symbol;
-        const lines = findSymbolLines(content, symbol, language);
-        if (lines) result.symbolLines = lines;
-      }
-      return result;
-    }
     const parsed = parseDefinition(content);
     // A file that is not a valid definition may be another file of the
     // repository: its text is not returned.

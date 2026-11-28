@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import type { TemporalLlmAdapter } from '../node/alpha';
-
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 
 function encodedPayloads(...values: unknown[]) {
@@ -377,115 +375,6 @@ export function agentDenseInferredHistory(
   }
   b.completeWorkflow({ status: 'done', rounds });
   return b.events;
-}
-
-/**
- * Companion adapter for {@link agentMultiCallStepHistory}: emits up to 100
- * model calls per `runAgent` activity, each requesting one inferred tool call.
- */
-export const syntheticMultiCallAdapter: TemporalLlmAdapter = {
-  id: 'synthetic-multi-call',
-  isModelCall: step =>
-    step.kind === 'activity' && step.activityType === 'runAgent',
-  readModelCalls: (_step, payloads) => {
-    const result = payloads.result as
-      | { calls?: Array<{ name: string; toolName: string; args: any }> }
-      | undefined;
-    if (!result || !Array.isArray(result.calls)) return [];
-    return result.calls.map(c => ({
-      name: c.name,
-      record: {
-        operation: 'chat',
-        requestModel: 'synthetic-model',
-        usage: { inputTokens: 200, outputTokens: 50 },
-        systemInstructions: [],
-        inputMessages: [],
-        outputMessages: [
-          {
-            role: 'assistant',
-            parts: [
-              {
-                type: 'tool_call',
-                name: c.toolName,
-                arguments: c.args,
-              },
-            ],
-          },
-        ],
-        toolExecutions: [],
-      },
-    }));
-  },
-};
-
-function buildMultiCallHistory(
-  steps: number,
-  callsPerStep: number,
-  options: { reverseTools?: boolean; extraArgBytes?: number } = {},
-): any[] {
-  const b = new HistoryBuilder();
-  const extra = options.extraArgBytes
-    ? 'x'.repeat(options.extraArgBytes)
-    : undefined;
-  b.startWorkflow(
-    options.reverseTools
-      ? 'multiCallReversedAgentWorkflow'
-      : 'multiCallAgentWorkflow',
-    'agents',
-  );
-  for (let s = 0; s < steps; s++) {
-    b.workflowTaskTurn();
-    const calls = Array.from({ length: callsPerStep }, (_, k) => ({
-      name: `call-${s}-${k}`,
-      toolName: k % 2 === 0 ? 'toolAlpha' : 'toolBeta',
-      args: extra
-        ? { ...nestedToolArgs(s, k), payload: extra }
-        : nestedToolArgs(s, k),
-    }));
-    const agentScheduled = b.scheduleActivity(`agent-${s}`, 'runAgent', [
-      { step: s },
-    ]);
-    b.finishActivity(agentScheduled, [{ calls }]);
-
-    b.workflowTaskTurn();
-    const orderedCalls = options.reverseTools ? [...calls].reverse() : calls;
-    const toolScheduled = orderedCalls.map((c, k) =>
-      b.scheduleActivity(`tool-${s}-${k}`, c.toolName, [c.args]),
-    );
-    for (let k = 0; k < orderedCalls.length; k++) {
-      b.finishActivity(toolScheduled[k], [{ ok: true }]);
-    }
-  }
-  b.completeWorkflow({ steps, callsPerStep });
-  return b.events;
-}
-
-/**
- * High call-count agent workflow using multi-call steps (`steps = 31,
- * callsPerStep = 50` -> 4,841 events, 1,550 model calls across 31 steps, and
- * 1,550 inferred plain-activity tool steps).
- */
-export function agentMultiCallStepHistory(
-  steps = 31,
-  callsPerStep = 50,
-): any[] {
-  return buildMultiCallHistory(steps, callsPerStep);
-}
-
-/**
- * High call-count multi-call agent workflow where each round's tool
- * activities are scheduled in reverse order relative to the model's requests,
- * with ~300 B nested arguments (4,931 events, 1,550 calls and 1,550 reversed
- * inferred tool steps).
- */
-export function agentMultiCallReversedHistory(
-  steps = 31,
-  callsPerStep = 50,
-): any[] {
-  return buildMultiCallHistory(steps, callsPerStep, {
-    reverseTools: true,
-    extraArgBytes: 200,
-  });
 }
 
 /**

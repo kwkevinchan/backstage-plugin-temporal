@@ -70,7 +70,6 @@ Temporal 頁的 **Workflows** 分頁從 catalog 讀出列，再把一頁的實�
 | `scaffolder-module-temporal`                                   | 瀏覽器            | Create 表單裡的 `TemporalWorkflowPicker` 欄位，資料來自外掛的路由。                                                                                                                                        |
 | `temporal-module-zigflow` 和 `temporal-backend-module-zigflow` | 瀏覽器和 Routes   | 一個 **Definition** 分頁，和一條讀取實體 YAML 定義檔的路由，先經存取服務檢查讀取權限。                                                                                                                     |
 | 你自己的 control action                                        | 改動流程的 Routes | 用 `temporalControlExtensionPoint` 註冊；以 `POST …/actions/:actionId` 提供，走同樣的授權檢查、自己的權限和稽核紀錄。它的 client 碰得到的不只這次請求的流程（見 [Extending](../../README.md#extending)）。 |
-| 你自己的 LLM 轉接器                                            | Services          | 用 `temporalLlmAdapterExtensionPoint` 註冊（實驗性）；讓查詢認得某個框架的模型呼叫和 tool call，轉接器讀得出的步驟顯示成模型呼叫。                                                                         |
 | 你自己的 workflow enricher                                     | Services          | 用 `temporalWorkflowEnricherExtensionPoint` 註冊（它只能加 enricher，自訂操作用 `temporalControlExtensionPoint`）；在回傳流程摘要和詳細資料之前補上欄位。                                                  |
 
 回到[文件索引](README.md)，或繼續讀[架構](architecture.md)。

@@ -15,7 +15,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import * as fsPromises from 'node:fs/promises';
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -98,7 +100,7 @@ describe('parseDefinition', () => {
     expect(byName['/do/5/charge/try/0/chargeCard']).toEqual([62, 66]);
     expect(byName['/do/5/charge/catch/do/0/refund']).toEqual([74, 77]);
     expect(byName['/do/11/expressShipping']).toEqual([97, 103]);
-    expect(tasks.map(t => t.name)).toEqual([
+    expect(tasks.map(t => t.pointer.split('/').pop())).toEqual([
       'validate',
       'route',
       'packItems',
@@ -119,6 +121,11 @@ describe('parseDefinition', () => {
       'expressShipping',
       'book',
     ]);
+    expect(tasks[0]).toEqual({
+      pointer: '/do/0/validate',
+      startLine: 10,
+      endLine: 14,
+    });
   });
 
   it('reports the line of a syntax error', () => {
@@ -139,7 +146,8 @@ describe('parseDefinition', () => {
     const result = parseDefinition(lines.join('\n'));
     expect(result.error).toEqual({
       kind: 'parse',
-      message: 'The file uses too many aliases (more than 20)',
+      message:
+        'The file uses too many aliases (at most 20 aliases in all, and at most 19 for one anchor)',
     });
     expect(result.document).toBeUndefined();
   });
@@ -195,7 +203,7 @@ describe('parseDefinition', () => {
         { length: count },
         (_, i) => `  - t${i}:\n      call: http\n      retry: *retry`,
       );
-    // The anchor and its aliases make at most 20 copies of the block.
+    // The anchor counts as a copy: 19 aliases of one anchor are the most.
     const ok = parseDefinition([...shared, 'do:', ...tasks(19)].join('\n'));
     expect(ok.error).toBeUndefined();
     expect((ok.document as any).do[18].t18.retry).toEqual({ limit: 3 });
@@ -205,7 +213,8 @@ describe('parseDefinition', () => {
         parseDefinition([...shared, 'do:', ...tasks(count)].join('\n')).error,
       ).toEqual({
         kind: 'parse',
-        message: 'The file uses too many aliases (more than 20)',
+        message:
+          'The file uses too many aliases (at most 20 aliases in all, and at most 19 for one anchor)',
       });
     }
 
@@ -215,7 +224,7 @@ describe('parseDefinition', () => {
     for (let i = 0; i < 20000; i++) lines.push(`- &a${i} x`, `- *a${i}`);
     const start = Date.now();
     expect(parseDefinition(lines.join('\n')).error?.message).toBe(
-      'The file uses too many aliases (more than 20)',
+      'The file uses too many aliases (at most 20 aliases in all, and at most 19 for one anchor)',
     );
     expect(Date.now() - start).toBeLessThan(2000);
   });
@@ -332,48 +341,16 @@ describe('DefinitionReader', () => {
       'https://git.example.com/org/repo/blob/main/workflows/order.yaml',
     );
     expect(result).toMatchObject({
-      entityRef: 'temporalworkflow:default/order-flow',
       format: 'serverless-workflow',
       target: './workflows/order.yaml',
       url: 'https://git.example.com/org/repo/blob/main/workflows/order.yaml',
       size: Buffer.byteLength(fixture),
-      maxBytes: 1024 * 1024,
     });
+    expect(result).not.toHaveProperty('entityRef');
+    expect(result).not.toHaveProperty('maxBytes');
     expect(result.content).toBe(fixture);
     expect(result.tasks).toHaveLength(19);
     expect(result.error).toBeUndefined();
-  });
-
-  it('reads source code and marks the function of the workflow', async () => {
-    const source =
-      "import { sleep } from '@temporalio/workflow';\n\nexport async function orderFlow() {\n  await sleep(1);\n}\n";
-    const readUrl = jest.fn(async () => ({
-      buffer: async () => Buffer.from(source),
-      stream: () => Readable.from([Buffer.from(source)]),
-    }));
-    const workflowEntity = entity(
-      'url:https://git.example.com/org/repo/blob/main/catalog-info.yaml',
-    );
-    const read = (symbol?: string) =>
-      readerOf(readUrl).read(workflowEntity, {
-        format: 'source',
-        target: './src/workflows.ts',
-        ...(symbol ? { symbol } : {}),
-      });
-    const result = await read('orderFlow');
-    expect(result).toMatchObject({
-      format: 'source',
-      language: 'typescript',
-      symbol: 'orderFlow',
-      symbolLines: { startLine: 3, endLine: 5 },
-      content: source,
-      tasks: [],
-    });
-    expect(result.error).toBeUndefined();
-    // Without a symbol: the workflow type, which is not in this file.
-    const byType = await read();
-    expect(byType.symbol).toBe('order-flow');
-    expect(byType.symbolLines).toBeUndefined();
   });
 
   it('rejects absolute URLs by default and reads them only when matching temporal.definitions.allow', async () => {
@@ -1531,13 +1508,74 @@ describe('DefinitionReader', () => {
         });
         expect(result.content).toBeUndefined();
       }
-      for (const target of ['./folder.yaml', './zero.yaml']) {
-        expect((await read(target)).error).toEqual({
-          kind: 'read',
-          message: 'The target is not a regular file',
-        });
-      }
+      expect((await read('./folder.yaml')).error).toEqual({
+        kind: 'read',
+        message: 'The target is not a regular file',
+      });
+      // A device outside the folder is not opened at all.
+      expect((await read('./zero.yaml')).error).toEqual({
+        kind: 'read',
+        message:
+          'A target next to a file location must stay in the folder of the entity file',
+      });
     } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('answers the same for files outside the folder and opens none of them', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'tp-def-'));
+    const opened: string[] = [];
+    const realOpen = fsPromises.open;
+    const spy = jest.spyOn(fsPromises, 'open').mockImplementation(((
+      path: any,
+      ...rest: any[]
+    ) => {
+      opened.push(String(path));
+      return (realOpen as any)(path, ...rest);
+    }) as any);
+    try {
+      const dir = join(root, 'catalog');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(root, 'secret.yaml'), fixture);
+      symlinkSync(join(root, 'secret.yaml'), join(dir, 'existing.yaml'));
+      symlinkSync(join(root, 'nothing.yaml'), join(dir, 'missing.yaml'));
+      mkdirSync(join(root, 'locked'));
+      writeFileSync(join(root, 'locked', 'a.yaml'), fixture);
+      symlinkSync(join(root, 'locked', 'a.yaml'), join(dir, 'locked.yaml'));
+      const reader = readerOf(jest.fn(), { readFileLocations: true });
+      const location = entity(`file:${join(dir, 'entities.yaml')}`);
+      const read = (target: string) => reader.read(location, spec(target));
+
+      const results = [];
+      for (const target of ['./existing.yaml', './missing.yaml']) {
+        results.push(await read(target));
+      }
+      // A directory without the search permission, as for a normal user.
+      chmodSync(join(root, 'locked'), 0o000);
+      try {
+        results.push(await read('./locked.yaml'));
+      } finally {
+        chmodSync(join(root, 'locked'), 0o755);
+      }
+      for (const result of results) {
+        expect(result.error).toEqual({
+          kind: 'read',
+          message:
+            'A target next to a file location must stay in the folder of the entity file',
+        });
+        expect(result.content).toBeUndefined();
+      }
+      expect(opened).toEqual([]);
+
+      // A name that is missing in the folder is still reported as missing.
+      expect((await read('./absent.yaml')).error).toEqual({
+        kind: 'read',
+        message: 'The file was not found',
+      });
+      expect(opened).toEqual([]);
+    } finally {
+      spy.mockRestore();
       rmSync(root, { recursive: true, force: true });
     }
   });
@@ -1589,12 +1627,37 @@ describe('DefinitionReader', () => {
         (await reader.read(located, spec(target))).error?.message,
       ).not.toContain('.yaml or .yml');
     }
-    const source = await reader.read(located, {
-      format: 'source',
-      target: './.env',
-    });
-    expect(source.error).toBeUndefined();
-    expect(source.content).toBe('SECRET=1\n');
+  });
+
+  it('checks the extension in the path parameter of Azure DevOps URLs', async () => {
+    const readUrl = jest.fn(async () => ({
+      buffer: async () => Buffer.from(fixture),
+    }));
+    const integrations = ScmIntegrations.fromConfig(
+      new ConfigReader({
+        integrations: { azure: [{ host: 'dev.azure.com' }] },
+      }),
+    );
+    const reader = readerOf(readUrl, { integrations });
+    const located = entity(
+      'url:https://dev.azure.com/my-org/my-project/_git/my-repo?path=/services/catalog-info.yaml&version=GBmain',
+    );
+
+    for (const target of ['./.env', './config/app.json']) {
+      expect((await reader.read(located, spec(target))).error).toEqual({
+        kind: 'read',
+        message:
+          'A serverless-workflow definition must be a .yaml or .yml file',
+      });
+    }
+    expect(readUrl).not.toHaveBeenCalled();
+
+    const ok = await reader.read(located, spec('./order.yaml'));
+    expect(ok.error).toBeUndefined();
+    expect(readUrl).toHaveBeenCalledTimes(1);
+    expect(String((readUrl.mock.calls as unknown[][])[0][0])).toContain(
+      'path=%2Fservices%2Forder.yaml',
+    );
   });
 
   it('returns the text of a definition only when it can be parsed', async () => {

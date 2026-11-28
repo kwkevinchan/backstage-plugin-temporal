@@ -20,7 +20,7 @@ import {
   WorkflowNodeStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
 import { walkDefinitionTasks } from '../../common/definition';
-import { listenEvents, taskKind } from './dslGraph';
+import { isObject, listenEvents, Obj, str, taskKind } from './dslGraph';
 
 /*
  * Which history events belong to which task of a definition, for workflows
@@ -84,16 +84,6 @@ export interface DefinitionOverlay {
   truncated: boolean;
   /** True when the run had countable steps but none matched any task. */
   noMatch: boolean;
-}
-
-type Obj = Record<string, unknown>;
-
-function isObject(value: unknown): value is Obj {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function str(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
 /** One segment of a Zigflow activity name. */

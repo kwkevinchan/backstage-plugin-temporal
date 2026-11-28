@@ -21,7 +21,7 @@ import { temporalPlugin } from '@kwkevinchan/backstage-plugin-temporal-frontend'
  * Definition tab of `TemporalWorkflow` entities for the legacy frontend
  * system: the YAML of a workflow written in the Serverless Workflow DSL
  * (`spec.definition`) next to its graph, optionally with one run on top.
- * Workflows written in code get links to their source. Mount it on
+ * An entity without `spec.definition` gets links to its source location. Mount it on
  * `/definition` of the `TemporalWorkflow` entity page.
  *
  * @public

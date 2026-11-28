@@ -223,12 +223,10 @@ export interface TemporalApi {
       entityRef?: string;
     },
   ): Promise<void>;
+  // Warning: (ae-forgotten-export) The symbol "WorkflowUpdateRequest" needs to be exported by the entry point index.d.ts
   updateWorkflow(
     ref: WorkflowRunRef,
-    request: {
-      name: string;
-      args?: JsonValue[];
-    },
+    request: WorkflowUpdateRequest,
     options?: {
       entityRef?: string;
     },
@@ -412,10 +410,7 @@ export class TemporalClient implements TemporalApi {
   // (undocumented)
   updateWorkflow(
     ref: WorkflowRunRef,
-    request: {
-      name: string;
-      args?: JsonValue[];
-    },
+    request: WorkflowUpdateRequest,
     options?: {
       entityRef?: string;
     },
@@ -425,7 +420,6 @@ export class TemporalClient implements TemporalApi {
 // @public
 export interface TemporalControlActionButtonOptions {
   actionId: string;
-  body?: (workflow: WorkflowDetail) => JsonValue | undefined;
   confirm?: string;
   label: string;
   permission?: ResourcePermission<'catalog-entity'>;

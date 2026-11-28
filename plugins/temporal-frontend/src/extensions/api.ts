@@ -20,6 +20,7 @@ import type {
   WorkflowDetail,
   WorkflowMessageDefinitionsResponse,
   WorkflowMessageResponse,
+  WorkflowUpdateRequest,
   WorkflowGraphResponse,
   WorkflowLlmCallResponse,
   WorkflowHistoryResponse,
@@ -210,11 +211,12 @@ export interface TemporalApi {
   /**
    * Sends an update to a running workflow and waits for its result. Needs
    * `temporal.workflow.update`. A rejected update throws with the
-   * workflow's message.
+   * workflow's message. Send the same `updateId` again to try a timed out
+   * update again without running it a second time.
    */
   updateWorkflow(
     ref: WorkflowRunRef,
-    request: { name: string; args?: JsonValue[] },
+    request: WorkflowUpdateRequest,
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse>;
 

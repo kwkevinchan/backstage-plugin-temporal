@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 import { stringifyEntityRef } from '@backstage/catalog-model';
 import { temporalApiRef } from '../extensions';
 import type { TemporalScheduleActionProps } from '../extensions';
-import { PermissionButton } from '../components/messages/MessageDialog';
+import { PermissionButton } from '../components/messages/shared';
 import {
   temporalWorkflowStartPermission,
   TemporalScheduleOperation,
@@ -29,10 +29,18 @@ import { ConfirmDialog } from './WorkflowControls';
 
 const TEXT: Record<
   TemporalScheduleOperation,
-  { label: string; title: string; description: string; confirm: string }
+  {
+    label: string;
+    /** What the button does, as in "You do not have permission to ...". */
+    action: string;
+    title: string;
+    description: string;
+    confirm: string;
+  }
 > = {
   pause: {
     label: 'Pause',
+    action: 'pause',
     title: 'Pause this schedule?',
     description:
       'It starts no workflows until it is resumed. Workflows it already started keep running.',
@@ -40,12 +48,14 @@ const TEXT: Record<
   },
   unpause: {
     label: 'Resume',
+    action: 'resume',
     title: 'Resume this schedule?',
     description: 'It starts workflows again at its next times.',
     confirm: 'Resume',
   },
   trigger: {
     label: 'Run now',
+    action: 'run',
     title: 'Start a workflow of this schedule now?',
     description:
       'The schedule starts one workflow now, as at one of its times, with its overlap policy.',
@@ -85,6 +95,8 @@ function ScheduleControlsContent(props: TemporalScheduleActionProps) {
         <PermissionButton
           key={operation}
           label={TEXT[operation].label}
+          action={TEXT[operation].action}
+          noun="this schedule"
           permission={temporalWorkflowStartPermission}
           resourceRef={entityRef}
           onPress={() => setOpen(operation)}
@@ -96,15 +108,16 @@ function ScheduleControlsContent(props: TemporalScheduleActionProps) {
           description={TEXT[open].description}
           confirm={TEXT[open].confirm}
           dismiss="Close"
+          reason={open === 'trigger' ? undefined : 'optional'}
           onClose={() => setOpen(undefined)}
-          onConfirm={async () => {
+          onConfirm={async reason => {
             await api.runScheduleOperation(
               {
                 namespace: schedule.namespace,
                 scheduleId: schedule.scheduleId,
               },
               open,
-              undefined,
+              reason ? { note: reason } : undefined,
               { entityRef },
             );
             if (!mountedRef.current) return;

@@ -47,6 +47,17 @@ export interface WorkflowMessageRequest {
 }
 
 /**
+ * Body of `POST .../update`. `updateId` identifies the update: sending the
+ * same ID again (for example after a timeout) does not run the update a
+ * second time. The backend makes an ID when there is none.
+ *
+ * @public
+ */
+export interface WorkflowUpdateRequest extends WorkflowMessageRequest {
+  updateId?: string;
+}
+
+/**
  * Result of an update, a query or a custom action. A result the backend
  * cannot decode (binary, or encrypted by a codec) is described by
  * `{ encoding, size, undecodable: true, metadata? }` instead.

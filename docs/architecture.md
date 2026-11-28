@@ -167,7 +167,6 @@ You can extend the plugin without changing it. The usage and examples are in
 | Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                       |
 | Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)                 |
 | Add data to workflow summaries                      | `temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`; it only adds enrichers, custom actions use `temporalControlExtensionPoint`                                    | `temporal-backend/alpha`                       |
-| Teach the backend the model calls of a framework    | `temporalLlmAdapterExtensionPoint.addLlmAdapter()` (experimental); a step the adapter reads is shown as a model call                                                          | `temporal-backend/alpha`                       |
 | Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                       |
 | Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                        |
 | Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                       |
@@ -260,8 +259,7 @@ false` removes the routes that change workflows (404, not 403) and their
 - **Synchronous `llmCall` history reads stay well under 200 ms.**
   Benchmarking `AiWorkflowQueries.llmCall` in-process on Node `v24.22.2` against
   ~5,000-event synthetic agent histories (covering Vercel AI SDK `toolCallId`,
-  OpenAI Agents SDK inference, dense inferred calls, and 50-call multi-call
-  steps — including reversed scheduling — queried at the first, middle, and last
+  OpenAI Agents SDK inference and dense inferred calls, queried at the first, middle, and last
   model-call step across 3 warmups + 15 timed iterations) measured medians of
   `28.21–41.02 ms` (max single run `52.76 ms`), well inside the `200 ms`
   per-request target, so `llmCall` keeps its simple full-prefix read alongside

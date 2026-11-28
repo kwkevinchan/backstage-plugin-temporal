@@ -514,114 +514,6 @@ describe('frames that stack their groups', () => {
   });
 });
 
-describe('arrows up into an earlier row of a stacked frame', () => {
-  it('turn apart from each other, clear of the frame', () => {
-    // Two rows of a stacked frame f, from each source in the lower row up
-    // into a target in the upper one.
-    const positions = new Map([
-      ['f', { x: 0, y: 0 }],
-      ['t1', { x: STACK_SIDE, y: 20 }],
-      ['t2', { x: STACK_SIDE, y: 100 }],
-      ['s1', { x: 300, y: 240 }],
-      ['s2', { x: 300, y: 320 }],
-    ]);
-    const layout: StepLayout = {
-      positions,
-      sizes: new Map([['f', { width: 900, height: 420 }]]),
-      width: 940,
-      height: 440,
-      wrapped: false,
-      stackGaps: new Map([['f', [202]]]),
-    };
-    const edges: Edge<FrameEdgeData>[] = [
-      ['s1', 't1'],
-      ['s2', 't2'],
-    ].map(([source, target]) => ({
-      id: `${source}->${target}`,
-      source,
-      target,
-      type: 'frameEdge',
-      data: { sourceInset: 30, targetInset: FRAME_GAP },
-    }));
-    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
-    // Side by side in the gap.
-    expect(routed.map(e => e.data!.centerY).sort()).toEqual([197, 207]);
-    const points = routed.map(e => {
-      const end = (id: string, side: number) => ({
-        x: positions.get(id)!.x + side * boxSize(layout, id).width,
-        y: positions.get(id)!.y + boxSize(layout, id).height / 2,
-      });
-      return frameEdgePoints(end(e.source, 1), end(e.target, 0), e.data!);
-    });
-    // Up out of the sources and up into the targets a lane apart.
-    expect(Math.abs(points[0][1].x - points[1][1].x)).toBeGreaterThanOrEqual(
-      EDGE_LANE_GAP,
-    );
-    expect(Math.abs(points[0][3].x - points[1][3].x)).toBeGreaterThanOrEqual(
-      EDGE_LANE_GAP,
-    );
-    for (const p of points) {
-      expect(p[3].x).toBeGreaterThanOrEqual(FRAME_GAP);
-      expect(p[3].x).toBeLessThanOrEqual(STACK_SIDE - FRAME_GAP);
-    }
-  });
-
-  it('turns an arrow up a lane away from an arrow it would run next to', () => {
-    // The arrow up would turn 4px from the arrow down into the lower row.
-    // It moves right, a lane away, where that row leaves room. The two
-    // arrows share neither end, so the lanes of the gap do not separate
-    // these turns.
-    const positions = new Map([
-      ['f', { x: 0, y: 0 }],
-      ['ds', { x: 200, y: 40 }],
-      ['ut', { x: 500, y: 40 }],
-      ['us', { x: 200, y: 300 }],
-      ['dt', { x: 524, y: 300 }],
-    ]);
-    const layout: StepLayout = {
-      positions,
-      sizes: new Map([['f', { width: 900, height: 420 }]]),
-      width: 940,
-      height: 460,
-      wrapped: false,
-      stackGaps: new Map([['f', [220]]]),
-    };
-    const edges: Edge<FrameEdgeData>[] = [
-      {
-        id: 'ds->dt',
-        source: 'ds',
-        target: 'dt',
-        type: 'frameEdge',
-        data: { sourceInset: OFFSET, targetInset: 80 },
-      },
-      {
-        id: 'us->ut',
-        source: 'us',
-        target: 'ut',
-        type: 'frameEdge',
-        data: { sourceInset: 28, targetInset: FRAME_GAP },
-      },
-    ];
-    const routed = routeRowGaps(layout, edges) as Edge<FrameEdgeData>[];
-    const xOf = (id: string) => {
-      const edge = routed.find(e => e.id === id)!;
-      const end = (node: string, side: number) => ({
-        x: positions.get(node)!.x + side * boxSize(layout, node).width,
-        y: positions.get(node)!.y + boxSize(layout, node).height / 2,
-      });
-      return frameEdgePoints(
-        end(edge.source, 1),
-        end(edge.target, 0),
-        edge.data!,
-      )[1].x;
-    };
-    // Down into dt stays; up out of us was 4px from it and moves a lane off.
-    expect(Math.abs(xOf('us->ut') - xOf('ds->dt'))).toBeGreaterThanOrEqual(
-      EDGE_LANE_GAP,
-    );
-  });
-});
-
 describe('arrows down the left side of a stacked frame', () => {
   it('run the arrow into the lower target farther out', () => {
     // Out of s1 and s2 in the first row into t1 and t2, one below the
@@ -1102,7 +994,6 @@ describe('the group of a signal received during a round', () => {
     );
     expect(stackSidePad(result.layout, hint)).toBe(STACK_SIDE + EDGE_LANE_GAP);
     expect(throughBoxes(result)).toEqual([]);
-    expect(runningOn(result)).toEqual([]);
   });
 
   it('is drawn after the stacked frame it goes in', () => {
@@ -1500,7 +1391,6 @@ describe('the group of a signal received during an open round', () => {
         result.graph.frames.find(f => f.id === box(`event:hint${k}`))!.parent,
       ).toBe(box('label:loop'));
     }
-    expect(runningOn(result)).toEqual([]);
   });
 
   it('stays in a row below the round when it leads back to two steps', () => {

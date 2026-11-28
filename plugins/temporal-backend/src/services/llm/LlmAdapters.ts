@@ -14,395 +14,112 @@
  * limitations under the License.
  */
 
-import type { LoggerService } from '@backstage/backend-plugin-api';
-import type {
-  TemporalLlmAdapter,
-  TemporalLlmModelCall,
-  TemporalLlmStep,
-  TemporalLlmStepPayloads,
-  TemporalLlmToolStep,
-} from '../../node/alpha';
-import { isObject } from './json';
+import type { JsonValue } from '@backstage/types';
+import type { WorkflowLlmRecord } from '../../common';
 import { openaiAgentsAdapter } from './openaiAgents';
 import { vercelAiSdkAdapter } from './vercelAiSdk';
 
+/** A step of a run as the adapters see it: what the history says about it. */
+export interface LlmStep {
+  activityType: string;
+  /** Activity ID. */
+  activityId?: string;
+  /** The summary text of the step (Temporal's user metadata), first line. */
+  summary?: string;
+}
+
+/**
+ * The decoded payloads of a step. A payload that a codec encoded, or one
+ * in External Storage (the backend does not read those), is left out.
+ */
+export interface LlmStepPayloads {
+  /** The arguments, when all of them are readable. */
+  input?: JsonValue[];
+  /** The result of the completed step. */
+  result?: JsonValue;
+  /**
+   * The failure details of the step's failed attempts, newest first; left
+   * out once the step completed.
+   */
+  failureDetails?: JsonValue[];
+}
+
+/** One model call read from a step. */
+export interface LlmModelCall {
+  /**
+   * The call in the plugin's format. Left out when the step has no
+   * readable record of it yet (for example while it runs).
+   */
+  record?: WorkflowLlmRecord;
+  /** The data the record was read from, shown as raw JSON. */
+  raw?: JsonValue;
+}
+
+/** A step that ran a tool a model call asked for. */
+export interface LlmToolStep {
+  /** The tool name, when the step records it. */
+  toolName?: string;
+  /** The tool call ID from the model, when the step records it. */
+  toolCallId?: string;
+}
+
+/**
+ * Recognizes the model calls and tool calls of one framework in a run's
+ * history and turns them into the plugin's format. Steps are matched by
+ * plain names that anyone can give their activities, so an adapter checks
+ * the shape of the payloads before it reads a step as its own.
+ */
+export interface LlmAdapter {
+  /** Shown as the framework of the calls it reads, for example `vercel-ai-sdk`. */
+  id: string;
+  /** True when the step may be a model call of this framework. */
+  isModelCall(step: LlmStep): boolean;
+  /**
+   * The model call of a step that `isModelCall` accepted. Undefined when
+   * the payloads do not have the framework's shape (the step is then
+   * offered to the next adapter, and is otherwise a plain step).
+   */
+  readModelCall(
+    step: LlmStep,
+    payloads: LlmStepPayloads,
+  ): LlmModelCall | undefined;
+  /** The tool a step that is not a model call ran, when it records one. */
+  readToolCall?(
+    step: LlmStep,
+    payloads: LlmStepPayloads,
+  ): LlmToolStep | undefined;
+}
+
 /** The built-in adapters, in the order they are asked. */
-export function builtInLlmAdapters(): TemporalLlmAdapter[] {
-  return [vercelAiSdkAdapter, openaiAgentsAdapter];
-}
+const ADAPTERS: LlmAdapter[] = [vercelAiSdkAdapter, openaiAgentsAdapter];
 
-/** Most model calls one step may report; more make the step a plain step. */
-export const MAX_MODEL_CALLS_PER_STEP = 100;
-
-const optionalString = (v: unknown) => v === undefined || typeof v === 'string';
-const optionalCount = (v: unknown) =>
-  v === undefined || (typeof v === 'number' && Number.isFinite(v));
-
-function isPartList(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.every(p => isObject(p) && typeof p.type === 'string')
-  );
-}
-
-function isMessageList(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.every(
-      m =>
-        isObject(m) &&
-        typeof m.role === 'string' &&
-        optionalString(m.name) &&
-        isPartList(m.parts),
-    )
-  );
-}
-
-/** True when an adapter returned a record of the plugin's shape. */
-function isRecord(value: unknown): boolean {
-  if (!isObject(value) || !isObject(value.usage)) return false;
-  const usage = value.usage;
-  return (
-    [
-      'inputTokens',
-      'outputTokens',
-      'reasoningTokens',
-      'cacheReadInputTokens',
-      'cacheWriteInputTokens',
-    ].every(k => optionalCount(usage[k])) &&
-    [
-      'operation',
-      'provider',
-      'requestModel',
-      'responseModel',
-      'responseId',
-      'conversationId',
-      'startTime',
-    ].every(k => optionalString(value[k])) &&
-    optionalCount(value.durationMs) &&
-    isPartList(value.systemInstructions) &&
-    isMessageList(value.inputMessages) &&
-    isMessageList(value.outputMessages) &&
-    Array.isArray(value.toolExecutions) &&
-    value.toolExecutions.every(
-      (t: unknown) => isObject(t) && typeof t.name === 'string',
-    ) &&
-    (value.finishReasons === undefined ||
-      (Array.isArray(value.finishReasons) &&
-        value.finishReasons.every((r: unknown) => typeof r === 'string'))) &&
-    (value.toolDefinitions === undefined ||
-      Array.isArray(value.toolDefinitions)) &&
-    (value.parameters === undefined || isObject(value.parameters)) &&
-    (value.error === undefined ||
-      (isObject(value.error) && typeof value.error.message === 'string'))
-  );
-}
-
-function isModelCallList(value: unknown): value is TemporalLlmModelCall[] {
-  return (
-    Array.isArray(value) &&
-    value.length <= MAX_MODEL_CALLS_PER_STEP &&
-    value.every(
-      c =>
-        isObject(c) &&
-        optionalString(c.name) &&
-        (c.record === undefined || isRecord(c.record)),
-    )
-  );
-}
-
-function isToolStep(value: unknown): value is TemporalLlmToolStep | undefined {
-  return (
-    value === undefined ||
-    (isObject(value) &&
-      optionalString(value.toolName) &&
-      optionalString(value.toolCallId) &&
-      optionalString(value.modelCall))
-  );
-}
-
-/** Deepest nesting of a value an adapter returns. */
-const MAX_JSON_DEPTH = 64;
-
-class NotJson extends Error {}
-
-/**
- * A copy of a value as plain JSON: objects and arrays of strings, finite
- * numbers, booleans and null. Throws `NotJson` for anything else (cycles,
- * functions, class instances, `NaN`, `BigInt`, ...). Getters are read once;
- * object fields that are undefined are left out, as `JSON.stringify` does.
- */
-function jsonCopy(value: unknown, path: object[] = []): unknown {
-  if (value === null || typeof value === 'string' || typeof value === 'boolean')
-    return value;
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new NotJson();
-    return value;
-  }
-  if (typeof value !== 'object' || path.length >= MAX_JSON_DEPTH)
-    throw new NotJson();
-  if (path.includes(value)) throw new NotJson();
-  const inner = [...path, value];
-  if (Array.isArray(value)) {
-    return value.map(v => {
-      if (v === undefined) throw new NotJson();
-      return jsonCopy(v, inner);
-    });
-  }
-  const proto = Object.getPrototypeOf(value);
-  if (proto !== Object.prototype && proto !== null) throw new NotJson();
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(value)) {
-    const v = (value as Record<string, unknown>)[key];
-    if (v !== undefined) out[key] = jsonCopy(v, inner);
-  }
-  return out;
-}
-
-/** The model calls of a step and the adapter that read them. */
-export interface LlmModelCalls {
+/** The model call of a step and the adapter that read it. */
+export interface LlmModelRead {
   framework: string;
-  calls: TemporalLlmModelCall[];
+  call: LlmModelCall;
 }
 
-/** The tool call of a step and the adapter that read it. */
-export interface LlmToolCall {
-  framework: string;
-  tool: TemporalLlmToolStep;
+/** The first adapter that reads the step as a model call. */
+export function readModelCall(
+  step: LlmStep,
+  payloads: LlmStepPayloads,
+): LlmModelRead | undefined {
+  for (const adapter of ADAPTERS) {
+    if (!adapter.isModelCall(step)) continue;
+    const call = adapter.readModelCall(step, payloads);
+    if (call) return { framework: adapter.id, call };
+  }
+  return undefined;
 }
 
-/**
- * Reads the steps of one run with the adapters. A step that an adapter
- * fails on (an exception, or a value of the wrong shape) is a plain step;
- * the failure is logged once per adapter and reader, with the event ID of
- * the step and the name of the error, never its message.
- */
-export interface LlmStepReader {
-  isModelCall(step: TemporalLlmStep, eventId?: string): boolean;
-  readModelCalls(
-    step: TemporalLlmStep,
-    payloads: TemporalLlmStepPayloads,
-    eventId?: string,
-  ): LlmModelCalls | undefined;
-  readToolCall(
-    step: TemporalLlmStep,
-    payloads: TemporalLlmStepPayloads,
-    eventId?: string,
-  ): LlmToolCall | undefined;
-}
-
-/** Thrown inside the reader when an adapter fails on a step. */
-class AdapterFailure extends Error {}
-
-/**
- * The LLM adapters of the backend: the ones modules add with
- * `temporalLlmAdapterExtensionPoint`, asked first, then the built-in ones.
- * IDs are unique.
- */
-export class LlmAdapters {
-  private readonly added: TemporalLlmAdapter[] = [];
-  private readonly builtIn: TemporalLlmAdapter[] = [];
-
-  constructor(private readonly logger?: LoggerService) {}
-
-  /** The built-in adapters only, for tests and callers without modules. */
-  static builtIn(logger?: LoggerService): LlmAdapters {
-    const adapters = new LlmAdapters(logger);
-    adapters.addBuiltIns();
-    return adapters;
+/** The first adapter that reads the step as a tool call. */
+export function readToolCall(
+  step: LlmStep,
+  payloads: LlmStepPayloads,
+): LlmToolStep | undefined {
+  for (const adapter of ADAPTERS) {
+    const tool = adapter.readToolCall?.(step, payloads);
+    if (tool) return tool;
   }
-
-  /** Adds an adapter. Throws when its ID is taken or it is not an adapter. */
-  add(adapter: TemporalLlmAdapter, options: { builtIn?: boolean } = {}) {
-    if (
-      !adapter ||
-      typeof adapter.id !== 'string' ||
-      adapter.id === '' ||
-      typeof adapter.isModelCall !== 'function' ||
-      typeof adapter.readModelCalls !== 'function'
-    ) {
-      throw new Error(
-        'An LLM adapter needs an id, isModelCall and readModelCalls',
-      );
-    }
-    if (this.all().some(a => a.id === adapter.id)) {
-      throw new Error(`Duplicate LLM adapter id: ${adapter.id}`);
-    }
-    (options.builtIn ? this.builtIn : this.added).push(adapter);
-  }
-
-  /** Adds the built-in adapters, after the ones added so far. */
-  addBuiltIns() {
-    for (const adapter of builtInLlmAdapters()) {
-      this.add(adapter, { builtIn: true });
-    }
-  }
-
-  /** All adapters, in the order they are asked. */
-  all(): TemporalLlmAdapter[] {
-    return [...this.added, ...this.builtIn];
-  }
-
-  /** A reader for the steps of one run. */
-  reader(): LlmStepReader {
-    const adapters = this.all();
-    // The built-in adapters return plain JSON: copying them would copy
-    // whole conversations (`raw`) on every graph.
-    const builtIn = new Set(this.builtIn);
-    const warned = new Set<string>();
-    const warn = (
-      adapter: TemporalLlmAdapter,
-      step: TemporalLlmStep,
-      eventId: string | undefined,
-      message: string,
-      errorName?: string,
-    ) => {
-      if (warned.has(adapter.id)) return;
-      warned.add(adapter.id);
-      this.logger
-        ?.child({
-          llmAdapterId: adapter.id,
-          activityType: step.activityType,
-          ...(eventId ? { historyEventId: eventId } : {}),
-          ...(errorName ? { errorName } : {}),
-        })
-        .warn(message);
-    };
-    const guard = <T>(
-      adapter: TemporalLlmAdapter,
-      step: TemporalLlmStep,
-      eventId: string | undefined,
-      what: string,
-      run: () => T,
-      valid: (value: unknown) => boolean,
-    ): T => {
-      let value: unknown;
-      try {
-        value = run();
-      } catch (error) {
-        // The name only: the message may hold payload content.
-        const name = error instanceof Error ? error.name : typeof error;
-        warn(
-          adapter,
-          step,
-          eventId,
-          `${what} threw an error; the step is shown as a plain step`,
-          name,
-        );
-        throw new AdapterFailure();
-      }
-      try {
-        // Only the copy of a module's value is used from here on.
-        if (value !== undefined && !builtIn.has(adapter)) {
-          value = jsonCopy(value);
-        }
-      } catch {
-        warn(
-          adapter,
-          step,
-          eventId,
-          `${what} returned a value that is not plain JSON; the step is shown as a plain step`,
-        );
-        throw new AdapterFailure();
-      }
-      if (!valid(value)) {
-        warn(
-          adapter,
-          step,
-          eventId,
-          `${what} returned a value of the wrong shape; the step is shown as a plain step`,
-        );
-        throw new AdapterFailure();
-      }
-      return value as T;
-    };
-    const isBoolean = (v: unknown) => typeof v === 'boolean';
-    const claimed = (step: TemporalLlmStep, eventId?: string) =>
-      adapters.filter(a =>
-        guard(
-          a,
-          step,
-          eventId,
-          'isModelCall',
-          () => a.isModelCall(step),
-          isBoolean,
-        ),
-      );
-    return {
-      isModelCall(step, eventId) {
-        if (step.kind !== 'activity') return false;
-        try {
-          return claimed(step, eventId).length > 0;
-        } catch (error) {
-          if (error instanceof AdapterFailure) return false;
-          throw error;
-        }
-      },
-      readModelCalls(step, payloads, eventId) {
-        try {
-          const claiming = claimed(step, eventId);
-          if (step.kind !== 'activity') {
-            // Model calls are read from activities only.
-            for (const adapter of claiming) {
-              warn(
-                adapter,
-                step,
-                eventId,
-                'isModelCall is true for a local activity, which is never read as a model call (only readToolCall is asked)',
-              );
-            }
-            return undefined;
-          }
-          for (const adapter of claiming) {
-            const calls = guard(
-              adapter,
-              step,
-              eventId,
-              'readModelCalls',
-              () => adapter.readModelCalls(step, payloads),
-              isModelCallList,
-            );
-            if (calls.length > 0) {
-              return { framework: adapter.id, calls };
-            }
-          }
-          return undefined;
-        } catch (error) {
-          if (error instanceof AdapterFailure) return undefined;
-          throw error;
-        }
-      },
-      readToolCall(step, payloads, eventId) {
-        try {
-          for (const adapter of adapters) {
-            if (!adapter.readToolCall) continue;
-            const tool = guard(
-              adapter,
-              step,
-              eventId,
-              'readToolCall',
-              () => adapter.readToolCall!(step, payloads),
-              isToolStep,
-            );
-            if (tool) return { framework: adapter.id, tool };
-          }
-          return undefined;
-        } catch (error) {
-          if (error instanceof AdapterFailure) return undefined;
-          throw error;
-        }
-      },
-    };
-  }
-}
-
-let builtInOnly: LlmAdapters | undefined;
-
-/**
- * The built-in adapters without a logger, for graphs built without the
- * plugin's adapters (tests and helpers).
- */
-export function builtInOnlyLlmAdapters(): LlmAdapters {
-  builtInOnly ??= LlmAdapters.builtIn();
-  return builtInOnly;
+  return undefined;
 }

@@ -26,6 +26,7 @@ import {
   WorkflowMessageRequest,
   WorkflowRef,
   WorkflowRunRef,
+  WorkflowUpdateRequest,
 } from '../common';
 import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { Request } from 'express';
@@ -34,6 +35,9 @@ import { Request } from 'express';
 
 /** Longest signal, update or query name accepted. */
 const MAX_CONTROL_NAME_LENGTH = 200;
+
+/** Longest update ID accepted. */
+const MAX_UPDATE_ID_LENGTH = 200;
 
 /**
  * True for a valid custom action ID: letters, digits, `.`, `_` and `-`,
@@ -152,6 +156,23 @@ export function parseMessageBody(req: Request): WorkflowMessageRequest {
     throw new InputError('name is required');
   }
   return { name: name.trim(), args: parseArgs(args) };
+}
+
+/** The `name`, `args` and `updateId` of an update body. */
+export function parseUpdateBody(req: Request): WorkflowUpdateRequest {
+  const message = parseMessageBody(req);
+  const { updateId } = requestBody(req);
+  if (updateId === undefined || updateId === null) return message;
+  if (
+    typeof updateId !== 'string' ||
+    !updateId.trim() ||
+    updateId.length > MAX_UPDATE_ID_LENGTH
+  ) {
+    throw new InputError(
+      `updateId must be a text of 1 to ${MAX_UPDATE_ID_LENGTH} characters`,
+    );
+  }
+  return { ...message, updateId: updateId.trim() };
 }
 
 /**

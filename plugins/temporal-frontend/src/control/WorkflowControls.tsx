@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowMessageDefinition } from '../common';
 import { stringifyEntityRef } from '@backstage/catalog-model';
@@ -34,11 +34,11 @@ import {
   ControlError,
   controlError,
   ControlErrorAlert,
+  PermissionButton,
 } from '../components/messages/shared';
 import {
   MessageDialog,
   type MessageDialogText,
-  PermissionButton,
   useWorkflowMessageDefinitions,
 } from '../components/messages/MessageDialog';
 import { SchemaArgsField } from '../components/messages/SchemaArgsField';
@@ -51,6 +51,16 @@ import {
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
 import { useControlConfig, useControlEnabled } from './config';
+
+/** A new update ID; `crypto.randomUUID` needs a secure context. */
+function newUpdateId(): string {
+  const webCrypto: Crypto | undefined = globalThis.crypto;
+  if (webCrypto?.randomUUID) return webCrypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const n = Math.floor(Math.random() * 16);
+    return (c === 'x' ? n : (n & 0x3) | 0x8).toString(16);
+  });
+}
 
 type MessageKind = 'signal' | 'update';
 type Open = MessageKind | 'cancel' | 'terminate' | 'rerun' | undefined;
@@ -95,8 +105,8 @@ export function ConfirmDialog(props: {
   /** Label of the button that closes the dialog. */
   dismiss: string;
   destructive?: boolean;
-  /** Ask for a reason, required. */
-  reason?: boolean;
+  /** Ask for a reason: required with `true`, or left out with `'optional'`. */
+  reason?: boolean | 'optional';
   onConfirm(reason: string): Promise<void>;
   onClose(): void;
   /** The details page of the run, for the links of its errors. */
@@ -124,10 +134,13 @@ export function ConfirmDialog(props: {
           <Text variant="body-medium">{props.description}</Text>
           {props.reason && (
             <TextField
-              label="Reason"
+              label={
+                props.reason === 'optional' ? 'Reason (optional)' : 'Reason'
+              }
               value={reason}
               onChange={setReason}
-              isRequired
+              maxLength={1000}
+              isRequired={props.reason === true}
             />
           )}
           {error && <ControlErrorAlert error={error} context={props.context} />}
@@ -141,7 +154,7 @@ export function ConfirmDialog(props: {
           variant="primary"
           destructive={props.destructive}
           isPending={pending}
-          isDisabled={props.reason && !reason.trim()}
+          isDisabled={props.reason === true && !reason.trim()}
           onPress={confirm}
         >
           {props.confirm}
@@ -178,7 +191,14 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
     entityRef,
     open === 'signal' || open === 'update',
   );
-  const close = () => setOpen(undefined);
+  // The update ID of the request being tried again: the same while the
+  // name and the arguments stay as they are, so that a retry after a timeout
+  // does not send a second update.
+  const updateAttempt = useRef<{ request: string; updateId: string }>();
+  const close = () => {
+    updateAttempt.current = undefined;
+    setOpen(undefined);
+  };
 
   const messageOptions = (
     kind: MessageKind,
@@ -217,7 +237,10 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
             permission={temporalWorkflowUpdatePermission}
             resourceRef={resourceRef}
             additionalResourceRef={workflow.workflowEntityRef}
-            onPress={() => setOpen('update')}
+            onPress={() => {
+              updateAttempt.current = undefined;
+              setOpen('update');
+            }}
           />
           <PermissionButton
             label="Cancel"
@@ -261,7 +284,21 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
             if (open === 'signal') {
               await api.signalWorkflow(ref, request, { entityRef });
             } else {
-              result = await api.updateWorkflow(ref, request, { entityRef });
+              const key = JSON.stringify([request.name, request.args]);
+              if (updateAttempt.current?.request !== key) {
+                updateAttempt.current = {
+                  request: key,
+                  updateId: newUpdateId(),
+                };
+              }
+              const { updateId } = updateAttempt.current;
+              result = await api.updateWorkflow(
+                ref,
+                { ...request, updateId },
+                { entityRef },
+              );
+              // Sent again, the same update would not run a second time.
+              updateAttempt.current = undefined;
             }
             reload();
             return result;

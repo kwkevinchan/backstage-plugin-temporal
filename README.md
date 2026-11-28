@@ -81,8 +81,7 @@ workflow definition.
   show each model call as a box with the model, tokens, duration and number
   of tools; the tool calls it asked for hang off it. Its panel shows the
   input, the thinking, the output, the tool calls and the usage. Nothing to
-  turn on and nothing to change in the worker; other frameworks can be
-  added with a backend module (see
+  turn on and nothing to change in the worker (see
   [Model calls and tool calls](#model-calls-and-tool-calls)).
 
 | Workflows of an entity                                                                                                                                                                                          | Step graph and step panel                                                                                                                  |
@@ -533,9 +532,9 @@ keeps the progress of closed runs in memory.
 > **Experimental.** The shape of the data changes before the first stable release. Nothing needs to be turned on.
 
 LLM agents call a model, run the tools it asks for, and call it again. The
-backend recognizes these steps in the history with LLM adapters: a step an
-adapter recognizes is shown as a model call (messages, tool calls, tokens),
-any other step as a plain step. The worker does not change for the plugin.
+backend recognizes these steps in the history with built-in adapters of the
+official Temporal AI integrations: a step an adapter recognizes is shown as
+a model call (messages, tool calls, tokens), any other step as a plain step. The worker does not change for the plugin.
 
 Built-in adapters:
 
@@ -551,19 +550,22 @@ the shape of the integration, since anyone can give an activity these names.
 What the plugin shows:
 
 - the graph draws a model call as a larger box with the model, the input and
-  output tokens, the duration and the number of tools. Its title is the call
-  name when the step records one, else the step's summary (the `summary`
-  option of the integrations, for example `languageModel.summary` or
-  `modelParams.summary`), else the model. The tool calls it asked for are
+  output tokens, the duration and the number of tools. Its title is the step's
+  summary (the `summary` option of the integrations, for example
+  `languageModel.summary` or `modelParams.summary`), else the model. The tool calls it asked for are
   smaller boxes with the tool name, joined to it by dashed arrows, so an
   agent loop reads as model call, tools, model call. Retries of a tool show
   on its box.
 - selecting a model call opens the LLM panel: **Input** (system
   instructions and messages as a chat, long texts collapsed), **Thinking**
   (collapsed), **Output**, **Tool calls** (name, arguments, response,
-  status, and a button to the step of the tool) and **Usage** (input,
-  output, reasoning and cached tokens, duration). Every section has a copy
-  button; **Raw JSON** shows the input and result the record was read from.
+  status, and a button to the step of the tool), **Usage** (input, output,
+  reasoning, cached and cache write tokens, duration) and **Details** (the
+  response ID, the call parameters such as the temperature, and the tool
+  definitions sent to the model). The header names the model, the finish
+  reason and the framework (`vercel-ai-sdk` or `openai-agents`). Every
+  section has a copy button; **Raw JSON** shows the input and result the
+  record was read from.
   A tool step links back to its model call.
 - the **Timeline** marks model and tool calls.
 
@@ -587,8 +589,7 @@ turns this on: whoever may read a workflow sees it wherever the history has
 model calls. The
 messages, the thinking and tool arguments and results come from the full
 record of the call, with the same permission
-(`GET .../llm-calls/:eventId`; `?index=` picks a later call of a step that
-made several).
+(`GET .../llm-calls/:eventId`).
 
 Known limits:
 
@@ -615,11 +616,6 @@ Known limits:
   (`__temporal_workflow_stream_publish` signals) stays a list of signals.
 - the provider is not in the history of either integration, so it is not
   shown.
-
-Other frameworks are added with a backend module and
-`temporalLlmAdapterExtensionPoint` (see
-[Extending](#extending) and the
-[public interfaces](docs/public-interfaces.md#llm-adapters)).
 
 ## Event groups
 
@@ -1017,8 +1013,7 @@ spec:
 
 `spec.definition` (`format`, `target`) points to the file of the workflow
 for its **Definition** tab: a YAML workflow (`serverless-workflow`), drawn as
-a graph, or the source code (`source`), with the workflow's function marked;
-see [Workflow definitions](#workflow-definitions).
+a graph; see [Workflow definitions](#workflow-definitions).
 
 The workflow executions of the entity are those with that workflow type (and task
 queue, when set), or with the entity reference
@@ -1567,15 +1562,6 @@ actions, the operations and the reads with `temporalApiRef`
 (`runWorkflowAction`, `signalWorkflow`, `getWorkflow`, …).
 The development apps have an example (`packages/backend/src/escalateAction.ts`).
 
-Backend modules can teach the backend the model calls of another framework
-with `temporalLlmAdapterExtensionPoint.addLlmAdapter()` (`./alpha`; see
-[Model calls and tool calls](#model-calls-and-tool-calls)). Adapters added
-this way are asked before the built-in ones; an ID that is taken fails the
-backend start. An adapter that throws, or returns something of the wrong
-shape, makes that step a plain step and logs a warning.
-[Public interfaces](docs/public-interfaces.md#llm-adapters) has a minimal
-adapter.
-
 The other backend code that only needs Temporal uses the shared connection
 of the backend plugin, without its routes:
 
@@ -1673,11 +1659,10 @@ warning; it does not fail the lint.
     integration, entity authors can read any repository accessible to that
     integration's credentials, so **`paths` must be set on integration-backed
     hosts** (at startup `DefinitionReader.fromConfig` logs a warning if an
-    integration-backed entry omits `paths`). `format: source` displays any readable file within the allowed
-    scope (the entity's repository/folder for relative targets, or the allowed
-    `host` and `paths` for absolute URLs) up to `maxBytes`.
-    `format: serverless-workflow` reads only `.yaml` and `.yml` files and
-    returns their text only when they are valid definitions. `file:` targets
+    integration-backed entry omits `paths`). `serverless-workflow` definitions read only `.yaml` and `.yml` files
+    within the allowed scope (the entity's repository/folder for relative
+    targets, or the allowed `host` and `paths` for absolute URLs) up to
+    `maxBytes`, and return their text only when they are valid definitions. `file:` targets
     (`definitions.readFileLocations: true`) must be regular files in the
     folder of the entity file, also after symlinks are resolved; keep
     `readFileLocations: false` outside local development. HTTP

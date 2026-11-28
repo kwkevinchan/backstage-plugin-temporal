@@ -15,8 +15,6 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { javascript } from '@codemirror/lang-javascript';
-import { python } from '@codemirror/lang-python';
 import { yaml } from '@codemirror/lang-yaml';
 import { syntaxHighlighting } from '@codemirror/language';
 import {
@@ -34,27 +32,7 @@ import {
   ViewUpdate,
 } from '@codemirror/view';
 import { classHighlighter } from '@lezer/highlight';
-import type { SourceLanguage } from '../../common/definition';
 import { tp } from '../styles';
-
-/** Syntax of the text: YAML, or the language of a source file. */
-export type CodeLanguage = 'yaml' | SourceLanguage;
-
-function languageExtension(language: CodeLanguage) {
-  switch (language) {
-    case 'yaml':
-      return yaml();
-    case 'typescript':
-      return javascript({ typescript: true });
-    case 'javascript':
-      return javascript();
-    case 'python':
-      return python();
-    default:
-      // Go, Java and other files are shown without colors.
-      return [];
-  }
-}
 
 /** Lines of a range, from 1. */
 export interface LineRange {
@@ -74,8 +52,6 @@ export interface YamlViewProps {
   onLineSelect(line: number): void;
   /** The line of a parse error. */
   errorLine?: number;
-  /** Syntax of the text; YAML by default. */
-  language?: CodeLanguage;
   /** Name of the text for assistive technology. */
   label?: string;
 }
@@ -242,7 +218,7 @@ export function YamlView(props: YamlViewProps) {
               },
             },
           }),
-          languageExtension(props.language ?? 'yaml'),
+          yaml(),
           syntaxHighlighting(classHighlighter),
           lineNumberAttributes,
           marks.current.of([]),

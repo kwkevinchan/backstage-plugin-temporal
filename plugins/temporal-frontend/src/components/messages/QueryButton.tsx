@@ -20,10 +20,10 @@ import { temporalWorkflowQueryPermission, WorkflowDetail } from '../../common';
 import { temporalApiRef } from '../../extensions';
 import {
   MessageDialog,
-  PermissionButton,
   refOf,
   useWorkflowMessageDefinitions,
 } from './MessageDialog';
+import { PermissionButton } from './shared';
 import { SchemaArgsField } from './SchemaArgsField';
 
 /**

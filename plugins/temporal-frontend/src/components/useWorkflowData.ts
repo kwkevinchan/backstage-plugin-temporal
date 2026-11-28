@@ -23,7 +23,11 @@ import type {
 } from '../common';
 import { temporalApiRef } from '../extensions';
 
-/** Milliseconds between automatic reloads of a running workflow. */
+/**
+ * Milliseconds between automatic reloads of a running workflow.
+ *
+ * @alpha
+ */
 export const AUTO_REFRESH_MS = 10_000;
 
 /**
@@ -76,8 +80,12 @@ function graphKey(ref: WorkflowRunRef, workflow: WorkflowDetail) {
   ]);
 }
 
-/** True while the page is shown: false in a background tab. */
-function usePageVisible(): boolean {
+/**
+ * True while the page is shown: false in a background tab.
+ *
+ * @alpha
+ */
+export function usePageVisible(): boolean {
   const [visible, setVisible] = useState(
     () => document.visibilityState !== 'hidden',
   );
