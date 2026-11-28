@@ -121,7 +121,7 @@ export class WorkflowQueries {
 
   /**
    * Describes a run without any entity check. Without `runId`, the latest
-   * run (for the resources of the permission framework).
+   * run.
    */
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.sources.checkNamespace(ref.namespace);

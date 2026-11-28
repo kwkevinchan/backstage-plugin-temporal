@@ -1096,8 +1096,10 @@ export default createApp({
 });
 ```
 
-The `workflowUrl` output of the Scaffolder actions still points to
-`/temporal`: the module builds it with that path.
+The `workflowUrl` output of the Scaffolder actions and the actions registry
+module points to `/temporal` by default. When the page is mounted elsewhere,
+set `temporal.pagePath` (for example `/pipelines`) and both modules build the
+link with that path.
 
 `api:temporal` takes its params as a callback; give it your own
 `TemporalApi` with

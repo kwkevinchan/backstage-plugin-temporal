@@ -201,7 +201,8 @@ export function readTemporalServiceOptions(
  *
  * To connect differently, for example with a client certificate, extend it
  * and override `getConnection` and `close`: `getClient` makes its clients on
- * `this.getConnection()`.
+ * `this.getConnection()`. An override of `close` should call `super.close()`,
+ * which also drops the clients made on the old connection.
  *
  * @public
  */

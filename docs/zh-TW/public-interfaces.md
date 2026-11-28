@@ -152,7 +152,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## 後端擴充
 
-![temporal-backend 內部，請求往下經過四層：routes（router.ts 是讀取和 Query；controlRoutes.ts 是操作，只在 temporal.control.enabled 為 true 時掛上）、access（TemporalAccessService，ref 是 temporalAccessServiceRef，搭配權限框架和 catalog）、services（WorkflowQueries 等查詢類別、WorkflowCommands），再經 TemporalService（temporalServiceRef，root scope）到 Temporal。左邊是外掛的模組：temporalControlExtensionPoint 把自訂操作接到操作路由，temporalLlmAdapterExtensionPoint 把 LLM 轉接器接到查詢，讓外掛讀出某個框架的模型呼叫和 tool call，你自己的路由使用 temporalAccessServiceRef，Zigflow 模組在 /api/temporal 下加一條路由，並經由 temporalAccessServiceRef 檢查讀取權限。右邊是其他後端程式：Scaffolder 模組以使用者身分呼叫 HTTP API，你的其他外掛依賴 temporalServiceRef，你為 temporalAccessServiceRef 或 temporalServiceRef 提供的 factory 會取代預設的。](images/backend-interfaces.svg)
+![temporal-backend 內部，請求往下經過四層：routes（router.ts 是讀取和 Query；controlRoutes.ts 是操作，只在 temporal.control.enabled 為 true 時掛上）、access（TemporalAccessService，ref 是 temporalAccessServiceRef，搭配權限框架和 catalog）、services（WorkflowQueries 等查詢類別、WorkflowCommands），再經 TemporalService（temporalServiceRef，root scope）到 Temporal。左邊是外掛的模組：temporalControlExtensionPoint 把自訂操作接到操作路由，你自己的路由使用 temporalAccessServiceRef，Zigflow 模組在 /api/temporal 下加一條路由，並經由 temporalAccessServiceRef 檢查讀取權限。右邊是其他後端程式：Scaffolder 模組以使用者身分呼叫 HTTP API，你的其他外掛依賴 temporalServiceRef，你為 temporalAccessServiceRef 或 temporalServiceRef 提供的 factory 會取代預設的。](images/backend-interfaces.svg)
 
 四個接口。其餘的類別由外掛自己建立，不匯出（見[不公開的部分](#不公開的部分)）。
 
@@ -653,7 +653,7 @@ export default createApp({
 });
 ```
 
-Scaffolder action 的 `workflowUrl` 輸出仍然指向 `/temporal`：模組是用這個路徑組出來的。
+Scaffolder action 和 actions registry 模組輸出的 `workflowUrl` 預設指向 `/temporal`。頁面掛在別的路徑時，設定 `temporal.pagePath`（例如 `/pipelines`），兩個模組就會用這個路徑組連結。
 
 `api:temporal` 的參數要用 callback 給；換成你自己的 `TemporalApi` 時寫 `params: defineParams => defineParams({ api: temporalApiRef, deps: {}, factory: () => myClient })`（[README](../../README.md#extending)）。
 
