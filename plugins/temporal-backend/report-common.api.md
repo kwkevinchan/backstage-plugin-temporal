@@ -454,7 +454,7 @@ export interface WorkflowGraphNode {
   internal?: boolean;
   // (undocumented)
   kind: WorkflowNodeKind;
-  // Warning: (ae-incompatible-release-tags) The symbol "llm" is marked as @public, but its signature references "WorkflowLlmSummary" which is marked as @alpha
+  // @alpha
   llm?: WorkflowLlmSummary;
   // (undocumented)
   maximumAttempts?: number;
@@ -466,7 +466,7 @@ export interface WorkflowGraphNode {
   status: WorkflowNodeStatus;
   stepId?: string;
   summary?: string;
-  // Warning: (ae-incompatible-release-tags) The symbol "tool" is marked as @public, but its signature references "WorkflowLlmToolLink" which is marked as @alpha
+  // @alpha
   tool?: WorkflowLlmToolLink;
   waitingFor?: string;
   workflow?: {
@@ -483,7 +483,7 @@ export interface WorkflowGraphResponse {
   currentDeadline?: WorkflowDeadline;
   // (undocumented)
   edges: WorkflowGraphEdge[];
-  // Warning: (ae-incompatible-release-tags) The symbol "eventGroups" is marked as @public, but its signature references "WorkflowEventGroup" which is marked as @alpha
+  // @alpha
   eventGroups?: WorkflowEventGroup[];
   eventGroupsTruncated?: boolean;
   // (undocumented)

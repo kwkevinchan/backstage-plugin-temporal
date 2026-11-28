@@ -42,7 +42,7 @@ import {
   isTemporalWorkflowEntity,
   TemporalWorkflowActionDef,
   createTemporalControlActionDef,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend';
+} from '@kwkevinchan/backstage-plugin-temporal';
 import { EntityTemporalDefinitionContent } from '@kwkevinchan/backstage-plugin-temporal-module-zigflow';
 import { CopyWorkflowIdAction } from '../temporal/CopyWorkflowIdAction';
 

@@ -98,6 +98,4 @@ export const temporalDefinitionContent: OverridableExtensionDefinition<{
     filter?: string | FilterPredicate | ((entity: Entity) => boolean);
   };
 }>;
-
-// (No @packageDocumentation comment for this package)
 ```

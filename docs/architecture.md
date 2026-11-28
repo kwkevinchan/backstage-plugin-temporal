@@ -16,7 +16,7 @@ contribute. For installation and configuration see the
 
 ## Packages
 
-![The packages: in the Backstage app, temporal-frontend with its two modules; in the Backstage backend, temporal-backend with its three modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
+![The packages: in the Backstage app, temporal with its two modules; in the Backstage backend, temporal-backend with its three modules. Each module depends on the core of its side only; the frontend talks to the backend over HTTP and carries its own copy of the shared definitions.](images/package-map.svg)
 
 All names carry the prefix `@kwkevinchan/backstage-plugin-`. Teal is the
 core, purple the optional modules. The [README](../README.md#packages) has
@@ -28,7 +28,7 @@ the table with the role of each package and
   catalog, and gives other backend code the shared Temporal client
   (`./node`), the extension points (`./alpha`) and the shared
   definitions (`./common`). One `backend.add()` installs all of it.
-- **Core, frontend** (`temporal-frontend`): the entity tab, the details page,
+- **Core, frontend** (`temporal`): the entity tab, the details page,
   the Temporal page and the buttons of the operations, for both frontend
   systems. It needs the backend.
 - **Zigflow** (`temporal-module-zigflow`, `temporal-backend-module-zigflow`): the
@@ -46,8 +46,8 @@ What works with what:
 | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `temporal-backend` only                                          | The API (reads, Query, operations unless `temporal.control.enabled` is false), the `TemporalWorkflow` kind, and the shared client and extension points for your own backend code.          |
 | `temporal-backend` in a backend without the catalog plugin       | The same without the kind: the backend skips the catalog module.                                                                                                                           |
-| `temporal-frontend` and `temporal-backend`                       | Every page of the plugin in both frontend systems; no Definition tab and no Scaffolder field.                                                                                              |
-| `temporal-frontend` without a reachable `temporal-backend`       | The pages load and show an error that names `@kwkevinchan/backstage-plugin-temporal-backend` (or the error of the request when the backend cannot be reached); nothing works.              |
+| `temporal` and `temporal-backend`                                | Every page of the plugin in both frontend systems; no Definition tab and no Scaffolder field.                                                                                              |
+| `temporal` without a reachable `temporal-backend`                | The pages load and show an error that names `@kwkevinchan/backstage-plugin-temporal-backend` (or the error of the request when the backend cannot be reached); nothing works.              |
 | Zigflow frontend module without the Zigflow backend module       | The Definition tab says that the backend serves no workflow definitions.                                                                                                                   |
 | Zigflow backend module without `temporal-backend` (same backend) | The backend skips the module; the route does not exist.                                                                                                                                    |
 | Scaffolder backend module                                        | The four actions, calling a reachable `temporal-backend` (possibly another backend) as the user. With the operations turned off there, `start`, `signal` and `update` fail with a message. |
@@ -75,7 +75,7 @@ The cost:
   checks it), but installing a module brings the whole backend package and
   its dependencies.
 - **The shared definitions exist twice.** A frontend plugin cannot import a
-  backend plugin, so `temporal-frontend` carries a copy of the definitions of
+  backend plugin, so `temporal` carries a copy of the definitions of
   `temporal-backend/src/common`. The copy is generated (`yarn sync:common`)
   and checked in CI, and both sides compare permissions, services and
   extension points by name or ID, so two copies of the objects do not break
@@ -157,19 +157,19 @@ render nothing when it is false, in both frontend systems. The screens use
 You can extend the plugin without changing it. The usage and examples are in
 [Extending](../README.md#extending); this table lists what exists.
 
-| You want to                                         | Use                                                                                                                                                                           | Where                                          |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Add a button to the details page                    | `TemporalWorkflowActionBlueprint` (new frontend system) or `workflowActions` (legacy)                                                                                         | `temporal-frontend/alpha`, `temporal-frontend` |
-| Add a tab to the details page                       | `TemporalWorkflowSectionBlueprint` or `workflowSections`                                                                                                                      | `temporal-frontend/alpha`, `temporal-frontend` |
-| Add a control above the workflow lists              | `TemporalWorkflowListActionBlueprint` or `workflowListActions`                                                                                                                | `temporal-frontend/alpha`, `temporal-frontend` |
-| Call the plugin from another plugin                 | `temporalApiRef`                                                                                                                                                              | `temporal-frontend`                            |
-| Call Temporal from other backend code               | `temporalServiceRef` (`getClient()`)                                                                                                                                          | `temporal-backend/node`                        |
-| Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                       |
-| Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal-frontend` (`/alpha`)                 |
-| Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                       |
-| Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                        |
-| Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                       |
-| Restrict who may do what                            | A Backstage permission policy using the permissions and conditions of the plugin                                                                                              | [Permissions](../README.md#permissions)        |
+| You want to                                         | Use                                                                                                                                                                           | Where                                   |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| Add a button to the details page                    | `TemporalWorkflowActionBlueprint` (new frontend system) or `workflowActions` (legacy)                                                                                         | `temporal/alpha`, `temporal`            |
+| Add a tab to the details page                       | `TemporalWorkflowSectionBlueprint` or `workflowSections`                                                                                                                      | `temporal/alpha`, `temporal`            |
+| Add a control above the workflow lists              | `TemporalWorkflowListActionBlueprint` or `workflowListActions`                                                                                                                | `temporal/alpha`, `temporal`            |
+| Call the plugin from another plugin                 | `temporalApiRef`                                                                                                                                                              | `temporal`                              |
+| Call Temporal from other backend code               | `temporalServiceRef` (`getClient()`)                                                                                                                                          | `temporal-backend/node`                 |
+| Add a backend action that changes a workflow        | `temporalControlExtensionPoint.addControlAction()`; served as `POST …/actions/:actionId` with the same access check, its permission, an optional `filter` and an audit record | `temporal-backend/alpha`                |
+| Show a backend action as a button                   | `TemporalControlActionBlueprint` or `createTemporalControlActionDef()`                                                                                                        | `temporal` (`/alpha`)                   |
+| Reuse the plugin's access checks in your own routes | `temporalAccessServiceRef` (`loadWorkflow()`, `authorizeOn()`)                                                                                                                | `temporal-backend/alpha`                |
+| Decide access in another way                        | Add your own factory for `temporalAccessServiceRef`; the default factory is then skipped                                                                                      | backend                                 |
+| Add permission rules for workflows                  | `permissionsRegistry.addPermissionRules` with `temporalWorkflowPermissionResourceRef`                                                                                         | `temporal-backend/alpha`                |
+| Restrict who may do what                            | A Backstage permission policy using the permissions and conditions of the plugin                                                                                              | [Permissions](../README.md#permissions) |
 
 A custom action receives a Temporal client that carries the backend's connection
 and its credentials: it reaches every workflow of the namespace, and any other
@@ -194,7 +194,7 @@ false` removes the routes that change workflows (404, not 403) and their
 - **Shared definitions: the backend has the original, the frontend a copy.**
   Frontend and backend must agree on types, permission names and paths.
   `temporal-backend/src/common` is the single source, tested against a
-  fixture; `temporal-frontend/src/common` is generated from it and checked in
+  fixture; `temporal/src/common` is generated from it and checked in
   CI.
 - **No database in the plugin.** Temporal already is the system of record. The
   plugin queries it each time and keeps only a small in-memory cache (progress of

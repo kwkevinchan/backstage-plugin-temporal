@@ -27,7 +27,7 @@
  * after the license header. Tests (`*.test.ts`) stay in the backend. The
  * pairs:
  *
- *   plugins/temporal-backend/src/common → plugins/temporal-frontend/src/common
+ *   plugins/temporal-backend/src/common → plugins/temporal/src/common
  *   plugins/temporal-backend-module-zigflow/src/common → plugins/temporal-module-zigflow/src/common
  *
  * Usage:
@@ -48,10 +48,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PAIRS = [
-  [
-    'plugins/temporal-backend/src/common',
-    'plugins/temporal-frontend/src/common',
-  ],
+  ['plugins/temporal-backend/src/common', 'plugins/temporal/src/common'],
   [
     'plugins/temporal-backend-module-zigflow/src/common',
     'plugins/temporal-module-zigflow/src/common',

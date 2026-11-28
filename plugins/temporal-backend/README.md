@@ -16,7 +16,7 @@ The core of the plugin, for the Backstage backend:
   for modules, and the permissions and types.
 
 The frontend plugin
-[`@kwkevinchan/backstage-plugin-temporal-frontend`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal-frontend)
+[`@kwkevinchan/backstage-plugin-temporal`](https://github.com/kwkevinchan/backstage-plugin-temporal/tree/main/plugins/temporal)
 uses the API and does not work without this package; this package works
 without the frontend.
 

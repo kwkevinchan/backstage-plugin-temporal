@@ -1,7 +1,7 @@
 # @kwkevinchan/backstage-plugin-temporal-module-zigflow
 
 Unofficial module of the Backstage Temporal plugin
-([`@kwkevinchan/backstage-plugin-temporal-frontend`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal-frontend/README.md)) with the
+([`@kwkevinchan/backstage-plugin-temporal`](https://github.com/kwkevinchan/backstage-plugin-temporal/blob/main/plugins/temporal/README.md)) with the
 **Definition** tab for workflows written in the Serverless Workflow DSL and
 run by [Zigflow](https://github.com/zigflow/zigflow). It reads the
 definitions through the backend module
@@ -50,7 +50,7 @@ yarn --cwd packages/app add @kwkevinchan/backstage-plugin-temporal-module-zigflo
 ```
 
 ```tsx
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 import temporalZigflowModule from '@kwkevinchan/backstage-plugin-temporal-module-zigflow/alpha';
 
 export default createApp({

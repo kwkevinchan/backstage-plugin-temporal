@@ -3,7 +3,7 @@
 | Folder                                                                     | Package                                                            | Runs in           |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------- |
 | [`temporal-backend`](temporal-backend)                                     | `@kwkevinchan/backstage-plugin-temporal-backend`                   | Backstage backend |
-| [`temporal-frontend`](temporal-frontend)                                   | `@kwkevinchan/backstage-plugin-temporal-frontend`                  | Backstage app     |
+| [`temporal`](temporal)                                                     | `@kwkevinchan/backstage-plugin-temporal`                           | Backstage app     |
 | [`temporal-backend-module-zigflow`](temporal-backend-module-zigflow)       | `@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`    | Backstage backend |
 | [`temporal-module-zigflow`](temporal-module-zigflow)                       | `@kwkevinchan/backstage-plugin-temporal-module-zigflow`            | Backstage app     |
 | [`temporal-backend-module-actions`](temporal-backend-module-actions)       | `@kwkevinchan/backstage-plugin-temporal-backend-module-actions`    | Backstage backend |

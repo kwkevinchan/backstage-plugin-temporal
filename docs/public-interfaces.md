@@ -38,11 +38,11 @@ links to it instead of repeating it. For the layers behind the interfaces see
 Every exported name carries a release tag in its doc comment, and the
 [API reports](#keeping-this-guide-true) show it on each line:
 
-| Tag          | Meaning                                                                                                                                                                                                                                                        |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                                                                                              |
-| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui` (it breaks only in a minor version, see [`temporal-frontend`](#temporal-frontend)), and `./common` has 13 of them (the experimental names). |
-| Experimental | The model call types and Event Groups. They will change substantially before the first release; see [Experimental](#experimental-model-calls-and-event-groups). Do not build on them.                                                                          |
+| Tag          | Meaning                                                                                                                                                                                                                                      |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@public`    | Part of the supported API. Until `1.0.0` a minor version may still change it, and the changelog says so ([README](../README.md)).                                                                                                            |
+| `@alpha`     | Usable, with no compatibility promise between versions. The `./alpha` entry points hold only these; so does `./ui` (it breaks only in a minor version, see [`temporal`](#temporal)), and `./common` has 13 of them (the experimental names). |
+| Experimental | The model call types and Event Groups. They can change in a minor version; see [Experimental](#experimental-model-calls-and-event-groups). Do not build on them.                                                                             |
 
 The HTTP API, the permissions, the configuration keys, the annotations, the
 kind and the search attributes have no tag of their own: they follow the
@@ -51,7 +51,7 @@ experimental routes and key.
 
 ## Where the interfaces are
 
-![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal-frontend (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins, the Scaffolder module and the actions module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind, and the plugin reads that kind and the annotations of entities (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
+![Where the interfaces of the plugin are. In the Backstage app, your app and plugins use the npm entry points of temporal (1) and its extensions: blueprints, props and temporalApiRef (2). The browser, other backend plugins, the Scaffolder module and the actions module call the HTTP API under /api/temporal (3). In the Backstage backend, your modules use the extension points and service refs (4), your permission policy the permissions and conditions (5), the catalog gets the TemporalWorkflow kind, and the plugin reads that kind and the annotations of entities (6), and app-config holds the temporal keys (7). The backend reaches Temporal with @temporalio/client and writes search attributes, the identity and audit events (8). Workers run your workflow code.](images/interfaces-overview.svg)
 
 Each number is one kind of interface; the sections below follow them.
 Teal is what the frontend uses, orange what backend code uses, purple
@@ -72,7 +72,7 @@ what crosses a process boundary (HTTP, Temporal).
 
 ## npm entry points
 
-![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 17 alpha (report-alpha.api.md), ./node 12 public (report-node.api.md), ./common 110, of which 97 public and 13 experimental alpha (report-common.api.md). temporal-frontend: . 22 public, ./alpha 6 alpha, ./common the same 110, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
+![The seven published packages and their entry points, with the number of names, the release tag and the API report file of each. temporal-backend: . 3 public (report.api.md), ./alpha 17 alpha (report-alpha.api.md), ./node 12 public (report-node.api.md), ./common 110, of which 97 public and 13 experimental alpha (report-common.api.md). temporal: . 22 public, ./alpha 6 alpha, ./common the same 110, ./ui 26 alpha, for companion packages only (report-ui.api.md). temporal-backend-module-zigflow: . 1 public. temporal-module-zigflow: . 1 public, ./alpha 2 alpha. temporal-backend-module-actions: . 1 public. scaffolder-backend-module-temporal: . 1 public. scaffolder-module-temporal: . 2 public, ./alpha 2 alpha.](images/entry-points.svg)
 
 All package names start with `@kwkevinchan/backstage-plugin-`. The full,
 generated list of each entry point is its API report (the last column);
@@ -84,10 +84,10 @@ the tables below say what each name is for.
 |                                      | `./node`   |    12 | `@public`                 | Other backend code that needs Temporal                | [`report-node.api.md`](../plugins/temporal-backend/report-node.api.md)             |
 |                                      | `./alpha`  |    17 | `@alpha`                  | Backend modules and permission policies               | [`report-alpha.api.md`](../plugins/temporal-backend/report-alpha.api.md)           |
 |                                      | `./common` |   110 | `@public` 97, `@alpha` 13 | Types, paths, permissions, annotations (backend code) | [`report-common.api.md`](../plugins/temporal-backend/report-common.api.md)         |
-| `temporal-frontend`                  | `.`        |    22 | `@public`                 | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal-frontend/report.api.md)                      |
-|                                      | `./alpha`  |     6 | `@alpha`                  | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal-frontend/report-alpha.api.md)          |
-|                                      | `./common` |   110 | `@public` 97, `@alpha` 13 | The same definitions, for frontend code               | [`report-common.api.md`](../plugins/temporal-frontend/report-common.api.md)        |
-|                                      | `./ui`     |    26 | `@alpha`                  | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal-frontend/report-ui.api.md)                |
+| `temporal`                           | `.`        |    22 | `@public`                 | Legacy frontend system, and types for extensions      | [`report.api.md`](../plugins/temporal/report.api.md)                               |
+|                                      | `./alpha`  |     6 | `@alpha`                  | New frontend system: the plugin and the blueprints    | [`report-alpha.api.md`](../plugins/temporal/report-alpha.api.md)                   |
+|                                      | `./common` |   110 | `@public` 97, `@alpha` 13 | The same definitions, for frontend code               | [`report-common.api.md`](../plugins/temporal/report-common.api.md)                 |
+|                                      | `./ui`     |    26 | `@alpha`                  | Companion packages of this repository only            | [`report-ui.api.md`](../plugins/temporal/report-ui.api.md)                         |
 | `temporal-backend-module-zigflow`    | `.`        |     1 | `@public`                 | Installing the module                                 | [`report.api.md`](../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |     1 | `@public`                 | Legacy frontend system                                | [`report.api.md`](../plugins/temporal-module-zigflow/report.api.md)                |
 |                                      | `./alpha`  |     2 | `@alpha`                  | New frontend system                                   | [`report-alpha.api.md`](../plugins/temporal-module-zigflow/report-alpha.api.md)    |
@@ -148,7 +148,7 @@ The 110 names in groups. Every name is in the
 `{ encoding, size, undecodable: true, metadata? }` and
 `{ encoding, external }`); later versions only add optional fields.
 
-### `temporal-frontend`
+### `temporal`
 
 | Name                                                                                                                                                                              | Entry     | What it is                                                                        | Use it when                                                 |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -676,7 +676,7 @@ the name required by the Backstage permission framework.
 
 All keys are under `temporal`. The schemas are the `config.d.ts` of four
 packages: [`temporal-backend`](../plugins/temporal-backend/config.d.ts) (core
-keys below), [`temporal-frontend`](../plugins/temporal-frontend/config.d.ts)
+keys below), [`temporal`](../plugins/temporal/config.d.ts)
 (the keys the browser sees),
 [`temporal-backend-module-zigflow`](../plugins/temporal-backend-module-zigflow/config.d.ts)
 (`definitions.*`) and
@@ -919,8 +919,8 @@ released together and the route is for the tab only.
 
 ## Experimental: model calls and event groups
 
-> **Experimental. These will change substantially before the first
-> release. Do not depend on them.**
+> **Experimental. These can change in a minor version. Do not depend on
+> them.**
 
 - the model calls and tool calls: always on. The route
   `GET /:wf/llm-calls/:eventId`, the `TemporalApi` method `getLlmCall`
@@ -958,7 +958,7 @@ backend.add(
 App, new frontend system:
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 import temporalZigflowModule from '@kwkevinchan/backstage-plugin-temporal-module-zigflow/alpha';
 
 export default createApp({
@@ -1007,8 +1007,8 @@ and the app shows it as a button, in the new system:
 
 ```ts
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
-import { TemporalControlActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
-import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+import { TemporalControlActionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import { temporalWorkflowUpdatePermission } from '@kwkevinchan/backstage-plugin-temporal/common';
 
 const escalateButton = TemporalControlActionBlueprint.make({
   name: 'escalate',
@@ -1050,8 +1050,8 @@ The development backend has a fuller one
 ```tsx
 import { createFrontendModule } from '@backstage/frontend-plugin-api';
 import { Text } from '@backstage/ui';
-import { TemporalWorkflowSectionBlueprint } from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { TemporalWorkflowSectionBlueprint } from '@kwkevinchan/backstage-plugin-temporal/alpha';
+import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal';
 
 export function OwnerSection(props: TemporalWorkflowExtensionProps) {
   const owner = props.entity?.spec?.owner;
@@ -1081,7 +1081,7 @@ the Temporal page, which has no entity, it shows "unknown".
 ### Override an extension
 
 ```ts
-import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal-frontend/alpha';
+import temporalPlugin from '@kwkevinchan/backstage-plugin-temporal/alpha';
 
 export default createApp({
   features: [
@@ -1250,7 +1250,7 @@ Questions that come up, and what to use instead:
 | `temporalWorkflowExtensionsApiRef`, `TemporalWorkflowExtensionsApi`          | The collection of blueprints is an implementation detail             | The blueprints; disable `api:temporal/workflow-extensions` to remove every extension             |
 | The plugin's extensions by name (`temporalPage`, …)                          | Exported extensions would freeze their params                        | `getExtension(id)` and `withOverrides()` ([IDs](#extension-ids))                                 |
 | The Zigflow types (`WorkflowDefinitionResponse`, …)                          | The route serves only the Definition tab                             | The Definition tab                                                                               |
-| A frontend import of `@kwkevinchan/backstage-plugin-temporal-backend/common` | A frontend plugin must not import a backend plugin                   | `@kwkevinchan/backstage-plugin-temporal-frontend/common`, the same definitions                   |
+| A frontend import of `@kwkevinchan/backstage-plugin-temporal-backend/common` | A frontend plugin must not import a backend plugin                   | `@kwkevinchan/backstage-plugin-temporal/common`, the same definitions                            |
 | `./ui` components in your own plugin                                         | Made for the Zigflow module, `@alpha`                                | `@backstage/ui`                                                                                  |
 
 ## Keeping this guide true
@@ -1276,12 +1276,13 @@ this guide in the same pull request when the change adds, removes or
 renames a name listed here.
 
 Some reports carry warnings that API Extractor writes into them
-(`// Warning: ...`), allowed for `temporal-backend` and `temporal-frontend`
-(`--allow-warnings`); a new warning still shows up in the report diff. Most
-are expected: a type of one entry point that names a type of another entry
+(`// Warning: ...`), allowed for `temporal-backend` and `temporal`
+(`--allow-warnings`); a new warning still shows up in the report diff. Every
+one of them is a type of one entry point that names a type of another entry
 point of the same package (for example `TemporalApi` and the response types
-of `./common`), which this repository does not export twice. The others are
-the experimental fields of the graph types (`@public` types that reference
-`@alpha` ones), which change with the experimental views.
+of `./common`), which this repository does not export twice. The three
+experimental fields of the graph types (`WorkflowGraphNode.llm` and `.tool`,
+`WorkflowGraphResponse.eventGroups`) are marked `@alpha`: they can change in
+a minor version.
 
 Back to [the documentation index](README.md).

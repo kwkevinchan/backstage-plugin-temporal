@@ -16,7 +16,7 @@
 
 // The rule of the core plugin is not public, so the test reads it from its source.
 // eslint-disable-next-line @backstage/no-relative-monorepo-imports
-import { hasErrorBody as coreHasErrorBody } from '../../temporal-frontend/src/common/errorBody';
+import { hasErrorBody as coreHasErrorBody } from '../../temporal/src/common/errorBody';
 import {
   hasErrorBody,
   loadEntityDefinition,

@@ -40,7 +40,7 @@ import {
   isActiveStatus,
   statusLabel,
   statusTone,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import { tp } from '../styles';
 
 import type { DefinitionGraphNode, DefinitionNodeKind } from './dslGraph';

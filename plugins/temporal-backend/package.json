@@ -50,8 +50,8 @@
     "role": "backend-plugin",
     "pluginId": "temporal",
     "pluginPackages": [
-      "@kwkevinchan/backstage-plugin-temporal-backend",
-      "@kwkevinchan/backstage-plugin-temporal-frontend"
+      "@kwkevinchan/backstage-plugin-temporal",
+      "@kwkevinchan/backstage-plugin-temporal-backend"
     ]
   },
   "scripts": {

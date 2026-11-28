@@ -4,7 +4,7 @@
 
 ```ts
 import { FieldExtensionComponent } from '@backstage/plugin-scaffolder-react';
-import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+import type { WorkflowStatus } from '@kwkevinchan/backstage-plugin-temporal/common';
 
 // @public
 export const TemporalWorkflowPickerFieldExtension: FieldExtensionComponent<
@@ -20,6 +20,4 @@ export type TemporalWorkflowPickerUiOptions = {
   status?: WorkflowStatus | 'any';
   searchAttribute?: string;
 };
-
-// (No @packageDocumentation comment for this package)
 ```

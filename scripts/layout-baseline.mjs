@@ -16,7 +16,7 @@
  */
 
 /**
- * Writes `plugins/temporal-frontend/src/components/graph/layoutBaseline.ts`:
+ * Writes `plugins/temporal/src/components/graph/layoutBaseline.ts`:
  * layouts produced by running `layoutSteps` from commit 58296d1 (before the
  * frames of the event groups) against the currently installed `@dagrejs/dagre`
  * and current `../steps`, for the test that graphs without frames are laid
@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 
 const COMMIT = '58296d1';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const graphDir = join(root, 'plugins/temporal-frontend/src/components/graph');
+const graphDir = join(root, 'plugins/temporal/src/components/graph');
 const require = createRequire(import.meta.url);
 require('@backstage/cli/config/nodeTransform.cjs');
 const prettier = require('prettier');
@@ -48,6 +48,7 @@ writeFileSync(
     'git',
     [
       'show',
+      // The package was in plugins/temporal-frontend at that commit.
       `${COMMIT}:plugins/temporal-frontend/src/components/graph/layout.ts`,
     ],
     { cwd: root },

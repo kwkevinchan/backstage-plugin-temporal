@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+import { createBackendFeatureLoader } from '@backstage/backend-plugin-api';
+import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
+import { catalogModuleTemporalWorkflowKind } from './catalog';
+import { temporalPlugin } from './plugin';
+
 /**
  * Unofficial Backstage backend plugin for Temporal workflows.
  *
@@ -30,11 +35,6 @@
  *
  * @packageDocumentation
  */
-
-import { createBackendFeatureLoader } from '@backstage/backend-plugin-api';
-import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
-import { catalogModuleTemporalWorkflowKind } from './catalog';
-import { temporalPlugin } from './plugin';
 
 export { temporalPlugin } from './plugin';
 export { catalogModuleTemporalWorkflowKind } from './catalog';

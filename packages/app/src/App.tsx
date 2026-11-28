@@ -32,7 +32,7 @@ import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
 import {
   TemporalPage,
   temporalPlugin,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend';
+} from '@kwkevinchan/backstage-plugin-temporal';
 import { apis } from './apis';
 import { temporalWorkflowActions } from './components/catalog/EntityPage';
 import { entityPage } from './components/catalog/EntityPage';

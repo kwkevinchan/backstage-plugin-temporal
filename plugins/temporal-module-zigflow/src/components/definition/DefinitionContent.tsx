@@ -41,13 +41,13 @@ import {
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { Alert, ButtonLink, Flex, Link, Select, Text } from '@backstage/ui';
 import { RiExternalLinkLine } from '@remixicon/react';
-import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal-frontend';
+import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
 import {
   getTemporalWorkflowDefinitionSpec,
   getTemporalWorkflowSource,
   isTemporalWorkflowEntity,
   WorkflowSummary,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
+} from '@kwkevinchan/backstage-plugin-temporal/common';
 import {
   AUTO_REFRESH_MS,
   DefinitionList,
@@ -59,7 +59,7 @@ import {
   statusLabel,
   usePageVisible,
   workflowLink,
-} from '@kwkevinchan/backstage-plugin-temporal-frontend/ui';
+} from '@kwkevinchan/backstage-plugin-temporal/ui';
 import {
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
