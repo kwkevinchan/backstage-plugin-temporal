@@ -39,6 +39,7 @@ import {
   WorkflowStatus,
   WORKFLOWS_PATH,
 } from '../common';
+import { hasErrorBody } from '../common/errorBody';
 
 /**
  * The message of a 404 without an error body from a route that changes
@@ -80,16 +81,6 @@ export function continuedAsNewRunIdOf(error: unknown): string | undefined {
   const runId = (error.body.error as { continuedAsNewRunId?: unknown })
     .continuedAsNewRunId;
   return typeof runId === 'string' && runId ? runId : undefined;
-}
-
-/** True when a response carries a Backstage error body (`{ error }`). */
-async function hasErrorBody(response: Response): Promise<boolean> {
-  try {
-    const body = JSON.parse(await response.text());
-    return typeof body?.error?.name === 'string';
-  } catch {
-    return false;
-  }
 }
 
 /**

@@ -33,7 +33,7 @@ import { STEP_KINDS as BACKEND_STEP_KINDS } from '../../temporal-backend/src/ser
 import {
   FAILED_STATUSES,
   OPEN_STATUSES,
-} from '../../temporal-backend/src/services/stepStatus';
+} from '../../temporal-backend/src/common/stepRules';
 
 /** What the client throws when the Temporal backend serves no operations. */
 const CONTROL_DISABLED_MESSAGE =

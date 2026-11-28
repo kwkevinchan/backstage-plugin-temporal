@@ -22,6 +22,7 @@ import {
 } from '../common';
 import { decodePayloads } from './convert';
 import { buildWorkflowGraphWithLlm } from './graph';
+import { FAILURE_DETAIL_LEVELS } from './llm/llm';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
 
 /**
@@ -38,7 +39,11 @@ function readState(roots: unknown[]): {
       const decoded = decodePayloads(root);
       candidates.push(...(Array.isArray(decoded) ? decoded : [decoded]));
     }
-    for (let f = root, depth = 0; f && depth < 5; f = f.cause, depth++) {
+    for (
+      let f = root, depth = 0;
+      f && depth < FAILURE_DETAIL_LEVELS;
+      f = f.cause, depth++
+    ) {
       const details = decodePayloads(f.applicationFailureInfo?.details);
       if (Array.isArray(details)) candidates.push(...details);
       else if (details !== undefined) candidates.push(details);
@@ -121,37 +126,7 @@ export class AiWorkflowQueries {
       ref,
       MAX_STEP_EVENTS,
     );
-    let result: unknown;
-    const failures: unknown[] = [];
-    for (const event of events as any[]) {
-      const completed = event.activityTaskCompletedEventAttributes;
-      if (
-        completed?.result &&
-        String(completed.scheduledEventId) === scheduledEventId
-      ) {
-        result = completed.result;
-      }
-      const started = event.activityTaskStartedEventAttributes;
-      if (
-        started?.lastFailure &&
-        String(started.scheduledEventId) === scheduledEventId
-      ) {
-        failures.push(started.lastFailure);
-      }
-      for (const key of [
-        'activityTaskFailedEventAttributes',
-        'activityTaskTimedOutEventAttributes',
-      ]) {
-        const closed = event[key];
-        if (
-          closed?.failure &&
-          String(closed.scheduledEventId) === scheduledEventId
-        ) {
-          failures.push(closed.failure);
-        }
-      }
-    }
-    const { graph, llm } = buildWorkflowGraphWithLlm(events, {
+    const { graph, llm, llmEntries } = buildWorkflowGraphWithLlm(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
       status: workflow.status,
@@ -170,6 +145,11 @@ export class AiWorkflowQueries {
       throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
     }
     const { call } = read;
+    // The payloads the adapters read: the result, or the failures of the
+    // attempts, newest first.
+    const entry = llmEntries.find(e => e.node.id === nodeId);
+    const result = entry?.result;
+    const failures = entry?.failures ?? [];
     const response: WorkflowLlmCallResponse = {
       nodeId,
       activityId: node.stepId ?? '',

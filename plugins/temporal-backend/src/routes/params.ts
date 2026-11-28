@@ -28,13 +28,11 @@ import {
   WorkflowRunRef,
   WorkflowUpdateRequest,
 } from '../common';
+import { MAX_MESSAGE_NAME_LENGTH } from '../common/namePatterns';
 import { normalizeEntityRef } from '../access/DefaultTemporalAccessService';
 import { Request } from 'express';
 
 // Parsing and validation of request parameters, shared by the routes.
-
-/** Longest signal, update or query name accepted. */
-const MAX_CONTROL_NAME_LENGTH = 200;
 
 /** Longest update ID accepted. */
 const MAX_UPDATE_ID_LENGTH = 200;
@@ -151,9 +149,9 @@ export function parseMessageBody(req: Request): WorkflowMessageRequest {
   if (typeof name !== 'string' || !name.trim()) {
     throw new InputError('name is required');
   }
-  if (name.length > MAX_CONTROL_NAME_LENGTH) {
+  if (name.length > MAX_MESSAGE_NAME_LENGTH) {
     throw new InputError(
-      `name must be at most ${MAX_CONTROL_NAME_LENGTH} characters`,
+      `name must be at most ${MAX_MESSAGE_NAME_LENGTH} characters`,
     );
   }
   return { name: name.trim(), args: parseArgs(args) };

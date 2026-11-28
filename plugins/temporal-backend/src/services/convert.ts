@@ -286,7 +286,11 @@ const FAILURE_KINDS: Record<string, string> = {
   nexusOperationExecutionFailureInfo: 'NexusOperationFailure',
 };
 
-const MAX_CAUSE_DEPTH = 20;
+/**
+ * Causes read below a failure: a failure is shown with at most this many
+ * causes, and the graph looks this deep for the step a run failed at.
+ */
+export const MAX_CAUSE_DEPTH = 20;
 
 /** Converts a `Failure` message (JSON form), keeping the cause chain. */
 export function toWorkflowFailure(

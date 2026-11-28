@@ -24,6 +24,7 @@ jest.mock('./graph', () => {
 });
 
 import { NotFoundError } from '@backstage/errors';
+import { memoryS3, storeExternally } from '../__testUtils__/externalStorage';
 import { WorkflowDetail } from '../common';
 import { AiWorkflowQueries } from './AiWorkflowQueries';
 import { buildWorkflowGraphWithLlm } from './graph';
@@ -116,6 +117,62 @@ describe('AiWorkflowQueries', () => {
         `Model call 1 was not found within the first ${MAX_STEP_EVENTS} history events of this run; the history was truncated`,
       ),
     );
+  });
+
+  it('says where the failure of the latest attempt is stored, like the graph', async () => {
+    const s3 = memoryS3();
+    const earlier = await storeExternally(s3, { attempt: 1 });
+    const latest = await storeExternally(s3, { attempt: 2 });
+    const plain = (value: unknown) => ({
+      metadata: { encoding: Buffer.from('json/plain').toString('base64') },
+      data: Buffer.from(JSON.stringify(value)).toString('base64'),
+    });
+    const failure = (message: string, payload: unknown) => ({
+      message,
+      applicationFailureInfo: { details: { payloads: [payload] } },
+    });
+    const readEvents = jest.fn(async () => ({
+      events: [
+        { eventId: '1', workflowExecutionStartedEventAttributes: {} },
+        {
+          eventId: '2',
+          activityTaskScheduledEventAttributes: {
+            activityId: 'model',
+            activityType: { name: 'invokeModel' },
+            input: {
+              payloads: [
+                plain({
+                  modelId: 'gpt-small',
+                  options: { prompt: [{ role: 'user', content: [] }] },
+                }),
+              ],
+            },
+          },
+        },
+        {
+          eventId: '3',
+          activityTaskStartedEventAttributes: {
+            scheduledEventId: '2',
+            attempt: 2,
+            lastFailure: failure('attempt 1', earlier.payload),
+          },
+        },
+        {
+          eventId: '4',
+          activityTaskFailedEventAttributes: {
+            scheduledEventId: '2',
+            failure: failure('attempt 2', latest.payload),
+          },
+        },
+      ],
+      truncated: false,
+    }));
+    const ai = new AiWorkflowQueries(makeQueries(readEvents));
+
+    const response = await ai.llmCall({ ...workflow, status: 'Failed' }, '2');
+
+    expect(response.record).toBeUndefined();
+    expect(response.external).toMatchObject({ key: latest.key });
   });
 
   it('reports ordinary NotFoundError when history is not truncated', async () => {

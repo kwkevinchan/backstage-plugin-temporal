@@ -24,7 +24,8 @@ import type {
   WorkflowStatus,
 } from '../common';
 import { decodePayload, dropUndefined, summaryText } from './convert';
-import { FAILED_STATUSES, stepsStatus } from './stepStatus';
+import { CLOSED_WITH_FAILURE, FAILED_STATUSES } from '../common/stepRules';
+import { stepsStatus } from './stepStatus';
 
 /*
  * Temporal Event Groups in the graph. The history keeps the groups of a
@@ -173,13 +174,6 @@ export function inferEventGroupParents(
 /** A graph node while the graph is built: `last` is unset while it runs. */
 type EventGroupNode = WorkflowGraphNode & { last?: number };
 
-/** Run statuses after which a group left open failed. */
-const FAILED_RUNS = new Set<WorkflowStatus>([
-  'Failed',
-  'TimedOut',
-  'Terminated',
-]);
-
 /** How the run stands, for groups whose steps did not all end. */
 interface EventGroupRun {
   /** Status of the run from describe. */
@@ -192,7 +186,7 @@ interface EventGroupRun {
 
 /** Run statuses that are final: a step left open will not end any more. */
 const ENDED_RUNS = new Set<WorkflowStatus>([
-  ...FAILED_RUNS,
+  ...CLOSED_WITH_FAILURE,
   'Completed',
   'Canceled',
   'ContinuedAsNew',
@@ -215,7 +209,7 @@ function eventGroupStatus(
     return status;
   }
   if (steps.some(s => FAILED_STATUSES.has(s.status))) return 'Failed';
-  return FAILED_RUNS.has(run.status) ? 'Failed' : 'Canceled';
+  return CLOSED_WITH_FAILURE.includes(run.status) ? 'Failed' : 'Canceled';
 }
 
 interface Draft {

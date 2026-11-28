@@ -20,6 +20,11 @@ import type {
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
 } from './controls';
+import { isJsonObject } from './json';
+import {
+  MAX_MESSAGE_NAME_LENGTH,
+  USER_FIELD_PATTERN_SOURCE,
+} from './namePatterns';
 
 /**
  * How a `TemporalWorkflow` entity describes one signal, update or query of
@@ -62,26 +67,25 @@ export type TemporalWorkflowMessagesSpec = {
 
 const KINDS = ['signals', 'updates', 'queries'] as const;
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
+const USER_FIELD_PATTERN = new RegExp(USER_FIELD_PATTERN_SOURCE);
 
 function readMessage(value: unknown): WorkflowMessageDefinition | undefined {
-  if (!isObject(value)) return undefined;
+  if (!isJsonObject(value)) return undefined;
   const { name, description, inputSchema, example, userField } = value;
-  if (typeof name !== 'string' || !name.trim() || name.length > 200) {
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    name.length > MAX_MESSAGE_NAME_LENGTH
+  ) {
     return undefined;
   }
   const definition: WorkflowMessageDefinition = { name: name.trim() };
   if (typeof description === 'string' && description.trim()) {
     definition.description = description.trim();
   }
-  if (isObject(inputSchema)) definition.inputSchema = inputSchema as JsonObject;
-  if (example !== undefined) definition.example = example as JsonValue;
-  if (
-    typeof userField === 'string' &&
-    /^[A-Za-z_$][\w$]{0,99}$/.test(userField)
-  ) {
+  if (isJsonObject(inputSchema)) definition.inputSchema = inputSchema;
+  if (example !== undefined) definition.example = example;
+  if (typeof userField === 'string' && USER_FIELD_PATTERN.test(userField)) {
     definition.userField = userField;
   }
   return definition;
@@ -108,7 +112,7 @@ export function getTemporalWorkflowMessages(
   }
   const messages = (entity.spec as { messages?: unknown } | undefined)
     ?.messages;
-  if (!isObject(messages)) return result;
+  if (!isJsonObject(messages)) return result;
   for (const kind of KINDS) {
     const list = messages[kind];
     if (!Array.isArray(list)) continue;

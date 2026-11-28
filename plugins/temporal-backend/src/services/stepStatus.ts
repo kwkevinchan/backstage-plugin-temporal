@@ -15,24 +15,7 @@
  */
 
 import type { WorkflowNodeStatus } from '../common';
-
-/* Statuses of the steps of a graph, shared by the graph and groups. */
-
-/** Statuses of a step that has not ended. */
-export const OPEN_STATUSES = new Set<WorkflowNodeStatus>([
-  'Scheduled',
-  'Running',
-  'Retrying',
-  'Waiting',
-]);
-
-/** Statuses of a step that failed. */
-export const FAILED_STATUSES = new Set<WorkflowNodeStatus>([
-  'Failed',
-  'TimedOut',
-  'Terminated',
-  'Rejected',
-]);
+import { FAILED_STATUSES, OPEN_STATUSES } from '../common/stepRules';
 
 /** A step while the graph is built: `last` is unset while it is open. */
 interface StatusStep {

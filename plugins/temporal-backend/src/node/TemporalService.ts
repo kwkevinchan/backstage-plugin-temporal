@@ -27,6 +27,7 @@ import {
   WorkflowRef,
 } from '../common';
 import { Client, Connection } from '@temporalio/client';
+import { SEARCH_ATTRIBUTE_NAME } from '../common/namePatterns';
 
 /**
  * Names of the custom search attributes the plugin knows about.
@@ -100,8 +101,6 @@ export interface TemporalServiceOptions {
   webUiBaseUrl?: string;
   searchAttributes: TemporalSearchAttributeNames;
 }
-
-const SEARCH_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 /** Values `temporal.connection.auth.type` accepts. */
 const AUTH_TYPES = ['none', 'bearer'];

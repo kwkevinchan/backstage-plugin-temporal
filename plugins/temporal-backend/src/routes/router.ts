@@ -36,11 +36,11 @@ import {
 } from '../common';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
+import { LIST_PAGE_SIZE } from '../common/listLimits';
 import { TemporalAccessService, TemporalEntityContext } from '../node/alpha';
 import { AiWorkflowQueries } from '../services/AiWorkflowQueries';
 import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import {
-  LIST_PAGE_SIZE,
   failedOverview,
   OverviewRequestStats,
   WorkflowListQueries,

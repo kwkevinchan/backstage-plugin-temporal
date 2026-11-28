@@ -93,7 +93,7 @@ function failureMessage(failure: any): string {
 const RERUN_SUFFIX = /-rerun-[a-z0-9]+$/;
 
 /** Longest workflow ID Temporal accepts by default. */
-const MAX_WORKFLOW_ID_LENGTH = 1000;
+export const MAX_WORKFLOW_ID_LENGTH = 1000;
 
 /**
  * A new workflow ID from a prefix: `<prefix><infix>-<time>`. The prefix is
@@ -119,7 +119,8 @@ function isSystemSearchAttribute(name: string): boolean {
 const MAX_UPDATE_POLLS = 5;
 const UPDATE_STAGE_COMPLETED = 3;
 
-const WORKFLOW_ID_REUSE_POLICY: Record<WorkflowIdReusePolicy, number> = {
+/** The workflow ID reuse policies a start takes, with their protobuf values. */
+export const WORKFLOW_ID_REUSE_POLICY: Record<WorkflowIdReusePolicy, number> = {
   ALLOW_DUPLICATE: 1,
   ALLOW_DUPLICATE_FAILED_ONLY: 2,
   REJECT_DUPLICATE: 3,

@@ -47,6 +47,8 @@ import { TemporalAccessService, TemporalControlAction } from '../node/alpha';
 import express, { Request } from 'express';
 import Router from 'express-promise-router';
 import {
+  MAX_WORKFLOW_ID_LENGTH,
+  WORKFLOW_ID_REUSE_POLICY,
   WorkflowChainRef,
   WorkflowCommands,
 } from '../services/WorkflowCommands';
@@ -61,6 +63,7 @@ import {
 import {
   entityRefFromParams,
   isValidControlActionId,
+  isValidPathId,
   parseArgs,
   parseEntityRefParam,
   parseMessageBody,
@@ -94,17 +97,24 @@ interface ControlRouterOptions {
 
 /** Longest terminate reason. */
 const MAX_REASON_LENGTH = 1000;
-/** Longest workflow ID. */
-const MAX_WORKFLOW_ID_LENGTH = 1000;
+/** Longest note of a schedule pause or unpause. */
+const MAX_NOTE_LENGTH = 1000;
+/** Longest workflow type, task queue and namespace of a start. */
+const MAX_START_NAME_LENGTH = 1000;
 
+/**
+ * A short text of a request: trimmed, or undefined when it is empty. Throws
+ * an InputError (`Invalid <name>`, or `message`) for anything else.
+ */
 function optionalText(
   value: unknown,
   name: string,
   max: number,
+  message = `Invalid ${name}`,
 ): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string' || value.length > max) {
-    throw new InputError(`Invalid ${name}`);
+    throw new InputError(message);
   }
   return value.trim() || undefined;
 }
@@ -113,19 +123,13 @@ function parseWorkflowId(value: unknown): string | undefined {
   return optionalText(value, 'workflowId', MAX_WORKFLOW_ID_LENGTH);
 }
 
-const WORKFLOW_ID_REUSE_POLICIES = new Set<WorkflowIdReusePolicy>([
-  'ALLOW_DUPLICATE',
-  'ALLOW_DUPLICATE_FAILED_ONLY',
-  'REJECT_DUPLICATE',
-]);
-
 function parseWorkflowIdReusePolicy(
   value: unknown,
 ): WorkflowIdReusePolicy | undefined {
   if (value === undefined) return undefined;
   if (
     typeof value !== 'string' ||
-    !WORKFLOW_ID_REUSE_POLICIES.has(value as WorkflowIdReusePolicy)
+    !Object.hasOwn(WORKFLOW_ID_REUSE_POLICY, value)
   ) {
     throw new InputError('Invalid workflowIdReusePolicy');
   }
@@ -146,11 +150,12 @@ function principalRef(credentials: BackstageCredentials): string | undefined {
 
 /** The note of a pause or an unpause: a short string, or undefined. */
 function optionalNote(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === '') return undefined;
-  if (typeof value !== 'string' || value.length > 1000) {
-    throw new InputError('note must be a string of at most 1000 characters');
-  }
-  return value.trim() || undefined;
+  return optionalText(
+    value,
+    'note',
+    MAX_NOTE_LENGTH,
+    `note must be a string of at most ${MAX_NOTE_LENGTH} characters`,
+  );
 }
 
 function identityOf(credentials: BackstageCredentials): string {
@@ -466,8 +471,16 @@ export function createControlRouter(
 
   function parseStart(req: Request) {
     const b = requestBody(req);
-    const workflowType = optionalText(b.workflowType, 'workflowType', 1000);
-    const taskQueue = optionalText(b.taskQueue, 'taskQueue', 1000);
+    const workflowType = optionalText(
+      b.workflowType,
+      'workflowType',
+      MAX_START_NAME_LENGTH,
+    );
+    const taskQueue = optionalText(
+      b.taskQueue,
+      'taskQueue',
+      MAX_START_NAME_LENGTH,
+    );
     if (workflowType && !isValidWorkflowTypeName(workflowType)) {
       throw new InputError('Invalid workflowType');
     }
@@ -477,7 +490,7 @@ export function createControlRouter(
     return {
       workflowType,
       taskQueue,
-      namespace: optionalText(b.namespace, 'namespace', 1000),
+      namespace: optionalText(b.namespace, 'namespace', MAX_START_NAME_LENGTH),
       args: parseArgs(b.args),
       workflowId: parseWorkflowId(b.workflowId),
       workflowIdReusePolicy: parseWorkflowIdReusePolicy(
@@ -569,7 +582,7 @@ export function createControlRouter(
       const { namespace, scheduleId } = req.params;
       const operation = req.params.operation as TemporalScheduleOperation;
       const initialEntityRef = auditEntityRef(req.query.entityRef);
-      const initialNote = optionalBodyString(req, 'note', 1000);
+      const initialNote = optionalBodyString(req, 'note', MAX_NOTE_LENGTH);
       const initialMeta: JsonObject = {
         namespace: auditNamespace(namespace),
         scheduleId: auditPathId(scheduleId),
@@ -585,7 +598,7 @@ export function createControlRouter(
         'medium',
         async setMeta => {
           const credentials = await httpAuth.credentials(req);
-          if (!scheduleId || scheduleId.length > 1000) {
+          if (!isValidPathId(scheduleId)) {
             throw new InputError('Invalid schedule ID');
           }
           const note = optionalNote(req.body?.note);

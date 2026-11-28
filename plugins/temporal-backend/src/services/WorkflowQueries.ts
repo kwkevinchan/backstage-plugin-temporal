@@ -23,7 +23,6 @@ import {
   WorkflowHistoryResponse,
   WorkflowRef,
   WorkflowRunRef,
-  WorkflowStatus,
   WorkflowResultResponse,
   WorkflowMessageDefinition,
   WorkflowMessageDefinitionsResponse,
@@ -31,6 +30,7 @@ import {
 import type { JsonValue } from '@backstage/types';
 import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
+import { CLOSED_WITH_FAILURE } from '../common/stepRules';
 import { decodeJsonPayloads, encodeJsonPayloads } from '../lib/payloads';
 import {
   ConvertOptions,
@@ -76,12 +76,6 @@ function messageDefinitionList(
 
 /** How many parents up a child workflow is looked for in an entity. */
 export const MAX_PARENT_DEPTH = 3;
-
-export const CLOSED_WITH_FAILURE: WorkflowStatus[] = [
-  'Failed',
-  'TimedOut',
-  'Terminated',
-];
 
 /**
  * Close events read during `describe()`, keyed by the returned `WorkflowDetail`.

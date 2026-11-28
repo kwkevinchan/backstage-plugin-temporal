@@ -116,7 +116,7 @@ function readable(error: unknown, gaveEntityRef: boolean): unknown {
 /**
  * The step kinds that the backend counts in `completedSteps` and `totalSteps`
  * (`services/graph.ts`), and the open and failed statuses of
- * `services/stepStatus.ts`. A test compares these sets with the ones of the
+ * `common/stepRules.ts`. A test compares these sets with the ones of the
  * backend.
  */
 export const STEP_KINDS = new Set<WorkflowGraphNode['kind']>([

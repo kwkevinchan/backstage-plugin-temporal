@@ -24,9 +24,9 @@ import {
   WorkflowStatus,
   WorkflowSummary,
 } from '../common';
+import { SEARCH_ATTRIBUTE_NAME } from '../common/namePatterns';
 
 const ENTITY_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,511}$/;
-const SEARCH_ATTRIBUTE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 
 /** Parses a status query parameter; rejects anything outside the list. */
 export function parseStatus(value: unknown): WorkflowStatus | undefined {
@@ -52,7 +52,7 @@ export function isValidEntityRefValue(value: string): boolean {
  * `ApprovalPending`). The name is checked.
  */
 export function trueAttributeCondition(name: string): string {
-  if (!SEARCH_ATTRIBUTE_PATTERN.test(name)) {
+  if (!SEARCH_ATTRIBUTE_NAME.test(name)) {
     throw new InputError('Invalid search attribute name');
   }
   return `${name} = true`;
@@ -210,15 +210,18 @@ function sourceCondition(source: {
     parts.push(`TaskQueue = ${quote(source.taskQueue)}`);
   }
   if (source.workflowTypes.length > 0) {
+    // Checked here too, for an error that names what is wrong.
     for (const type of source.workflowTypes) {
       if (!isValidWorkflowTypeName(type)) {
         throw new InputError('Invalid workflow type');
       }
     }
     parts.push(
-      source.workflowTypes.length === 1
-        ? `WorkflowType = ${quote(source.workflowTypes[0])}`
-        : `WorkflowType IN (${source.workflowTypes.map(quote).join(', ')})`,
+      inCondition(
+        'WorkflowType',
+        source.workflowTypes,
+        isValidWorkflowTypeName,
+      ),
     );
   }
   return parts.length > 0 ? parts.join(' AND ') : undefined;
@@ -259,19 +262,18 @@ export function buildEntityVisibilityQuery(
     }
   }
   if (entityRefAttribute) {
-    if (!SEARCH_ATTRIBUTE_PATTERN.test(entityRefAttribute)) {
+    if (!SEARCH_ATTRIBUTE_NAME.test(entityRefAttribute)) {
       throw new InputError('Invalid search attribute name');
     }
     const refs = [entityRef, ...related.map(r => r.entityRef)];
+    // Checked here too, for an error that names what is wrong.
     for (const ref of refs) {
       if (!ENTITY_REF_PATTERN.test(ref)) {
         throw new InputError('Invalid entity reference');
       }
     }
     alternatives.push(
-      refs.length === 1
-        ? `${entityRefAttribute} = ${quote(refs[0])}`
-        : `${entityRefAttribute} IN (${refs.map(quote).join(', ')})`,
+      inCondition(entityRefAttribute, refs, isValidEntityRefValue),
     );
   }
   if (alternatives.length === 0) {

@@ -29,6 +29,12 @@ import {
 } from '../common';
 import { TemporalService } from '../node';
 import type { TemporalEntityContext } from '../node/alpha';
+import {
+  MAX_SCHEDULES,
+  OVERVIEW_CACHE_TTL_MS,
+  OVERVIEW_WINDOW_DAYS,
+} from '../common/listLimits';
+import { CLOSED_WITH_FAILURE } from '../common/stepRules';
 import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
 import { toTemporalSchedule } from './schedules';
 import { scheduleClientOf } from '../repositories/scheduleClient';
@@ -51,14 +57,10 @@ import {
 } from './visibilityQuery';
 import { KeyedConcurrencyLimit, QueueDeadlineError } from './concurrencyLimit';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
-import { CLOSED_WITH_FAILURE, WorkflowQueries } from './WorkflowQueries';
+import { WorkflowQueries } from './WorkflowQueries';
 
-export const LIST_PAGE_SIZE = { default: 20, max: 100 };
 /** Most history events read for the progress of one run in a list. */
 export const MAX_PROGRESS_EVENTS = 1000;
-
-/** Most schedules a list reads. */
-export const MAX_SCHEDULES = 500;
 
 /** Most schedules described in one list, for their task queue. */
 export const MAX_SCHEDULE_DESCRIBES = 100;
@@ -69,12 +71,8 @@ const SCHEDULE_DESCRIBE_CONCURRENCY = 8;
 /** Closed runs whose progress is kept in memory; closed runs do not change. */
 export const PROGRESS_CACHE_SIZE = 1000;
 
-/** Days that the completed and failed counts of the overview cover. */
-export const OVERVIEW_WINDOW_DAYS = 7;
 /** Most recent runs the latest run and the mean duration of the overview come from. */
 export const OVERVIEW_SAMPLE_SIZE = 50;
-/** How long the numbers of one entity are kept, in milliseconds. */
-export const OVERVIEW_CACHE_TTL_MS = 60_000;
 /** Entities whose numbers are kept in memory. */
 export const OVERVIEW_CACHE_SIZE = 1000;
 /** Visibility calls of the overview in flight at once, in each namespace. */

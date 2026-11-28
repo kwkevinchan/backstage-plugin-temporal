@@ -24,3 +24,18 @@ export const NAME_PATTERN_SOURCES = {
   taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$',
   workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$',
 } as const;
+
+/**
+ * Longest name of a signal, update or query, in `spec.messages` of a
+ * `TemporalWorkflow` entity and in a request.
+ */
+export const MAX_MESSAGE_NAME_LENGTH = 200;
+
+/**
+ * `userField` of a message in `spec.messages`: a JavaScript identifier of at
+ * most 100 characters.
+ */
+export const USER_FIELD_PATTERN_SOURCE = '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$';
+
+/** Name of a search attribute in a visibility query or in config. */
+export const SEARCH_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
