@@ -1257,7 +1257,7 @@ export class DefinitionReader {
 
   private async withSlot<T>(run: () => Promise<T>): Promise<T> {
     if (this.running >= this.maxConcurrentReads) {
-      await new Promise<void>(resolve => this.waiting.push(resolve));
+      await new Promise<void>(wake => this.waiting.push(wake));
     } else {
       this.running += 1;
     }
