@@ -62,6 +62,7 @@ export const scaffolderTemporalModule = createBackendModule({
             ) ?? false,
           catalog,
           appBaseUrl: config.getString('app.baseUrl'),
+          pagePath: config.getOptionalString('temporal.pagePath'),
           // As the Temporal backend plugin reads it.
           defaultNamespace:
             config.getOptionalString('temporal.connection.defaultNamespace') ??

@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  BackstageCredentials,
-  LoggerService,
-} from '@backstage/backend-plugin-api';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { InputError } from '@backstage/errors';
 import {
   WorkflowListResponse,
@@ -295,7 +292,6 @@ export class WorkflowListQueries {
       workflowId?: string;
       pageSize: number;
       pageToken?: string;
-      credentials: BackstageCredentials;
     },
   ): Promise<WorkflowListResponse> {
     const visibilityQuery = buildEntityVisibilityQuery(
@@ -328,7 +324,7 @@ export class WorkflowListQueries {
       return workflowEntityRef ? { ...item, workflowEntityRef } : item;
     });
     return {
-      items: await this.queries.enrich(items, context, options.credentials),
+      items,
       nextPageToken: encodePageToken(response.nextPageToken),
       namespace: context.namespace,
       relatedWorkflows: context.relatedWorkflows,
@@ -337,7 +333,6 @@ export class WorkflowListQueries {
 
   /**
    * Every workflow of a namespace, newest first, with optional filters.
-   * Enrichers do not run here: they need an entity.
    */
   async listNamespaceWorkflows(
     namespace: string,

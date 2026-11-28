@@ -198,7 +198,7 @@ export class TemporalClient implements TemporalApi {
           status: options?.status,
           allRuns: options?.allRuns ? 'true' : undefined,
           workflowType: options?.workflowType,
-          workflowId: options?.workflowIdPrefix,
+          workflowIdPrefix: options?.workflowIdPrefix,
           searchAttribute: options?.searchAttribute,
           pageSize: options?.pageSize,
           pageToken: options?.pageToken,
@@ -293,8 +293,9 @@ export class TemporalClient implements TemporalApi {
     options?: { entityRef?: string },
   ): Promise<WorkflowMessageResponse> {
     return this.post(
-      buildWorkflowOperationPath(ref, 'query') +
-        queryString({ entityRef: options?.entityRef }),
+      `${buildWorkflowRunPath(ref)}/query${queryString({
+        entityRef: options?.entityRef,
+      })}`,
       request,
     );
   }

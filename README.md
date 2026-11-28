@@ -98,7 +98,7 @@ workflow definition.
 
 | Package                                                                                                          | Role                   | Install in        | Purpose                                                                                                                                                                                                                                                                                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension points (`./alpha`) and the permissions and types (`./common`).                                                                              |
+| [`@kwkevinchan/backstage-plugin-temporal-backend`](plugins/temporal-backend)                                     | backend-plugin         | Backstage backend | The core. REST API under `/api/temporal` that reads and operates workflows, the permission checks, the `TemporalWorkflow` catalog kind, and for backend code: the shared Temporal client (`./node`), the extension point for custom actions (`./alpha`) and the permissions and types (`./common`).                                                            |
 | [`@kwkevinchan/backstage-plugin-temporal-frontend`](plugins/temporal-frontend)                                   | frontend-plugin        | Backstage app     | Entity tab, workflow details, Temporal page and the buttons of the operations. Legacy entry point; `./alpha` for the new frontend system with the blueprints for workflow actions, list actions, schedule actions, sections and buttons of custom backend actions; `./common` for the permissions and types; `./ui` for companion packages. Needs the backend. |
 | [`@kwkevinchan/backstage-plugin-temporal-backend-module-zigflow`](plugins/temporal-backend-module-zigflow)       | backend-plugin-module  | Backstage backend | Reads the definition files for the Definition tab (optional, with the module below). Needs the backend plugin.                                                                                                                                                                                                                                                 |
 | [`@kwkevinchan/backstage-plugin-temporal-module-zigflow`](plugins/temporal-module-zigflow)                       | frontend-plugin-module | Backstage app     | Definition tab for workflows written in YAML and run by Zigflow (optional). Needs the frontend plugin and the backend module above.                                                                                                                                                                                                                            |
@@ -147,12 +147,12 @@ system), `packages/app-next` (new frontend system), `packages/backend` and
 
 ## Compatibility
 
-| Component       | Supported                                                                                                                                                                                                                                                                                                                                                 |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                             |
-| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                   |
-| Temporal SDK    | The backend uses `@temporalio/client` **1.24**; a new major of it is a new major of the plugin packages. Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
-| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                 |
+| Component       | Supported                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backstage       | **1.56.x** only (see `backstage.json`). Both frontend systems: legacy (`EntityPage.tsx`) and new (`./alpha`).                                                                                                                                                                                                                                                                                                                                                                                        |
+| Temporal server | Tested with **1.32** (self-hosted, and the development server of the Temporal CLI 1.9).                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Temporal SDK    | The backend uses `@temporalio/client` **1.24** (`~1.24.0`): it takes the patches of 1.24, and a newer minor of the SDK comes with a new version of the plugin packages, once it is tested; a new major of it is a new major of the plugin packages. Large payloads: Temporal External Storage with the S3 driver (TypeScript SDK 1.21 or later, tested with 1.24; public preview). Event groups: server 1.32 and TypeScript SDK 1.23 or later (tested with 1.24 and 1.25; experimental in Temporal). |
+| Node.js         | 22 or 24.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 The screens use the Backstage design system `@backstage/ui`; the app must
 load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
@@ -160,7 +160,10 @@ load its styles (`import '@backstage/ui/css/styles.css'`, as apps created for
 [React Flow](https://reactflow.dev) (`@xyflow/react`) with the
 [dagre](https://github.com/dagrejs/dagre) layout, both MIT licensed; the
 timeline is drawn with plain HTML and CSS.
-The backend parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
+The Zigflow backend module parses YAML with [`yaml`](https://eemeli.org/yaml/) (ISC).
+The frontend uses `@rjsf/core`, `@rjsf/utils` and `@rjsf/validator-ajv8` at
+the exact version that Backstage 1.56's Scaffolder uses (5.24.13), so an app
+with the Scaffolder has one copy of them.
 
 ## Installation
 
@@ -848,6 +851,9 @@ temporal:
   # invoke write actions (start, signal, update). Defaults to false.
   actions:
     allowServiceWrites: false
+  # Optional: where the app mounts the Temporal page, for the links to runs
+  # that the Scaffolder and actions registry modules return. Default: /temporal.
+  pagePath: /temporal
 ```
 
 | Key                                    | Default              | Meaning                                                                                                                                                                                                                                                                                                                                                                           |
@@ -874,6 +880,7 @@ temporal:
 | `definitions.maxReadsPerMinute`        | `120`                | Zigflow module: most URL reads (cache hits not counted) started per minute per backend process; above it the Definition tab shows an error until the minute ends.                                                                                                                                                                                                                 |
 | `definitions.readFileLocations`        | `false`              | Zigflow module: read definitions next to entities from `file:` locations (development catalogs).                                                                                                                                                                                                                                                                                  |
 | `actions.allowServiceWrites`           | `false`              | Actions module: allow service principals (for example static `backend.auth.externalAccess` tokens) to call write actions (`start-workflow`, `signal-workflow`, `update-workflow`). Read actions remain available regardless of this setting.                                                                                                                                      |
+| `pagePath`                             | `/temporal`          | Path of the Temporal page in the app, for the links to runs (`workflowUrl`) that the Scaffolder and actions registry modules return. Set it when the app mounts the page elsewhere.                                                                                                                                                                                               |
 
 All keys are under `temporal`. The frontend reads `connection.defaultNamespace`,
 `webUi`, `control` and `externalStorage.objectUrl`; the token stays in the
@@ -898,8 +905,10 @@ environment variable or a mounted secret. The plugin passes the token as the
 `apiKey` connection option of `@temporalio/client`. The connection uses TLS
 only with `tls: true` (server certificate checked with the system's CAs),
 for example for an API key of Temporal Cloud; without it, the token is sent
-in clear text, for a Temporal server inside a private network. Client
-certificates (mTLS) are not supported yet.
+in clear text, for a Temporal server inside a private network. The config
+has no client certificates (mTLS); for them, extend `DefaultTemporalService`
+in your own factory of `temporalServiceRef`
+([example](docs/public-interfaces.md#own-temporalserviceref)).
 
 A self-hosted Temporal server checks such tokens when its `global.authorization`
 config sets `jwtKeyProvider.keySourceURIs` (the public keys of the token
@@ -1477,9 +1486,8 @@ TemporalWorkflowActionBlueprint.make({
 the shared mount point `api:temporal/workflow-extensions`, so they show on
 the pages of the entity tab and of the Temporal page. In the legacy system, pass
 `workflowActions`, `workflowSections`, `workflowListActions` and
-`scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow as props or through
-`useTemporalWorkflow()`. To test a component that
-calls the hook, wrap it in `TemporalWorkflowProvider`.
+`scheduleActions` to `EntityTemporalContent` and to `TemporalPage`. Components get the workflow, `reload` and
+`workflowHref` as props (`TemporalWorkflowExtensionProps`).
 
 ### Entry points and the two frontend systems
 
@@ -1561,11 +1569,9 @@ plugin's access checks through `temporalAccessServiceRef`
 another way, add your own factory for that ref to the backend; the default
 factory that the backend package brings is then skipped.
 
-Backend modules can add data to workflow summaries with
-`temporalWorkflowEnricherExtensionPoint.addWorkflowEnricher()`, and custom
-workflow actions with `temporalControlExtensionPoint.addControlAction()`,
-both from `@kwkevinchan/backstage-plugin-temporal-backend/alpha`. The
-enricher extension point only adds enrichers; it cannot add actions. Actions
+Backend modules can add custom workflow actions with
+`temporalControlExtensionPoint.addControlAction()` from
+`@kwkevinchan/backstage-plugin-temporal-backend/alpha`. Actions
 are ignored, with a warning, when `temporal.control.enabled` is false. An action is served as
 `POST .../actions/:actionId`; the backend reads the workflow, checks the
 action's permission on its entity, runs the optional `filter`, records the
@@ -1639,8 +1645,8 @@ warning; it does not fail the lint.
 
 | What                                                          | Import from                                              |
 | ------------------------------------------------------------- | -------------------------------------------------------- |
-| `temporalServiceRef` and its type                             | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
-| `temporalAccessServiceRef`, the extension points, …           | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
+| `temporalServiceRef`, its type and `DefaultTemporalService`   | `@kwkevinchan/backstage-plugin-temporal-backend/node`    |
+| `temporalAccessServiceRef`, the extension point, …            | `@kwkevinchan/backstage-plugin-temporal-backend/alpha`   |
 | Permissions, API types and paths, annotations (backend code)  | `@kwkevinchan/backstage-plugin-temporal-backend/common`  |
 | Permissions, API types and paths, annotations (frontend code) | `@kwkevinchan/backstage-plugin-temporal-frontend/common` |
 | `TemporalControlActionBlueprint`                              | `@kwkevinchan/backstage-plugin-temporal-frontend/alpha`  |

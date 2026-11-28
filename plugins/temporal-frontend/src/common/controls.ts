@@ -22,15 +22,14 @@ import { buildWorkflowRunPath } from './paths';
 import type { WorkflowRunRef } from './types';
 
 /**
- * The built-in operations on one workflow execution. `query` only reads; the
- * others change the workflow.
+ * The built-in operations that change one workflow execution. A query
+ * (`POST .../query`) only reads, so it is not one of them.
  *
  * @public
  */
 export type WorkflowControlOperation =
   | 'signal'
   | 'update'
-  | 'query'
   | 'cancel'
   | 'terminate'
   | 'rerun';

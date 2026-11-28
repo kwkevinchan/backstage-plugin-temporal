@@ -176,7 +176,7 @@ components:
         pattern: '^$|^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$'
         maxLength: 255
     workflowIdPrefix:
-      name: workflowId
+      name: workflowIdPrefix
       in: query
       required: false
       allowReserved: true
@@ -435,10 +435,6 @@ components:
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
-        extensions:
-          type: object
-          description: Data added by backend workflow enrichers, keyed by enricher.
-          additionalProperties: {}
       additionalProperties: false
     WorkflowDetail:
       type: object
@@ -486,13 +482,6 @@ components:
         webUiUrl:
           type: string
           description: Link to the execution in the Temporal Web UI, when configured.
-        extensions:
-          type: object
-          description: Data added by backend workflow enrichers, keyed by enricher.
-          additionalProperties: {}
-        executionTime:
-          type: string
-          description: ISO 8601 timestamp.
         parent:
           type: object
           required:
@@ -501,8 +490,6 @@ components:
             workflowId:
               type: string
             runId:
-              type: string
-            namespace:
               type: string
           additionalProperties: false
         searchAttributes:
@@ -1140,14 +1127,10 @@ components:
     TemporalScheduleAction:
       type: object
       required:
-        - scheduledAt
         - takenAt
         - workflowId
         - runId
       properties:
-        scheduledAt:
-          type: string
-          description: ISO 8601 timestamp.
         takenAt:
           type: string
           description: ISO 8601 timestamp.

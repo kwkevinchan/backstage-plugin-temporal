@@ -212,8 +212,8 @@ so the dialogs show a form instead of a JSON field. See
 
 ### Extension points
 
-You add your own buttons, tabs, list actions, backend actions and data
-enrichers without changing the plugin. [Architecture](architecture.md#extension-points)
+You add your own buttons, tabs, list actions and backend actions without
+changing the plugin. [Architecture](architecture.md#extension-points)
 lists them.
 
 ### AI workflows (experimental shape)

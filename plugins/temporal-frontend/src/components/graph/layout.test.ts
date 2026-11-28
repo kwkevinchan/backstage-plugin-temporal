@@ -32,6 +32,7 @@ import {
   NODE_WIDTH,
   panIntoView,
   READABLE_ZOOM,
+  StepGraphLayout,
   visibleSteps,
 } from './layout';
 
@@ -155,7 +156,8 @@ describe('layoutSteps', () => {
       ['e', 'f'],
       ['f', 'end'],
     );
-    const layout = layoutSteps(nodes, edges, 900);
+    // The arrows are routed by the fields of the full layout.
+    const layout = layoutSteps(nodes, edges, 900) as StepGraphLayout;
     expect(layout.wrapped).toBe(true);
     const gaps = layout.rowGaps!;
     expect(gaps.length).toBeGreaterThan(0);

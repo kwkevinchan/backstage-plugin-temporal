@@ -79,7 +79,7 @@ its side, and no published package on a private one.
 ## Shared definitions
 
 The permissions, types, annotation constants, API paths and the
-`TemporalWorkflow` entity schema live in
+`TemporalWorkflow` entity type live in
 `plugins/temporal-backend/src/common` (exported as
 `@kwkevinchan/backstage-plugin-temporal-backend/common`). Backstage does not
 let a frontend plugin import a backend plugin, so the frontend package has a
@@ -119,12 +119,12 @@ order, and three for the other parts of the package:
 | Folder          | Holds                                                                                                                                     | In clean-architecture terms |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
 | `routes/`       | Express handlers: parse and validate the request, call access and services (`router.ts` reads, `controlRoutes.ts` operates)               | Controllers                 |
-| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups                                                                     | Authorization               |
+| `access/`       | `DefaultTemporalAccessService`: permission checks and catalog lookups; `WorkflowTypeEntities`: the links to the entity of a workflow type | Authorization               |
 | `services/`     | The query classes below, `WorkflowCommands` and the conversions from Temporal data to API types                                           | Use cases                   |
 | `repositories/` | `TemporalReadRepository` (the read calls), the Temporal error mapping, the schedule client, and the parser of External Storage references | Gateways                    |
 | `common/`       | The shared definitions (`./common`)                                                                                                       | Model                       |
 | `node/`         | `temporalServiceRef`, the client of the plugin's routes, the extension points and the access service interface (`./node`, `./alpha`)      | Ports for modules           |
-| `catalog/`      | The catalog module with the `TemporalWorkflow` kind                                                                                       |                             |
+| `catalog/`      | The catalog module with the `TemporalWorkflow` kind and its JSON schema                                                                   |                             |
 
 The query classes in `services/` each cover one kind of read:
 

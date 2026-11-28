@@ -43,11 +43,9 @@ import {
 import {
   getDependsOnTemporalWorkflowRefs,
   isTemporalWorkflowEntity,
-  parseTemporalWorkflowSpec,
   RelatedWorkflows,
   temporalWorkflowListPermission,
   temporalWorkflowReadPermission,
-  TEMPORAL_WORKFLOW_KIND,
   WorkflowRunRef,
   WorkflowSummary,
 } from '../common';
@@ -63,10 +61,7 @@ import {
   isValidEntityRefValue,
   validatePermissionVisibilityQuery,
 } from '../services/visibilityQuery';
-import {
-  EntityWorkflowSources,
-  logSkippedWorkflowEntity,
-} from '../services/EntityWorkflowSources';
+import { EntityWorkflowSources } from '../services/EntityWorkflowSources';
 import { WorkflowQueries } from '../services/WorkflowQueries';
 
 /** Most `TemporalWorkflow` entities of one entity that are queried. */
@@ -421,57 +416,6 @@ export class DefaultTemporalAccessService implements TemporalAccessService {
       }
       throw error;
     }
-  }
-
-  /**
-   * Adds `workflowTypeEntityRef` to runs that match a `TemporalWorkflow`
-   * entity the caller can see (same namespace, workflow type and task
-   * queue). When several entities match, the ones with the run's task queue
-   * win over the ones without a task queue; if more than one is left at that
-   * level, the run gets no reference.
-   */
-  async linkWorkflowEntities(
-    items: WorkflowSummary[],
-    namespace: string,
-    credentials: BackstageCredentials,
-  ): Promise<WorkflowSummary[]> {
-    const types = [...new Set(items.map(i => i.workflowType))].filter(Boolean);
-    if (types.length === 0) return items;
-    const { items: entities } = await this.catalog.getEntities(
-      {
-        filter: { kind: TEMPORAL_WORKFLOW_KIND, 'spec.workflowType': types },
-        fields: ['kind', 'metadata.namespace', 'metadata.name', 'spec'],
-      },
-      { credentials },
-    );
-    const sources = entities.flatMap(entity => {
-      try {
-        const spec = parseTemporalWorkflowSpec(entity);
-        if ((spec.namespace ?? this.sources.defaultNamespace()) !== namespace) {
-          return [];
-        }
-        return [{ ref: stringifyEntityRef(entity), spec }];
-      } catch (error) {
-        logSkippedWorkflowEntity(
-          this.logger,
-          stringifyEntityRef(entity),
-          error,
-        );
-        return [];
-      }
-    });
-    return items.map(item => {
-      const matches = sources.filter(
-        ({ spec }) =>
-          spec.workflowTypes.includes(item.workflowType) &&
-          (!spec.taskQueue || spec.taskQueue === item.taskQueue),
-      );
-      const exact = matches.filter(({ spec }) => spec.taskQueue);
-      const level = exact.length > 0 ? exact : matches;
-      return level.length === 1
-        ? { ...item, workflowTypeEntityRef: level[0].ref }
-        : item;
-    });
   }
 
   /**

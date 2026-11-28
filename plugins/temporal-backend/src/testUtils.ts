@@ -355,7 +355,6 @@ export function fakeTemporalServiceFactory(
       return connection as any;
     },
     getDefaultNamespace: () => 'default',
-    getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default',
     getSearchAttributeNames: () => ({
       entityRef: options?.entityRefAttribute,

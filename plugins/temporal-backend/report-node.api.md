@@ -7,10 +7,12 @@ import type { AuthService } from '@backstage/backend-plugin-api';
 import type { BackstageCredentials } from '@backstage/backend-plugin-api';
 import type { CatalogService } from '@backstage/plugin-catalog-node';
 import { Client } from '@temporalio/client';
+import { Config } from '@backstage/config';
 import { Connection } from '@temporalio/client';
 import type { DiscoveryService } from '@backstage/backend-plugin-api';
 import type { JsonObject } from '@backstage/types';
 import type { JsonValue } from '@backstage/types';
+import { LoggerService } from '@backstage/backend-plugin-api';
 import { ServiceRef } from '@backstage/backend-plugin-api';
 
 // Warning: (ae-forgotten-export) The symbol "WorkflowRunRef" needs to be exported by the entry point index.d.ts
@@ -19,10 +21,37 @@ import { ServiceRef } from '@backstage/backend-plugin-api';
 export function buildWorkflowUrl(
   appBaseUrl: string,
   ref: WorkflowRunRef,
+  options?: {
+    pagePath?: string;
+  },
 ): string;
 
 // @public
 export function continuedAsNewRunIdOf(error: unknown): string | undefined;
+
+// @public
+export class DefaultTemporalService implements TemporalService {
+  constructor(options: TemporalServiceOptions, logger?: LoggerService);
+  close(): Promise<void>;
+  // (undocumented)
+  getClient(options?: { namespace?: string }): Promise<Client>;
+  getConnection(_options?: { namespace?: string }): Promise<Connection>;
+  // (undocumented)
+  getDefaultNamespace(): string;
+  // (undocumented)
+  getSearchAttributeNames(): TemporalSearchAttributeNames;
+  // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point index.d.ts
+  //
+  // (undocumented)
+  getWebUiUrl(ref: WorkflowRef): string | undefined;
+  // (undocumented)
+  isNamespaceAllowed(namespace: string): boolean;
+}
+
+// @public
+export function readTemporalServiceOptions(
+  config: Config,
+): TemporalServiceOptions;
 
 // @public
 export function resolveWorkflowNamespace(
@@ -33,6 +62,16 @@ export function resolveWorkflowNamespace(
   },
   credentials: BackstageCredentials,
 ): Promise<string>;
+
+// @public
+export type TemporalConnectionAuth =
+  | {
+      type: 'none';
+    }
+  | {
+      type: 'bearer';
+      token: string;
+    };
 
 // @public
 export class TemporalPluginClient {
@@ -51,7 +90,6 @@ export class TemporalPluginClient {
     entityRef: string | undefined,
     credentials: BackstageCredentials,
   ): Promise<WorkflowGraphResponse>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowRef" needs to be exported by the entry point index.d.ts
   latestRunId(
     ref: Pick<WorkflowRef, 'namespace' | 'workflowId'>,
     entityRef: string | undefined,
@@ -101,10 +139,8 @@ export interface TemporalSearchAttributeNames {
 
 // @public
 export interface TemporalService {
-  // (undocumented)
-  getAllowedNamespaces(): string[];
   getClient(options?: { namespace?: string }): Promise<Client>;
-  getConnection(): Promise<Connection>;
+  getConnection(options?: { namespace?: string }): Promise<Connection>;
   // (undocumented)
   getDefaultNamespace(): string;
   // (undocumented)
@@ -112,6 +148,22 @@ export interface TemporalService {
   getWebUiUrl(ref: WorkflowRef): string | undefined;
   // (undocumented)
   isNamespaceAllowed(namespace: string): boolean;
+}
+
+// @public
+export interface TemporalServiceOptions {
+  // (undocumented)
+  address: string;
+  auth?: TemporalConnectionAuth;
+  // (undocumented)
+  defaultNamespace: string;
+  // (undocumented)
+  namespaces: string[];
+  // (undocumented)
+  searchAttributes: TemporalSearchAttributeNames;
+  tls?: boolean;
+  // (undocumented)
+  webUiBaseUrl?: string;
 }
 
 // @public
@@ -129,5 +181,5 @@ export interface WorkflowNamespaceOptions {
 
 // Warnings were encountered during analysis:
 //
-// src/node/client.d.ts:53:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
+// src/node/client.d.ts:57:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
 ```

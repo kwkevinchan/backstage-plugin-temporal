@@ -29,7 +29,7 @@ import {
   LLM_NODE_HEIGHT,
   LLM_NODE_WIDTH,
   NODE_HEIGHT,
-  StepLayout,
+  StepGraphLayout,
   wrapColumns,
   stepSize,
   visibleSteps,
@@ -642,7 +642,7 @@ describe('layoutGroupedSteps', () => {
     // Two outermost frames whose widths overlap, the later one starting
     // further left: one piece when the graph wraps. Then a column, and a
     // last one that wraps into the next row.
-    const layout: StepLayout = {
+    const layout: StepGraphLayout = {
       positions: new Map([
         ['A', { x: 400, y: 16 }],
         ['B', { x: 16, y: 200 }],
@@ -1207,9 +1207,10 @@ describe('planGroups', () => {
 });
 
 describe('boxes of a frame in one row', () => {
-  const middle = (layout: StepLayout, id: string) =>
+  const middle = (layout: StepGraphLayout, id: string) =>
     layout.positions.get(id)!.y + boxSize(layout, id).height / 2;
-  const height = (layout: StepLayout, id: string) => boxSize(layout, id).height;
+  const height = (layout: StepGraphLayout, id: string) =>
+    boxSize(layout, id).height;
   const rounds = [1, 2, 3].map(i =>
     groupNodeId(`label:loop:draft-review:${i}`),
   );
@@ -1385,7 +1386,7 @@ describe('layoutGraph', () => {
       const options = c.direction ? { direction: 'TB' as const } : {};
       const width = c.width ?? undefined;
       for (const layout of [
-        layoutSteps(c.nodes, c.edges, width, options),
+        layoutSteps(c.nodes, c.edges, width, options) as StepGraphLayout,
         layoutGraph(c.nodes, c.edges, width, { ...options, frames: [] }),
       ]) {
         expect({

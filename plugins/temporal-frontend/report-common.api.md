@@ -158,23 +158,7 @@ export function mergeWorkflowMessageDefinitions(
 ): WorkflowMessageDefinitionsResponse;
 
 // @public
-export const NAME_PATTERN_SOURCES: {
-  readonly namespace: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$';
-  readonly taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$';
-  readonly workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$';
-};
-
-// @public
 export function parseTemporalAnnotations(entity: Entity): TemporalAnnotations;
-
-// @public
-export function parseTemporalWorkflowResourceRef(resourceRef: string):
-  | {
-      namespace: string;
-      workflowId: string;
-      runId?: string;
-    }
-  | undefined;
 
 // @public
 export function parseTemporalWorkflowSpec(entity: Entity): TemporalAnnotations;
@@ -212,13 +196,6 @@ export const RESOURCE_TYPE_TEMPORAL_WORKFLOW = 'temporal-workflow';
 
 // @public
 export const SCHEDULES_PATH = '/schedules';
-
-// @public
-export function stringifyTemporalWorkflowResourceRef(ref: {
-  namespace: string;
-  workflowId: string;
-  runId?: string;
-}): string;
 
 // @public
 export const TEMPORAL_DEFINITION_FORMATS: readonly ['serverless-workflow'];
@@ -280,7 +257,6 @@ export interface TemporalSchedule {
 // @public
 export interface TemporalScheduleAction {
   runId: string;
-  scheduledAt: string;
   takenAt: string;
   // (undocumented)
   workflowId: string;
@@ -336,239 +312,7 @@ export interface TemporalWorkflowEntityV1alpha1 extends Entity {
 }
 
 // @public
-export const temporalWorkflowEntityV1alpha1Schema: {
-  readonly $schema: 'http://json-schema.org/draft-07/schema';
-  readonly $id: 'TemporalWorkflowV1alpha1';
-  readonly description: 'A TemporalWorkflow describes one Temporal workflow type: what runs it and who owns it.';
-  readonly examples: readonly [
-    {
-      readonly apiVersion: 'temporal.io/v1alpha1';
-      readonly kind: 'TemporalWorkflow';
-      readonly metadata: {
-        readonly name: 'order-workflow';
-      };
-      readonly spec: {
-        readonly owner: 'group:default/orders-team';
-        readonly workflowType: 'orderWorkflow';
-        readonly taskQueue: 'orders';
-        readonly system: 'shop';
-      };
-    },
-  ];
-  readonly allOf: readonly [
-    {
-      readonly $ref: 'Entity';
-    },
-    {
-      readonly type: 'object';
-      readonly required: readonly ['spec'];
-      readonly properties: {
-        readonly apiVersion: {
-          readonly enum: readonly ['temporal.io/v1alpha1'];
-        };
-        readonly kind: {
-          readonly enum: readonly ['TemporalWorkflow'];
-        };
-        readonly spec: {
-          readonly type: 'object';
-          readonly required: readonly ['owner', 'workflowType'];
-          readonly additionalProperties: false;
-          readonly properties: {
-            readonly owner: {
-              readonly type: 'string';
-              readonly description: 'An entity reference to the owner.';
-              readonly minLength: 1;
-            };
-            readonly workflowType: {
-              readonly type: 'string';
-              readonly description: 'The Temporal workflow type name.';
-              readonly pattern: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$';
-            };
-            readonly taskQueue: {
-              readonly type: 'string';
-              readonly description: 'The task queue the workflow runs on.';
-              readonly pattern: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$';
-            };
-            readonly namespace: {
-              readonly type: 'string';
-              readonly description: 'The Temporal namespace. Defaults to the configured default namespace.';
-              readonly pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$';
-            };
-            readonly system: {
-              readonly type: 'string';
-              readonly description: 'An entity reference to the system the workflow belongs to.';
-              readonly minLength: 1;
-            };
-            readonly lifecycle: {
-              readonly type: 'string';
-              readonly description: 'The lifecycle state of the workflow.';
-              readonly minLength: 1;
-            };
-            readonly dependsOn: {
-              readonly type: 'array';
-              readonly description: 'Entity references of what the workflow needs, like resources.';
-              readonly items: {
-                readonly type: 'string';
-                readonly minLength: 1;
-              };
-            };
-            readonly exampleInput: {
-              readonly description: 'Example arguments for the Start workflow dialog: an array of arguments, or one value for a workflow with one argument.';
-            };
-            readonly messages: {
-              readonly type: 'object';
-              readonly description: 'The signals, updates and queries of the workflow, for the forms of the operation dialogs.';
-              readonly additionalProperties: false;
-              readonly properties: {
-                readonly signals: {
-                  readonly type: 'array';
-                  readonly items: {
-                    readonly type: 'object';
-                    readonly required: readonly ['name'];
-                    readonly additionalProperties: false;
-                    readonly properties: {
-                      readonly name: {
-                        readonly type: 'string';
-                        readonly minLength: 1;
-                        readonly maxLength: 200;
-                      };
-                      readonly description: {
-                        readonly type: 'string';
-                      };
-                      readonly inputSchema: {
-                        readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument this message takes.';
-                      };
-                      readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
-                      };
-                      readonly userField: {
-                        readonly type: 'string';
-                        readonly pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$';
-                        readonly description: "A property of the argument filled with the signed-in user's entity reference.";
-                      };
-                    };
-                  };
-                };
-                readonly updates: {
-                  readonly type: 'array';
-                  readonly items: {
-                    readonly type: 'object';
-                    readonly required: readonly ['name'];
-                    readonly additionalProperties: false;
-                    readonly properties: {
-                      readonly name: {
-                        readonly type: 'string';
-                        readonly minLength: 1;
-                        readonly maxLength: 200;
-                      };
-                      readonly description: {
-                        readonly type: 'string';
-                      };
-                      readonly inputSchema: {
-                        readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument this message takes.';
-                      };
-                      readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
-                      };
-                      readonly userField: {
-                        readonly type: 'string';
-                        readonly pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$';
-                        readonly description: "A property of the argument filled with the signed-in user's entity reference.";
-                      };
-                    };
-                  };
-                };
-                readonly queries: {
-                  readonly type: 'array';
-                  readonly items: {
-                    readonly type: 'object';
-                    readonly required: readonly ['name'];
-                    readonly additionalProperties: false;
-                    readonly properties: {
-                      readonly name: {
-                        readonly type: 'string';
-                        readonly minLength: 1;
-                        readonly maxLength: 200;
-                      };
-                      readonly description: {
-                        readonly type: 'string';
-                      };
-                      readonly inputSchema: {
-                        readonly type: 'object';
-                        readonly description: 'JSON Schema of the one argument this message takes.';
-                      };
-                      readonly example: {
-                        readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
-                      };
-                      readonly userField: {
-                        readonly type: 'string';
-                        readonly pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$';
-                        readonly description: "A property of the argument filled with the signed-in user's entity reference.";
-                      };
-                    };
-                  };
-                };
-              };
-            };
-            readonly definition: {
-              readonly type: 'object';
-              readonly description: 'The file of the workflow: a workflow DSL file.';
-              readonly required: readonly ['format', 'target'];
-              readonly additionalProperties: false;
-              readonly properties: {
-                readonly format: {
-                  readonly type: 'string';
-                  readonly enum: readonly ['serverless-workflow'];
-                  readonly description: 'Format of the file: serverless-workflow (CNCF Serverless Workflow DSL 1.0, as run by Zigflow).';
-                };
-                readonly target: {
-                  readonly type: 'string';
-                  readonly minLength: 1;
-                  readonly maxLength: 2048;
-                  readonly description: 'Path relative to the file of the entity, or an absolute URL.';
-                };
-              };
-            };
-          };
-        };
-      };
-    },
-  ];
-};
-
-// @public
 export const temporalWorkflowListPermission: ResourcePermission<'temporal-workflow'>;
-
-// @public
-export const temporalWorkflowMessageSchema: {
-  readonly type: 'object';
-  readonly required: readonly ['name'];
-  readonly additionalProperties: false;
-  readonly properties: {
-    readonly name: {
-      readonly type: 'string';
-      readonly minLength: 1;
-      readonly maxLength: 200;
-    };
-    readonly description: {
-      readonly type: 'string';
-    };
-    readonly inputSchema: {
-      readonly type: 'object';
-      readonly description: 'JSON Schema of the one argument this message takes.';
-    };
-    readonly example: {
-      readonly description: 'Example arguments: an array of arguments, or one value for a message with one argument.';
-    };
-    readonly userField: {
-      readonly type: 'string';
-      readonly pattern: '^[A-Za-z_$][A-Za-z0-9_$]{0,99}$';
-      readonly description: "A property of the argument filled with the signed-in user's entity reference.";
-    };
-  };
-};
 
 // @public
 export type TemporalWorkflowMessageSpec = {
@@ -617,7 +361,6 @@ export const WORKFLOW_TYPE_OVERVIEW_PATH = '/workflow-types/overview';
 export type WorkflowControlOperation =
   | 'signal'
   | 'update'
-  | 'query'
   | 'cancel'
   | 'terminate'
   | 'rerun';
@@ -631,8 +374,6 @@ export interface WorkflowDeadline {
 // @public
 export interface WorkflowDetail extends WorkflowSummary {
   continuedAsNewRunId?: string;
-  // (undocumented)
-  executionTime?: string;
   failure?: WorkflowFailure;
   firstRunId?: string;
   // (undocumented)
@@ -641,7 +382,6 @@ export interface WorkflowDetail extends WorkflowSummary {
   parent?: {
     workflowId: string;
     runId?: string;
-    namespace?: string;
   };
   // (undocumented)
   pendingActivities: PendingActivity[];
@@ -726,8 +466,8 @@ export interface WorkflowGraphNode {
   status: WorkflowNodeStatus;
   stepId?: string;
   summary?: string;
-  // Warning: (ae-incompatible-release-tags) The symbol "tool" is marked as @public, but its signature references "WorkflowToolLink" which is marked as @alpha
-  tool?: WorkflowToolLink;
+  // Warning: (ae-incompatible-release-tags) The symbol "tool" is marked as @public, but its signature references "WorkflowLlmToolLink" which is marked as @alpha
+  tool?: WorkflowLlmToolLink;
   waitingFor?: string;
   workflow?: {
     namespace: string;
@@ -881,6 +621,14 @@ export interface WorkflowLlmToolCallRef {
   name: string;
   nodeId?: string;
   status?: WorkflowNodeStatus;
+}
+
+// @alpha
+export interface WorkflowLlmToolLink {
+  inferred?: boolean;
+  llmNodeId?: string;
+  name?: string;
+  toolCallId?: string;
 }
 
 // @alpha
@@ -1060,9 +808,6 @@ export type WorkflowStatus =
 export interface WorkflowSummary {
   closeTime?: string;
   entityRef?: string;
-  extensions?: {
-    [enricherId: string]: JsonValue;
-  };
   // (undocumented)
   historyLength?: number;
   initiator?: string;
@@ -1082,14 +827,6 @@ export interface WorkflowSummary {
   // (undocumented)
   workflowType: string;
   workflowTypeEntityRef?: string;
-}
-
-// @alpha
-export interface WorkflowToolLink {
-  inferred?: boolean;
-  llmNodeId?: string;
-  name?: string;
-  toolCallId?: string;
 }
 
 // @public

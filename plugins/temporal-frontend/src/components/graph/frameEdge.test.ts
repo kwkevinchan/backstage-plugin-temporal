@@ -34,7 +34,7 @@ import {
   EDGE_LANE_GAP,
   layoutGraph,
   NodeSize,
-  StepLayout,
+  StepGraphLayout,
   stepSize,
   visibleSteps,
 } from './layout';
@@ -741,7 +741,7 @@ describe('arrows that share the gap between two rows', () => {
   }
 
   /** The arrows routed in the gap, with their corners. */
-  function routed(layout: StepLayout, edges: Edge<FrameEdgeData>[]) {
+  function routed(layout: StepGraphLayout, edges: Edge<FrameEdgeData>[]) {
     return (routeRowGaps(layout, edges) as Edge<FrameEdgeData>[]).map(edge => {
       const end = (id: string, side: 'left' | 'right') => {
         const p = layout.positions.get(id)!;

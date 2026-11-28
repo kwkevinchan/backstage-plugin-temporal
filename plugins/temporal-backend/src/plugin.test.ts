@@ -19,16 +19,10 @@ import {
   mockServices,
   startTestBackend,
 } from '@backstage/backend-test-utils';
-import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import type { Entity } from '@backstage/catalog-model';
-import {
-  temporalWorkflowEnricherExtensionPoint,
-  TemporalWorkflowEnricher,
-} from './node/alpha';
 import request from 'supertest';
-import { stringifyTemporalWorkflowResourceRef } from './common';
 import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
@@ -73,7 +67,6 @@ async function start(options?: {
   permission?: AuthorizeResult.ALLOW | AuthorizeResult.DENY;
   /** Entity references, permission names, or `{ permission, resourceRef }` rules denied regardless of `permission`. */
   deny?: Array<string | { permission: string; resourceRef: string }>;
-  enricher?: TemporalWorkflowEnricher;
   workflowService?: FakeWorkflowService;
   entityRefAttribute?: string;
   entities?: Entity[];
@@ -121,23 +114,6 @@ async function start(options?: {
   if (options?.logger) features.push(options.logger.factory);
   if (options?.recorder) {
     features.push(recordingLoggerFactory(options.recorder));
-  }
-  if (options?.enricher) {
-    const enricher = options.enricher;
-    features.push(
-      createBackendModule({
-        pluginId: 'temporal',
-        moduleId: 'test-enricher',
-        register(reg) {
-          reg.registerInit({
-            deps: { temporal: temporalWorkflowEnricherExtensionPoint },
-            async init({ temporal }) {
-              temporal.addWorkflowEnricher(enricher);
-            },
-          });
-        },
-      }),
-    );
   }
   const { server } = await startTestBackend({ features });
   return {
@@ -1118,45 +1094,6 @@ describe('temporal backend plugin', () => {
       .expect(400);
   });
 
-  it('runs workflow enrichers on lists and details', async () => {
-    const enrich = jest.fn(async (items: any[]) =>
-      items.map(item => ({ ...item, extensions: { test: { seen: true } } })),
-    );
-    const { server } = await start({ enricher: { id: 'test', enrich } });
-    const list = await request(server).get(
-      '/api/temporal/entities/component/default/orders/workflows',
-    );
-    expect(list.body.items[0].extensions).toEqual({ test: { seen: true } });
-    const detail = await request(server).get(
-      `/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run?entityRef=${ref}`,
-    );
-    expect(detail.body.extensions).toEqual({ test: { seen: true } });
-    expect(enrich).toHaveBeenCalledTimes(2);
-    expect(enrich).toHaveBeenCalledWith(
-      expect.any(Array),
-      expect.objectContaining({
-        namespace: 'default',
-        entity: expect.objectContaining({
-          metadata: expect.objectContaining({ name: 'orders' }),
-        }),
-      }),
-    );
-  });
-
-  it('keeps going when an enricher fails', async () => {
-    const { server } = await start({
-      enricher: {
-        id: 'broken',
-        enrich: async () => {
-          throw new Error('nope');
-        },
-      },
-    });
-    await request(server)
-      .get('/api/temporal/entities/component/default/orders/workflows')
-      .expect(200);
-  });
-
   it('lists the runs of a TemporalWorkflow entity from its spec', async () => {
     const { server, workflowService } = await start();
     await request(server)
@@ -1363,7 +1300,7 @@ describe('temporal backend plugin', () => {
       });
       const { server, permissions } = await start({ workflowService });
       const res = await request(server).get(
-        '/api/temporal/workflows?status=Failed&workflowType=orderWorkflow&workflowId=order-&pageSize=10',
+        '/api/temporal/workflows?status=Failed&workflowType=orderWorkflow&workflowIdPrefix=order-&pageSize=10',
       );
       expect(res.status).toBe(200);
       expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith({
@@ -1417,7 +1354,7 @@ describe('temporal backend plugin', () => {
     it('rejects injection and other namespaces', async () => {
       const { server, workflowService } = await start();
       for (const query of [
-        `workflowId=${encodeURIComponent("x' OR WorkflowId != '")}`,
+        `workflowIdPrefix=${encodeURIComponent("x' OR WorkflowId != '")}`,
         `workflowType=${encodeURIComponent('a b')}`,
         `status=${encodeURIComponent("Running' OR '1")}`,
       ]) {
@@ -1482,17 +1419,8 @@ describe('temporal backend plugin', () => {
     });
   });
 
-  it('denies apply-conditions when describing the workflow fails', async () => {
-    const logger = recordingLogger();
-    const workflowService = createFakeWorkflowService();
-    const error = new Error('temporal unavailable');
-    error.name = 'ServiceUnavailableError';
-    workflowService.describeWorkflowExecution.mockRejectedValue(error);
-    const { backend } = await start({ workflowService, recorder: logger });
-    const resourceRef = stringifyTemporalWorkflowResourceRef({
-      namespace: 'default',
-      workflowId: 'wf-1',
-    });
+  it('does not load workflows for the conditions of other plugins', async () => {
+    const { backend, workflowService } = await start();
     const res = await request(backend)
       .post('/api/temporal/.well-known/backstage/permissions/apply-conditions')
       .set('Authorization', mockCredentials.service.header())
@@ -1500,7 +1428,7 @@ describe('temporal backend plugin', () => {
         items: [
           {
             id: '1',
-            resourceRef,
+            resourceRef: 'default:wf-1',
             resourceType: 'temporal-workflow',
             conditions: {
               rule: 'HAS_WORKFLOW_TYPE',
@@ -1510,14 +1438,8 @@ describe('temporal backend plugin', () => {
           },
         ],
       });
-    expect(res.status).toBe(200);
-    expect(res.body.items).toEqual([{ id: '1', result: AuthorizeResult.DENY }]);
-    expect(logger.records).toContainEqual({
-      level: 'warn',
-      message: 'Failed to describe a permission resource',
-      meta: { resourceRef },
-      error,
-    });
+    expect(res.status).toBe(501);
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
   });
 
   describe('permissions on dependsOn TemporalWorkflow entities', () => {

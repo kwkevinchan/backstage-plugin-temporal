@@ -75,8 +75,6 @@ Backstage 其他外掛也這樣處理執行時的資料。Kubernetes 外掛用 c
 | 單一流程                          | 照上面讀實體和相關實體；describe 這個流程（流程失敗、逾時、被終止或 continue-as-new 時，再讀它的最後一個事件）；流程自己對不到時，最多再 describe 3 個祖先；沒有 `workflowEntityRef`，而且打開的實體不是這個 workflow type 的 `TemporalWorkflow` 時，再用使用者的憑證查一次 catalog（依 kind 和 `spec.workflowType`），結果只用來顯示連結 |
 | `TemporalWorkflow` 實體的統計卡片 | 照上面讀實體；然後取這個實體的總覽（`POST /workflow-types/overview`）：最多三個 visibility 呼叫，結果保留 60 秒；按 Refresh 會重新讀取                                                                                                                                                                                                    |
 
-模組註冊的 workflow enricher 會跑在回傳的每一筆上，成本看模組而定。
-
 查詢由 Temporal 的 visibility store 回答。執行開始或結束時，catalog 不做任何事。
 
 ## 考慮過但沒採用的做法

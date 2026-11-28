@@ -27,7 +27,7 @@ import { permissionApiRef } from '@backstage/plugin-permission-react';
 import {
   temporalApiRef,
   TemporalWorkflowActionDef,
-  useTemporalWorkflow,
+  TemporalWorkflowExtensionProps,
 } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { AUTO_REFRESH_MS } from './useWorkflowData';
@@ -337,12 +337,11 @@ describe('EntityTemporalContent', () => {
     );
   });
 
-  it('renders workflow actions passed as props, with the workflow context', async () => {
+  it('renders workflow actions passed as props, with the workflow', async () => {
     const api = mockTemporalApi();
-    const ContextAction = () => {
-      const { workflow } = useTemporalWorkflow();
-      return <button type="button">Approve {workflow.workflowId}</button>;
-    };
+    const ContextAction = ({ workflow }: TemporalWorkflowExtensionProps) => (
+      <button type="button">Approve {workflow.workflowId}</button>
+    );
     await render(api, '/namespaces/default/workflows/payment-1/runs/run-2', [
       { id: 'approve', component: ContextAction },
       {

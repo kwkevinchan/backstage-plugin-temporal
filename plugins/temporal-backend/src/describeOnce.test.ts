@@ -15,15 +15,10 @@
  */
 
 import { mockServices, startTestBackend } from '@backstage/backend-test-utils';
-import { createBackendModule } from '@backstage/backend-plugin-api';
 import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import { createServiceFactory } from '@backstage/backend-plugin-api';
-import {
-  temporalAccessServiceRef,
-  TemporalAccessService,
-  temporalWorkflowEnricherExtensionPoint,
-} from './node/alpha';
+import { temporalAccessServiceRef, TemporalAccessService } from './node/alpha';
 import request from 'supertest';
 import { memoryS3, storeExternally } from './__testUtils__/externalStorage';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
@@ -78,22 +73,6 @@ async function start(
       requests.map(() => decision),
     ) as any,
   });
-  const enricher = createBackendModule({
-    pluginId: 'temporal',
-    moduleId: 'test-enricher',
-    register(reg) {
-      reg.registerInit({
-        deps: { temporal: temporalWorkflowEnricherExtensionPoint },
-        async init({ temporal }) {
-          temporal.addWorkflowEnricher({
-            id: 'test',
-            enrich: async items =>
-              items.map(item => ({ ...item, extensions: { test: true } })),
-          });
-        },
-      });
-    },
-  });
   const { server } = await startTestBackend({
     features: [
       temporalPlugin,
@@ -101,7 +80,6 @@ async function start(
       catalogServiceMock.factory({ entities: [ordersEntity, otherEntity] }),
       fakeTemporalServiceFactory(workflowService),
       permissions.factory,
-      enricher,
       ...(options.access
         ? [
             createServiceFactory({
@@ -133,7 +111,7 @@ function externalMemo() {
 describe('opening one workflow', () => {
   const path = '/api/temporal/namespaces/default/workflows/wf-1/runs/wf-1-run';
 
-  it('describes it once for an entity, with the memo and the enrichers', async () => {
+  it('describes it once for an entity, with the memo', async () => {
     const { server, workflowService } = await start();
     const res = await request(server).get(`${path}?entityRef=${ref}`);
     expect(res.status).toBe(200);
@@ -141,7 +119,6 @@ describe('opening one workflow', () => {
       workflowId: 'wf-1',
       runId: 'wf-1-run',
       memo: { customer: externalMemo() },
-      extensions: { test: true },
     });
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
   });
@@ -150,7 +127,7 @@ describe('opening one workflow', () => {
     const { server, workflowService } = await start();
     const res = await request(server).get(path);
     // The fake workflow has no entity reference attribute: the Temporal
-    // page permissions decide, and the enrichers need an entity.
+    // page permissions decide.
     expect(res.status).toBe(200);
     expect(res.body.memo).toEqual({ customer: externalMemo() });
     expect(workflowService.describeWorkflowExecution).toHaveBeenCalledTimes(1);
@@ -183,7 +160,6 @@ describe('opening one workflow', () => {
   it('answers with the workflow of another access service as it is', async () => {
     const { server, workflowService } = await start({
       access: {
-        linkWorkflowEntities: async items => items,
         loadWorkflow: async () => ({
           workflow: {
             workflowId: 'wf-1',

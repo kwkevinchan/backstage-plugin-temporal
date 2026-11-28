@@ -19,7 +19,7 @@
 
 import type { JsonObject, JsonValue } from '@backstage/types';
 import type { WorkflowEventGroup } from './eventGroups';
-import type { WorkflowLlmSummary, WorkflowToolLink } from './llm';
+import type { WorkflowLlmSummary, WorkflowLlmToolLink } from './llm';
 import type { WorkflowFailure, WorkflowStatus } from './types';
 
 /**
@@ -184,7 +184,7 @@ export interface WorkflowGraphNode {
    * A tool call of a model call. Experimental: the shape changes before
    * the first stable release.
    */
-  tool?: WorkflowToolLink;
+  tool?: WorkflowLlmToolLink;
   /**
    * Keys of the Temporal event groups of the step, outer groups first, as
    * the history lists them (see `WorkflowGraphResponse.eventGroups`).

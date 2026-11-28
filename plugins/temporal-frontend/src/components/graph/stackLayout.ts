@@ -26,7 +26,7 @@ import {
   setStackSidePad,
   STACK_GAP,
   STACK_SIDE,
-  StepLayout,
+  StepGraphLayout,
 } from './geometry';
 
 /** Room between a column and a part placed beside the boxes of a frame. */
@@ -107,7 +107,7 @@ export type LayOutBlocks = (
      */
     clearThrough?: boolean;
   },
-) => StepLayout;
+) => StepGraphLayout;
 
 /**
  * Lays out a graph with stacked frames (`LayoutFrame.stacked`). The rows of
@@ -131,7 +131,7 @@ export function layoutStacked(
   width: number | undefined,
   options: { frames: LayoutFrame[]; lineUpRows?: boolean },
   layOut: LayOutBlocks,
-): StepLayout {
+): StepGraphLayout {
   const { frames } = options;
   const frameById = new Map(frames.map(f => [f.id, f]));
   const nodeById = new Map(nodes.map(n => [n.id, n]));
@@ -183,7 +183,7 @@ export function layoutStacked(
     regionWidth: number | undefined,
     chain = false,
     clearThrough = false,
-  ): StepLayout {
+  ): StepGraphLayout {
     const regionNodes: LayoutNode[] = [];
     const regionFrames: LayoutFrame[] = [];
     const regionBlocks = new Map<string, StackBlock>();
@@ -325,7 +325,7 @@ export function layoutStacked(
    * between it and the boxes.
    */
   function placeBeside(
-    layout: StepLayout,
+    layout: StepGraphLayout,
     frame: string,
     items: string[],
     clearThrough: boolean,
@@ -723,7 +723,7 @@ export function layoutStacked(
       });
       const joinedSizes = new Map<string, NodeSize>();
       const joinedGaps = new Map<string, number[]>();
-      const joined: StepLayout = {
+      const joined: StepGraphLayout = {
         positions: new Map(),
         sizes: joinedSizes,
         stackGaps: joinedGaps,
@@ -788,7 +788,7 @@ export function layoutStacked(
       return undefined;
     };
     const wayBlocked = (
-      rowLayout: StepLayout,
+      rowLayout: StepGraphLayout,
       id: string,
       toward: 'left' | 'right',
     ) => {
@@ -907,7 +907,7 @@ export function layoutStacked(
  * A laid out part of a graph moved to (0, 0): the top left of its boxes and
  * frames, with its width and height.
  */
-function normalized(layout: StepLayout) {
+function normalized(layout: StepGraphLayout) {
   const size = (id: string) =>
     layout.sizes?.get(id) ?? { width: NODE_WIDTH, height: NODE_HEIGHT };
   let [left, top, right, bottom] = [Infinity, Infinity, -Infinity, -Infinity];
@@ -930,7 +930,7 @@ function normalized(layout: StepLayout) {
       gaps.map(g => g - top),
     );
   }
-  const next: StepLayout = {
+  const next: StepGraphLayout = {
     positions,
     sizes,
     stackGaps,

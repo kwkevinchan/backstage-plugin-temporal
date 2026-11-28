@@ -31,43 +31,6 @@ const RESOURCE_TYPE_CATALOG_ENTITY = 'catalog-entity';
 export const RESOURCE_TYPE_TEMPORAL_WORKFLOW = 'temporal-workflow';
 
 /**
- * The resource reference of a workflow for the `temporal-workflow` resource
- * type: `namespace:workflowId`, or `namespace:workflowId:runId`, each part
- * URI-encoded.
- *
- * @public
- */
-export function stringifyTemporalWorkflowResourceRef(ref: {
-  namespace: string;
-  workflowId: string;
-  runId?: string;
-}): string {
-  const parts = [ref.namespace, ref.workflowId];
-  if (ref.runId) parts.push(ref.runId);
-  return parts.map(encodeURIComponent).join(':');
-}
-
-/**
- * Parses a reference made by {@link stringifyTemporalWorkflowResourceRef}.
- * Returns undefined when it is not one.
- *
- * @public
- */
-export function parseTemporalWorkflowResourceRef(
-  resourceRef: string,
-): { namespace: string; workflowId: string; runId?: string } | undefined {
-  const parts = resourceRef.split(':');
-  if (parts.length < 2 || parts.length > 3) return undefined;
-  try {
-    const [namespace, workflowId, runId] = parts.map(decodeURIComponent);
-    if (!namespace || !workflowId) return undefined;
-    return runId ? { namespace, workflowId, runId } : { namespace, workflowId };
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Read the workflows of an entity: the list, the details, the step graph,
  * the event history, the inputs and results, the failure details and the
  * records of model calls.

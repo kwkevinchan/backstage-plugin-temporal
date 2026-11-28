@@ -35,7 +35,7 @@ export interface NodeSize {
 }
 
 /**
- * Positions and size of a laid out step graph.
+ * Positions and size of a laid out step graph, as `layoutSteps` returns it.
  *
  * @alpha
  */
@@ -48,6 +48,10 @@ export interface StepLayout {
   height: number;
   /** True when the columns were wrapped into more than one row. */
   wrapped: boolean;
+}
+
+/** A {@link StepLayout} with what the arrows are routed by. */
+export interface StepGraphLayout extends StepLayout {
   /**
    * In a wrapped graph, the y of the middle of the gap below each row but
    * the last: an arrow into a later row runs across it, clear of the boxes.
@@ -136,13 +140,13 @@ interface StackRoute {
 }
 
 /** The side channel of `frame`, or `STACK_SIDE` when it was not widened. */
-export function stackSidePad(layout: StepLayout, frame: string): number {
+export function stackSidePad(layout: StepGraphLayout, frame: string): number {
   return layout.stackSidePads?.get(frame) ?? STACK_SIDE;
 }
 
 /** Records a side channel wider than `STACK_SIDE` for `frame`. */
 export function setStackSidePad(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   frame: string,
   pad: number,
 ): void {
@@ -156,14 +160,14 @@ export function setStackSidePad(
  * found once for each layout: a laid out graph does not change.
  */
 const stackCache = new WeakMap<
-  StepLayout,
+  StepGraphLayout,
   {
     rects: Rect[];
     routes: Map<string, StackRoute | undefined>;
   }
 >();
 
-function cacheOf(layout: StepLayout) {
+function cacheOf(layout: StepGraphLayout) {
   let cached = stackCache.get(layout);
   if (!cached) {
     const rects = [...layout.positions].map(([id, p]) => {
@@ -220,7 +224,7 @@ function cacheOf(layout: StepLayout) {
  * Nothing otherwise, as for two boxes in one row.
  */
 export function stackGapOf(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   source: string,
   target: string,
 ): number | undefined {
@@ -233,7 +237,7 @@ export function stackGapOf(
  * the right side of the frame. Nothing when it turns next to its source.
  */
 export function stackTurnOut(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   source: string,
   target: string,
 ): number | undefined {
@@ -247,7 +251,7 @@ export function stackTurnOut(
  * next to the target.
  */
 export function stackTurnIn(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   source: string,
   target: string,
 ): number | undefined {
@@ -255,7 +259,7 @@ export function stackTurnIn(
 }
 
 function stackRoute(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   source: string,
   target: string,
 ): StackRoute | undefined {
@@ -272,7 +276,7 @@ function stackRoute(
 }
 
 function findStackRoute(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   rects: Rect[],
   source: string,
   target: string,
@@ -499,7 +503,7 @@ function findStackRoute(
  * source (`rowGaps`), or else the one of a stacked frame (`stackGapOf`).
  */
 export function rowGapOf(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   source: string,
   target: string,
 ): number | undefined {

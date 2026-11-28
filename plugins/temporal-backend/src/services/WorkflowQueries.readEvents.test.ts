@@ -22,7 +22,6 @@ const ref = { namespace: 'default', workflowId: 'wf', runId: 'run' };
 function queriesWith(historyPage: jest.Mock) {
   return new WorkflowQueries(
     {} as any,
-    [],
     mockServices.logger.mock(),
     { checkNamespace: () => undefined } as any,
     { historyPage } as any,

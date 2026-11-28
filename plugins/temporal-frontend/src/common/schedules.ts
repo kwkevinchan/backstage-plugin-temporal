@@ -26,8 +26,6 @@ import { buildEntityWorkflowsPath } from './paths';
  * @public
  */
 export interface TemporalScheduleAction {
-  /** ISO 8601 time the action was scheduled for. */
-  scheduledAt: string;
   /** ISO 8601 time the action was taken. */
   takenAt: string;
   workflowId: string;

@@ -223,7 +223,6 @@ async function start(options?: {
       return connection as any;
     },
     getDefaultNamespace: () => 'default',
-    getAllowedNamespaces: () => ['default'],
     isNamespaceAllowed: ns => ns === 'default' || ns === 'other',
     getSearchAttributeNames: () => ({
       entityRef: 'BackstageEntityRef',

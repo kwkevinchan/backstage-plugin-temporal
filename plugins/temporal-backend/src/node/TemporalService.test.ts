@@ -259,6 +259,30 @@ describe('DefaultTemporalService', () => {
   });
 });
 
+describe('a subclass of DefaultTemporalService', () => {
+  it('makes the clients on the connection of its own getConnection, per namespace', async () => {
+    const connection = {} as Connection;
+    const getConnection = jest.fn(
+      async (_options?: { namespace?: string }) => connection,
+    );
+    class OwnConnection extends DefaultTemporalService {
+      getConnection(options?: { namespace?: string }) {
+        return getConnection(options);
+      }
+    }
+    const temporal = new OwnConnection({
+      address: 'temporal.example.com:7233',
+      defaultNamespace: 'default',
+      namespaces: ['default', 'other'],
+      searchAttributes: {},
+    });
+    const client = await temporal.getClient({ namespace: 'other' });
+    expect(client.connection).toBe(connection);
+    expect(client.options.namespace).toBe('other');
+    expect(getConnection).toHaveBeenCalledWith({ namespace: 'other' });
+  });
+});
+
 describe('connection options', () => {
   afterEach(() => jest.restoreAllMocks());
 

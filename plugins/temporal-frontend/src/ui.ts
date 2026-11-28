@@ -21,20 +21,20 @@
  * the class names of the plugin styles and the entity tab route ref. An app does
  * not need them.
  *
- * Alpha: there is no compatibility promise between versions. The companion
- * packages are released with the same version as this plugin and use the
- * matching `./ui`; other packages should not depend on it.
+ * Alpha: a change that breaks a user of `./ui` never comes in a patch, only
+ * in a version that a `^` range does not take (a minor version while the
+ * plugin is `0.x`), so a companion package that depends on `^` of this
+ * plugin keeps working. The companion packages are released with the
+ * same version as this plugin; other packages should not depend on it.
  *
  * @packageDocumentation
  */
 
-export type {
-  GraphCanvasProps,
-  GraphFullscreen,
-} from './components/graph/GraphCanvas';
+export type { GraphCanvasProps } from './components/graph/GraphCanvas';
 export type { NodeSize, StepLayout } from './components/graph/layout';
 export type { AnyStatus, Tone } from './components/WorkflowStatusLabel';
-export { tp } from './components/styles';
+export type { TemporalUiClassName } from './components/styles';
+export { uiClassNames as tp } from './components/styles';
 export { AUTO_REFRESH_MS, usePageVisible } from './components/useWorkflowData';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
@@ -50,10 +50,8 @@ export { graphHeight, layoutSteps } from './components/graph/layout';
 export {
   flowNodeBase,
   GraphCanvas,
-  GraphFullscreenContext,
-  useGraphFullscreen,
-  useGraphFullscreenState,
-  RELAYOUT_DELAY_MS,
+  GraphFullscreenArea,
+  GraphFullscreenButton,
+  useIsGraphFullscreen,
   useSettledWidth,
-  ViewButtons,
 } from './components/graph/GraphCanvas';

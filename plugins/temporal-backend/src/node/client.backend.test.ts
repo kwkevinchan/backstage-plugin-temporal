@@ -41,7 +41,6 @@ const temporal: TemporalService = {
     throw new Error('not used');
   },
   getDefaultNamespace: () => 'default',
-  getAllowedNamespaces: () => ['default'],
   isNamespaceAllowed: ns => ns === 'default',
   getSearchAttributeNames: () => ({}),
   getWebUiUrl: () => undefined,

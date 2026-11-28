@@ -130,6 +130,40 @@ describe('scaffolderTemporalModule', () => {
     );
   });
 
+  it('links workflowUrl to temporal.pagePath', async () => {
+    const addActions = jest.fn();
+    await startTestBackend({
+      extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
+      features: [
+        scaffolderTemporalModule,
+        catalogServiceMock.factory({ entities: [] }),
+        mockServices.rootConfig.factory({
+          data: {
+            app: { baseUrl: 'http://backstage' },
+            temporal: { pagePath: '/ops/workflows' },
+          },
+        }),
+      ],
+    });
+    const start = addActions.mock.calls
+      .flat()
+      .find((a: { id: string }) => a.id === 'temporal:workflow:start');
+    const ctx = createMockActionContext({
+      input: { workflowType: 'orderWorkflow', taskQueue: 'orders' },
+    });
+    Object.assign(ctx, {
+      getInitiatorCredentials: async () =>
+        mockCredentials.user('user:default/alice'),
+      checkpoint: async ({ fn }: any) => fn(),
+      isDryRun: true,
+    });
+    await start.handler(ctx);
+    expect(ctx.output).toHaveBeenCalledWith(
+      'workflowUrl',
+      'http://backstage/ops/workflows/namespaces/default/workflows/dry-run/runs/dry-run',
+    );
+  });
+
   describe('with a service principal as the initiator', () => {
     async function signalAction(
       temporal: object = {},

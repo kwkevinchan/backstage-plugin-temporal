@@ -15,6 +15,7 @@
  */
 
 import { Entity, RELATION_DEPENDS_ON } from '@backstage/catalog-model';
+import { NAME_PATTERN_SOURCES } from './namePatterns';
 
 /** Lower-case `TemporalWorkflow` kind, as in entity references. */
 const TEMPORAL_WORKFLOW_KIND_LOWER = 'temporalworkflow';
@@ -41,18 +42,6 @@ export const TEMPORAL_TASK_QUEUE_ANNOTATION = 'temporal.io/task-queue';
  */
 export const TEMPORAL_WORKFLOW_TYPE_ANNOTATION = 'temporal.io/workflow-type';
 
-/**
- * Allowed characters for annotation values. Values end up inside a Temporal
- * visibility query, so quotes, backslashes, spaces and brackets are rejected.
- * The same patterns validate the `TemporalWorkflow` spec.
- *
- * @public
- */
-export const NAME_PATTERN_SOURCES = {
-  namespace: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$',
-  taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$',
-  workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$',
-} as const;
 const NAMESPACE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.namespace);
 const TASK_QUEUE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.taskQueue);
 const WORKFLOW_TYPE_PATTERN = new RegExp(NAME_PATTERN_SOURCES.workflowType);

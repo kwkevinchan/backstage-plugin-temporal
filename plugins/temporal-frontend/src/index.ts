@@ -20,8 +20,8 @@
  * which also has the blueprints for workflow actions, list actions, schedule
  * actions, sections and buttons of custom backend actions.
  *
- * The package also exports the frontend extension points (the API ref, the
- * workflow hook with its provider for tests, and the props of actions, list actions and sections) and
+ * The package also exports the frontend extension points (the API ref and
+ * the props of actions, list actions and sections) and
  * the conditions for entity pages. The permissions, annotations and response
  * types of the backend API are in `./common`.
  *
@@ -42,13 +42,8 @@ export type {
 export { TemporalClient } from './api';
 export { createTemporalControlActionDef } from './control';
 export type { TemporalControlActionButtonOptions } from './control';
-export {
-  temporalApiRef,
-  useTemporalWorkflow,
-  TemporalWorkflowProvider,
-} from './extensions';
+export { temporalApiRef } from './extensions';
 export type {
-  TemporalWorkflowProviderProps,
   TemporalApi,
   TemporalWorkflowExtensionProps,
   TemporalWorkflowActionDef,

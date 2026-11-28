@@ -28,7 +28,7 @@ import {
   graphHeight,
   layoutSteps,
   MIN_GRAPH_HEIGHT,
-  StepLayout,
+  StepGraphLayout,
   stepSize,
   visibleSteps,
 } from './layout';
@@ -60,11 +60,10 @@ import {
 import {
   flowNodeBase,
   EDGE_ARROW_ID,
-  GraphCanvas,
-  RELAYOUT_DELAY_MS,
+  GraphFullscreenButton,
+  StepGraphCanvas,
   useSettledWidth,
   useGraphFullscreen,
-  ViewButtons,
 } from './GraphCanvas';
 import { frameInsets } from './frameEdge';
 import { StepFlowNode, StepNode } from './StepNode';
@@ -124,7 +123,7 @@ const TOO_MANY_STEPS =
   'The run has too many steps in a row to lay out as a graph. Use the Steps tab to inspect them.';
 
 /** Used when layout throws, so the rest of the page can still render. */
-const EMPTY_LAYOUT: StepLayout = {
+const EMPTY_LAYOUT: StepGraphLayout = {
   positions: new Map(),
   width: 1,
   height: 1,
@@ -170,7 +169,7 @@ function useStructure(
       };
     });
     let groups: GroupedLayout | undefined;
-    let layout: StepLayout = EMPTY_LAYOUT;
+    let layout: StepGraphLayout = EMPTY_LAYOUT;
     let layoutError: Error | undefined;
     try {
       if (graph.eventGroups && graph.eventGroups.length > 0) {
@@ -183,7 +182,12 @@ function useStructure(
         );
         layout = groups.layout;
       } else {
-        layout = layoutSteps(mainNodes, visibleEdges, layoutWidth);
+        // `layoutSteps` returns the full layout; its public type has less.
+        layout = layoutSteps(
+          mainNodes,
+          visibleEdges,
+          layoutWidth,
+        ) as StepGraphLayout;
       }
     } catch (err) {
       // A long chain can exhaust the call stack in dagre (`RangeError`);
@@ -406,7 +410,7 @@ function StepCanvas(
   }, [structure, layout, running]);
 
   return (
-    <GraphCanvas<FlowNode>
+    <StepGraphCanvas<FlowNode>
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -442,7 +446,7 @@ function GraphToolbar(props: {
           onChange={props.onShowMarkersChange}
         />
       )}
-      <ViewButtons />
+      <GraphFullscreenButton />
     </Flex>
   );
 }
@@ -456,10 +460,7 @@ function GraphToolbar(props: {
  */
 export function WorkflowGraph(props: WorkflowGraphProps) {
   const showMarkers = props.showMarkers ?? false;
-  const [areaRef, layoutWidth] = useSettledWidth(
-    RELAYOUT_DELAY_MS,
-    props.panelOpen,
-  );
+  const [areaRef, layoutWidth] = useSettledWidth(props.panelOpen);
   const [ownGroupViews, setOwnGroupViews] = useState<GroupViews>({});
   const groupViews = props.groupViews ?? ownGroupViews;
   const { onGroupViewChange } = props;

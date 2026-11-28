@@ -16,9 +16,8 @@
 
 /**
  * Alpha API of the Temporal backend plugin: for backend modules, the access
- * service the plugin and its modules share (`temporalAccessServiceRef`), the
- * control extension point (`temporalControlExtensionPoint`) and the workflow
- * enricher extension point (`temporalWorkflowEnricherExtensionPoint`); for
+ * service the plugin and its modules share (`temporalAccessServiceRef`) and
+ * the control extension point (`temporalControlExtensionPoint`); for
  * permission policies, the conditions of the `temporal-workflow` resource
  * type; and the default factory of the access service. This entry point does
  * not load the plugin itself.

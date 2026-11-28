@@ -137,5 +137,11 @@ export interface Config {
        */
       maxVisibilityCallsPerSecond?: number;
     };
+    /**
+     * Path of the Temporal page in the app, for the links to runs that the
+     * Scaffolder and actions registry modules return. Defaults to
+     * `/temporal`; set it when the app mounts the page somewhere else.
+     */
+    pagePath?: string;
   };
 }

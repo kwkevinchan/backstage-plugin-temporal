@@ -36,8 +36,8 @@ import {
   isTemporalWorkflowEntity,
   TEMPORAL_WORKFLOW_API_VERSION,
   TemporalWorkflowEntityV1alpha1,
-  temporalWorkflowEntityV1alpha1Schema,
 } from '../common';
+import { temporalWorkflowEntityV1alpha1Schema } from './temporalWorkflowEntitySchema';
 
 /**
  * Catalog processor for the `TemporalWorkflow` kind

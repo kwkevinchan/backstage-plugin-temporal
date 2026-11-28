@@ -57,12 +57,6 @@ export interface TemporalAccessService {
     credentials: BackstageCredentials,
   ): Promise<string | undefined>;
   canListAll(credentials: BackstageCredentials): Promise<boolean>;
-  // Warning: (ae-forgotten-export) The symbol "WorkflowSummary" needs to be exported by the entry point alpha.d.ts
-  linkWorkflowEntities(
-    items: WorkflowSummary[],
-    namespace: string,
-    credentials: BackstageCredentials,
-  ): Promise<WorkflowSummary[]>;
   loadEntity(
     entityRef: string,
     permission: ResourcePermission<'catalog-entity'>,
@@ -181,35 +175,6 @@ export const temporalWorkflowConditions: Conditions<{
 }>;
 
 // @alpha
-export interface TemporalWorkflowEnricher {
-  // (undocumented)
-  enrich(
-    items: WorkflowSummary[],
-    context: TemporalWorkflowEnricherContext,
-  ): Promise<WorkflowSummary[]>;
-  // (undocumented)
-  id: string;
-}
-
-// @alpha
-export interface TemporalWorkflowEnricherContext {
-  // (undocumented)
-  credentials: BackstageCredentials;
-  entity?: Entity;
-  // (undocumented)
-  namespace: string;
-}
-
-// @alpha
-export interface TemporalWorkflowEnricherExtensionPoint {
-  // (undocumented)
-  addWorkflowEnricher(enricher: TemporalWorkflowEnricher): void;
-}
-
-// @alpha
-export const temporalWorkflowEnricherExtensionPoint: ExtensionPoint<TemporalWorkflowEnricherExtensionPoint>;
-
-// @alpha
 export interface TemporalWorkflowEntityLoadResult {
   context?: TemporalEntityContext;
   entityRef: string;
@@ -269,6 +234,10 @@ export const temporalWorkflowPermissionRules: {
     }
   >;
 };
+
+// Warnings were encountered during analysis:
+//
+// src/alpha.d.ts:14:5 - (ae-forgotten-export) The symbol "WorkflowSummary" needs to be exported by the entry point alpha.d.ts
 
 // (No @packageDocumentation comment for this package)
 ```

@@ -18,21 +18,18 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-import {
-  parseTemporalWorkflowResourceRef,
-  temporalPermissions,
-} from './common';
+import { catalogServiceRef } from '@backstage/plugin-catalog-node';
+import { temporalPermissions } from './common';
 import { temporalServiceRef } from './node';
 import {
   TemporalControlAction,
   temporalAccessServiceRef,
   temporalControlExtensionPoint,
-  TemporalWorkflowEnricher,
-  temporalWorkflowEnricherExtensionPoint,
   temporalWorkflowPermissionResourceRef,
 } from './node/alpha';
 import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
+import { WorkflowTypeEntities } from './access/WorkflowTypeEntities';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
 import express from 'express';
@@ -41,38 +38,24 @@ import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
-import { mapInBatches } from './services/mapInBatches';
 import { WorkflowQueries } from './services/WorkflowQueries';
 import {
   readControlOptions,
   WorkflowCommands,
 } from './services/WorkflowCommands';
 
-/** Workflows described at the same time to resolve permission resources. */
-const RESOURCE_CONCURRENCY = 8;
-
 /**
  * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
  * workflows and, unless `temporal.control.enabled` is false, the routes that
  * change them (start, signal, update, cancel, terminate, rerun, custom
  * actions and schedule operations). Every route is checked with the
- * permission framework, except `GET /openapi.json`, which needs a signed-in
- * caller only; the operations are recorded with the auditor.
+ * permission framework; the operations are recorded with the auditor.
  *
  * @public
  */
 export const temporalPlugin = createBackendPlugin({
   pluginId: 'temporal',
   register(env) {
-    const enrichers: TemporalWorkflowEnricher[] = [];
-    env.registerExtensionPoint(temporalWorkflowEnricherExtensionPoint, {
-      addWorkflowEnricher(enricher) {
-        if (enrichers.some(e => e.id === enricher.id)) {
-          throw new Error(`Duplicate workflow enricher id: ${enricher.id}`);
-        }
-        enrichers.push(enricher);
-      },
-    });
     // Registered whether or not the operations are enabled, so that the
     // modules that add actions start either way.
     const actions: TemporalControlAction[] = [];
@@ -96,6 +79,7 @@ export const temporalPlugin = createBackendPlugin({
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
         permissionsRegistry: coreServices.permissionsRegistry,
+        catalog: catalogServiceRef,
         temporal: temporalServiceRef,
         access: temporalAccessServiceRef,
       },
@@ -106,6 +90,7 @@ export const temporalPlugin = createBackendPlugin({
         httpAuth,
         httpRouter,
         permissionsRegistry,
+        catalog,
         temporal,
         access,
       }) {
@@ -149,7 +134,6 @@ export const temporalPlugin = createBackendPlugin({
         const temporalReads = new TemporalReadRepository(temporal, logger);
         const queries = new WorkflowQueries(
           temporal,
-          enrichers,
           logger,
           sources,
           temporalReads,
@@ -178,31 +162,11 @@ export const temporalPlugin = createBackendPlugin({
         );
         const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permission.
-        // Modules can add more rules (addPermissionRules).
+        // Modules can add more rules (addPermissionRules). The plugin
+        // applies the conditions itself, so there is no getResources.
         permissionsRegistry.addResourceType({
           resourceRef: temporalWorkflowPermissionResourceRef,
           rules: Object.values(temporalWorkflowPermissionRules),
-          async getResources(resourceRefs) {
-            const describeOne = async (resourceRef: string) => {
-              const ref = parseTemporalWorkflowResourceRef(resourceRef);
-              if (!ref) return undefined;
-              return queries.describe(ref).catch(error => {
-                const name = error instanceof Error ? error.name : 'Error';
-                // A workflow that does not exist is an ordinary answer.
-                if (name === 'NotFoundError') return undefined;
-                logger
-                  .child({ resourceRef })
-                  .warn('Failed to describe a permission resource', error);
-                return undefined;
-              });
-            };
-            // A few at a time: a list can ask for many workflows at once.
-            return mapInBatches(
-              resourceRefs,
-              RESOURCE_CONCURRENCY,
-              describeOne,
-            );
-          },
         });
         pluginRouter.use(
           createRouter({
@@ -210,11 +174,11 @@ export const temporalPlugin = createBackendPlugin({
             logger,
             auditor,
             access,
+            typeEntities: new WorkflowTypeEntities(catalog, sources, logger),
             sources,
             queries,
             lists,
             ai,
-            controlEnabled,
           }),
         );
         // After every route, so that it sees the errors of all of them.

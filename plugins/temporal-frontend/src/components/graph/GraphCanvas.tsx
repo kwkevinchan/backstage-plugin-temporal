@@ -16,6 +16,7 @@
 
 import {
   createContext,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -44,6 +45,7 @@ import {
   initialViewport,
   keepInGraph,
   panIntoView,
+  StepGraphLayout,
   StepLayout,
 } from './layout';
 import { FrameEdgeData, frameEdgePath, routeRowGaps } from './frameEdge';
@@ -62,10 +64,8 @@ export const MAX_ZOOM = 2;
  * Time the graph area keeps its width before the graph is laid out again
  * for it, so resizing the window or the step panel does not re-layout on
  * every frame.
- *
- * @alpha
  */
-export const RELAYOUT_DELAY_MS = 150;
+const RELAYOUT_DELAY_MS = 150;
 
 /**
  * An arrow into a later row of a wrapped graph (`rowGap`), or of a graph
@@ -152,20 +152,32 @@ export function flowNodeBase(layout: StepLayout, id: string) {
  */
 export interface GraphCanvasProps<N extends Node> {
   nodes: N[];
+  /**
+   * The arrows between the boxes. In a wrapped layout the canvas changes
+   * the arrows of type `smoothstep` into a later row: they get their own
+   * type and turn in the gap between the rows, clear of the boxes.
+   */
   edges: Edge[];
   nodeTypes: NodeTypes;
+  /** The layout of the boxes, from `layoutSteps`. */
   layout: StepLayout;
   /** Changes when the layout changes, so the view is set again. */
   layoutKey: string;
   /** The width the graph was laid out for. */
   layoutWidth?: number;
   selectedId?: string;
+  onSelect(id: string | undefined): void;
+}
+
+/** Props of {@link StepGraphCanvas}: the step graph of a run. */
+export interface StepGraphCanvasProps<N extends Node>
+  extends GraphCanvasProps<N> {
+  layout: StepGraphLayout;
   /**
    * A box to bring into view when nothing is selected: the box of a group
    * opened, closed or picked last, or of a selected step in a closed group.
    */
   focusId?: string;
-  onSelect(id: string | undefined): void;
   /** Boxes that pressing selects; by default every box. */
   selectable?(node: N): boolean;
 }
@@ -179,6 +191,16 @@ export interface GraphCanvasProps<N extends Node> {
  * @alpha
  */
 export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
+  // A layout of `layoutSteps` has the fields of the arrows too.
+  return (
+    <StepGraphCanvas<N> {...props} layout={props.layout as StepGraphLayout} />
+  );
+}
+
+/** {@link GraphCanvas} with the options of the step graph of a run. */
+export function StepGraphCanvas<N extends Node>(
+  props: StepGraphCanvasProps<N>,
+) {
   const { layout, onSelect } = props;
   const edges = useMemo(
     () => routeRowGaps(layout, props.edges),
@@ -322,11 +344,7 @@ export function GraphCanvas<N extends Node>(props: GraphCanvasProps<N>) {
   );
 }
 
-/**
- * Full screen of a graph and the panel next to it.
- *
- * @alpha
- */
+/** Full screen of a graph and the panel next to it. */
 export interface GraphFullscreen {
   fullscreen: boolean;
   toggle(): void;
@@ -335,18 +353,12 @@ export interface GraphFullscreen {
 /**
  * Given by the area that can go full screen (the graph and its step
  * panel); without it the graph has no full screen button.
- *
- * @alpha
  */
 export const GraphFullscreenContext = createContext<
   GraphFullscreen | undefined
 >(undefined);
 
-/**
- * The full screen state of a graph area, for its context.
- *
- * @alpha
- */
+/** The full screen state of a graph area, for its context. */
 export function useGraphFullscreenState(): GraphFullscreen {
   const [fullscreen, setFullscreen] = useState(false);
   const current = useRef(false);
@@ -391,23 +403,55 @@ export function useGraphFullscreenState(): GraphFullscreen {
   return useMemo(() => ({ fullscreen, toggle }), [fullscreen, toggle]);
 }
 
-/**
- * The full screen state around a graph, when it can go full screen.
- *
- * @alpha
- */
+/** The full screen state around a graph, when it can go full screen. */
 export function useGraphFullscreen(): GraphFullscreen | undefined {
   return useContext(GraphFullscreenContext);
 }
 
 /**
- * "Full screen", in an area that can go full screen. Zooming is with the
- * graph's own controls (zoom in, zoom out, fit the whole graph); the graph
- * opens at a readable size.
+ * An area that can go full screen: a graph (with {@link GraphFullscreenButton})
+ * and what is shown next to it. It is a `div` with `data-fullscreen` set to
+ * `true` while it covers the window; the styles of the area decide how.
  *
  * @alpha
  */
-export function ViewButtons() {
+export function GraphFullscreenArea(props: {
+  className?: string;
+  'data-testid'?: string;
+  children?: ReactNode;
+}) {
+  const fullscreen = useGraphFullscreenState();
+  return (
+    <GraphFullscreenContext.Provider value={fullscreen}>
+      <div
+        className={props.className}
+        data-fullscreen={fullscreen.fullscreen}
+        data-testid={props['data-testid']}
+      >
+        {props.children}
+      </div>
+    </GraphFullscreenContext.Provider>
+  );
+}
+
+/**
+ * True while the {@link GraphFullscreenArea} around the caller covers the
+ * window.
+ *
+ * @alpha
+ */
+export function useIsGraphFullscreen(): boolean {
+  return useGraphFullscreen()?.fullscreen ?? false;
+}
+
+/**
+ * "Full screen", in a {@link GraphFullscreenArea}; nothing outside one.
+ * Zooming is with the graph's own controls (zoom in, zoom out, fit the
+ * whole graph); the graph opens at a readable size.
+ *
+ * @alpha
+ */
+export function GraphFullscreenButton() {
   const fullscreen = useGraphFullscreen();
   if (!fullscreen) return null;
   return (
@@ -424,7 +468,7 @@ export function ViewButtons() {
 
 /**
  * A ref callback and the width of its element. The first width is taken
- * at once; later changes once the width has stayed the same for `delay`
+ * at once; later changes once the width has stayed the same for 150
  * milliseconds, so a width that is still changing (window resize) is laid
  * out only once. When `trigger` changes (the step panel opened or closed),
  * the width is read again at once, before the browser paints: the panel
@@ -435,7 +479,6 @@ export function ViewButtons() {
  * @alpha
  */
 export function useSettledWidth(
-  delay: number,
   trigger?: unknown,
 ): [(element: HTMLElement | null) => void, number?] {
   const [element, setElement] = useState<HTMLElement | null>(null);
@@ -468,13 +511,13 @@ export function useSettledWidth(
             ? last
             : next,
         );
-      }, delay);
+      }, RELAYOUT_DELAY_MS);
     });
     observer.observe(element);
     return () => {
       window.clearTimeout(timer);
       observer.disconnect();
     };
-  }, [element, delay]);
+  }, [element]);
   return [setElement, width];
 }

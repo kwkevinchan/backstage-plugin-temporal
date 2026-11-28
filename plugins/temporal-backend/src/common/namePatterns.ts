@@ -15,17 +15,12 @@
  */
 
 /**
- * Maps `items` with `fn`, at most `size` at the same time (a batch after a
- * batch), and returns the results in the order of `items`.
+ * Allowed characters for annotation values. Values end up inside a Temporal
+ * visibility query, so quotes, backslashes, spaces and brackets are rejected.
+ * The same patterns validate the `TemporalWorkflow` spec.
  */
-export async function mapInBatches<T, R>(
-  items: readonly T[],
-  size: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results: R[] = [];
-  for (let i = 0; i < items.length; i += size) {
-    results.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
-  }
-  return results;
-}
+export const NAME_PATTERN_SOURCES = {
+  namespace: '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$',
+  taskQueue: '^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$',
+  workflowType: '^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$',
+} as const;

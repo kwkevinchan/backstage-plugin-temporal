@@ -87,62 +87,26 @@ that call the Temporal backend from their own components, use these exports.
 
 - `temporalApiRef`, `TemporalApi`: client of the backend plugin, with the
   workflow reads, queries and message definition names, the operations that change
-  workflows and custom backend actions.
+  workflows and custom backend actions. New methods come in minor versions;
+  to replace the API, extend `TemporalClient` rather than implement every
+  method.
 - `TemporalWorkflowActionDef`, `TemporalWorkflowSectionDef`,
   `TemporalWorkflowListActionDef`, `TemporalScheduleActionDef`: actions,
   tabs, list actions and schedule actions for the legacy frontend system
   (props `workflowActions`, `workflowSections`, `workflowListActions` and
   `scheduleActions` of `EntityTemporalContent` and `TemporalPage`).
-- `useTemporalWorkflow()`: the workflow shown on the current page, as
-  `TemporalWorkflowExtensionProps` (the props of the action components). It
-  works only below the workflow details page. To test a component that calls
-  it, wrap the component in `TemporalWorkflowProvider` (`value` is the
-  `TemporalWorkflowExtensionProps`):
-
-  ```tsx
-  import { render, screen } from '@testing-library/react';
-  import { TemporalWorkflowProvider } from '@kwkevinchan/backstage-plugin-temporal-frontend';
-  import { OwnerSection } from './OwnerSection';
-
-  it('shows the workflow id', () => {
-    render(
-      <TemporalWorkflowProvider
-        value={{
-          workflow: {
-            namespace: 'default',
-            workflowId: 'order-1',
-            runId: 'run-1',
-            workflowType: 'Order',
-            status: 'Running',
-            pendingActivities: [],
-          },
-          reload: () => {},
-          workflowHref: ref => `/temporal/${ref.workflowId}`,
-        }}
-      >
-        <OwnerSection />
-      </TemporalWorkflowProvider>,
-    );
-    expect(screen.getByText('order-1')).toBeInTheDocument();
-  });
-  ```
-
-  A component can also take `TemporalWorkflowExtensionProps` as props, as
-  action and section components do, and be rendered without a provider.
-
-- `./alpha`: `TemporalWorkflowActionBlueprint`,
-  `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
-  and `TemporalWorkflowSectionBlueprint` for the new frontend system, and
-  `TemporalControlActionBlueprint` for a button of a custom backend action.
 - `TemporalWorkflowListActionProps`, `TemporalScheduleActionProps`,
   `TemporalWorkflowExtensionProps`: props of the components of actions, list
-  actions, schedule actions and sections.
+  actions, schedule actions and sections. The workflow of the details page
+  comes as `TemporalWorkflowExtensionProps` (`workflow`, `reload`,
+  `workflowHref`); to test a component, render it with these props.
 
 The permissions, the annotation constants and the response types of the
 backend API (`WorkflowDetail`, `WorkflowSummary` and the others) are in
 `./common` (`@kwkevinchan/backstage-plugin-temporal-frontend/common`). `./ui`
 has building blocks of the pages for companion packages such as the Zigflow
-module (alpha, no compatibility promise).
+module (alpha: a change that breaks them comes in a minor version while the
+plugin is `0.x`, never in a patch).
 
 Backstage's lint rule `@backstage/no-mixed-plugin-imports` warns when a
 frontend plugin with another `pluginId` imports this package. Add the

@@ -28,6 +28,7 @@ import {
   NODE_HEIGHT,
   NODE_WIDTH,
   NodeSize,
+  StepGraphLayout,
   StepLayout,
 } from './geometry';
 import {
@@ -55,7 +56,7 @@ export {
   NODE_HEIGHT,
   NODE_WIDTH,
 } from './geometry';
-export type { NodeSize, StepLayout } from './geometry';
+export type { NodeSize, StepGraphLayout, StepLayout } from './geometry';
 export type { LayoutFrame } from './stackLayout';
 /** A model call: three lines (name, model, tokens and tools). */
 export const LLM_NODE_WIDTH = 240;
@@ -277,7 +278,7 @@ export function layoutGraph(
     /** False leaves the rows of frames as dagre laid them out; for tests. */
     lineUpRows?: boolean;
   } = {},
-): StepLayout {
+): StepGraphLayout {
   const frames = options.frames ?? [];
   if (options.direction !== 'TB' && frames.some(f => f.stacked)) {
     return layoutStacked(
@@ -308,7 +309,7 @@ function layoutBlocks(
     /** Move a box off an arrow in its row that runs through it. */
     clearThrough?: boolean;
   },
-): StepLayout {
+): StepGraphLayout {
   // dagre gives a graph without boxes a size of -Infinity.
   if (nodes.length === 0) {
     return { positions: new Map(), width: 0, height: 0, wrapped: false };
@@ -368,7 +369,7 @@ function layoutBlocks(
     });
   }
   const size = graph.graph() as { width?: number; height?: number };
-  const layout: StepLayout = {
+  const layout: StepGraphLayout = {
     positions,
     width: size.width ?? NODE_WIDTH + 2 * MARGIN,
     height: size.height ?? NODE_HEIGHT + 2 * MARGIN,
@@ -403,7 +404,7 @@ function layoutBlocks(
  * spread out and its frames placed.
  */
 export interface FramedGraph {
-  layout: StepLayout;
+  layout: StepGraphLayout;
   nodes: LayoutNode[];
   edges: LayoutEdge[];
   frames: LayoutFrame[];
@@ -425,10 +426,13 @@ export interface FramedGraph {
 function withFrames(
   graph: FramedGraph,
   positions: Map<string, { x: number; y: number }>,
-): StepLayout {
+): StepGraphLayout {
   const { nodes, frames, sizeOf } = graph;
   const sizes = new Map(graph.sizes);
-  const layout: StepLayout = { ...graph.layout, positions: new Map(positions) };
+  const layout: StepGraphLayout = {
+    ...graph.layout,
+    positions: new Map(positions),
+  };
   layout.width += spreadFrameColumns(layout.positions, nodes, frames, sizeOf);
   placeFrames(layout, nodes, frames, sizes);
   if (sizes.size > 0) layout.sizes = sizes;
@@ -448,7 +452,7 @@ const outerFramesOf = (graph: FramedGraph) => [
 function settle(
   graph: FramedGraph,
   positions: Map<string, { x: number; y: number }>,
-): StepLayout {
+): StepGraphLayout {
   const layout = withFrames(graph, positions);
   const { width } = graph;
   if (width === undefined || graph.nodes.length === 0) return layout;
@@ -1091,7 +1095,7 @@ function spreadFrameColumns(
  * more room than dagre left at the edges.
  */
 function placeFrames(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   nodes: { id: string; size?: NodeSize; parent?: string }[],
   frames: LayoutFrame[],
   sizes: Map<string, NodeSize>,
@@ -1176,10 +1180,10 @@ function placeFrames(
  * between them, for the arrows that go around the frames into the next row.
  */
 export function wrapColumns(
-  layout: StepLayout,
+  layout: StepGraphLayout,
   width: number,
   outerFrames: string[] = [],
-): StepLayout {
+): StepGraphLayout {
   const plan = planRows(layout, width, outerFrames);
   if (plan.rowCount === 1) return layout;
   const { side, rowGap, pieceOf, pieceWidth, pieceLeft, rowOf, leftOf } = plan;
@@ -1216,7 +1220,7 @@ export function wrapColumns(
       y: offsets[r] + (p.y - top[r]),
     });
   }
-  const wrapped: StepLayout = {
+  const wrapped: StepGraphLayout = {
     positions,
     width: 2 * side + plan.widest,
     height: y - rowGap + MARGIN,
@@ -1232,7 +1236,11 @@ export function wrapColumns(
  * frame with the boxes in its width) of each box, and the row and left of
  * each piece.
  */
-function planRows(layout: StepLayout, width: number, outerFrames: string[]) {
+function planRows(
+  layout: StepGraphLayout,
+  width: number,
+  outerFrames: string[],
+) {
   const framed = outerFrames.length > 0;
   const side = framed ? MARGIN + FRAME_GAP : MARGIN;
   const rowGap = framed ? FRAME_WRAP_GAP : WRAP_GAP;

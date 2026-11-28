@@ -49,11 +49,7 @@ import {
   HISTORY_PAGE_SIZE,
   WorkflowQueries,
 } from '../services/WorkflowQueries';
-import {
-  basePathOfSpecRequest,
-  loadOpenApiSpec,
-  openApiSpecFor,
-} from './openApiRoutes';
+import { WorkflowTypeEntities } from '../access/WorkflowTypeEntities';
 import { decodePageToken } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
@@ -85,12 +81,11 @@ export interface RouterOptions {
   logger: LoggerService;
   auditor: AuditorService;
   access: TemporalAccessService;
+  typeEntities: WorkflowTypeEntities;
   sources: EntityWorkflowSources;
   queries: WorkflowQueries;
   lists: WorkflowListQueries;
   ai: AiWorkflowQueries;
-  /** False when `temporal.control.enabled` is false. Defaults to true. */
-  controlEnabled?: boolean;
 }
 
 /** Whether a TemporalWorkflow entity lists the workflow type of the run. */
@@ -109,21 +104,19 @@ function describesWorkflowType(
 }
 
 export function createRouter(options: RouterOptions): express.Router {
-  const { httpAuth, logger, auditor, access, queries, lists, ai } = options;
+  const {
+    httpAuth,
+    logger,
+    auditor,
+    access,
+    typeEntities,
+    queries,
+    lists,
+    ai,
+  } = options;
   const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
-
-  // The API description, for tools that read the specs of the plugins.
-  router.get('/openapi.json', async (req, res) => {
-    await httpAuth.credentials(req);
-    res.json(
-      openApiSpecFor(loadOpenApiSpec(), {
-        basePath: basePathOfSpecRequest(req.originalUrl),
-        controlEnabled: options.controlEnabled ?? true,
-      }),
-    );
-  });
 
   /** The workflow of the request's path, with the access checks. */
   const loadWorkflow = (req: Request): Promise<LoadedWorkflow> =>
@@ -144,7 +137,6 @@ export function createRouter(options: RouterOptions): express.Router {
         undefined,
       pageSize: parsePageSize(req.query.pageSize, LIST_PAGE_SIZE),
       pageToken: optionalString(req.query.pageToken, 'pageToken'),
-      credentials,
     });
     res.json(result);
   });
@@ -198,8 +190,10 @@ export function createRouter(options: RouterOptions): express.Router {
         workflowType:
           optionalString(req.query.workflowType, 'workflowType') || undefined,
         workflowIdPrefix:
-          optionalString(req.query.workflowId, 'workflowId')?.trim() ||
-          undefined,
+          optionalString(
+            req.query.workflowIdPrefix,
+            'workflowIdPrefix',
+          )?.trim() || undefined,
         searchAttribute:
           optionalString(req.query.searchAttribute, 'searchAttribute') ||
           undefined,
@@ -212,11 +206,7 @@ export function createRouter(options: RouterOptions): express.Router {
     );
     res.json({
       ...result,
-      items: await access.linkWorkflowEntities(
-        result.items,
-        namespace,
-        credentials,
-      ),
+      items: await typeEntities.link(result.items, namespace, credentials),
     });
   });
 
@@ -283,7 +273,6 @@ export function createRouter(options: RouterOptions): express.Router {
         await lists.listEntityWorkflows(context, {
           workflowId,
           ...page,
-          credentials,
         }),
       );
       return;
@@ -300,11 +289,7 @@ export function createRouter(options: RouterOptions): express.Router {
     );
     res.json({
       ...result,
-      items: await access.linkWorkflowEntities(
-        result.items,
-        namespace,
-        credentials,
-      ),
+      items: await typeEntities.link(result.items, namespace, credentials),
     });
   });
 
@@ -328,7 +313,7 @@ export function createRouter(options: RouterOptions): express.Router {
       !workflowWithEntity.workflowEntityRef &&
       !(context && describesWorkflowType(context.entity, workflow));
     const [linked] = needsTypeEntity
-      ? await access.linkWorkflowEntities(
+      ? await typeEntities.link(
           [workflowWithEntity],
           workflowWithEntity.namespace,
           credentials,
@@ -338,10 +323,7 @@ export function createRouter(options: RouterOptions): express.Router {
     const withTypeEntity = typeEntityRef
       ? { ...workflowWithEntity, workflowTypeEntityRef: typeEntityRef }
       : workflowWithEntity;
-    const detail = context
-      ? await queries.enrichDetail(withTypeEntity, context, credentials)
-      : withTypeEntity;
-    res.json(detail);
+    res.json(withTypeEntity);
   });
 
   router.get(workflowRunSubpath('history'), async (req, res) => {
@@ -428,7 +410,7 @@ export function createRouter(options: RouterOptions): express.Router {
         )
       : undefined;
     if (matched) return matched;
-    const [linked] = await access.linkWorkflowEntities(
+    const [linked] = await typeEntities.link(
       [workflow],
       workflow.namespace,
       credentials,

@@ -53,15 +53,18 @@ export const CONTROL_DISABLED_MESSAGE =
  * Builds the link to a run on the Temporal page of the frontend plugin.
  *
  * @param appBaseUrl - `app.baseUrl`
+ * @param options - `pagePath`: the path of the Temporal page in the app,
+ *   `/temporal` by default (`temporal.pagePath` in the config)
  * @public
  */
 export function buildWorkflowUrl(
   appBaseUrl: string,
   ref: WorkflowRunRef,
+  options?: { pagePath?: string },
 ): string {
-  return `${appBaseUrl.replace(/\/$/, '')}/temporal${buildWorkflowRunPath(
-    ref,
-  )}`;
+  const page = (options?.pagePath ?? '/temporal').replace(/^\/*|\/*$/g, '');
+  const base = appBaseUrl.replace(/\/$/, '');
+  return `${base}${page ? `/${page}` : ''}${buildWorkflowRunPath(ref)}`;
 }
 
 /**

@@ -17,7 +17,7 @@
 /*
  * The backend package on its own, without the frontend or any other package
  * of this repository: other backend code reaches Temporal through
- * `temporalServiceRef`, modules can add enrichers and control actions, and
+ * `temporalServiceRef`, modules can add control actions, and
  * a real backend (`createBackend()`) without the catalog plugin starts and
  * skips the catalog module.
  */
@@ -37,7 +37,6 @@ import { createServer } from 'node:net';
 import Router from 'express-promise-router';
 import { temporalWorkflowUpdatePermission } from './common';
 import { temporalControlExtensionPoint } from './alpha';
-import { temporalWorkflowEnricherExtensionPoint } from './alpha';
 import { temporalServiceRef } from './node';
 import temporalBackend, { temporalPlugin } from './index';
 import {
@@ -121,14 +120,9 @@ const extensionsModule = createBackendModule({
   register(reg) {
     reg.registerInit({
       deps: {
-        enrichers: temporalWorkflowEnricherExtensionPoint,
         control: temporalControlExtensionPoint,
       },
-      async init({ enrichers, control }) {
-        enrichers.addWorkflowEnricher({
-          id: 'test',
-          enrich: async items => items,
-        });
+      async init({ control }) {
         control.addControlAction({
           id: 'escalate',
           permission: temporalWorkflowUpdatePermission,
@@ -175,7 +169,7 @@ async function startBackend(features: any[], temporal: object) {
 }
 
 describe('the backend package without anything else of this repository', () => {
-  it('gives other backend plugins the Temporal client, and takes enrichers and control actions', async () => {
+  it('gives other backend plugins the Temporal client, and takes control actions', async () => {
     const recording = await startRecordingServer();
     const { backend, base } = await startBackend(
       [temporalBackend, consumerPlugin, extensionsModule],

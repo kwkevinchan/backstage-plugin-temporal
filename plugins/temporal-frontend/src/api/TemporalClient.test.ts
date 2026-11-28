@@ -174,7 +174,7 @@ describe('TemporalClient requests and responses', () => {
       pageToken: 'p2',
     });
     expect(fetch).toHaveBeenLastCalledWith(
-      `${base}/workflows?namespace=billing&status=Failed&allRuns=true&workflowType=invoiceWorkflow&workflowId=inv-&searchAttribute=CustomerId&pageSize=10&pageToken=p2`,
+      `${base}/workflows?namespace=billing&status=Failed&allRuns=true&workflowType=invoiceWorkflow&workflowIdPrefix=inv-&searchAttribute=CustomerId&pageSize=10&pageToken=p2`,
     );
   });
 

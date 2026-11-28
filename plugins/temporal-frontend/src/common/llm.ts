@@ -126,7 +126,7 @@ export interface WorkflowLlmSummary {
  *
  * @alpha
  */
-export interface WorkflowToolLink {
+export interface WorkflowLlmToolLink {
   /** Tool call ID from the step, or from the model call it was linked to. */
   toolCallId?: string;
   /** Graph node of the model call. */

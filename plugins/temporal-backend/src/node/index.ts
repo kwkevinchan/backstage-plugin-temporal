@@ -24,9 +24,13 @@
  */
 
 export {
+  DefaultTemporalService,
+  readTemporalServiceOptions,
   temporalServiceRef,
+  type TemporalConnectionAuth,
   type TemporalSearchAttributeNames,
   type TemporalService,
+  type TemporalServiceOptions,
 } from './TemporalService';
 export {
   buildWorkflowUrl,

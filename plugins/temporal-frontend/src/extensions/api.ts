@@ -44,6 +44,13 @@ import type { TemporalWorkflowExtensionsApi } from './extensions';
  * `temporal.control.enabled` is false). `entityRef` is the entity the
  * workflow is shown for; the backend checks the permission on it.
  *
+ * @remarks
+ *
+ * New methods are added to this interface in minor versions, together with
+ * the backend routes they call; that is not a breaking change. To replace
+ * the API, extend `TemporalClient` and override the methods you change, so
+ * that the new methods keep working.
+ *
  * @public
  */
 export interface TemporalApi {
