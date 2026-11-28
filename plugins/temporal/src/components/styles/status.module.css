@@ -1,0 +1,76 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * The tones of a status and the status label.
+ */
+
+.tp-tone-success {
+  --tp-fg: var(--bui-fg-success);
+  --tp-border: var(--bui-border-success);
+}
+.tp-tone-danger {
+  --tp-fg: var(--bui-fg-danger);
+  --tp-border: var(--bui-border-danger);
+}
+.tp-tone-warning {
+  --tp-fg: var(--bui-fg-warning);
+  --tp-border: var(--bui-border-warning);
+}
+.tp-tone-info {
+  --tp-fg: var(--bui-fg-info);
+  --tp-border: var(--bui-border-info);
+}
+.tp-tone-neutral {
+  --tp-fg: var(--bui-fg-secondary);
+  --tp-border: var(--bui-border-2);
+}
+
+/* Status label: icon and text. */
+.tp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bui-space-1_5, 6px);
+  color: var(--tp-fg);
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-3, 14px);
+  white-space: nowrap;
+}
+.tp-status-text {
+  color: var(--bui-fg-primary);
+}
+.tp-spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  animation: tp-spin 0.9s linear infinite;
+}
+@keyframes tp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-spinner {
+    animation: none;
+    border-right-color: currentColor;
+    border-bottom-color: currentColor;
+  }
+}

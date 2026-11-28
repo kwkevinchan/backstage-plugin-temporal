@@ -57,7 +57,7 @@ describe('arrowheads on the edges', () => {
     expect(marker).toHaveAttribute('markerUnits', 'userSpaceOnUse');
     expect(marker).toHaveAttribute('refX', '10');
     const shape = marker.querySelector('path')!;
-    // The color comes from the stroke of the edge (see temporal.module.css),
+    // The color comes from the stroke of the edge (see styles/graph.module.css),
     // so no color is set on the shape itself.
     expect(shape).not.toHaveAttribute('fill');
     expect(shape).not.toHaveAttribute('stroke');

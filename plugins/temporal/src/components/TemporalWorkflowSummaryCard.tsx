@@ -28,7 +28,7 @@ import {
 import { isTemporalWorkflowEntity } from '../common';
 import { RiExternalLinkLine } from '@remixicon/react';
 import { PanelCard } from './PanelCard';
-import { DefinitionList } from './StepDrawer';
+import { DefinitionList } from './DefinitionList';
 import {
   useTemporalDefaultNamespace,
   useTemporalWebUiBaseUrl,

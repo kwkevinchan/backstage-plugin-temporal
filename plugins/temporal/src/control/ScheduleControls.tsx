@@ -25,7 +25,7 @@ import {
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
 import { useControlEnabled } from './config';
-import { ConfirmDialog } from './WorkflowControls';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const TEXT: Record<
   TemporalScheduleOperation,
