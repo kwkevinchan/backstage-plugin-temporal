@@ -176,7 +176,7 @@ components:
         pattern: '^$|^[A-Za-z0-9_][A-Za-z0-9_.:/-]{0,254}$'
         maxLength: 255
     workflowIdPrefix:
-      name: workflowId
+      name: workflowIdPrefix
       in: query
       required: false
       allowReserved: true

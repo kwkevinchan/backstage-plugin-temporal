@@ -190,8 +190,10 @@ export function createRouter(options: RouterOptions): express.Router {
         workflowType:
           optionalString(req.query.workflowType, 'workflowType') || undefined,
         workflowIdPrefix:
-          optionalString(req.query.workflowId, 'workflowId')?.trim() ||
-          undefined,
+          optionalString(
+            req.query.workflowIdPrefix,
+            'workflowIdPrefix',
+          )?.trim() || undefined,
         searchAttribute:
           optionalString(req.query.searchAttribute, 'searchAttribute') ||
           undefined,

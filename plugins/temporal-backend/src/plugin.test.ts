@@ -1300,7 +1300,7 @@ describe('temporal backend plugin', () => {
       });
       const { server, permissions } = await start({ workflowService });
       const res = await request(server).get(
-        '/api/temporal/workflows?status=Failed&workflowType=orderWorkflow&workflowId=order-&pageSize=10',
+        '/api/temporal/workflows?status=Failed&workflowType=orderWorkflow&workflowIdPrefix=order-&pageSize=10',
       );
       expect(res.status).toBe(200);
       expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith({
