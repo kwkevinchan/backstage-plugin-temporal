@@ -74,12 +74,12 @@ export interface StepDrawerProps {
   workflowHref(ref: WorkflowRef): string;
   onClose(): void;
   /** Every step of the run, for the tool calls of a model call. */
-  nodes?: WorkflowGraphNode[];
+  nodes: WorkflowGraphNode[];
   /** The run, to load the record of a model call. */
-  workflowRef?: WorkflowRunRef;
+  workflowRef: WorkflowRunRef;
   entityRef?: string;
   /** Selects another step, for the links between model and tool calls. */
-  onSelectStep?(id: string): void;
+  onSelectStep(id: string): void;
 }
 
 /**
@@ -103,7 +103,7 @@ export function StepDrawer(props: StepDrawerProps) {
   const showsPayloads =
     !['waiting', 'cancelRequest'].includes(step.kind) && !step.llm;
   const llmOwner = step.tool?.llmNodeId
-    ? props.nodes?.find(n => n.id === step.tool!.llmNodeId)
+    ? props.nodes.find(n => n.id === step.tool!.llmNodeId)
     : undefined;
 
   return (
@@ -192,13 +192,13 @@ export function StepDrawer(props: StepDrawerProps) {
               ],
             ]}
           />
-          {llmOwner && props.onSelectStep && (
+          {llmOwner && (
             <Button
               size="small"
               variant="secondary"
               iconStart={<RiArrowLeftLine />}
               style={{ marginTop: 6 }}
-              onPress={() => props.onSelectStep!(llmOwner.id)}
+              onPress={() => props.onSelectStep(llmOwner.id)}
             >
               Model call {llmCallName(llmOwner)}
             </Button>
@@ -210,7 +210,7 @@ export function StepDrawer(props: StepDrawerProps) {
         <div className={tp('tp-section')}>
           <LlmPanel
             step={step}
-            nodes={props.nodes ?? []}
+            nodes={props.nodes}
             workflowRef={props.workflowRef}
             entityRef={props.entityRef}
             onSelectStep={props.onSelectStep}

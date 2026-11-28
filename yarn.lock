@@ -2066,34 +2066,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@backstage/dev-utils@npm:1.1.28":
-  version: 1.1.28
-  resolution: "@backstage/dev-utils@npm:1.1.28"
-  dependencies:
-    "@backstage/app-defaults": "npm:^1.7.13"
-    "@backstage/catalog-model": "npm:^1.10.2"
-    "@backstage/core-app-api": "npm:^1.20.6"
-    "@backstage/core-components": "npm:^0.18.15"
-    "@backstage/core-plugin-api": "npm:^1.12.11"
-    "@backstage/integration-react": "npm:^1.2.23"
-    "@backstage/plugin-catalog-react": "npm:^3.3.0"
-    "@backstage/theme": "npm:^0.7.3"
-    "@backstage/ui": "npm:^0.19.0"
-    "@material-ui/core": "npm:^4.12.2"
-    "@material-ui/icons": "npm:^4.9.1"
-    react-use: "npm:^17.2.4"
-  peerDependencies:
-    "@types/react": ^17.0.0 || ^18.0.0
-    react: ^17.0.0 || ^18.0.0
-    react-dom: ^17.0.0 || ^18.0.0
-    react-router-dom: ^6.30.2
-  peerDependenciesMeta:
-    "@types/react":
-      optional: true
-  checksum: 10c0/b7c47e820b98ca579401d539f58bf953c3b1179f1e8b7b4eec0c51b9168797c444d47ade76fb416134168bb365e919990a0bc8ad01164342958564d961bc6f66
-  languageName: node
-  linkType: hard
-
 "@backstage/errors@npm:1.3.2":
   version: 1.3.2
   resolution: "@backstage/errors@npm:1.3.2"
@@ -5612,11 +5584,9 @@ __metadata:
   dependencies:
     "@backstage/catalog-model": "backstage:^"
     "@backstage/cli": "backstage:^"
-    "@backstage/core-app-api": "backstage:^"
     "@backstage/core-compat-api": "backstage:^"
     "@backstage/core-components": "backstage:^"
     "@backstage/core-plugin-api": "backstage:^"
-    "@backstage/dev-utils": "backstage:^"
     "@backstage/errors": "backstage:^"
     "@backstage/filter-predicates": "backstage:^"
     "@backstage/frontend-plugin-api": "backstage:^"

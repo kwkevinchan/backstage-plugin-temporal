@@ -277,8 +277,9 @@ export const temporalApiRef = createApiRef<TemporalApi>({
  * point of workflow actions, list actions, schedule actions and sections.
  * The Temporal frontend plugin provides it in the new frontend system and
  * collects the extensions of `TemporalWorkflowActionBlueprint`,
- * `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`
- * and `TemporalWorkflowSectionBlueprint`.
+ * `TemporalWorkflowListActionBlueprint`, `TemporalScheduleActionBlueprint`,
+ * `TemporalWorkflowSectionBlueprint` and `TemporalControlActionBlueprint` (a
+ * workflow action for a custom backend action).
  */
 export const temporalWorkflowExtensionsApiRef =
   createApiRef<TemporalWorkflowExtensionsApi>({

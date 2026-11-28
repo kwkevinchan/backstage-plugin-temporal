@@ -19,6 +19,7 @@ import { usePermission } from '@backstage/plugin-permission-react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import type { JsonValue } from '@backstage/types';
 import { Button, Flex, Link, Text } from '@backstage/ui';
+import { exampleArgs, type WorkflowMessageDefinition } from '../../common';
 import type { TemporalWorkflowExtensionProps } from '../../extensions';
 import { ErrorAlert } from '../feedback';
 import { tp } from '../styles';
@@ -251,5 +252,72 @@ export function ControlErrorAlert(props: {
         </Text>
       )}
     </Flex>
+  );
+}
+
+/**
+ * The example arguments of a message definition, with its `userField` set to the
+ * signed-in user on an object argument.
+ */
+export function messageDefinitionExampleArgs(
+  definition: WorkflowMessageDefinition | undefined,
+  userEntityRef: string | undefined,
+): JsonValue[] {
+  const args = exampleArgs(definition?.example);
+  const field = definition?.userField;
+  if (!field || !userEntityRef) return args;
+  const first = args[0];
+  const base =
+    first && typeof first === 'object' && !Array.isArray(first) ? first : {};
+  return [{ ...base, [field]: userEntityRef }, ...args.slice(1)];
+}
+
+/** Props of the arguments field of a {@link MessageDialog}. */
+export interface MessageArgsFieldProps {
+  /** The chosen message definition, when the workflow or its entity describes it. */
+  messageDefinition?: WorkflowMessageDefinition;
+  /** The signed-in user's entity reference, for `messageDefinition.userField`. */
+  userEntityRef?: string;
+  /** Called with the arguments, or why they are not valid. */
+  onChange(value: { args: JsonValue[] } | { error: string }): void;
+}
+
+function argsText(args: JsonValue[]): string {
+  if (args.length === 0) return '[]';
+  // One object or array argument is shown as itself; parseArgs reads an
+  // array as the argument list, so only a non-array value can be bare.
+  const value = args.length === 1 && !Array.isArray(args[0]) ? args[0] : args;
+  return JSON.stringify(value, null, 2);
+}
+
+/**
+ * The default arguments field: JSON, filled with the message definition's example.
+ */
+export function JsonMessageArgsField(props: MessageArgsFieldProps) {
+  const { messageDefinition, userEntityRef, onChange } = props;
+  const [text, setText] = useState(() =>
+    argsText(messageDefinitionExampleArgs(messageDefinition, userEntityRef)),
+  );
+  const [edited, setEdited] = useState(false);
+  // The user's reference may come after the field opens.
+  useEffect(() => {
+    if (!edited)
+      setText(
+        argsText(
+          messageDefinitionExampleArgs(messageDefinition, userEntityRef),
+        ),
+      );
+  }, [edited, messageDefinition, userEntityRef]);
+  useEffect(() => {
+    onChange(parseArgs(text));
+  }, [text, onChange]);
+  return (
+    <JsonArgsField
+      value={text}
+      onChange={value => {
+        setEdited(true);
+        setText(value);
+      }}
+    />
   );
 }

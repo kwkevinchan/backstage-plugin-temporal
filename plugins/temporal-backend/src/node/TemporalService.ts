@@ -19,7 +19,6 @@ import {
   createServiceFactory,
   createServiceRef,
   LoggerService,
-  RootConfigService,
 } from '@backstage/backend-plugin-api';
 import { Config } from '@backstage/config';
 import {
@@ -181,16 +180,6 @@ export class DefaultTemporalService implements TemporalService {
   #connection?: Promise<Connection>;
   readonly #clients = new Map<string, Promise<Client>>();
 
-  static fromConfig(
-    config: RootConfigService,
-    options?: { logger?: LoggerService },
-  ): DefaultTemporalService {
-    return new DefaultTemporalService(
-      readTemporalServiceOptions(config),
-      options?.logger,
-    );
-  }
-
   constructor(options: TemporalServiceOptions, logger?: LoggerService) {
     this.#options = options;
     this.#logger = logger;
@@ -300,9 +289,10 @@ export const temporalServiceRef = createServiceRef<TemporalService>({
         lifecycle: coreServices.rootLifecycle,
       },
       factory({ config, logger, lifecycle }) {
-        const temporal = DefaultTemporalService.fromConfig(config, {
+        const temporal = new DefaultTemporalService(
+          readTemporalServiceOptions(config),
           logger,
-        });
+        );
         lifecycle.addShutdownHook(() => temporal.close());
         return temporal;
       },

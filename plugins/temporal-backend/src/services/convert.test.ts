@@ -24,7 +24,6 @@ import {
   toWorkflowDetail,
   toWorkflowFailure,
   resultFromCloseEvent,
-  statusFromCloseEvent,
 } from './convert';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
@@ -273,11 +272,6 @@ describe('resultFromCloseEvent', () => {
         },
       }),
     ).toEqual({ result: { encoding: 'json/plain', value: 'done' } });
-    expect(
-      statusFromCloseEvent({
-        workflowExecutionCompletedEventAttributes: {},
-      }),
-    ).toBe('Completed');
   });
 
   it('returns the failure of a failed close event', () => {
@@ -303,11 +297,6 @@ describe('resultFromCloseEvent', () => {
         workflowExecutionCanceledEventAttributes: {},
       }),
     ).toEqual({});
-    expect(
-      statusFromCloseEvent({
-        workflowExecutionCanceledEventAttributes: {},
-      }),
-    ).toBe('Canceled');
   });
 });
 

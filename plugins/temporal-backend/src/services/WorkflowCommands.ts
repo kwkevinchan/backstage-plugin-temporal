@@ -65,7 +65,7 @@ export type WorkflowChainRef = {
 );
 
 /** `temporal.control` settings. */
-export interface ControlOptions {
+interface ControlOptions {
   /** Empty allows every signal name. */
   allowedSignals: string[];
   /** Empty allows every update name. */
@@ -125,7 +125,7 @@ const WORKFLOW_ID_REUSE_POLICY: Record<WorkflowIdReusePolicy, number> = {
   REJECT_DUPLICATE: 3,
 };
 
-export interface StartOptions {
+interface StartOptions {
   namespace: string;
   workflowType: string;
   taskQueue: string;
@@ -138,7 +138,7 @@ export interface StartOptions {
 }
 
 /** A schedule to operate: what it starts, and its overlap policy. */
-export interface ScheduleTarget {
+interface ScheduleTarget {
   namespace: string;
   scheduleId: string;
   workflowType: string;
@@ -189,7 +189,7 @@ function chainTarget(ref: WorkflowChainRef): {
 export class WorkflowCommands {
   constructor(
     private readonly temporal: TemporalService,
-    readonly options: ControlOptions,
+    private readonly options: ControlOptions,
     private readonly logger: LoggerService,
   ) {}
 

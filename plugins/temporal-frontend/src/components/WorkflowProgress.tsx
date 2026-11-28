@@ -25,7 +25,7 @@ import { statusTone } from './WorkflowStatusLabel';
 import { tp } from './styles';
 
 /** Most progress requests in flight at once, for all lists on the page. */
-export const MAX_PROGRESS_REQUESTS = 4;
+const MAX_PROGRESS_REQUESTS = 4;
 
 type QueuedTask = {
   run: () => void;

@@ -41,7 +41,6 @@ import {
   type MessageDialogText,
   useWorkflowMessageDefinitions,
 } from '../components/messages/MessageDialog';
-import { SchemaArgsField } from '../components/messages/SchemaArgsField';
 import {
   temporalWorkflowCancelPermission,
   temporalWorkflowRerunPermission,
@@ -276,7 +275,6 @@ function WorkflowControlsContent(props: TemporalWorkflowExtensionProps) {
           text={messageText(open, continuedAsNew)}
           messageDefinitions={messageOptions(open)[0]}
           allowsCustomValue={messageOptions(open)[1]}
-          argsField={SchemaArgsField}
           showResult={open === 'update'}
           context={props}
           send={async request => {

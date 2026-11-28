@@ -15,7 +15,7 @@
  */
 
 import type { WorkflowEventGroupKind, WorkflowNodeKind } from '../../common';
-import { edgeKindTint, endpointKindTint, groupKindTint } from './edgeKind';
+import { endpointKindTint, groupKindTint } from './edgeKind';
 
 const nodes: Array<{ id: string; kind: WorkflowNodeKind }> = [
   { id: 'start', kind: 'workflowStarted' },
@@ -37,7 +37,7 @@ const boxes = new Map<string, { group: { kind: WorkflowEventGroupKind } }>([
   ['group:upd', { group: { kind: 'update' } }],
 ]);
 
-describe('edgeKindTint', () => {
+describe('endpointKindTint', () => {
   it('maps each step kind the same way as kindTint', () => {
     expect(endpointKindTint('act', nodes)).toBe('activity');
     expect(endpointKindTint('tmr', nodes)).toBe('timer');
@@ -65,12 +65,12 @@ describe('edgeKindTint', () => {
   });
 
   it('colors an edge by the step or group it leads to', () => {
-    expect(edgeKindTint('act', nodes, boxes)).toBe('activity');
-    expect(edgeKindTint('sig', nodes, boxes)).toBe('message');
-    expect(edgeKindTint('start', nodes, boxes)).toBeUndefined();
-    expect(edgeKindTint('end', nodes, boxes)).toBeUndefined();
-    expect(edgeKindTint('group:hint', nodes, boxes)).toBe('message');
-    expect(edgeKindTint('group:upd', nodes, boxes)).toBe('message');
-    expect(edgeKindTint('group:loop', nodes, boxes)).toBeUndefined();
+    expect(endpointKindTint('act', nodes, boxes)).toBe('activity');
+    expect(endpointKindTint('sig', nodes, boxes)).toBe('message');
+    expect(endpointKindTint('start', nodes, boxes)).toBeUndefined();
+    expect(endpointKindTint('end', nodes, boxes)).toBeUndefined();
+    expect(endpointKindTint('group:hint', nodes, boxes)).toBe('message');
+    expect(endpointKindTint('group:upd', nodes, boxes)).toBe('message');
+    expect(endpointKindTint('group:loop', nodes, boxes)).toBeUndefined();
   });
 });

@@ -50,7 +50,6 @@ export type FrameEdgeData = {
   centerY?: number;
 };
 
-export { OFFSET } from './geometry';
 /** Radius of the corners, as a smooth step has them. */
 const RADIUS = 5;
 
@@ -241,7 +240,7 @@ export function frameEdgePoints(
 }
 
 /** An SVG path through the corners, with rounded corners. */
-export function roundedPath(points: Point[], radius = RADIUS): string {
+function roundedPath(points: Point[], radius = RADIUS): string {
   const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
   let path = `M${points[0].x} ${points[0].y}`;
   for (let i = 1; i < points.length - 1; i++) {

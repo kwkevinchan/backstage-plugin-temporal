@@ -28,7 +28,6 @@ import {
   parseStatus,
   quote,
   scheduleBelongsToSources,
-  workflowBelongsToEntity,
   workflowIdCondition,
 } from './visibilityQuery';
 
@@ -212,43 +211,34 @@ describe('parseStatus', () => {
   });
 });
 
-describe('workflowBelongsToEntity', () => {
+describe('matchedWorkflowEntity', () => {
   const annotations = { taskQueue: 'orders', workflowTypes: ['a', 'b'] };
 
   it('matches the same rules as the query', () => {
     const filter = { annotations, entityRef: ref };
     expect(
-      workflowBelongsToEntity(
-        { taskQueue: 'orders', workflowType: 'a' },
-        filter,
-      ),
-    ).toBe(true);
+      matchedWorkflowEntity({ taskQueue: 'orders', workflowType: 'a' }, filter),
+    ).toBeDefined();
     expect(
-      workflowBelongsToEntity(
-        { taskQueue: 'other', workflowType: 'a' },
-        filter,
-      ),
-    ).toBe(false);
+      matchedWorkflowEntity({ taskQueue: 'other', workflowType: 'a' }, filter),
+    ).toBeUndefined();
     expect(
-      workflowBelongsToEntity(
-        { taskQueue: 'orders', workflowType: 'c' },
-        filter,
-      ),
-    ).toBe(false);
+      matchedWorkflowEntity({ taskQueue: 'orders', workflowType: 'c' }, filter),
+    ).toBeUndefined();
   });
 
   it('matches the entity reference search attribute when configured', () => {
     const workflow = { taskQueue: 'other', workflowType: 'c', entityRef: ref };
     expect(
-      workflowBelongsToEntity(workflow, { annotations, entityRef: ref }),
-    ).toBe(false);
+      matchedWorkflowEntity(workflow, { annotations, entityRef: ref }),
+    ).toBeUndefined();
     expect(
-      workflowBelongsToEntity(workflow, {
+      matchedWorkflowEntity(workflow, {
         annotations,
         entityRef: ref,
         entityRefAttribute: 'BackstageEntityRef',
       }),
-    ).toBe(true);
+    ).toBeDefined();
   });
 });
 
@@ -301,11 +291,11 @@ describe('related TemporalWorkflow entities', () => {
       ),
     ).toBe('temporalworkflow:default/order');
     expect(
-      workflowBelongsToEntity(
+      matchedWorkflowEntity(
         { taskQueue: 'orders', workflowType: 'orderWorkflow' },
         filter,
       ),
-    ).toBe(true);
+    ).toBeDefined();
     expect(
       matchingWorkflowEntity(
         { taskQueue: 'other', workflowType: 'orderWorkflow' },

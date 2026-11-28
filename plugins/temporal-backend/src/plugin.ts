@@ -205,7 +205,7 @@ export const temporalPlugin = createBackendPlugin({
           },
         });
         pluginRouter.use(
-          await createRouter({
+          createRouter({
             httpAuth,
             logger,
             auditor,

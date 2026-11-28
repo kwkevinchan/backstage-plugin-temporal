@@ -82,7 +82,7 @@ export type TimelineItem =
   | { type: 'row'; row: TimelineRow }
   | { type: 'eventGroup'; group: TimelineEventGroup };
 
-export interface TimelineModel {
+interface TimelineModel {
   /** From the start of the run to its end, or to now while it runs. */
   range: Span;
   items: TimelineItem[];
@@ -147,7 +147,7 @@ function isClosedRun(status: WorkflowStatus): boolean {
  * internal ones). `waitFrom` is where an open wait without a time of its
  * own starts: the end of the last step before it.
  */
-export function timelineRow(
+function timelineRow(
   node: WorkflowGraphNode,
   now: number,
   runEnd: number,
@@ -228,7 +228,6 @@ export function timelineRow(
 export function buildTimeline(
   graph: WorkflowGraphResponse,
   workflow: {
-    runId?: string;
     status: WorkflowStatus;
     startTime?: string;
     closeTime?: string;

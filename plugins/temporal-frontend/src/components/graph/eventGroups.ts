@@ -38,23 +38,23 @@ import {
 export type GroupViews = Record<string, boolean>;
 
 /** Prefix of the node IDs of group boxes, so they never clash with steps. */
-export const GROUP_NODE_PREFIX = 'group:';
+const GROUP_NODE_PREFIX = 'group:';
 
 export function groupNodeId(key: string): string {
   return `${GROUP_NODE_PREFIX}${key}`;
 }
 
 /** Size of a collapsed group. */
-export const GROUP_NODE_WIDTH = 240;
-export const GROUP_NODE_HEIGHT = 64;
+const GROUP_NODE_WIDTH = 240;
+const GROUP_NODE_HEIGHT = 64;
 
 /**
  * Boxes are drawn this many groups deep; groups deeper inside are shown as
  * labels on their steps.
  */
-export const MAX_GROUP_DEPTH = 5;
+const MAX_GROUP_DEPTH = 5;
 /** Groups this deep (0: outermost) start collapsed. */
-export const COLLAPSED_DEPTH = 3;
+const COLLAPSED_DEPTH = 3;
 
 /**
  * The color of a group: one of `GROUP_HUES` hues, or the color of
@@ -62,7 +62,7 @@ export const COLLAPSED_DEPTH = 3;
  */
 export type GroupHue = 1 | 2 | 3 | 4 | 'message';
 /** How many hues the groups take turns with. */
-export const GROUP_HUES = 4;
+const GROUP_HUES = 4;
 
 /**
  * The color of each group, by key, only to tell the groups apart: the
@@ -242,7 +242,7 @@ export function planGroups(
  * compound layout takes longer than a plain one; in a large run the
  * groups past it start collapsed.
  */
-export const FRAME_BUDGET = 200;
+const FRAME_BUDGET = 200;
 /** Most boxes the expanded frames hold, with the groups the user opened. */
 export const FRAME_LIMIT = 300;
 /**
@@ -251,7 +251,7 @@ export const FRAME_LIMIT = 300;
  * dagre recurses along the ranks and runs out of stack on longer graphs;
  * past it the expanded groups are shown as labels.
  */
-export const COMPOUND_LIMIT = 1000;
+const COMPOUND_LIMIT = 1000;
 
 /** What `allocateFrames` changed in a plan. */
 interface Allocation {
@@ -321,7 +321,7 @@ export function boxChain(plan: GroupPlan, id: string | undefined): GroupBox[] {
   return chain;
 }
 
-export interface GroupedGraph {
+interface GroupedGraph {
   /**
    * Boxes of the laid out graph: the steps and other boxes outside a
    * collapsed group, and the collapsed groups. `parent` is the expanded
@@ -427,7 +427,7 @@ function framedSources(
  * An arrow into a collapsed group that leads back from it (a step that ran
  * between two steps of the group) is left out, so the arrows go one way.
  */
-export function groupGraph(
+function groupGraph(
   allNodes: { id: string; framable?: boolean }[],
   allEdges: WorkflowGraphEdge[],
   plan: GroupPlan,
@@ -526,7 +526,7 @@ export function groupGraph(
  *
  * Without such frames, the graph is as it was.
  */
-export function stackGroups(
+function stackGroups(
   graph: GroupedGraph,
   plan: GroupPlan,
   stepIds: string[],
@@ -778,10 +778,7 @@ function overlaps(a: Rect, b: Rect): boolean {
  * next to it. dagre keeps the steps of a frame together, so this is rare;
  * the graph is then laid out again with these groups as labels.
  */
-export function coveringFrames(
-  layout: StepLayout,
-  graph: GroupedGraph,
-): string[] {
+function coveringFrames(layout: StepLayout, graph: GroupedGraph): string[] {
   const parentOf = new Map<string, string | undefined>();
   for (const f of graph.frames) parentOf.set(f.id, f.parent);
   for (const n of graph.nodes) parentOf.set(n.id, n.parent);
@@ -818,7 +815,7 @@ export function coveringFrames(
 }
 
 /** Why some groups are not drawn as the user or the defaults wanted. */
-export type GroupNotice =
+type GroupNotice =
   /** The graph is too long for frames: expanded groups are labels. */
   | 'tooLarge'
   /** Laying out the frames failed: every group is a label. */
@@ -936,14 +933,13 @@ export function layoutGroupedSteps(
   let notice: GroupNotice | undefined;
   try {
     let current = plan();
-    let graph = groupGraph(nodes, edges, current);
+    const graph = groupGraph(nodes, edges, current);
     if (
       graph.frames.length > 0 &&
       graph.nodes.length * (2 * frameDepth(graph.frames) + 1) > COMPOUND_LIMIT
     ) {
       notice = 'tooLarge';
       current = plan(true);
-      graph = groupGraph(nodes, edges, current);
     }
     let result = layOut(current, notice);
     for (let attempt = 0; attempt < 3; attempt++) {

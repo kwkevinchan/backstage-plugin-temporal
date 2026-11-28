@@ -24,7 +24,6 @@ import {
   useWorkflowMessageDefinitions,
 } from './MessageDialog';
 import { PermissionButton } from './shared';
-import { SchemaArgsField } from './SchemaArgsField';
 
 /**
  * "Query…" in the action bar of the details page: runs a query on the
@@ -68,7 +67,6 @@ export function QueryButton(props: {
           }}
           messageDefinitions={messageDefinitions?.queries ?? []}
           allowsCustomValue
-          argsField={SchemaArgsField}
           send={request => api.queryWorkflow(ref, request, { entityRef })}
           onClose={() => setOpen(false)}
         />

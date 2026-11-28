@@ -68,7 +68,7 @@ import {
 } from './GraphCanvas';
 import { frameInsets } from './frameEdge';
 import { StepFlowNode, StepNode } from './StepNode';
-import { edgeKindTint } from './edgeKind';
+import { endpointKindTint } from './edgeKind';
 import { tp } from '../styles';
 
 const nodeTypes = {
@@ -358,7 +358,7 @@ function StepCanvas(
       // Kind color of the step the arrow leads to. Running steps and
       // tool calls keep their own look: those CSS classes beat the kind
       // color.
-      const tint = edgeKindTint(
+      const tint = endpointKindTint(
         e.target,
         structure.nodes,
         structure.groups?.plan.boxes,

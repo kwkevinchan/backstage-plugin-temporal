@@ -60,7 +60,7 @@ import {
   zoomWindow,
 } from './timeline';
 
-export interface WorkflowTimelineProps {
+interface WorkflowTimelineProps {
   graph: WorkflowGraphResponse;
   workflow: {
     runId?: string;
