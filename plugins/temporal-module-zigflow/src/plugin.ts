@@ -32,7 +32,7 @@ export const EntityTemporalDefinitionContent: () => JSX.Element =
       name: 'EntityTemporalDefinitionContent',
       component: {
         lazy: () =>
-          import('./components/definition/DefinitionContent').then(
+          import('./components/definition/DefinitionContentPage').then(
             m => m.EntityTemporalDefinitionContentPage,
           ),
       },

@@ -32,12 +32,7 @@ import {
   parseLocationRef,
   stringifyEntityRef,
 } from '@backstage/catalog-model';
-import {
-  discoveryApiRef,
-  fetchApiRef,
-  useApi,
-  useRouteRef,
-} from '@backstage/core-plugin-api';
+import { useApi, useRouteRef } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import { Alert, ButtonLink, Flex, Link, Select, Text } from '@backstage/ui';
 import { RiExternalLinkLine } from '@remixicon/react';
@@ -64,7 +59,7 @@ import {
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
 } from '../../common/definition';
-import { DefinitionClient, DefinitionSource } from '../../api';
+import type { DefinitionSource } from '../../api';
 import { tp } from '../styles';
 
 import { DefinitionGraph } from './DefinitionGraph';
@@ -606,18 +601,4 @@ export function DefinitionContent(props: { definitions: DefinitionSource }) {
   }
   if (!spec) return <SourceLinks entity={entity} />;
   return <LoadedDefinition entity={entity} definitions={props.definitions} />;
-}
-
-/**
- * The Definition tab as the extensions mount it: it reads the definition
- * file from the route of the backend module.
- */
-export function EntityTemporalDefinitionContentPage() {
-  const discoveryApi = useApi(discoveryApiRef);
-  const fetchApi = useApi(fetchApiRef);
-  const definitions = useMemo(
-    () => new DefinitionClient({ discoveryApi, fetchApi }),
-    [discoveryApi, fetchApi],
-  );
-  return <DefinitionContent definitions={definitions} />;
 }

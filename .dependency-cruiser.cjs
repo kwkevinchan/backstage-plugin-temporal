@@ -22,6 +22,7 @@
 const BE = '^plugins/temporal-backend/src';
 const FE = '^plugins/temporal/src';
 const GRAPH = `${FE}/components/graph`;
+const ZIGFLOW = '^plugins/temporal-module-zigflow/src';
 
 /** Files of services/ that call Temporal without a repository. */
 const CALLS_TEMPORAL = [
@@ -140,6 +141,20 @@ module.exports = {
         pathNot: ['\\.tsx$', `${GRAPH}/frameEdge\\.ts$`],
       },
       to: { path: '^node_modules/@xyflow/react/' },
+    },
+    {
+      name: 'zigflow-tab-is-given-its-definition-source',
+      severity: 'error',
+      comment:
+        'The Definition tab of the Zigflow module reads the definition file from the DefinitionSource it is given; its components import api.ts for types only, so that a test can give the tab another source. DefinitionContentPage.tsx, which the extensions mount, creates the client of the backend route.',
+      from: {
+        path: `${ZIGFLOW}/components/`,
+        pathNot: `${ZIGFLOW}/components/definition/DefinitionContentPage\\.tsx$`,
+      },
+      to: {
+        path: `${ZIGFLOW}/api\\.ts$`,
+        dependencyTypesNot: ['type-only'],
+      },
     },
     {
       name: 'modules-use-core-entry-points',
