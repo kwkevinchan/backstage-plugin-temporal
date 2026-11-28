@@ -18,24 +18,9 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { WorkflowMessageDefinition } from '../common';
 import { stringifyEntityRef } from '@backstage/catalog-model';
-import {
-  Button,
-  Dialog,
-  DialogBody,
-  DialogFooter,
-  DialogHeader,
-  Flex,
-  Text,
-  TextField,
-} from '@backstage/ui';
 import { temporalApiRef } from '../extensions';
 import type { TemporalWorkflowExtensionProps } from '../extensions';
-import {
-  ControlError,
-  controlError,
-  ControlErrorAlert,
-  PermissionButton,
-} from '../components/messages/shared';
+import { PermissionButton } from '../components/messages/shared';
 import {
   MessageDialog,
   type MessageDialogText,
@@ -50,6 +35,7 @@ import {
 } from '../common';
 import { useApi } from '@backstage/core-plugin-api';
 import { useControlConfig, useControlEnabled } from './config';
+import { ConfirmDialog } from './ConfirmDialog';
 
 /** A new update ID; `crypto.randomUUID` needs a secure context. */
 function newUpdateId(): string {
@@ -94,73 +80,6 @@ function messageText(
       ? 'This run already continued as new. The update is sent to the run of this workflow that is currently running, and returns its result or rejects it.'
       : MESSAGE_TEXT.update.help,
   };
-}
-
-/** Asks before cancel, terminate (with a reason) or rerun. */
-export function ConfirmDialog(props: {
-  title: string;
-  description: string;
-  confirm: string;
-  /** Label of the button that closes the dialog. */
-  dismiss: string;
-  destructive?: boolean;
-  /** Ask for a reason: required with `true`, or left out with `'optional'`. */
-  reason?: boolean | 'optional';
-  onConfirm(reason: string): Promise<void>;
-  onClose(): void;
-  /** The details page of the run, for the links of its errors. */
-  context?: TemporalWorkflowExtensionProps;
-}) {
-  const [reason, setReason] = useState('');
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<ControlError>();
-  const confirm = async () => {
-    setPending(true);
-    setError(undefined);
-    try {
-      await props.onConfirm(reason.trim());
-      props.onClose();
-    } catch (e) {
-      setError(controlError(e));
-      setPending(false);
-    }
-  };
-  return (
-    <Dialog isOpen onOpenChange={open => !open && props.onClose()} width={480}>
-      <DialogHeader>{props.title}</DialogHeader>
-      <DialogBody>
-        <Flex direction="column" gap="3">
-          <Text variant="body-medium">{props.description}</Text>
-          {props.reason && (
-            <TextField
-              label={
-                props.reason === 'optional' ? 'Reason (optional)' : 'Reason'
-              }
-              value={reason}
-              onChange={setReason}
-              maxLength={1000}
-              isRequired={props.reason === true}
-            />
-          )}
-          {error && <ControlErrorAlert error={error} context={props.context} />}
-        </Flex>
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="secondary" slot="close">
-          {props.dismiss}
-        </Button>
-        <Button
-          variant="primary"
-          destructive={props.destructive}
-          isPending={pending}
-          isDisabled={props.reason === true && !reason.trim()}
-          onPress={confirm}
-        >
-          {props.confirm}
-        </Button>
-      </DialogFooter>
-    </Dialog>
-  );
 }
 
 /**

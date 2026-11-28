@@ -14,82 +14,46 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useResolvedPath, useSearchParams } from 'react-router-dom';
+import { useCallback, useMemo, useState } from 'react';
+import { useParams, useResolvedPath } from 'react-router-dom';
 import { Entity, stringifyEntityRef } from '@backstage/catalog-model';
-import { useApi } from '@backstage/core-plugin-api';
-import { EntityRefLink, useEntity } from '@backstage/plugin-catalog-react';
-import useAsync from 'react-use/esm/useAsync';
-import type {
-  WorkflowDetail,
-  WorkflowGraphNode,
-  WorkflowGraphResponse,
-  WorkflowRef,
-  WorkflowRunRef,
-  WorkflowRunChain,
-} from '../common';
-import { CLOSED_WITH_FAILURE } from '../common/stepRules';
+import { useEntity } from '@backstage/plugin-catalog-react';
+import type { WorkflowRef } from '../common';
 import {
-  temporalApiRef,
   TemporalWorkflowActionDef,
   TemporalWorkflowSectionDef,
 } from '../extensions';
 import {
-  Alert,
   Button,
-  ButtonLink,
   Card,
   CardBody,
-  CardHeader,
   Flex,
   Link,
-  Switch,
   Tab,
   TabList,
   TabPanel,
   Tabs,
-  Text,
 } from '@backstage/ui';
-import { RiExternalLinkLine, RiRefreshLine } from '@remixicon/react';
-import { QueryButton } from './messages/QueryButton';
+import { RiRefreshLine } from '@remixicon/react';
+import { DetailsTab } from './detail/DetailsTab';
+import { GraphCard } from './detail/GraphCard';
+import { TimelineTab } from './detail/TimelineTab';
+import { useDetailSelection } from './detail/useDetailSelection';
+import { WorkflowHeader } from './detail/WorkflowHeader';
 import { ErrorAlert, Loading } from './feedback';
-import { FailureView } from './FailureView';
-import { deadlineText, formatDuration, formatTime } from './format';
 import {
-  GraphFullscreenContext,
-  useGraphFullscreenState,
-} from './graph/GraphCanvas';
-import { WorkflowGraph } from './graph/WorkflowGraph';
-import type { GroupViews } from './graph/eventGroups';
-import type { GroupDisplay } from './graph/WorkflowGraph';
-import {
-  DEFAULT_DETAIL_TAB,
   EVENT_GROUPS_TAB,
-  isLinkableStep,
-  resolveDetailStep,
   resolveDetailTab,
   STATIC_DETAIL_TABS,
-  withDetailStep,
-  withDetailTab,
 } from './detailState';
 import { EventGroupsTab } from './EventGroupsTab';
 import { savedListSearch } from './listState';
-import { JsonView, MemoView } from './PayloadView';
-import { PendingActivities } from './PendingActivities';
-import { RunHelp } from './RunHelp';
-import { DefinitionList, StepDrawer } from './StepDrawer';
-import { isMarkerStep } from './steps';
 import { StepsTable } from './StepsTable';
-import { WorkflowTimeline } from './timeline/WorkflowTimeline';
 import { useRefreshLock } from './useRefreshLock';
 import { sharedExtensions, useSharedExtensions } from './useSharedExtensions';
 import { useWorkflowData } from './useWorkflowData';
-import { httpUrl } from './webUi';
 import { WorkflowEvents } from './WorkflowEvents';
-import { stepsDoneText } from './WorkflowProgress';
 import { workflowLink } from './WorkflowRunsTable';
-import { WorkflowStatusLabel } from './WorkflowStatusLabel';
-import { tp } from './styles';
 
 /** Props of {@link WorkflowDetailPage}. */
 export interface WorkflowDetailPageProps {
@@ -121,386 +85,6 @@ function useExtensions(props: WorkflowDetailPageProps) {
 }
 
 /**
- * One field of the header: the label above, the value below. A wide field
- * (long text, links) spans two columns when there is room.
- */
-function SummaryItem(props: {
-  label: string;
-  /** Shown after the label: an explanation of the field. */
-  help?: React.ReactNode;
-  wide?: boolean;
-  testId?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={tp('tp-summary-item')}
-      data-wide={props.wide || undefined}
-      data-testid={props.testId}
-    >
-      <span className={tp('tp-summary-label')}>
-        <Text as="span" variant="body-small" color="secondary">
-          {props.label}
-        </Text>
-        {props.help}
-      </span>
-      <Text as="span" variant="body-medium" className={tp('tp-summary-value')}>
-        {props.children}
-      </Text>
-    </div>
-  );
-}
-
-function detailItems(workflow: WorkflowDetail): [string, React.ReactNode][] {
-  const typeEntityRef =
-    workflow.workflowEntityRef ?? workflow.workflowTypeEntityRef;
-  return [
-    ['Workflow ID', workflow.workflowId],
-    ['Run ID', workflow.runId],
-    [
-      'Workflow type',
-      typeEntityRef ? (
-        <EntityRefLink entityRef={typeEntityRef}>
-          {workflow.workflowType}
-        </EntityRefLink>
-      ) : (
-        workflow.workflowType
-      ),
-    ],
-    ['Task queue', workflow.taskQueue],
-    ['Namespace', workflow.namespace],
-    ['Status', <WorkflowStatusLabel status={workflow.status} />],
-    ['Started', formatTime(workflow.startTime)],
-    ['Ended', formatTime(workflow.closeTime)],
-    ['Duration', formatDuration(workflow.startTime, workflow.closeTime)],
-    ['History events', workflow.historyLength],
-    ['Parent workflow', workflow.parent?.workflowId],
-    [
-      'Catalog entity',
-      workflow.entityRef ? (
-        <EntityRefLink entityRef={workflow.entityRef} />
-      ) : undefined,
-    ],
-  ];
-}
-
-/** The Details tab: the summary table, failure and pending activities. */
-function DetailsTab(props: { workflow: WorkflowDetail }) {
-  const { workflow } = props;
-  return (
-    <Flex direction="column" gap="4">
-      <DefinitionList items={detailItems(workflow)} />
-      {workflow.failure && (
-        <div>
-          <Text as="h3" variant="title-x-small">
-            Failure
-          </Text>
-          <FailureView failure={workflow.failure} />
-        </div>
-      )}
-      {workflow.pendingActivities.length > 0 && (
-        <div>
-          <Text as="h3" variant="title-x-small">
-            Pending activities
-          </Text>
-          <PendingActivities activities={workflow.pendingActivities} />
-        </div>
-      )}
-      {workflow.searchAttributes &&
-        Object.keys(workflow.searchAttributes).length > 0 && (
-          <div>
-            <Text as="h3" variant="title-x-small">
-              Search attributes
-            </Text>
-            <JsonView value={workflow.searchAttributes} />
-          </div>
-        )}
-      {workflow.memo && (
-        <div>
-          <Text as="h3" variant="title-x-small">
-            Memo
-          </Text>
-          <MemoView memo={workflow.memo} />
-        </div>
-      )}
-    </Flex>
-  );
-}
-
-/** Links to the run before and after this one: "← Run 2", "Run 4 →". */
-function RunChainLinks(props: {
-  chain: WorkflowRunChain;
-  workflow: WorkflowDetail;
-  workflowHref(ref: WorkflowRef): string;
-}) {
-  const { chain, workflow, workflowHref } = props;
-  const href = (runId: string) =>
-    workflowHref({
-      namespace: workflow.namespace,
-      workflowId: workflow.workflowId,
-      runId,
-    });
-  const index = chain.index;
-  return (
-    <span className={tp('tp-run-chain')}>
-      {chain.previousRunId && (
-        <Link href={href(chain.previousRunId)} variant="body-medium">
-          {index && index > 1 ? `← Run ${index - 1}` : '← Previous run'}
-        </Link>
-      )}
-      {chain.nextRunId && (
-        <Link href={href(chain.nextRunId)} variant="body-medium">
-          {index ? `Run ${index + 1} →` : 'Next run →'}
-        </Link>
-      )}
-      {!chain.previousRunId && !chain.nextRunId && (
-        <span className={tp('tp-muted')}>—</span>
-      )}
-    </span>
-  );
-}
-
-/**
- * Notices on a run that is not the one to look at: a run that continued as
- * new, with a link to the run it continued as; a closed run that is not the
- * latest of its workflow ID, with a link to the runs of the ID. Whether it
- * is the latest is read from the run list, which has only the runs the user
- * may see, and only for a closed run.
- */
-function RunNotices(props: {
-  workflow: WorkflowDetail;
-  /** The run this one continued as, from the details or the graph. */
-  nextRunId?: string;
-  entityRef?: string;
-  workflowHref(ref: WorkflowRef): string;
-}) {
-  const { workflow, nextRunId, entityRef, workflowHref } = props;
-  const api = useApi(temporalApiRef);
-  const { namespace, workflowId, runId } = workflow;
-  const closed = workflow.status !== 'Running';
-  const { value: latestRunId } = useAsync(async () => {
-    if (!closed || nextRunId) return undefined;
-    try {
-      const list = await api.listWorkflowRuns(
-        { namespace, workflowId },
-        { entityRef, pageSize: 1 },
-      );
-      return list.items[0]?.runId;
-    } catch {
-      // Without the run list (no list permission), no notice.
-      return undefined;
-    }
-  }, [api, namespace, workflowId, runId, closed, nextRunId, entityRef]);
-  if (nextRunId) {
-    return (
-      <Alert
-        status="info"
-        icon
-        title="This run continued as new."
-        data-testid="run-continued-as-new"
-        description={
-          <Link
-            href={workflowHref({ namespace, workflowId, runId: nextRunId })}
-            variant="body-medium"
-          >
-            Open the run it continued as
-          </Link>
-        }
-      />
-    );
-  }
-  if (latestRunId && latestRunId !== runId) {
-    return (
-      <Alert
-        status="info"
-        icon
-        title="This is not the latest run of this workflow ID."
-        data-testid="run-not-latest"
-        description={
-          <Link
-            href={workflowHref({ namespace, workflowId })}
-            variant="body-medium"
-          >
-            See the runs of this workflow ID
-          </Link>
-        }
-      />
-    );
-  }
-  return null;
-}
-
-/** Label of the run chain field: which run of the chain this is. */
-function runChainLabel(chain: WorkflowRunChain): string {
-  return chain.index && chain.total
-    ? `Run ${chain.index} of ${chain.total}`
-    : 'One of several runs';
-}
-
-function currentLabel(workflow: WorkflowDetail) {
-  if (workflow.status === 'Running') return 'Now';
-  if (CLOSED_WITH_FAILURE.includes(workflow.status)) {
-    return 'Stopped at';
-  }
-  return 'Result';
-}
-
-function GraphCard(props: {
-  graph?: WorkflowGraphResponse;
-  graphError?: Error;
-  selected?: WorkflowGraphNode;
-  /** Shows the step drawer next to the graph. */
-  showDrawer: boolean;
-  onSelect(id: string | undefined): void;
-  /** Selects a step from the step panel (a tool call of a model call). */
-  onSelectStep(id: string): void;
-  workflowRef: WorkflowRunRef;
-  entityRef?: string;
-  workflowHref(ref: WorkflowRef): string;
-  showMarkers: boolean;
-  onShowMarkersChange(show: boolean): void;
-  groupViews: GroupViews;
-  onGroupViewChange(key: string, expanded: boolean | undefined): void;
-  focusGroup?: { key: string };
-  onGroupDisplay(display: GroupDisplay): void;
-}) {
-  const { graph, graphError, selected, onSelect } = props;
-  const showDrawer = Boolean(selected) && props.showDrawer;
-  const fullscreen = useGraphFullscreenState();
-  return (
-    <Card>
-      <CardHeader>
-        <Flex align="center" justify="between" gap="2">
-          <Text as="h3" variant="title-small" style={{ margin: 0 }}>
-            Steps
-          </Text>
-          {graph && graph.totalSteps > 0 && (
-            <Text variant="body-small" color="secondary">
-              {graph.status === 'Running'
-                ? stepsDoneText(graph.completedSteps)
-                : `${graph.completedSteps} of ${graph.totalSteps} steps done`}
-            </Text>
-          )}
-        </Flex>
-      </CardHeader>
-      <CardBody>
-        {graphError && (
-          <div style={graph ? { marginBottom: 12 } : undefined}>
-            <ErrorAlert
-              title={graph ? 'Could not refresh graph' : undefined}
-              error={graphError}
-            />
-          </div>
-        )}
-        {!graph && !graphError && <Loading label="Loading graph" />}
-        {graph?.truncated && (
-          <Alert
-            status="info"
-            icon
-            title="The history is long; the graph shows its first events."
-            style={{ marginBottom: 12 }}
-          />
-        )}
-        {graph?.eventGroupsTruncated && (
-          <Alert
-            status="info"
-            icon
-            title="The run has more event groups than the backend reads; some groups are left out."
-            style={{ marginBottom: 12 }}
-          />
-        )}
-        {graph && (
-          <GraphFullscreenContext.Provider value={fullscreen}>
-            <div
-              className={tp('tp-graph-layout')}
-              data-testid="workflow-graph-layout"
-              data-fullscreen={fullscreen.fullscreen}
-            >
-              <WorkflowGraph
-                graph={graph}
-                selectedId={selected?.id}
-                onSelect={onSelect}
-                showMarkers={props.showMarkers}
-                onShowMarkersChange={props.onShowMarkersChange}
-                groupViews={props.groupViews}
-                onGroupViewChange={props.onGroupViewChange}
-                focusGroup={props.focusGroup}
-                onGroupDisplay={props.onGroupDisplay}
-                panelOpen={showDrawer}
-              />
-              {showDrawer && selected && (
-                <StepDrawer
-                  step={selected}
-                  workflowHref={props.workflowHref}
-                  onClose={() => onSelect(undefined)}
-                  nodes={graph.nodes}
-                  workflowRef={props.workflowRef}
-                  entityRef={props.entityRef}
-                  onSelectStep={props.onSelectStep}
-                />
-              )}
-            </div>
-          </GraphFullscreenContext.Provider>
-        )}
-      </CardBody>
-    </Card>
-  );
-}
-
-/**
- * The Timeline tab: the steps on a time axis, with the step panel of the
- * graph next to it for the selected bar.
- */
-function TimelineTab(props: {
-  graph: WorkflowGraphResponse;
-  workflow: WorkflowDetail;
-  showMarkers: boolean;
-  live: boolean;
-  selected?: WorkflowGraphNode;
-  showDrawer: boolean;
-  onSelect(id: string | undefined): void;
-  onSelectStep(id: string): void;
-  workflowRef: WorkflowRunRef;
-  workflowHref(ref: WorkflowRef): string;
-  entityRef?: string;
-}) {
-  const { graph, selected, onSelect } = props;
-  const showDrawer = Boolean(selected) && props.showDrawer;
-  return (
-    <div className={tp('tp-graph-layout')}>
-      <div className={tp('tp-graph-column')}>
-        {graph.truncated && (
-          <Alert
-            status="info"
-            icon
-            title="The history is long; the timeline shows its first events."
-          />
-        )}
-        <WorkflowTimeline
-          graph={graph}
-          workflow={props.workflow}
-          showMarkers={props.showMarkers}
-          selectedId={selected?.id}
-          onSelect={onSelect}
-          live={props.live}
-        />
-      </div>
-      {showDrawer && selected && (
-        <StepDrawer
-          step={selected}
-          workflowHref={props.workflowHref}
-          onClose={() => onSelect(undefined)}
-          nodes={graph.nodes}
-          workflowRef={props.workflowRef}
-          entityRef={props.entityRef}
-          onSelectStep={props.onSelectStep}
-        />
-      )}
-    </div>
-  );
-}
-
-/**
  * Details of one workflow execution: a summary line, the step graph with a
  * panel for the selected step, and tabs with the steps, the events and the
  * details. With an entity, the backend checks the permission on that
@@ -523,44 +107,8 @@ export function WorkflowDetailPage(
     }),
     [params.namespace, params.workflowId, params.runId],
   );
-  const [searchParams, setSearchParams] = useSearchParams();
   const [autoRefresh, setAutoRefresh] = useState(true);
   const runKey = `${workflowRef.namespace}\0${workflowRef.workflowId}\0${workflowRef.runId}`;
-  // Local fallback only for non-linkable steps (synthetic `waiting` nodes).
-  const [ephemeralStep, setEphemeralStep] = useState<{
-    runKey: string;
-    id: string;
-  }>();
-  // Where to mount the step drawer (graph vs timeline) so only one renders at a time.
-  const [drawerChoice, setDrawerChoice] = useState<{
-    runKey: string;
-    where: 'graph' | 'timeline';
-  }>();
-  const revealedStepRef = useRef<string>();
-  const [showMarkers, setShowMarkers] = useState(false);
-  // Temporal event groups the user expanded or collapsed, and the group
-  // picked in the Event Groups tab.
-  const [groupViews, setGroupViews] = useState<GroupViews>({});
-  const [focusGroup, setFocusGroup] = useState<{ key: string }>();
-  // How the graph draws each group, for the Event Groups tab.
-  const [groupDisplay, setGroupDisplay] = useState<GroupDisplay>();
-  const showGroupDisplay = useCallback(
-    (display: GroupDisplay) =>
-      setGroupDisplay(last =>
-        last && JSON.stringify(last) === JSON.stringify(display)
-          ? last
-          : display,
-      ),
-    [],
-  );
-  const setGroupView = useCallback(
-    (key: string, expanded: boolean | undefined) =>
-      setGroupViews(({ [key]: _old, ...views }) =>
-        expanded === undefined ? views : { ...views, [key]: expanded },
-      ),
-    [],
-  );
-  const graphRef = useRef<HTMLDivElement>(null);
   const data = useWorkflowData(workflowRef, entityRef, autoRefresh);
   const { workflow, graph } = data;
   // The raw events load when they are opened and when the user reloads, not
@@ -583,177 +131,25 @@ export function WorkflowDetailPage(
   );
   const nodes = data.graph?.nodes;
   const eventGroups = data.graph?.eventGroups;
-  const urlSelectedNode = useMemo(
-    () => resolveDetailStep(searchParams, nodes),
-    [searchParams, nodes],
-  );
-  const ephemeralNode = useMemo(
-    () =>
-      ephemeralStep?.runKey === runKey
-        ? nodes?.find(n => n.id === ephemeralStep.id && !n.internal)
-        : undefined,
-    [ephemeralStep, runKey, nodes],
-  );
-  const selectedNode = ephemeralNode ?? urlSelectedNode;
-  // A step picked outside the graph: its groups are expanded.
-  const openGroupsOf = useCallback(
-    (id: string) => {
-      const keys = nodes?.find(n => n.id === id)?.groups ?? [];
-      // Unchanged when they are open already: no new layout.
-      setGroupViews(views =>
-        keys.every(k => views[k])
-          ? views
-          : { ...views, ...Object.fromEntries(keys.map(k => [k, true])) },
-      );
-    },
-    [nodes],
-  );
-  const revealStep = useCallback(
-    (id: string) => {
-      const node = nodes?.find(n => n.id === id);
-      if (node && isMarkerStep(node)) setShowMarkers(true);
-      openGroupsOf(id);
-    },
-    [nodes, openGroupsOf],
-  );
-  // Place the drawer of a deep-linked step and reveal it once per URL
-  // selection, so later tab changes do not move the drawer and later manual
-  // toggles of markers or group boxes are not overridden.
-  useEffect(() => {
-    if (!urlSelectedNode || ephemeralNode) return;
-    const key = `${runKey}\0${urlSelectedNode.id}`;
-    if (revealedStepRef.current === key) return;
-    revealedStepRef.current = key;
-    if (searchParams.get('tab') === 'timeline') {
-      setDrawerChoice({ runKey, where: 'timeline' });
-      // The timeline shows markers only with the switch on; the graph's
-      // groups are left as they are.
-      if (isMarkerStep(urlSelectedNode)) setShowMarkers(true);
-    } else {
-      setDrawerChoice({ runKey, where: 'graph' });
-      revealStep(urlSelectedNode.id);
-    }
-  }, [runKey, urlSelectedNode, ephemeralNode, revealStep, searchParams]);
-  const setTab = useCallback(
-    (nextTab: string) => {
-      const normalized = nextTab === DEFAULT_DETAIL_TAB ? null : nextTab;
-      if (searchParams.get('tab') === normalized) return;
-      // A step picked in the timeline belongs to the Timeline tab: it is
-      // unselected when the tab is left. One updater for both params, because
-      // a second call in the same event would start from the same params.
-      const dropStep =
-        searchParams.get('tab') === 'timeline' &&
-        drawerChoice?.runKey === runKey &&
-        drawerChoice.where === 'timeline';
-      if (dropStep) {
-        setEphemeralStep(undefined);
-        revealedStepRef.current = undefined;
-      }
-      setSearchParams(
-        current => {
-          const next = withDetailTab(current, nextTab);
-          return dropStep ? withDetailStep(next, undefined) : next;
-        },
-        { replace: true },
-      );
-    },
-    [drawerChoice, runKey, searchParams, setSearchParams],
-  );
-  const selectStep = useCallback(
-    (id: string | undefined) => {
-      if (!id) {
-        setEphemeralStep(undefined);
-        revealedStepRef.current = undefined;
-        if (searchParams.has('step')) {
-          setSearchParams(current => withDetailStep(current, undefined), {
-            replace: true,
-          });
-        }
-        return;
-      }
-      const node = nodes?.find(n => n.id === id);
-      if (node && !isLinkableStep(node)) {
-        setEphemeralStep({ runKey, id });
-        revealedStepRef.current = undefined;
-        if (searchParams.has('step')) {
-          setSearchParams(current => withDetailStep(current, undefined), {
-            replace: true,
-          });
-        }
-        return;
-      }
-      setEphemeralStep(undefined);
-      revealedStepRef.current = `${runKey}\0${id}`;
-      if (searchParams.get('step') !== id) {
-        setSearchParams(current => withDetailStep(current, id), {
-          replace: true,
-        });
-      }
-    },
-    [nodes, runKey, searchParams, setSearchParams],
-  );
-  const selectInPlace = useCallback(
-    (where: 'graph' | 'timeline', id: string | undefined) => {
-      if (id !== undefined) {
-        setDrawerChoice({ runKey, where });
-      }
-      selectStep(id);
-    },
-    [runKey, selectStep],
-  );
-  const selectFromGraph = useCallback(
-    (id: string | undefined) => selectInPlace('graph', id),
-    [selectInPlace],
-  );
-  const selectFromTimeline = useCallback(
-    (id: string | undefined) => selectInPlace('timeline', id),
-    [selectInPlace],
-  );
-  const scrollToGraph = useCallback(
-    () =>
-      graphRef.current?.scrollIntoView?.({
-        behavior: 'smooth',
-        block: 'start',
-      }),
-    [],
-  );
-  const selectFromTab = useCallback(
-    (id: string) => {
-      // A marker picked in the events is shown in the graph.
-      revealStep(id);
-      selectFromGraph(id);
-      scrollToGraph();
-    },
-    [revealStep, selectFromGraph, scrollToGraph],
-  );
-  // A step picked in the step panel: selected and shown in its groups.
-  const selectInGraph = useCallback(
-    (id: string) => {
-      revealStep(id);
-      selectFromGraph(id);
-    },
-    [revealStep, selectFromGraph],
-  );
-  // A group picked in the Event Groups tab: expanded with the groups
-  // around it and brought into view.
-  const showGroup = useCallback(
-    (key: string) => {
-      const byKey = new Map((eventGroups ?? []).map(g => [g.key, g]));
-      const open: Record<string, boolean> = {};
-      for (
-        let g = byKey.get(key);
-        g && !(g.key in open);
-        g = g.parent ? byKey.get(g.parent) : undefined
-      ) {
-        open[g.key] = true;
-      }
-      setGroupViews(views => ({ ...views, ...open }));
-      setFocusGroup({ key });
-      selectStep(undefined);
-      scrollToGraph();
-    },
-    [eventGroups, scrollToGraph, selectStep],
-  );
+  const {
+    searchParams,
+    graphRef,
+    selectedNode,
+    drawerPlace,
+    showMarkers,
+    setShowMarkers,
+    groupViews,
+    setGroupView,
+    focusGroup,
+    groupDisplay,
+    showGroupDisplay,
+    setTab,
+    selectFromGraph,
+    selectFromTimeline,
+    selectFromTab,
+    selectInGraph,
+    showGroup,
+  } = useDetailSelection({ runKey, nodes, eventGroups });
 
   // Back to the list with its filters and page, as it was left.
   const back = (
@@ -806,7 +202,6 @@ export function WorkflowDetailPage(
     workflowHref,
   };
   const actions = workflowActions.filter(a => !a.filter || a.filter(workflow));
-  const webUiUrl = httpUrl(workflow.webUiUrl);
   const sections = workflowSections.filter(
     s => !s.filter || s.filter(workflow),
   );
@@ -818,9 +213,7 @@ export function WorkflowDetailPage(
     ...sections.map(s => `section-${s.id}`),
   ]);
   const tab = resolveDetailTab(searchParams, availableTabs);
-  const defaultDrawerIn = tab === 'timeline' ? 'timeline' : 'graph';
-  const drawerIn: 'graph' | 'timeline' =
-    drawerChoice?.runKey === runKey ? drawerChoice.where : defaultDrawerIn;
+  const drawerIn = drawerPlace ?? (tab === 'timeline' ? 'timeline' : 'graph');
   const showTimelineDrawer = tab === 'timeline' && drawerIn === 'timeline';
   const showGraphDrawer = !showTimelineDrawer;
   const running = workflow.status === 'Running';
@@ -833,139 +226,19 @@ export function WorkflowDetailPage(
   return (
     <Flex direction="column" gap="4">
       {back}
-      <Card>
-        <CardBody className={tp('tp-header')}>
-          <div className={tp('tp-header-top')}>
-            <div className={tp('tp-header-title')}>
-              <Text
-                as="h2"
-                variant="title-medium"
-                className={tp('tp-header-id')}
-              >
-                {workflow.workflowId}
-              </Text>
-              <Text
-                variant="body-small"
-                color="secondary"
-                className={tp('tp-header-run')}
-              >
-                Run ID {workflow.runId}
-              </Text>
-            </div>
-            <div
-              className={tp('tp-summary-actions')}
-              data-testid="workflow-actions"
-            >
-              {actions.map(({ id, component: Action }) => (
-                <div
-                  key={id}
-                  className={tp('tp-summary-action')}
-                  data-testid={`temporal-action-${id}`}
-                >
-                  <Action {...extensionProps} />
-                </div>
-              ))}
-              <QueryButton workflow={workflow} entityRef={entityRef} />
-              {webUiUrl && (
-                <ButtonLink
-                  variant="secondary"
-                  href={webUiUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  iconEnd={<RiExternalLinkLine />}
-                >
-                  Open in Temporal UI
-                </ButtonLink>
-              )}
-              <Button
-                variant="secondary"
-                iconStart={<RiRefreshLine />}
-                isPending={refresh.locked || (data.refreshing && !running)}
-                onPress={refresh.refresh}
-              >
-                Refresh
-              </Button>
-              {running && (
-                <Switch
-                  label="Auto refresh"
-                  isSelected={autoRefresh}
-                  onChange={setAutoRefresh}
-                />
-              )}
-            </div>
-          </div>
-          <hr className={tp('tp-header-divider')} />
-          <div className={tp('tp-summary')} data-testid="workflow-summary">
-            <SummaryItem
-              label="Status"
-              help={
-                workflow.status === 'ContinuedAsNew' ? <RunHelp /> : undefined
-              }
-            >
-              <WorkflowStatusLabel status={workflow.status} />
-            </SummaryItem>
-            {graph?.current && (
-              <SummaryItem
-                label={currentLabel(workflow)}
-                // Long text (what a run waits for, with its time limit)
-                // gets two columns.
-                wide={
-                  Boolean(graph.currentDeadline) || graph.current.length > 32
-                }
-              >
-                <span data-testid="workflow-current">
-                  {graph.current}
-                  {graph.currentDeadline && (
-                    <span
-                      title={formatTime(graph.currentDeadline.time)}
-                      data-testid="workflow-deadline"
-                    >
-                      {' · '}
-                      {deadlineText(graph.currentDeadline)}
-                    </span>
-                  )}
-                </span>
-              </SummaryItem>
-            )}
-            {graph?.runChain && (
-              <SummaryItem
-                label={runChainLabel(graph.runChain)}
-                help={<RunHelp />}
-                wide
-                testId="workflow-run-chain"
-              >
-                <RunChainLinks
-                  chain={graph.runChain}
-                  workflow={workflow}
-                  workflowHref={workflowHref}
-                />
-              </SummaryItem>
-            )}
-            <SummaryItem label="Workflow type">
-              {workflow.workflowType}
-            </SummaryItem>
-            <SummaryItem label="Duration">
-              {formatDuration(workflow.startTime, workflow.closeTime) || '—'}
-            </SummaryItem>
-            <SummaryItem label="Started">
-              {formatTime(workflow.startTime) || '—'}
-            </SummaryItem>
-          </div>
-          <RunNotices
-            workflow={workflow}
-            nextRunId={
-              workflow.status === 'ContinuedAsNew'
-                ? workflow.continuedAsNewRunId ?? graph?.runChain?.nextRunId
-                : undefined
-            }
-            entityRef={entityRef}
-            workflowHref={workflowHref}
-          />
-          {data.error && (
-            <ErrorAlert title="Could not refresh" error={data.error} />
-          )}
-        </CardBody>
-      </Card>
+      <WorkflowHeader
+        workflow={workflow}
+        graph={graph}
+        entityRef={entityRef}
+        actions={actions}
+        extensionProps={extensionProps}
+        workflowHref={workflowHref}
+        refresh={refresh}
+        refreshing={data.refreshing}
+        error={data.error}
+        autoRefresh={autoRefresh}
+        onAutoRefreshChange={setAutoRefresh}
+      />
 
       <div ref={graphRef}>
         <GraphCard

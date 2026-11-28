@@ -1,0 +1,160 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * The panel of a model call.
+ */
+
+/* LLM panel: chat-style messages, collapsible long parts. */
+.tp-llm-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2, 8px);
+  margin: 0 0 6px;
+}
+.tp-llm-section-head > :first-child {
+  margin: 0;
+}
+.tp-llm-section-head > :last-child {
+  margin-left: auto;
+}
+.tp-llm-messages {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-message {
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: var(--bui-bg-neutral-1);
+  min-width: 0;
+}
+.tp-llm-message[data-role='assistant'] {
+  border-left: 3px solid var(--tp-llm);
+}
+.tp-llm-message[data-role='system'] {
+  background: var(--bui-bg-neutral-2);
+}
+.tp-llm-message[data-role='tool'] {
+  border-style: dashed;
+}
+.tp-llm-role {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: var(--bui-font-weight-bold, 600);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-text {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--bui-font-regular);
+  font-size: var(--bui-font-size-3, 14px);
+  line-height: 1.5;
+  color: var(--bui-fg-primary);
+}
+.tp-llm-text[data-clamped='true'] {
+  max-height: 9em;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, currentColor 70%, transparent);
+  mask-image: linear-gradient(to bottom, currentColor 70%, transparent);
+}
+.tp-llm-more {
+  margin-top: 2px;
+}
+.tp-llm-thinking {
+  border: 1px solid var(--bui-border-1);
+  border-left: 3px solid var(--tp-llm);
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: color-mix(in srgb, var(--tp-llm) 5%, var(--bui-bg-neutral-1));
+}
+.tp-llm-thinking > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-thinking .tp-llm-text {
+  margin-top: 6px;
+  font-style: italic;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-tools {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-tool {
+  border: 1px solid var(--tp-border, var(--bui-border-1));
+  border-radius: var(--bui-radius-3, 8px);
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  background: var(--bui-bg-neutral-1);
+  min-width: 0;
+}
+.tp-llm-tool-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--bui-space-2, 8px);
+  margin-bottom: 4px;
+}
+.tp-llm-tool-name {
+  font-family: var(--bui-font-monospace, monospace);
+  font-size: 13px;
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-llm-usage {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: var(--bui-space-2, 8px);
+}
+.tp-llm-usage > div {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 6px);
+  padding: 6px 10px;
+}
+.tp-llm-usage-label {
+  font-size: 12px;
+  color: var(--bui-fg-secondary);
+}
+.tp-llm-usage-value {
+  font-size: var(--bui-font-size-4, 16px);
+  font-weight: var(--bui-font-weight-bold, 600);
+  color: var(--bui-fg-primary);
+}
+.tp-llm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tp-llm);
+  color: var(--tp-llm);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.tp-drawer[data-llm='true'] {
+  flex-basis: 520px;
+  max-width: 55%;
+  max-height: 860px;
+}

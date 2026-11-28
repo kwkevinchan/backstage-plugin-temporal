@@ -38,7 +38,7 @@ export { uiClassNames as tp } from './components/styles';
 export { AUTO_REFRESH_MS, usePageVisible } from './components/useWorkflowData';
 export { ErrorAlert, Loading } from './components/feedback';
 export { PanelCard } from './components/PanelCard';
-export { DefinitionList } from './components/StepDrawer';
+export { DefinitionList } from './components/DefinitionList';
 export { isActiveStatus, statusLabel, statusTone } from './components/status';
 export { entityContentRouteRef } from './routes';
 export { workflowLink } from './components/WorkflowRunsTable';

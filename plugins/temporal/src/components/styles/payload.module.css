@@ -1,0 +1,71 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * JSON and code blocks, payloads in External Storage and failures.
+ */
+
+/* JSON and code blocks. */
+.tp-json {
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 4px);
+  background: var(--bui-bg-neutral-2);
+}
+.tp-json summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2, 12px);
+  color: var(--bui-fg-primary);
+}
+.tp-json summary > span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-pre {
+  margin: 0;
+  padding: 8px;
+  max-height: 360px;
+  overflow: auto;
+  font-family: var(--bui-font-monospace);
+  font-size: var(--bui-font-size-2, 12px);
+  color: var(--bui-fg-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+/* Payloads in External Storage. */
+.tp-external {
+  display: grid;
+  gap: var(--bui-space-2, 8px);
+  padding: var(--bui-space-2, 8px);
+  border: 1px dashed var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 4px);
+}
+.tp-failure {
+  padding-left: var(--bui-space-3, 12px);
+  border-left: 3px solid var(--bui-border-1);
+}
+.tp-failure[data-first='true'] {
+  border-left-color: var(--bui-border-danger);
+}
+.tp-failure + .tp-failure {
+  margin-top: var(--bui-space-2, 8px);
+}

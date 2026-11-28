@@ -18,6 +18,7 @@ import type { ReactNode } from 'react';
 import type { WorkflowGraphNode, WorkflowRef, WorkflowRunRef } from '../common';
 import { Button, ButtonIcon, Flex, Link, Text } from '@backstage/ui';
 import { RiArrowLeftLine, RiCloseLine } from '@remixicon/react';
+import { DefinitionList } from './DefinitionList';
 import { LlmPanel } from './llm/LlmPanel';
 import { INFERRED_LINK_TEXT, llmCallName, toolName } from './llm/llmText';
 import { FailureView } from './FailureView';
@@ -39,27 +40,6 @@ function Section(props: {
       </Text>
       {props.children}
     </section>
-  );
-}
-
-/**
- * Rows of a definition list; empty values are left out.
- *
- * @alpha
- */
-export function DefinitionList(props: { items: [string, ReactNode][] }) {
-  const items = props.items.filter(
-    ([, v]) => v !== undefined && v !== null && v !== '',
-  );
-  return (
-    <dl className={tp('tp-dl')}>
-      {items.map(([k, v]) => (
-        <div key={k} style={{ display: 'contents' }}>
-          <dt>{k}</dt>
-          <dd>{v}</dd>
-        </div>
-      ))}
-    </dl>
   );
 }
 

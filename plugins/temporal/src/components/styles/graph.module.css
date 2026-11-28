@@ -1,0 +1,215 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * The workflow graph: its toolbar and canvas, the step boxes, and the
+ * layout of the graph with the step panel next to it.
+ */
+
+/* Workflow graph: a toolbar above the canvas. The canvas height follows
+   the graph (min-height set inline) and grows with the step panel. */
+.tp-graph-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bui-space-2, 8px);
+  min-width: 0;
+}
+.tp-graph-toolbar {
+  flex-wrap: wrap;
+}
+.tp-graph-canvas {
+  position: absolute;
+  inset: 0;
+}
+.tp-graph {
+  position: relative;
+  flex: 1 0 auto;
+  border-radius: var(--bui-radius-3, 8px);
+  overflow: hidden;
+  --xy-background-color: var(--bui-bg-neutral-1);
+  --xy-background-pattern-color: var(--bui-border-1);
+  --xy-edge-stroke: var(--bui-fg-secondary);
+  --xy-edge-stroke-selected: var(--bui-fg-primary);
+  --xy-controls-button-background-color: var(--bui-bg-neutral-2);
+  --xy-controls-button-background-color-hover: var(--bui-bg-neutral-2-hover);
+  --xy-controls-button-color: var(--bui-fg-primary);
+  --xy-controls-button-color-hover: var(--bui-fg-primary);
+  --xy-controls-button-border-color: var(--bui-border-1);
+  --xy-controls-box-shadow: none;
+  --xy-attribution-background-color: transparent;
+}
+.tp-graph :global(.react-flow__controls) {
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-2, 4px);
+  overflow: hidden;
+}
+.tp-graph :global(.react-flow__edge).tp-edge-active path {
+  stroke: var(--bui-fg-info);
+}
+/* The arrowhead takes the stroke of its edge; a browser without context-stroke
+   keeps the edge color of the graph. */
+.tp-edge-arrow {
+  fill: var(--xy-edge-stroke);
+  fill: context-stroke;
+}
+.tp-node {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--bui-space-2, 8px) var(--bui-space-3, 12px);
+  border: 1.5px solid var(--tp-border);
+  border-left-width: 4px;
+  border-radius: var(--bui-radius-2, 6px);
+  background: var(--bui-bg-neutral-2);
+  color: var(--bui-fg-primary);
+  font: inherit;
+  font-family: var(--bui-font-regular);
+  text-align: left;
+  cursor: pointer;
+}
+.tp-node:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+.tp-node:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 2px;
+}
+.tp-node[data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--bui-ring);
+}
+.tp-node[data-dashed='true'] {
+  border-style: dashed;
+}
+.tp-node[data-active='true'] {
+  animation: tp-pulse 1.6s ease-in-out infinite;
+}
+@keyframes tp-pulse {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tp-fg) 30%, transparent);
+  }
+}
+.tp-node-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--bui-font-size-3, 14px);
+  font-weight: var(--bui-font-weight-bold, 600);
+}
+.tp-node-title > span:first-of-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-node-icon {
+  flex: none;
+  color: var(--tp-fg);
+}
+.tp-node-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* At least 12px at the smallest zoom the graph opens with. */
+  font-size: 13px;
+  color: var(--bui-fg-secondary);
+}
+.tp-badge {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--tp-border);
+  color: var(--tp-fg);
+  font-size: var(--bui-font-size-1, 11px);
+  font-weight: var(--bui-font-weight-bold, 600);
+  line-height: 18px;
+}
+.tp-graph :global(.react-flow__handle).tp-handle {
+  opacity: 0;
+  pointer-events: none;
+  /* No size, so an edge ends on the border of its box and an arrowhead
+     touches it. */
+  width: 0;
+  height: 0;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+}
+
+/* Step panel next to the graph. */
+.tp-graph-layout {
+  display: flex;
+  gap: var(--bui-space-4, 16px);
+  align-items: stretch;
+}
+.tp-graph-layout > .tp-graph-column {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Full screen: the graph and its step panel cover the window (the page
+   itself goes full screen, so that menus and tooltips stay visible). */
+.tp-graph-layout[data-fullscreen='true'] {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  box-sizing: border-box;
+  padding: var(--bui-space-4, 16px);
+  background: var(--bui-bg-neutral-1);
+}
+.tp-graph-layout[data-fullscreen='true'] > .tp-graph-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tp-graph-layout[data-fullscreen='true'] .tp-graph {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.tp-graph-layout[data-fullscreen='true'] > .tp-drawer {
+  max-height: none;
+  align-self: stretch;
+}
+.tp-drawer {
+  flex: 0 0 420px;
+  max-width: 45%;
+  max-height: 640px;
+  align-self: flex-start;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: var(--bui-space-4, 16px);
+  border: 1px solid var(--bui-border-1);
+  border-radius: var(--bui-radius-3, 8px);
+  background: var(--bui-bg-neutral-1);
+}
+@media (max-width: 960px) {
+  .tp-graph-layout {
+    flex-direction: column;
+  }
+  .tp-drawer {
+    max-width: none;
+    max-height: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-node[data-active='true'] {
+    animation: none;
+  }
+}

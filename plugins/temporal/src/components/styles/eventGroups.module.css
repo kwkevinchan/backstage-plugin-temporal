@@ -1,0 +1,376 @@
+/*
+ * Copyright 2026 The backstage-plugin-temporal Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
+ * Temporal event groups in the graph, the Event Groups tab and the
+ * timeline.
+ */
+
+/*
+ * Temporal event groups. An expanded group is a frame under its steps: a
+ * thin border, a faint body in the color of the group (nested frames add
+ * up to a slightly darker one) and a title bar without a fill, so the
+ * steps stay in front. The border takes the status color only while the
+ * group runs or after it failed.
+ */
+.tp-group-frame {
+  container-type: inline-size;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--tp-border);
+  border-radius: var(--bui-radius-3, 8px);
+  background: color-mix(in srgb, var(--bui-bg-neutral-2) 35%, transparent);
+  font-family: var(--bui-font-regular);
+  cursor: default;
+}
+.tp-group-frame[data-kind='event'],
+.tp-group-frame[data-kind='update'] {
+  border-style: dashed;
+}
+.tp-group-frame[data-status='Running'],
+.tp-group-frame[data-status='Failed'] {
+  border-width: 2px;
+}
+.tp-group-frame[data-active='true'] {
+  animation: tp-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tp-pulse {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--tp-fg) 30%, transparent);
+  }
+}
+
+.tp-group-frame[data-focused='true'] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bui-ring) 60%, transparent);
+}
+/* The frame stands for the selected signal or update. */
+.tp-group-frame[data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--bui-ring);
+}
+.tp-group-title {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--bui-space-2, 8px);
+  height: 30px;
+  padding: 0 var(--bui-space-2, 8px) 0 var(--bui-space-1, 4px);
+  color: var(--bui-fg-primary);
+  /* At least 12px at the smallest zoom the graph opens with. */
+  font-size: 13px;
+  min-width: 0;
+}
+.tp-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  /* The name keeps its room; the facts after it are cut first. */
+  flex: 0 1 auto;
+  max-width: 100%;
+  padding: 2px 4px;
+  border: none;
+  border-radius: var(--bui-radius-2, 4px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--bui-font-weight-bold, 600);
+  cursor: pointer;
+}
+.tp-group-toggle:hover {
+  background: var(--bui-bg-neutral-2-hover);
+}
+.tp-group-toggle:focus-visible,
+.tp-group-source:focus-visible {
+  outline: 2px solid var(--bui-ring);
+  outline-offset: 1px;
+}
+.tp-group-toggle > svg:first-child {
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-group-icon {
+  color: var(--bui-fg-secondary);
+}
+.tp-group-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-group-unreadable {
+  display: inline-flex;
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+.tp-group-count {
+  margin-left: 2px;
+  --tp-border: var(--bui-border-2);
+  --tp-fg: var(--bui-fg-secondary);
+}
+.tp-group-facts {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  color: var(--tp-fg);
+}
+.tp-group-status {
+  flex: none;
+}
+.tp-group-extra {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A narrow frame (one step) keeps the name and the status in its title. */
+@container (max-width: 360px) {
+  .tp-group-extra {
+    display: none;
+  }
+}
+.tp-group-frame.tp-tone-neutral .tp-group-facts {
+  color: var(--tp-group-fg-2, var(--bui-fg-secondary));
+}
+.tp-group-source {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding: 2px;
+  border: none;
+  border-radius: var(--bui-radius-2, 4px);
+  background: none;
+  color: var(--bui-fg-secondary);
+  cursor: pointer;
+}
+.tp-group-source:hover,
+.tp-group-source[aria-pressed='true'] {
+  color: var(--bui-fg-primary);
+  background: var(--bui-bg-neutral-2-hover);
+}
+/* A collapsed group: a box with a second edge behind it when it holds
+   groups of its own. */
+.tp-node[data-group] {
+  border-left-width: 1.5px;
+  border-top-width: 3px;
+}
+.tp-node[data-group='event'],
+.tp-node[data-group='update'] {
+  border-style: dashed;
+  border-top-style: solid;
+}
+.tp-node[data-group][data-nested='true'] {
+  box-shadow: 4px 4px 0 -1.5px var(--bui-bg-neutral-2),
+    4px 4px 0 0 var(--tp-border);
+}
+.tp-node[data-group][data-selected='true'] {
+  box-shadow: 0 0 0 2px var(--bui-ring);
+}
+.tp-node[data-group] .tp-node-title {
+  gap: 4px;
+}
+/* The groups of a step without a box: a label on the top edge of it. */
+.tp-group-tag-row {
+  display: flex;
+  justify-content: flex-end;
+  height: 100%;
+  padding: 0 8px;
+  pointer-events: none;
+}
+.tp-group-tag {
+  /* The label sits on the top edge of the step: presses go to the step. */
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 75%;
+  padding: 0 6px;
+  border: 1px solid
+    color-mix(in srgb, var(--tp-group-hue) 35%, var(--bui-border-2));
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) var(--tp-tint, 7%),
+    var(--bui-bg-neutral-1)
+  );
+  color: var(--tp-group-fg-2, var(--bui-fg-secondary));
+  font-family: var(--bui-font-regular);
+  font-size: 12px;
+  line-height: 14px;
+}
+.tp-group-tag > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tp-tool-sub {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tp-tool-sub > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-inferred {
+  display: inline-flex;
+  flex: none;
+  color: var(--bui-fg-secondary);
+}
+
+.tp-group-notice {
+  margin: 0 0 var(--bui-space-2, 8px);
+}
+.tp-group-row-note {
+  color: var(--bui-fg-secondary);
+  font-size: var(--bui-font-size-1, 12px);
+}
+.tp-group-row-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/*
+ * Colors of the event groups, only to tell them apart: four colors mixed
+ * from the theme's colors, apart from the colors that already say
+ * something in the graph (failed red, done green, the violet of model
+ * calls, the teal of messages), and the color of messages for the groups
+ * of signals and updates. The frames, borders and labels keep their shape
+ * without them.
+ */
+.tp-hue {
+  --tp-group-hue-1: var(--bui-fg-info);
+  --tp-group-hue-2: var(--bui-fg-warning);
+  --tp-group-hue-3: var(--bui-fg-secondary);
+  --tp-group-hue-4: color-mix(
+    in srgb,
+    var(--bui-fg-warning) 60%,
+    var(--bui-fg-success)
+  );
+  /* As the kind color of messages (--tp-kind-message). */
+  --tp-group-hue-message: color-mix(
+    in srgb,
+    var(--bui-fg-success) 45%,
+    var(--bui-fg-info)
+  );
+  --tp-group-hue: var(--tp-group-hue-1);
+  /* Second text on a tinted surface: a little darker than the theme's. */
+  --tp-group-fg-2: color-mix(
+    in srgb,
+    var(--bui-fg-secondary) 85%,
+    var(--bui-fg-primary)
+  );
+}
+:global([data-theme-mode='dark']) .tp-hue {
+  /* The secondary text of the dark theme needs more contrast on a tint. */
+  --tp-group-fg-2: color-mix(
+    in srgb,
+    var(--bui-fg-secondary) 30%,
+    var(--bui-fg-primary)
+  );
+}
+.tp-hue[data-hue='2'] {
+  --tp-group-hue: var(--tp-group-hue-2);
+}
+.tp-hue[data-hue='3'] {
+  --tp-group-hue: var(--tp-group-hue-3);
+}
+.tp-hue[data-hue='4'] {
+  --tp-group-hue: var(--tp-group-hue-4);
+}
+.tp-hue[data-hue='message'] {
+  --tp-group-hue: var(--tp-group-hue-message);
+}
+/*
+ * How much of the hue a frame adds: nested frames are drawn over each
+ * other, so each frame inside adds less, and the fourth one none.
+ */
+.tp-group-frame.tp-hue {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-tint, 7%) * 0.7),
+    transparent
+  );
+}
+.tp-group-frame.tp-hue:not([data-depth='0']) {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-tint, 7%) * 0.4),
+    transparent
+  );
+}
+.tp-group-frame.tp-hue[data-depth='3'],
+.tp-group-frame.tp-hue[data-depth='4'] {
+  background: none;
+}
+/* The status color wins while the group runs or after it failed. */
+.tp-group-frame.tp-hue.tp-tone-neutral {
+  border-color: color-mix(
+    in srgb,
+    var(--tp-group-hue) 35%,
+    var(--bui-border-2)
+  );
+}
+.tp-group-frame.tp-hue .tp-group-icon,
+.tp-node.tp-hue[data-group] .tp-group-icon {
+  color: var(--tp-group-hue);
+}
+/*
+ * A collapsed group: the body of its frame. The left border keeps the
+ * color of its status.
+ */
+.tp-node.tp-hue[data-group] {
+  --tp-group-level: calc(var(--tp-tint, 7%) * 0.7);
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) var(--tp-group-level),
+    var(--bui-bg-neutral-2)
+  );
+}
+.tp-node.tp-hue[data-group]:not([data-depth='0']) {
+  /* Darker inside a frame, but no more for deeper boxes: the text on it
+     keeps its contrast. */
+  --tp-group-level: calc(var(--tp-tint, 7%) * 1.1);
+}
+.tp-node.tp-hue[data-group]:hover {
+  background: color-mix(
+    in srgb,
+    var(--tp-group-hue) calc(var(--tp-group-level) + 3%),
+    var(--bui-bg-neutral-2)
+  );
+}
+.tp-node.tp-hue[data-group] .tp-node-title {
+  color: var(--bui-fg-primary);
+}
+.tp-node.tp-hue[data-group] .tp-node-sub {
+  color: var(--tp-group-fg-2);
+}
+.tp-group-frame.tp-hue .tp-group-count,
+.tp-node.tp-hue[data-group] .tp-badge {
+  color: var(--tp-group-fg-2);
+}
+/*
+ * The color of a group before its name in the tab and the timeline: a
+ * small square like its frame, apart from the round status icons.
+ */
+.tp-group-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--tp-group-hue);
+}

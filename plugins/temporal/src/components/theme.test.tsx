@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { themes, UnifiedThemeProvider } from '@backstage/theme';
@@ -24,9 +24,14 @@ import { StepDrawer } from './StepDrawer';
 
 describe('light and dark themes', () => {
   it('takes every color of the plugin styles from theme tokens', () => {
-    const css = readFileSync(join(__dirname, 'temporal.module.css'), 'utf8')
+    const styles = join(__dirname, 'styles');
+    const css = readdirSync(styles)
+      .filter(name => name.endsWith('.module.css'))
+      .map(name => readFileSync(join(styles, name), 'utf8'))
+      .join('\n')
       // Comments may name colors.
       .replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(css).toContain('.tp-node');
     // No fixed colors: they would not change with the theme.
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b/i);
     expect(css).not.toMatch(/\b(rgb|rgba|hsl|hsla)\(/i);
