@@ -46,10 +46,24 @@ export interface TemporalSearchAttributeNames {
  * @public
  */
 export interface TemporalService {
-  /** Returns a client for a namespace (default namespace when omitted). */
+  /**
+   * Returns a client for a namespace (default namespace when omitted).
+   *
+   * @remarks
+   *
+   * The client must use the connection that `getConnection` returns for the
+   * same namespace. The plugin sets the deadline of a custom action with
+   * `Connection.withDeadline` on that connection; calls of a client on
+   * another connection run without a deadline.
+   */
   getClient(options?: { namespace?: string }): Promise<Client>;
-  /** Returns the shared connection. */
-  getConnection(): Promise<Connection>;
+  /**
+   * Returns the connection for a namespace (default namespace when omitted).
+   * The plugin makes every call to Temporal on it, under
+   * `Connection.withDeadline`. The default implementation has one connection
+   * for every namespace.
+   */
+  getConnection(options?: { namespace?: string }): Promise<Connection>;
   getDefaultNamespace(): string;
   isNamespaceAllowed(namespace: string): boolean;
   getSearchAttributeNames(): TemporalSearchAttributeNames;
@@ -60,14 +74,20 @@ export interface TemporalService {
 /**
  * Authentication of the Temporal connection. `bearer` sends
  * `Authorization: Bearer <token>` with every call, as the JWT authorizer of a
- * self-hosted Temporal server expects. The connection does not use TLS.
+ * self-hosted Temporal server expects. TLS is set apart from it
+ * (`TemporalServiceOptions.tls`).
+ *
+ * @public
  */
 export type TemporalConnectionAuth =
   | { type: 'none' }
   | { type: 'bearer'; token: string };
 
 /**
- * Options of {@link DefaultTemporalService}, mostly read from config.
+ * Options of {@link DefaultTemporalService}, read from config by
+ * {@link readTemporalServiceOptions}.
+ *
+ * @public
  */
 export interface TemporalServiceOptions {
   address: string;
@@ -127,7 +147,11 @@ function readWebUiBaseUrl(value: string | undefined): string | undefined {
 }
 
 /**
- * Reads {@link TemporalServiceOptions} from the root config.
+ * Reads {@link TemporalServiceOptions} from the root config: `temporal.connection`,
+ * `temporal.webUi.baseUrl` and `temporal.searchAttributes`, with the checks
+ * of the default factory of `temporalServiceRef`.
+ *
+ * @public
  */
 export function readTemporalServiceOptions(
   config: Config,
@@ -169,8 +193,17 @@ export function readTemporalServiceOptions(
 }
 
 /**
- * Default implementation of {@link TemporalService}. The connection is opened
- * on first use and closed on shutdown.
+ * Default implementation of {@link TemporalService}, the one of the default
+ * factory of `temporalServiceRef`. The connection is opened on first use and
+ * closed by `close()`.
+ *
+ * @remarks
+ *
+ * To connect differently, for example with a client certificate, extend it
+ * and override `getConnection` and `close`: `getClient` makes its clients on
+ * `this.getConnection()`.
+ *
+ * @public
  */
 export class DefaultTemporalService implements TemporalService {
   readonly #options: TemporalServiceOptions;
@@ -183,7 +216,7 @@ export class DefaultTemporalService implements TemporalService {
     this.#logger = logger;
   }
 
-  getConnection(): Promise<Connection> {
+  getConnection(_options?: { namespace?: string }): Promise<Connection> {
     if (!this.#connection) {
       const { address, auth } = this.#options;
       const tls = this.#options.tls === true;
@@ -217,7 +250,7 @@ export class DefaultTemporalService implements TemporalService {
     }
     let client = this.#clients.get(namespace);
     if (!client) {
-      client = this.getConnection().then(
+      client = this.getConnection({ namespace }).then(
         connection => new Client({ connection, namespace }),
       );
       client.catch(() => this.#clients.delete(namespace));
@@ -251,6 +284,7 @@ export class DefaultTemporalService implements TemporalService {
       : `${base}${path}`;
   }
 
+  /** Closes the connection; the next call opens a new one. */
   async close(): Promise<void> {
     const connection = this.#connection;
     this.#connection = undefined;

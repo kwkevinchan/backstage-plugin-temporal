@@ -92,7 +92,9 @@ export async function callTemporal<T>(
   call: (connection: Connection) => Promise<T>,
 ): Promise<T> {
   const { timeoutMs, mapError, temporalCall, namespace } = options;
-  const connection = await temporal.getConnection().catch(mapConnectionError);
+  const connection = await temporal
+    .getConnection({ namespace })
+    .catch(mapConnectionError);
   const started = Date.now();
   const fields = () => ({
     temporalCall,

@@ -52,6 +52,15 @@ describe('callTemporal', () => {
     expect(at).toBeLessThanOrEqual(Date.now() + 10_000);
   });
 
+  it('asks for the connection of the namespace of the call', async () => {
+    const connection = {
+      withDeadline: async (_at: number, fn: () => Promise<unknown>) => fn(),
+    } as unknown as Connection;
+    const getConnection = jest.fn(async () => connection);
+    await callTemporal({ getConnection }, options(), async () => 'ok');
+    expect(getConnection).toHaveBeenCalledWith({ namespace: 'default' });
+  });
+
   it('answers 503 when the connection cannot be opened', async () => {
     const call = jest.fn();
     const temporal = {
