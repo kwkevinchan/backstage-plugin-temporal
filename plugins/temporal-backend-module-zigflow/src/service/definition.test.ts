@@ -1957,4 +1957,154 @@ describe('DefinitionReader', () => {
       expect(() => build({ cacheTtlSeconds: 0 })).not.toThrow();
     });
   });
+
+  describe('targets and settings without a matching rule', () => {
+    const noRead = jest.fn(async () => {
+      throw new Error('not read');
+    });
+
+    it.each([
+      ['https://', 'spec.definition.target is not a valid URL'],
+      ['https://exa mple.com/order.yaml', 'spec.definition.target is not a valid URL'],
+    ])('reports the absolute target %s as an invalid URL', async (target, message) => {
+      const result = await readerOf(noRead, {
+        allow: [{ host: 'example.com' }],
+      }).read(entity(), spec(target));
+      expect(result).toEqual({
+        format: 'serverless-workflow',
+        target,
+        tasks: [],
+        error: { kind: 'read', message },
+      });
+      expect(noRead).not.toHaveBeenCalled();
+    });
+
+    it('reports a location annotation that cannot be parsed and a location type that is not read', async () => {
+      const reader = readerOf(noRead, { readFileLocations: true });
+      expect(
+        (await reader.read(entity('no-type'), spec('./order.yaml'))).error,
+      ).toEqual({
+        kind: 'read',
+        message: 'Invalid backstage.io/managed-by-location annotation',
+      });
+      expect(
+        (await reader.read(entity('bootstrap:bootstrap'), spec('./order.yaml')))
+          .error,
+      ).toEqual({
+        kind: 'read',
+        message:
+          'Locations of type bootstrap are not supported; use an absolute URL and allow it in temporal.definitions.allow',
+      });
+      expect(noRead).not.toHaveBeenCalled();
+    });
+
+    it('reports a file location whose folder does not exist like a file outside the folder', async () => {
+      const missing = join(tmpdir(), 'definition-missing-folder', 'nested');
+      const result = await readerOf(noRead, { readFileLocations: true }).read(
+        entity(`file:${join(missing, 'catalog-info.yaml')}`),
+        spec('./order.yaml'),
+      );
+      expect(result).toEqual({
+        format: 'serverless-workflow',
+        target: './order.yaml',
+        tasks: [],
+        url: undefined,
+        error: {
+          kind: 'read',
+          message:
+            'A target next to a file location must stay in the folder of the entity file',
+        },
+      });
+    });
+
+    it.each([
+      ['', 'invalid host ""'],
+      ['a:1:2', 'invalid host "a:1:2"'],
+      [':8080', 'invalid host ":8080"'],
+      ['example.com:', 'invalid host "example.com:"'],
+      ['example.com:0', 'invalid host "example.com:0"'],
+      ['example.com:70000', 'invalid host "example.com:70000"'],
+      ['example.com:90-80', 'invalid host "example.com:90-80"'],
+      ['example.com:1-2-3', 'invalid host "example.com:1-2-3"'],
+      ['user@example.com', 'invalid host "user@example.com"'],
+      ['exa[mple.com', 'invalid host "exa[mple.com"'],
+      ['*.', 'invalid host wildcard "*."'],
+      ['*.a.*.com', 'invalid host wildcard "*.a.*.com"'],
+      ['*..example.com', 'invalid host wildcard "*..example.com"'],
+      ['ex*mple.com', 'invalid host wildcard "ex*mple.com"'],
+    ])('rejects the allowed host "%s"', (host, message) => {
+      expect(() => readerOf(noRead, { allow: [{ host }] })).toThrow(
+        new Error(`temporal.definitions.allow: ${message}`),
+      );
+    });
+
+    it.each(['relative', '/a b', '/a\\b', '/a/../b'])(
+      'rejects the allowed path "%s"',
+      path => {
+        expect(() =>
+          readerOf(noRead, { allow: [{ host: 'example.com', paths: [path] }] }),
+        ).toThrow(new Error(`temporal.definitions.allow: invalid path "${path}"`));
+      },
+    );
+
+    it('matches the port of an allowed host: none, one, or a range', async () => {
+      const read = async (host: string, target: string) => {
+        const readUrl = jest.fn(async () => ({
+          buffer: async () => Buffer.from(fixture),
+        }));
+        const result = await readerOf(readUrl, { allow: [{ host }] }).read(
+          entity(),
+          spec(target),
+        );
+        return result.error?.message ?? 'read';
+      };
+      expect(await read('example.com', 'https://example.com/a.yaml')).toBe(
+        'read',
+      );
+      expect(await read('example.com', 'https://example.com:8443/a.yaml')).toBe(
+        'Absolute definition URLs from example.com:8443 are not allowed; use a path relative to the entity, or add host: example.com:8443 under temporal.definitions.allow',
+      );
+      expect(await read('example.com:443', 'https://example.com/a.yaml')).toBe(
+        'read',
+      );
+      expect(await read('example.com:80', 'http://example.com/a.yaml')).toBe(
+        'read',
+      );
+      expect(
+        await read('example.com:8000-8100', 'https://example.com:8050/a.yaml'),
+      ).toBe('read');
+      expect(
+        await read('example.com:8000-8100', 'https://example.com:8101/a.yaml'),
+      ).toBe(
+        'Absolute definition URLs from example.com:8101 are not allowed; use a path relative to the entity, or add host: example.com:8101 under temporal.definitions.allow',
+      );
+      expect(
+        await read('*.example.com', 'https://raw.example.com/a.yaml'),
+      ).toBe('read');
+      expect(await read('*.example.com', 'https://example.com/a.yaml')).toBe(
+        'Absolute definition URLs from example.com are not allowed; use a path relative to the entity, or add host: example.com under temporal.definitions.allow',
+      );
+    });
+
+    it('answers a file that passes the limit while it is read like a file that is too large', async () => {
+      const readUrl = jest.fn(async () => ({
+        buffer: async () => Buffer.alloc(0),
+        stream: () => Readable.from([Buffer.alloc(6), Buffer.alloc(6)]),
+      }));
+      const result = await readerOf(readUrl, {
+        maxBytes: 10,
+        allow: [{ host: 'example.com' }],
+      }).read(entity(), spec('https://example.com/a.yaml'));
+      expect(result).toEqual({
+        format: 'serverless-workflow',
+        target: 'https://example.com/a.yaml',
+        tasks: [],
+        url: 'https://example.com/a.yaml',
+        error: {
+          kind: 'tooLarge',
+          message: 'The file is larger than 10 bytes',
+        },
+      });
+    });
+  });
 });

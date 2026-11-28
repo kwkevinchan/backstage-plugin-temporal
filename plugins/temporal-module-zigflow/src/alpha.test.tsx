@@ -127,4 +127,105 @@ describe('Zigflow module (new frontend system)', () => {
     ).toBeInTheDocument();
     legacyRender.unmount();
   });
+
+  it('reads the definition file from the route of the backend module, in both frontend systems', async () => {
+    const yamlEntity: Entity = {
+      apiVersion: 'temporal.io/v1alpha1',
+      kind: 'TemporalWorkflow',
+      metadata: { name: 'order-flow', namespace: 'default' },
+      spec: {
+        owner: 'team',
+        workflowType: 'order-flow',
+        definition: { format: 'serverless-workflow', target: './order.yaml' },
+      },
+    };
+    const content = 'document:\n  dsl: 1.0.0\ndo:\n  - step:\n      set:\n        a: 1\n';
+    const api = {
+      listEntityWorkflows: jest
+        .fn()
+        .mockResolvedValue({ namespace: 'default', items: [] }),
+    };
+    const mount = async (page: JSX.Element) => {
+      const fetch = jest.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              format: 'serverless-workflow',
+              target: './order.yaml',
+              content,
+              size: content.length,
+              document: {
+                document: { dsl: '1.0.0' },
+                do: [{ step: { set: { a: 1 } } }],
+              },
+              tasks: [{ pointer: '/do/0/step', startLine: 4, endLine: 6 }],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+      );
+      const rendered = await renderInTestApp(
+        <TestApiProvider
+          apis={[
+            [temporalApiRef, api as any],
+            [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
+            [fetchApiRef, { fetch }],
+            [permissionApiRef, mockApis.permission()],
+          ]}
+        >
+          <EntityProvider entity={yamlEntity}>{page}</EntityProvider>
+        </TestApiProvider>,
+      );
+      expect(await screen.findByTestId('definition-yaml')).toHaveTextContent(
+        'dsl: 1.0.0',
+      );
+      expect(screen.getByTestId('definition-node-/do/0/step')).toBeVisible();
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/temporal/entities/temporalworkflow/default/order-flow/definition',
+      );
+      rendered.unmount();
+    };
+
+    await mount(
+      createExtensionTester(temporalDefinitionContent).get(
+        coreExtensionData.reactElement,
+      ),
+    );
+    await mount(<EntityTemporalDefinitionContent />);
+  });
+
+  it('shows the error of the definition route', async () => {
+    const fetch = jest.fn(async () => new Response('', { status: 404 }));
+    await renderInTestApp(
+      <TestApiProvider
+        apis={[
+          [temporalApiRef, {} as any],
+          [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
+          [fetchApiRef, { fetch }],
+          [permissionApiRef, mockApis.permission()],
+        ]}
+      >
+        <EntityProvider
+          entity={{
+            ...workflowEntity,
+            spec: {
+              ...workflowEntity.spec,
+              definition: {
+                format: 'serverless-workflow',
+                target: './order.yaml',
+              },
+            },
+          }}
+        >
+          <EntityTemporalDefinitionContent />
+        </EntityProvider>
+      </TestApiProvider>,
+    );
+    expect(
+      await screen.findByText('The definition could not be loaded'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/The Temporal backend serves no workflow definitions/),
+    ).toBeInTheDocument();
+  });
 });
