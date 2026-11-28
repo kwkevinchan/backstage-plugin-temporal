@@ -22,6 +22,7 @@ import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { type TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-backend/node';
 import {
   FAILED,
+  MAX_MESSAGE_NAME_LENGTH,
   RUNNING,
   registerTemporalActions,
   STEP_KINDS,
@@ -34,6 +35,8 @@ import {
   FAILED_STATUSES,
   OPEN_STATUSES,
 } from '../../temporal-backend/src/common/stepRules';
+// eslint-disable-next-line @backstage/no-relative-monorepo-imports
+import { MAX_MESSAGE_NAME_LENGTH as BACKEND_MAX_MESSAGE_NAME_LENGTH } from '../../temporal-backend/src/common/namePatterns';
 
 /** What the client throws when the Temporal backend serves no operations. */
 const CONTROL_DISABLED_MESSAGE =
@@ -577,6 +580,12 @@ describe('update-workflow', () => {
     await expect(invoke('update-workflow', input)).rejects.toThrow(
       /refused this.*Missing temporal\.workflow\.update/,
     );
+  });
+});
+
+describe('message names', () => {
+  it('have the length limit of the backend', () => {
+    expect(MAX_MESSAGE_NAME_LENGTH).toBe(BACKEND_MAX_MESSAGE_NAME_LENGTH);
   });
 });
 

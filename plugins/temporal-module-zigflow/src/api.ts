@@ -26,8 +26,11 @@ import {
 export const MODULE_MISSING_MESSAGE =
   'The Temporal backend serves no workflow definitions: add @kwkevinchan/backstage-plugin-temporal-backend-module-zigflow to the backend';
 
-/** True when a response carries a Backstage error body (`{ error }`). */
-async function hasErrorBody(response: Response): Promise<boolean> {
+/**
+ * True when a response carries a Backstage error body (`{ error }`). The
+ * core plugin's client has the same rule; a test compares them.
+ */
+export async function hasErrorBody(response: Response): Promise<boolean> {
   try {
     const body = JSON.parse(await response.text());
     return typeof body?.error?.name === 'string';

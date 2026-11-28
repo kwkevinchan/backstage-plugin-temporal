@@ -18,6 +18,7 @@ import {
   definitionTaskItem,
   definitionTaskLists,
   jsonPointerSegment,
+  isObject,
 } from '../../common/definition';
 
 /*
@@ -105,10 +106,6 @@ interface Built {
 }
 
 export type Obj = Record<string, unknown>;
-
-export function isObject(value: unknown): value is Obj {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
 
 export function str(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;

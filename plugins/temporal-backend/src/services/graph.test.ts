@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import type { PendingActivity } from '../common';
+import { GRAPH_PENDING_ACTIVITY_FIELDS } from '../common/stepRules';
 import { buildWorkflowGraph, BuildGraphOptions, waitingHint } from './graph';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
@@ -552,6 +554,49 @@ describe('buildWorkflowGraph', () => {
     expect(graph.current).toBe(
       'waitForUpstream: Retrying after attempt 3 failed: not ready',
     );
+  });
+
+  it('reads only GRAPH_PENDING_ACTIVITY_FIELDS of a pending activity, which the frontend watches', () => {
+    const h = history();
+    h.start();
+    h.task();
+    h.schedule('waitForUpstream', '7');
+    const pending: PendingActivity = {
+      activityId: '7',
+      activityType: 'waitForUpstream',
+      state: 'Started',
+      attempt: 2,
+      maximumAttempts: 5,
+      scheduledTime: '2026-01-01T00:00:01Z',
+      lastStartedTime: '2026-01-01T00:00:02Z',
+      lastHeartbeatTime: '2026-01-01T00:00:03Z',
+      lastFailure: { message: 'not ready' },
+    };
+    const graphWith = (activity: PendingActivity) =>
+      buildWorkflowGraph(
+        h.events,
+        options({ status: 'Running', pendingActivities: [activity] }),
+      );
+    const changed: Record<keyof PendingActivity, Partial<PendingActivity>> = {
+      activityId: { activityId: '8' },
+      activityType: { activityType: 'other' },
+      state: { state: 'Scheduled' },
+      attempt: { attempt: 3 },
+      maximumAttempts: { maximumAttempts: 6 },
+      scheduledTime: { scheduledTime: '2026-01-01T00:00:09Z' },
+      lastStartedTime: { lastStartedTime: '2026-01-01T00:00:09Z' },
+      lastHeartbeatTime: { lastHeartbeatTime: '2026-01-01T00:00:09Z' },
+      lastFailure: { lastFailure: { message: 'still not ready' } },
+    };
+    const before = graphWith(pending);
+    const read = (Object.keys(changed) as Array<keyof PendingActivity>).filter(
+      field =>
+        JSON.stringify(graphWith({ ...pending, ...changed[field] })) !==
+        JSON.stringify(before),
+    );
+    // The activity type of an activity ID does not change, so the frontend
+    // does not watch it; the graph shows it only for a truncated history.
+    expect(new Set(read)).toEqual(new Set(GRAPH_PENDING_ACTIVITY_FIELDS));
   });
 
   it('records signals and uses a waiting hint from search attributes', () => {

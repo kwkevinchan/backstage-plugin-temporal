@@ -282,7 +282,8 @@ export interface MessageArgsFieldProps {
   onChange(value: { args: JsonValue[] } | { error: string }): void;
 }
 
-function argsText(args: JsonValue[]): string {
+/** The text of arguments in the arguments field, which {@link parseArgs} reads back. */
+export function argsText(args: JsonValue[]): string {
   if (args.length === 0) return '[]';
   // One object or array argument is shown as itself; parseArgs reads an
   // array as the argument list, so only a non-array value can be bare.

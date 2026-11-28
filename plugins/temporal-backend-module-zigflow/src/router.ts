@@ -39,7 +39,11 @@ export interface RouterOptions {
   definitions: DefinitionReader;
 }
 
-function entityRefFromParams(req: Request): string {
+/**
+ * The entity reference of the path. The core plugin's routes read it with
+ * the same rule; a test compares them.
+ */
+export function entityRefFromParams(req: Request): string {
   try {
     return stringifyEntityRef({
       kind: req.params.kind,

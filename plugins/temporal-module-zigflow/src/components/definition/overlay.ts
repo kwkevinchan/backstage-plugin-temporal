@@ -19,8 +19,8 @@ import {
   WorkflowGraphResponse,
   WorkflowNodeStatus,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend/common';
-import { walkDefinitionTasks } from '../../common/definition';
-import { isObject, listenEvents, Obj, str, taskKind } from './dslGraph';
+import { isObject, walkDefinitionTasks } from '../../common/definition';
+import { listenEvents, Obj, str, taskKind } from './dslGraph';
 
 /*
  * Which history events belong to which task of a definition, for workflows
