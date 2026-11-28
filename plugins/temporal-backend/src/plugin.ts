@@ -18,10 +18,7 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
-import {
-  parseTemporalWorkflowResourceRef,
-  temporalPermissions,
-} from './common';
+import { temporalPermissions } from './common';
 import { temporalServiceRef } from './node';
 import {
   TemporalControlAction,
@@ -39,15 +36,11 @@ import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
-import { mapInBatches } from './services/mapInBatches';
 import { WorkflowQueries } from './services/WorkflowQueries';
 import {
   readControlOptions,
   WorkflowCommands,
 } from './services/WorkflowCommands';
-
-/** Workflows described at the same time to resolve permission resources. */
-const RESOURCE_CONCURRENCY = 8;
 
 /**
  * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
@@ -165,31 +158,11 @@ export const temporalPlugin = createBackendPlugin({
         );
         const ai = new AiWorkflowQueries(queries);
         // Workflows as a permission resource, for the list permission.
-        // Modules can add more rules (addPermissionRules).
+        // Modules can add more rules (addPermissionRules). The plugin
+        // applies the conditions itself, so there is no getResources.
         permissionsRegistry.addResourceType({
           resourceRef: temporalWorkflowPermissionResourceRef,
           rules: Object.values(temporalWorkflowPermissionRules),
-          async getResources(resourceRefs) {
-            const describeOne = async (resourceRef: string) => {
-              const ref = parseTemporalWorkflowResourceRef(resourceRef);
-              if (!ref) return undefined;
-              return queries.describe(ref).catch(error => {
-                const name = error instanceof Error ? error.name : 'Error';
-                // A workflow that does not exist is an ordinary answer.
-                if (name === 'NotFoundError') return undefined;
-                logger
-                  .child({ resourceRef })
-                  .warn('Failed to describe a permission resource', error);
-                return undefined;
-              });
-            };
-            // A few at a time: a list can ask for many workflows at once.
-            return mapInBatches(
-              resourceRefs,
-              RESOURCE_CONCURRENCY,
-              describeOne,
-            );
-          },
         });
         pluginRouter.use(
           createRouter({
@@ -201,7 +174,6 @@ export const temporalPlugin = createBackendPlugin({
             queries,
             lists,
             ai,
-            controlEnabled,
           }),
         );
         // After every route, so that it sees the errors of all of them.

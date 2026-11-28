@@ -49,11 +49,6 @@ import {
   HISTORY_PAGE_SIZE,
   WorkflowQueries,
 } from '../services/WorkflowQueries';
-import {
-  basePathOfSpecRequest,
-  loadOpenApiSpec,
-  openApiSpecFor,
-} from './openApiRoutes';
 import { decodePageToken } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
@@ -89,8 +84,6 @@ export interface RouterOptions {
   queries: WorkflowQueries;
   lists: WorkflowListQueries;
   ai: AiWorkflowQueries;
-  /** False when `temporal.control.enabled` is false. Defaults to true. */
-  controlEnabled?: boolean;
 }
 
 /** Whether a TemporalWorkflow entity lists the workflow type of the run. */
@@ -113,17 +106,6 @@ export function createRouter(options: RouterOptions): express.Router {
   const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
-
-  // The API description, for tools that read the specs of the plugins.
-  router.get('/openapi.json', async (req, res) => {
-    await httpAuth.credentials(req);
-    res.json(
-      openApiSpecFor(loadOpenApiSpec(), {
-        basePath: basePathOfSpecRequest(req.originalUrl),
-        controlEnabled: options.controlEnabled ?? true,
-      }),
-    );
-  });
 
   /** The workflow of the request's path, with the access checks. */
   const loadWorkflow = (req: Request): Promise<LoadedWorkflow> =>

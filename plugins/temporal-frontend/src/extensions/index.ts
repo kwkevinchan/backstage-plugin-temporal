@@ -16,4 +16,3 @@
 
 export * from './api';
 export * from './extensions';
-export * from './context';

@@ -76,7 +76,6 @@
     "@backstage/plugin-permission-react": "backstage:^",
     "@backstage/types": "backstage:^",
     "@backstage/ui": "backstage:^",
-    "@backstage/version-bridge": "backstage:^",
     "@dagrejs/dagre": "^3.1.3",
     "@remixicon/react": ">=4.6.0 <4.9.0",
     "@rjsf/core": "5.24.13",

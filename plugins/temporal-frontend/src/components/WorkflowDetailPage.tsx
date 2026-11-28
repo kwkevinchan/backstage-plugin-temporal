@@ -31,7 +31,6 @@ import type {
 import {
   temporalApiRef,
   TemporalWorkflowActionDef,
-  TemporalWorkflowProvider,
   TemporalWorkflowSectionDef,
 } from '../extensions';
 import {
@@ -831,244 +830,242 @@ export function WorkflowDetailPage(
   };
 
   return (
-    <TemporalWorkflowProvider value={extensionProps}>
-      <Flex direction="column" gap="4">
-        {back}
-        <Card>
-          <CardBody className={tp('tp-header')}>
-            <div className={tp('tp-header-top')}>
-              <div className={tp('tp-header-title')}>
-                <Text
-                  as="h2"
-                  variant="title-medium"
-                  className={tp('tp-header-id')}
-                >
-                  {workflow.workflowId}
-                </Text>
-                <Text
-                  variant="body-small"
-                  color="secondary"
-                  className={tp('tp-header-run')}
-                >
-                  Run ID {workflow.runId}
-                </Text>
-              </div>
-              <div
-                className={tp('tp-summary-actions')}
-                data-testid="workflow-actions"
+    <Flex direction="column" gap="4">
+      {back}
+      <Card>
+        <CardBody className={tp('tp-header')}>
+          <div className={tp('tp-header-top')}>
+            <div className={tp('tp-header-title')}>
+              <Text
+                as="h2"
+                variant="title-medium"
+                className={tp('tp-header-id')}
               >
-                {actions.map(({ id, component: Action }) => (
-                  <div
-                    key={id}
-                    className={tp('tp-summary-action')}
-                    data-testid={`temporal-action-${id}`}
-                  >
-                    <Action {...extensionProps} />
-                  </div>
-                ))}
-                <QueryButton workflow={workflow} entityRef={entityRef} />
-                {webUiUrl && (
-                  <ButtonLink
-                    variant="secondary"
-                    href={webUiUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    iconEnd={<RiExternalLinkLine />}
-                  >
-                    Open in Temporal UI
-                  </ButtonLink>
-                )}
-                <Button
-                  variant="secondary"
-                  iconStart={<RiRefreshLine />}
-                  isPending={refresh.locked || (data.refreshing && !running)}
-                  onPress={refresh.refresh}
-                >
-                  Refresh
-                </Button>
-                {running && (
-                  <Switch
-                    label="Auto refresh"
-                    isSelected={autoRefresh}
-                    onChange={setAutoRefresh}
-                  />
-                )}
-              </div>
+                {workflow.workflowId}
+              </Text>
+              <Text
+                variant="body-small"
+                color="secondary"
+                className={tp('tp-header-run')}
+              >
+                Run ID {workflow.runId}
+              </Text>
             </div>
-            <hr className={tp('tp-header-divider')} />
-            <div className={tp('tp-summary')} data-testid="workflow-summary">
+            <div
+              className={tp('tp-summary-actions')}
+              data-testid="workflow-actions"
+            >
+              {actions.map(({ id, component: Action }) => (
+                <div
+                  key={id}
+                  className={tp('tp-summary-action')}
+                  data-testid={`temporal-action-${id}`}
+                >
+                  <Action {...extensionProps} />
+                </div>
+              ))}
+              <QueryButton workflow={workflow} entityRef={entityRef} />
+              {webUiUrl && (
+                <ButtonLink
+                  variant="secondary"
+                  href={webUiUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  iconEnd={<RiExternalLinkLine />}
+                >
+                  Open in Temporal UI
+                </ButtonLink>
+              )}
+              <Button
+                variant="secondary"
+                iconStart={<RiRefreshLine />}
+                isPending={refresh.locked || (data.refreshing && !running)}
+                onPress={refresh.refresh}
+              >
+                Refresh
+              </Button>
+              {running && (
+                <Switch
+                  label="Auto refresh"
+                  isSelected={autoRefresh}
+                  onChange={setAutoRefresh}
+                />
+              )}
+            </div>
+          </div>
+          <hr className={tp('tp-header-divider')} />
+          <div className={tp('tp-summary')} data-testid="workflow-summary">
+            <SummaryItem
+              label="Status"
+              help={
+                workflow.status === 'ContinuedAsNew' ? <RunHelp /> : undefined
+              }
+            >
+              <WorkflowStatusLabel status={workflow.status} />
+            </SummaryItem>
+            {graph?.current && (
               <SummaryItem
-                label="Status"
-                help={
-                  workflow.status === 'ContinuedAsNew' ? <RunHelp /> : undefined
+                label={currentLabel(workflow)}
+                // Long text (what a run waits for, with its time limit)
+                // gets two columns.
+                wide={
+                  Boolean(graph.currentDeadline) || graph.current.length > 32
                 }
               >
-                <WorkflowStatusLabel status={workflow.status} />
+                <span data-testid="workflow-current">
+                  {graph.current}
+                  {graph.currentDeadline && (
+                    <span
+                      title={formatTime(graph.currentDeadline.time)}
+                      data-testid="workflow-deadline"
+                    >
+                      {' · '}
+                      {deadlineText(graph.currentDeadline)}
+                    </span>
+                  )}
+                </span>
               </SummaryItem>
-              {graph?.current && (
-                <SummaryItem
-                  label={currentLabel(workflow)}
-                  // Long text (what a run waits for, with its time limit)
-                  // gets two columns.
-                  wide={
-                    Boolean(graph.currentDeadline) || graph.current.length > 32
-                  }
-                >
-                  <span data-testid="workflow-current">
-                    {graph.current}
-                    {graph.currentDeadline && (
-                      <span
-                        title={formatTime(graph.currentDeadline.time)}
-                        data-testid="workflow-deadline"
-                      >
-                        {' · '}
-                        {deadlineText(graph.currentDeadline)}
-                      </span>
-                    )}
-                  </span>
-                </SummaryItem>
-              )}
-              {graph?.runChain && (
-                <SummaryItem
-                  label={runChainLabel(graph.runChain)}
-                  help={<RunHelp />}
-                  wide
-                  testId="workflow-run-chain"
-                >
-                  <RunChainLinks
-                    chain={graph.runChain}
-                    workflow={workflow}
-                    workflowHref={workflowHref}
-                  />
-                </SummaryItem>
-              )}
-              <SummaryItem label="Workflow type">
-                {workflow.workflowType}
-              </SummaryItem>
-              <SummaryItem label="Duration">
-                {formatDuration(workflow.startTime, workflow.closeTime) || '—'}
-              </SummaryItem>
-              <SummaryItem label="Started">
-                {formatTime(workflow.startTime) || '—'}
-              </SummaryItem>
-            </div>
-            <RunNotices
-              workflow={workflow}
-              nextRunId={
-                workflow.status === 'ContinuedAsNew'
-                  ? workflow.continuedAsNewRunId ?? graph?.runChain?.nextRunId
-                  : undefined
-              }
-              entityRef={entityRef}
-              workflowHref={workflowHref}
-            />
-            {data.error && (
-              <ErrorAlert title="Could not refresh" error={data.error} />
             )}
-          </CardBody>
-        </Card>
-
-        <div ref={graphRef}>
-          <GraphCard
-            graph={graph}
-            graphError={data.graphError}
-            selected={showGraphDrawer ? selectedNode : undefined}
-            showDrawer={showGraphDrawer}
-            onSelect={selectFromGraph}
-            onSelectStep={selectInGraph}
-            workflowRef={historyRef}
+            {graph?.runChain && (
+              <SummaryItem
+                label={runChainLabel(graph.runChain)}
+                help={<RunHelp />}
+                wide
+                testId="workflow-run-chain"
+              >
+                <RunChainLinks
+                  chain={graph.runChain}
+                  workflow={workflow}
+                  workflowHref={workflowHref}
+                />
+              </SummaryItem>
+            )}
+            <SummaryItem label="Workflow type">
+              {workflow.workflowType}
+            </SummaryItem>
+            <SummaryItem label="Duration">
+              {formatDuration(workflow.startTime, workflow.closeTime) || '—'}
+            </SummaryItem>
+            <SummaryItem label="Started">
+              {formatTime(workflow.startTime) || '—'}
+            </SummaryItem>
+          </div>
+          <RunNotices
+            workflow={workflow}
+            nextRunId={
+              workflow.status === 'ContinuedAsNew'
+                ? workflow.continuedAsNewRunId ?? graph?.runChain?.nextRunId
+                : undefined
+            }
             entityRef={entityRef}
             workflowHref={workflowHref}
-            showMarkers={showMarkers}
-            onShowMarkersChange={setShowMarkers}
-            groupViews={groupViews}
-            onGroupViewChange={setGroupView}
-            focusGroup={focusGroup}
-            onGroupDisplay={showGroupDisplay}
           />
-        </div>
+          {data.error && (
+            <ErrorAlert title="Could not refresh" error={data.error} />
+          )}
+        </CardBody>
+      </Card>
 
-        <Card>
-          <CardBody>
-            <Tabs
-              selectedKey={tab}
-              onSelectionChange={key => setTab(String(key))}
-            >
-              <TabList aria-label="Workflow details">
-                <Tab id="steps">Steps</Tab>
-                <Tab id="timeline">Timeline</Tab>
-                {eventGroups && eventGroups.length > 0 ? (
-                  <Tab id="event-groups">Event Groups</Tab>
-                ) : null}
-                <Tab id="events">Events</Tab>
-                <Tab id="details">Details</Tab>
-                {sections.map(s => (
-                  <Tab key={s.id} id={`section-${s.id}`}>
-                    {s.title}
-                  </Tab>
-                ))}
-              </TabList>
-              <TabPanel id="steps">
-                {graph ? (
-                  <StepsTable steps={graph.nodes} onSelect={selectFromTab} />
-                ) : (
-                  graphTabFallback
-                )}
-              </TabPanel>
-              <TabPanel id="timeline">
-                {graph ? (
-                  <TimelineTab
-                    graph={graph}
-                    workflow={workflow}
-                    showMarkers={showMarkers}
-                    live={running && autoRefresh}
-                    selected={showTimelineDrawer ? selectedNode : undefined}
-                    showDrawer={showTimelineDrawer}
-                    onSelect={selectFromTimeline}
-                    onSelectStep={selectFromTimeline}
-                    workflowRef={historyRef}
-                    workflowHref={workflowHref}
-                    entityRef={entityRef}
-                  />
-                ) : (
-                  graphTabFallback
-                )}
-              </TabPanel>
-              {graph && eventGroups && eventGroups.length > 0 ? (
-                <TabPanel id="event-groups">
-                  <EventGroupsTab
-                    graph={graph}
-                    display={groupDisplay}
-                    onShowGroup={showGroup}
-                  />
-                </TabPanel>
+      <div ref={graphRef}>
+        <GraphCard
+          graph={graph}
+          graphError={data.graphError}
+          selected={showGraphDrawer ? selectedNode : undefined}
+          showDrawer={showGraphDrawer}
+          onSelect={selectFromGraph}
+          onSelectStep={selectInGraph}
+          workflowRef={historyRef}
+          entityRef={entityRef}
+          workflowHref={workflowHref}
+          showMarkers={showMarkers}
+          onShowMarkersChange={setShowMarkers}
+          groupViews={groupViews}
+          onGroupViewChange={setGroupView}
+          focusGroup={focusGroup}
+          onGroupDisplay={showGroupDisplay}
+        />
+      </div>
+
+      <Card>
+        <CardBody>
+          <Tabs
+            selectedKey={tab}
+            onSelectionChange={key => setTab(String(key))}
+          >
+            <TabList aria-label="Workflow details">
+              <Tab id="steps">Steps</Tab>
+              <Tab id="timeline">Timeline</Tab>
+              {eventGroups && eventGroups.length > 0 ? (
+                <Tab id="event-groups">Event Groups</Tab>
               ) : null}
-              <TabPanel id="events">
-                <WorkflowEvents
-                  steps={graph?.nodes}
-                  graphError={data.graphError}
+              <Tab id="events">Events</Tab>
+              <Tab id="details">Details</Tab>
+              {sections.map(s => (
+                <Tab key={s.id} id={`section-${s.id}`}>
+                  {s.title}
+                </Tab>
+              ))}
+            </TabList>
+            <TabPanel id="steps">
+              {graph ? (
+                <StepsTable steps={graph.nodes} onSelect={selectFromTab} />
+              ) : (
+                graphTabFallback
+              )}
+            </TabPanel>
+            <TabPanel id="timeline">
+              {graph ? (
+                <TimelineTab
+                  graph={graph}
+                  workflow={workflow}
+                  showMarkers={showMarkers}
+                  live={running && autoRefresh}
+                  selected={showTimelineDrawer ? selectedNode : undefined}
+                  showDrawer={showTimelineDrawer}
+                  onSelect={selectFromTimeline}
+                  onSelectStep={selectFromTimeline}
                   workflowRef={historyRef}
+                  workflowHref={workflowHref}
                   entityRef={entityRef}
-                  reloadKey={historyReload}
-                  onSelect={selectFromTab}
+                />
+              ) : (
+                graphTabFallback
+              )}
+            </TabPanel>
+            {graph && eventGroups && eventGroups.length > 0 ? (
+              <TabPanel id="event-groups">
+                <EventGroupsTab
+                  graph={graph}
+                  display={groupDisplay}
+                  onShowGroup={showGroup}
                 />
               </TabPanel>
-              <TabPanel id="details">
-                <DetailsTab workflow={workflow} />
+            ) : null}
+            <TabPanel id="events">
+              <WorkflowEvents
+                steps={graph?.nodes}
+                graphError={data.graphError}
+                workflowRef={historyRef}
+                entityRef={entityRef}
+                reloadKey={historyReload}
+                onSelect={selectFromTab}
+              />
+            </TabPanel>
+            <TabPanel id="details">
+              <DetailsTab workflow={workflow} />
+            </TabPanel>
+            {sections.map(({ id, component: Section }) => (
+              <TabPanel
+                key={id}
+                id={`section-${id}`}
+                data-testid={`temporal-section-${id}`}
+              >
+                <Section {...extensionProps} />
               </TabPanel>
-              {sections.map(({ id, component: Section }) => (
-                <TabPanel
-                  key={id}
-                  id={`section-${id}`}
-                  data-testid={`temporal-section-${id}`}
-                >
-                  <Section {...extensionProps} />
-                </TabPanel>
-              ))}
-            </Tabs>
-          </CardBody>
-        </Card>
-      </Flex>
-    </TemporalWorkflowProvider>
+            ))}
+          </Tabs>
+        </CardBody>
+      </Card>
+    </Flex>
   );
 }

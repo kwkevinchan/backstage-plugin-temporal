@@ -23,7 +23,6 @@ import { catalogServiceMock } from '@backstage/plugin-catalog-node/testUtils';
 import { AuthorizeResult } from '@backstage/plugin-permission-common';
 import type { Entity } from '@backstage/catalog-model';
 import request from 'supertest';
-import { stringifyTemporalWorkflowResourceRef } from './common';
 import { MAX_RELATED_WORKFLOW_ENTITIES } from './access/DefaultTemporalAccessService';
 import { temporalAccessServiceFactory } from './access/temporalAccessServiceFactory';
 import { temporalPlugin } from './plugin';
@@ -1420,17 +1419,8 @@ describe('temporal backend plugin', () => {
     });
   });
 
-  it('denies apply-conditions when describing the workflow fails', async () => {
-    const logger = recordingLogger();
-    const workflowService = createFakeWorkflowService();
-    const error = new Error('temporal unavailable');
-    error.name = 'ServiceUnavailableError';
-    workflowService.describeWorkflowExecution.mockRejectedValue(error);
-    const { backend } = await start({ workflowService, recorder: logger });
-    const resourceRef = stringifyTemporalWorkflowResourceRef({
-      namespace: 'default',
-      workflowId: 'wf-1',
-    });
+  it('does not load workflows for the conditions of other plugins', async () => {
+    const { backend, workflowService } = await start();
     const res = await request(backend)
       .post('/api/temporal/.well-known/backstage/permissions/apply-conditions')
       .set('Authorization', mockCredentials.service.header())
@@ -1438,7 +1428,7 @@ describe('temporal backend plugin', () => {
         items: [
           {
             id: '1',
-            resourceRef,
+            resourceRef: 'default:wf-1',
             resourceType: 'temporal-workflow',
             conditions: {
               rule: 'HAS_WORKFLOW_TYPE',
@@ -1448,14 +1438,8 @@ describe('temporal backend plugin', () => {
           },
         ],
       });
-    expect(res.status).toBe(200);
-    expect(res.body.items).toEqual([{ id: '1', result: AuthorizeResult.DENY }]);
-    expect(logger.records).toContainEqual({
-      level: 'warn',
-      message: 'Failed to describe a permission resource',
-      meta: { resourceRef },
-      error,
-    });
+    expect(res.status).toBe(501);
+    expect(workflowService.describeWorkflowExecution).not.toHaveBeenCalled();
   });
 
   describe('permissions on dependsOn TemporalWorkflow entities', () => {

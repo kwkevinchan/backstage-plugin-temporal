@@ -37,10 +37,7 @@ import {
   temporalApiRef,
   TemporalPage,
   temporalPlugin,
-  TemporalWorkflowProvider,
-  useTemporalWorkflow,
 } from '@kwkevinchan/backstage-plugin-temporal-frontend';
-import type { TemporalWorkflowExtensionProps } from '@kwkevinchan/backstage-plugin-temporal-frontend';
 import {
   DefinitionList,
   ErrorAlert,
@@ -54,42 +51,6 @@ import {
 import { checkoutEntity, mockTemporalApi, workflowEntity } from './testData';
 
 // Uses the package by name, as an extension author's tests do.
-
-function WorkflowId() {
-  const { workflow } = useTemporalWorkflow();
-  return <span>{workflow.workflowId}</span>;
-}
-
-const value: TemporalWorkflowExtensionProps = {
-  workflow: {
-    namespace: 'default',
-    workflowId: 'wf-1',
-    runId: 'run-1',
-    workflowType: 'Example',
-    status: 'Running',
-    pendingActivities: [],
-  },
-  reload: () => {},
-  workflowHref: () => '/x',
-};
-
-describe('useTemporalWorkflow from the public entry point', () => {
-  it('returns the value of the TemporalWorkflowProvider around it', () => {
-    render(
-      <TemporalWorkflowProvider value={value}>
-        <WorkflowId />
-      </TemporalWorkflowProvider>,
-    );
-    expect(screen.getByText('wf-1')).toBeInTheDocument();
-  });
-
-  it('throws without the provider', () => {
-    jest.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => render(<WorkflowId />)).toThrow(
-      'useTemporalWorkflow must be used inside the Temporal workflow details page',
-    );
-  });
-});
 
 describe('legacy plugin extensions and ./ui sub-path', () => {
   it('mounts legacy cards and pages exported from the root entry point', async () => {

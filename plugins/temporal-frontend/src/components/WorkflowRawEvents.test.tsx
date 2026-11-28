@@ -24,7 +24,7 @@ import {
 import { EntityProvider } from '@backstage/plugin-catalog-react';
 import { permissionApiRef } from '@backstage/plugin-permission-react';
 import type { WorkflowHistoryEvent, WorkflowHistoryResponse } from '../common';
-import { temporalApiRef, useTemporalWorkflow } from '../extensions';
+import { temporalApiRef, TemporalWorkflowExtensionProps } from '../extensions';
 import { EntityTemporalContentPage } from './EntityTemporalContent';
 import { AUTO_REFRESH_MS } from './useWorkflowData';
 import {
@@ -55,8 +55,7 @@ function pagedHistory(api: ReturnType<typeof mockTemporalApi>) {
   return state;
 }
 
-function ReloadAction() {
-  const { reload } = useTemporalWorkflow();
+function ReloadAction({ reload }: TemporalWorkflowExtensionProps) {
   return (
     <button type="button" onClick={reload}>
       Do something
