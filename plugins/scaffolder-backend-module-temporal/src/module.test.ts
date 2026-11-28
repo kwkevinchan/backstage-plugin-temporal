@@ -42,6 +42,7 @@ describe('scaffolderTemporalModule', () => {
       'temporal:workflow:start',
       'temporal:workflow:wait',
       'temporal:workflow:signal',
+      'temporal:workflow:update',
     ]);
   });
 
@@ -130,7 +131,10 @@ describe('scaffolderTemporalModule', () => {
   });
 
   describe('with a service principal as the initiator', () => {
-    async function signalAction(temporal: object = {}) {
+    async function signalAction(
+      temporal: object = {},
+      id = 'temporal:workflow:signal',
+    ) {
       const addActions = jest.fn();
       await startTestBackend({
         extensionPoints: [[scaffolderActionsExtensionPoint, { addActions }]],
@@ -144,7 +148,7 @@ describe('scaffolderTemporalModule', () => {
       });
       return addActions.mock.calls
         .flat()
-        .find((a: { id: string }) => a.id === 'temporal:workflow:signal');
+        .find((a: { id: string }) => a.id === id);
     }
     const run = async (signal: any) => {
       const ctx = createMockActionContext({
@@ -171,6 +175,20 @@ describe('scaffolderTemporalModule', () => {
           await signalAction({ scaffolder: { allowServiceWrites: true } }),
         );
         expect(fetchMock).toHaveBeenCalledTimes(1);
+      } finally {
+        fetchMock.mockRestore();
+      }
+    });
+
+    it('refuses updates the same way', async () => {
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValue(new Response('{}', { status: 202 }));
+      try {
+        await expect(
+          run(await signalAction({}, 'temporal:workflow:update')),
+        ).rejects.toThrow(/temporal\.scaffolder\.allowServiceWrites/);
+        expect(fetchMock).not.toHaveBeenCalled();
       } finally {
         fetchMock.mockRestore();
       }

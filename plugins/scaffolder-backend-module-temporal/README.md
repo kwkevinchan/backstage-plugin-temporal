@@ -35,8 +35,8 @@ lasts about an hour from when the task is created, so `wait` is limited to
 A task that does not run as a user (for example one started with a static
 token from `backend.auth.externalAccess`) acts as a service principal, and the
 permission framework allows such a principal without asking the policy. So
-`temporal:workflow:start` and `temporal:workflow:signal` (signals and updates)
-refuse an initiator that is not a user, with a message that names the setting
+`temporal:workflow:start`, `temporal:workflow:signal` and
+`temporal:workflow:update` refuse an initiator that is not a user, with a message that names the setting
 below; per-user permissions then apply to every change. `temporal:workflow:wait`
 only reads and keeps accepting any initiator. To let service-initiated tasks
 change workflows, accept that the permission policy does not apply to them
@@ -53,17 +53,18 @@ the routes of the Temporal backend plugin.
 
 ## Actions
 
-| Action                     | Input                                                                                                                                                                                                                                                                                                                                                                                                                          | Output                                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
-| `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue` (and `namespace`); `workflowId`, `args`                                                                                                                                                                                                                                                                                                                                         | `namespace`, `workflowId`, `runId`, `workflowUrl` |
-| `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute` (a Bool search attribute that ends the wait when true), `timeoutSeconds` (600), `intervalSeconds` (5; the pause before the second look, doubled after each look), `maxIntervalSeconds` (30; the longest pause, equal to `intervalSeconds` for a fixed interval; a larger `intervalSeconds` wins), `failIfNotCompleted` (true), `includeResult` (false) | `status`, `runId`, `searchAttributes`, `result`   |
-| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `kind` (`signal` or `update`), `name`, `args`                                                                                                                                                                                                                                                                                                                                 | `result` (of an update), `runId`                  |
+| Action                     | Input                                                                                                                                                                                                                                                                                                                                               | Output                                            |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `temporal:workflow:start`  | `entityRef`, or `workflowType` and `taskQueue` (and `namespace`); `workflowId`, `args`                                                                                                                                                                                                                                                              | `namespace`, `workflowId`, `runId`, `workflowUrl` |
+| `temporal:workflow:wait`   | `workflowId`, `runId`, `namespace`, `entityRef`; `untilSearchAttribute` (a Bool search attribute that ends the wait when true), `timeoutSeconds` (600), `intervalSeconds` (5; the pause before the second look, doubled after each look up to 30 seconds; a larger value is a fixed interval), `failIfNotCompleted` (true), `includeResult` (false) | `status`, `runId`, `searchAttributes`, `result`   |
+| `temporal:workflow:signal` | `workflowId`, `runId`, `namespace`, `entityRef`; `name`, `args`                                                                                                                                                                                                                                                                                     | `runId`                                           |
+| `temporal:workflow:update` | `workflowId`, `runId`, `namespace`, `entityRef`; `name`, `args`                                                                                                                                                                                                                                                                                     | `result`, `runId`                                 |
 
 `args` is an array of arguments, or one value for one argument. `start` with
 an `entityRef` uses the namespace of the entity (the `temporal.io/namespace`
 annotation, or `spec.namespace` of a `TemporalWorkflow`) and ignores the
 `namespace` input; without an `entityRef` it uses `namespace`, else the
-default. `wait` and `signal` use `namespace`; without it the namespace of the
+default. `wait`, `signal` and `update` use `namespace`; without it the namespace of the
 `entityRef`; without either the default. The default is the one of the
 Temporal backend plugin, `temporal.connection.defaultNamespace` (`default`
 when it is not set), read from the app-config of the backend that runs the
@@ -74,14 +75,14 @@ Temporal backend, which answers according to its own settings: `400` when that
 namespace is not in `temporal.connection.namespaces` there, `404` when an
 `entityRef` is given and the workflow is not found in that namespace, and, when
 both namespaces are allowed and no `entityRef` is given, and a workflow with the
-same ID exists in the other namespace, `wait` and `signal` reach that one
+same ID exists in the other namespace, `wait`, `signal` and `update` reach that one
 instead.
 
 The routes of the Temporal plugin that read or change a workflow name its
-run. Without `runId`, `wait` and `signal` look up the latest run in the run
+run. Without `runId`, `wait`, `signal` and `update` look up the latest run in the run
 list of the workflow ID (the running run, else the one that closed last, as
 the user who runs the template). A workflow that has just started can take a
-moment to be listed: `wait` looks again until its timeout, `signal` fails. After
+moment to be listed: `wait` looks again until its timeout, `signal` and `update` fail. After
 a `start`, pass its `runId` output: when the workflow ID was used before, the
 list can still show the earlier run first, and `wait` would report that run.
 The run list needs `temporal.workflow.list` (with conditions that cover the
@@ -90,13 +91,14 @@ child workflows: pass `runId` in both cases. `wait` follows a run that continued
 to the run it continued as and outputs the run it ended on. `signal` outputs
 the run it sent to; when the run it looked up continued as new before the
 signal arrived (a 409 that names the run it continued as), it sends once more
-to that run. A given `runId` is never replaced. For `kind: update` the `runId`
-only locates the execution chain; the update acts on the run of the chain that
-is currently running.
+to that run. A given `runId` is never replaced. `update` outputs the run it used to
+locate the execution chain; the update acts on the run of the chain that is
+currently running, so it needs no second send. `result` is set when the update
+returns a value, including `null`, and left out when it returns none.
 
-`wait` and `signal` read the entity from the catalog as the user who runs the
+`wait`, `signal` and `update` read the entity from the catalog as the user who runs the
 template; an entity that cannot be read is an error, not the default
-namespace. Pass the `namespace` output of `start` to `wait` and `signal`: it
+namespace. Pass the `namespace` output of `start` to `wait`, `signal` and `update`: it
 saves that read and cannot differ from where the workflow runs. Because
 `temporal:workflow:wait` writes `searchAttributes` and (when `includeResult` is
 true) `result` to Scaffolder task outputs, access to those outputs depends on
@@ -158,10 +160,9 @@ parameters:
           searchAttribute: ApprovalPending
 steps:
   - id: approve
-    action: temporal:workflow:signal
+    action: temporal:workflow:update
     input:
       workflowId: ${{ parameters.workflow }}
-      kind: update
       name: approve
       args:
         approved: true

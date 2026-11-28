@@ -32,7 +32,7 @@
 | `temporal-frontend`，但連不到 `temporal-backend`      | 頁面會載入，並顯示指名 `@kwkevinchan/backstage-plugin-temporal-backend` 的錯誤（後端整個連不到時，顯示請求本身的錯誤）；功能都不能用。                      |
 | Zigflow 前端模組，但沒有 Zigflow 後端模組             | Definition 分頁說明後端沒有提供流程定義。                                                                                                                   |
 | Zigflow 後端模組，但同一個後端沒有 `temporal-backend` | 後端略過這個模組；路由不存在。                                                                                                                              |
-| Scaffolder 後端模組                                   | 三個 action，以使用者的身分呼叫連得到的 `temporal-backend`（可以在另一個後端）。那邊關掉操作時，`start` 和 `signal` 會失敗並說明原因。                      |
+| Scaffolder 後端模組                                   | 四個 action，以使用者的身分呼叫連得到的 `temporal-backend`（可以在另一個後端）。那邊關掉操作時，`start`、`signal` 和 `update` 會失敗並說明原因。            |
 
 ### 為什麼是兩個核心套件
 

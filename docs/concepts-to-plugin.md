@@ -198,8 +198,8 @@ checks are layered is in [How it works](how-it-works.md).
 The operations are Start, Signal, Update, Cancel, Terminate and Rerun, and
 pause, resume or trigger of schedules ([Workflow controls](../README.md#workflow-controls),
 [Schedules](../README.md#schedules)). The Scaffolder modules add the actions
-`temporal:workflow:start`, `temporal:workflow:wait` and `temporal:workflow:signal`
-(which sends a signal or an update) and the `TemporalWorkflowPicker` field
+`temporal:workflow:start`, `temporal:workflow:wait`, `temporal:workflow:signal`
+and `temporal:workflow:update` and the `TemporalWorkflowPicker` field
 ([Templates](../README.md#templates-scaffolder)). The actions run as the user who
 runs the template.
 

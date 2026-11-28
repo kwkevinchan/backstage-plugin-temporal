@@ -24,16 +24,17 @@ import { TemporalPluginClient } from '@kwkevinchan/backstage-plugin-temporal-bac
 import {
   createTemporalWorkflowSignalAction,
   createTemporalWorkflowStartAction,
+  createTemporalWorkflowUpdateAction,
   createTemporalWorkflowWaitAction,
 } from './actions';
 
 /**
  * Scaffolder module with the Temporal template actions:
- * `temporal:workflow:start`, `temporal:workflow:wait` and
- * `temporal:workflow:signal`. They call the Temporal backend plugin with the
- * credentials of the task's initiator; starting, signals and updates need its
- * operations (`temporal.control.enabled`, on by default). `start` and
- * `signal` refuse a task that does not run as a user, unless
+ * `temporal:workflow:start`, `temporal:workflow:wait`,
+ * `temporal:workflow:signal` and `temporal:workflow:update`. They call the
+ * Temporal backend plugin with the credentials of the task's initiator;
+ * starting, signals and updates need its operations (`temporal.control.enabled`, on by default). `start`,
+ * `signal` and `update` refuse a task that does not run as a user, unless
  * `temporal.scaffolder.allowServiceWrites` is true; `wait` only reads and
  * accepts any initiator.
  *
@@ -70,6 +71,7 @@ export const scaffolderTemporalModule = createBackendModule({
           createTemporalWorkflowStartAction(options),
           createTemporalWorkflowWaitAction(options),
           createTemporalWorkflowSignalAction(options),
+          createTemporalWorkflowUpdateAction(options),
         );
       },
     });

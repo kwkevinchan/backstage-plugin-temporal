@@ -102,27 +102,39 @@ function readable(error: unknown, gaveEntityRef: boolean): unknown {
     case 409:
       return new ConflictError(message);
     default:
-      return new Error(`The Temporal plugin answered ${status}: ${message}`);
+      // The message of a server error may carry internal detail (hosts,
+      // queries, stack text) that an assistant would pass on to the user.
+      return new Error(
+        status >= 500
+          ? `The Temporal plugin answered ${status}. Do not retry more than once; tell the user that the Temporal plugin is failing.`
+          : `The Temporal plugin answered ${status}: ${message}`,
+      );
   }
 }
 
-/** The step kinds that the backend counts in `completedSteps` and `totalSteps` (`services/graph.ts`). */
-const STEP_KINDS = new Set<WorkflowGraphNode['kind']>([
+/**
+ * The step kinds that the backend counts in `completedSteps` and `totalSteps`
+ * (`services/graph.ts`), and the open and failed statuses of
+ * `services/stepStatus.ts`. A test compares these sets with the ones of the
+ * backend.
+ */
+export const STEP_KINDS = new Set<WorkflowGraphNode['kind']>([
   'activity',
   'timer',
   'childWorkflow',
   'update',
   'signalSent',
 ]);
-const RUNNING = new Set<WorkflowGraphNode['status']>([
+export const RUNNING = new Set<WorkflowGraphNode['status']>([
   'Scheduled',
   'Running',
   'Retrying',
   'Waiting',
 ]);
-const FAILED = new Set<WorkflowGraphNode['status']>([
+export const FAILED = new Set<WorkflowGraphNode['status']>([
   'Failed',
   'TimedOut',
+  'Terminated',
   'Rejected',
 ]);
 

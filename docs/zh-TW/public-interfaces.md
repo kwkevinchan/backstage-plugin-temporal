@@ -147,7 +147,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `temporal-module-zigflow`            | `EntityTemporalDefinitionContent`                                         | `.`       | 舊系統的 Definition 分頁                                                                |
 |                                      | `default`、`temporalDefinitionContent`                                    | `./alpha` | `temporal` 的前端模組，含 `entity-content:temporal/definition`                          |
 | `temporal-backend-module-actions`    | `default`                                                                 | `.`       | 後端模組 `temporal` / `actions`：actions registry 的五個 action                         |
-| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | 後端模組 `scaffolder` / `temporal`：三個範本 action                                     |
+| `scaffolder-backend-module-temporal` | `default`                                                                 | `.`       | 後端模組 `scaffolder` / `temporal`：四個範本 action                                     |
 | `scaffolder-module-temporal`         | `TemporalWorkflowPickerFieldExtension`、`TemporalWorkflowPickerUiOptions` | `.`       | 舊系統的表單欄位和它的 `ui:options`                                                     |
 |                                      | `default`、`temporalWorkflowPickerFormField`                              | `./alpha` | `scaffolder` 的前端模組，含 `scaffolder-form-field:scaffolder/temporal-workflow-picker` |
 
@@ -480,15 +480,16 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## Scaffolder
 
-`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` 加上三個範本 action。它們以執行範本的使用者身分呼叫外掛的 HTTP API（可以在外掛以外的另一個後端執行）：
+`@kwkevinchan/backstage-plugin-scaffolder-backend-module-temporal` 加上四個範本 action。它們以執行範本的使用者身分呼叫外掛的 HTTP API（可以在外掛以外的另一個後端執行）：
 
-| Action                     | 輸入                                                                                                                                                                      | 輸出                                              |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `temporal:workflow:start`  | `entityRef`，或 `workflowType` 和 `taskQueue`；`namespace`、`workflowId`、`args`                                                                                          | `namespace`、`workflowId`、`runId`、`workflowUrl` |
-| `temporal:workflow:wait`   | `workflowId`、`runId`、`namespace`、`entityRef`；`untilSearchAttribute`、`timeoutSeconds`、`intervalSeconds`、`maxIntervalSeconds`、`failIfNotCompleted`、`includeResult` | `status`、`runId`、`result`、`searchAttributes`   |
-| `temporal:workflow:signal` | `workflowId`、`runId`、`namespace`、`entityRef`；`kind`（`signal` 或 `update`）、`name`、`args`                                                                           | `result`（update 的結果）、`runId`                |
+| Action                     | 輸入                                                                                                                                                | 輸出                                              |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `temporal:workflow:start`  | `entityRef`，或 `workflowType` 和 `taskQueue`；`namespace`、`workflowId`、`args`                                                                    | `namespace`、`workflowId`、`runId`、`workflowUrl` |
+| `temporal:workflow:wait`   | `workflowId`、`runId`、`namespace`、`entityRef`；`untilSearchAttribute`、`timeoutSeconds`、`intervalSeconds`、`failIfNotCompleted`、`includeResult` | `status`、`runId`、`result`、`searchAttributes`   |
+| `temporal:workflow:signal` | `workflowId`、`runId`、`namespace`、`entityRef`；`name`、`args`                                                                                     | `runId`                                           |
+| `temporal:workflow:update` | `workflowId`、`runId`、`namespace`、`entityRef`；`name`、`args`                                                                                     | `result`、`runId`                                 |
 
-`start` 和 `signal` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/result`）。由於 `wait` 會把 `searchAttributes` 與（在 `includeResult: true` 時的）`result` 寫入 Scaffolder task 輸出，誰看得到這些輸出由 Scaffolder 的 task 權限決定，與 Temporal 的 `temporal.workflow.read` 權限無關。沒給 `runId` 時，`wait` 和 `signal` 從 workflow ID 的 run 清單查出最新的 run（剛啟動的流程可能還不在清單裡；接在 start 後面時請傳 `runId: ${{ steps.start.output.runId }}`）。`wait` 遇到已接續的 run 會換到接續的 run；`signal` 會輸出實際送到的 run，而且當它查到的 run 在這期間被接續時，會改送到接續的 run 一次。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
+`start`、`signal` 和 `update` 需要操作路由；`wait` 只讀取（流程本身，以及結果要用的 `/result`）。由於 `wait` 會把 `searchAttributes` 與（在 `includeResult: true` 時的）`result` 寫入 Scaffolder task 輸出，誰看得到這些輸出由 Scaffolder 的 task 權限決定，與 Temporal 的 `temporal.workflow.read` 權限無關。沒給 `runId` 時，`wait`、`signal` 和 `update` 從 workflow ID 的 run 清單查出最新的 run（剛啟動的流程可能還不在清單裡；接在 start 後面時請傳 `runId: ${{ steps.start.output.runId }}`）。`wait` 遇到已接續的 run 會換到接續的 run；`signal` 會輸出實際送到的 run，而且當它查到的 run 在這期間被接續時，會改送到接續的 run 一次。`@kwkevinchan/backstage-plugin-scaffolder-module-temporal` 加上表單欄位 `TemporalWorkflowPicker`，值是 workflow ID；它的 `ui:options` 是 `TemporalWorkflowPickerUiOptions`（`entityRef`、`workflowType`、`namespace`、`status`、`searchAttribute`）。action 的 schema 會顯示在 Scaffolder 的 actions 頁面；另見[模組的 README](../../plugins/scaffolder-backend-module-temporal/README.md)（英文）。
 `temporal:workflow:wait` 結束後，下一個步驟可以用官方的 `notification:send` 通知相關的人，並把 `link` 設成 `steps.start.output.workflowUrl`。這個做法的限制、較長簽核的替代作法，以及完整範本，見 [Notify when a decision is needed](../../plugins/scaffolder-backend-module-temporal/README.md#notify-when-a-decision-is-needed)（英文）和 [`examples/templates/release-with-notification.yaml`](../../examples/templates/release-with-notification.yaml)。
 
 ## Actions registry

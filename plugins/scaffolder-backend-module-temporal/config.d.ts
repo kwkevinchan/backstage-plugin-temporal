@@ -22,7 +22,7 @@ export interface Config {
        * Allow tasks that do not run as a user (for example tasks started with
        * a static token from `backend.auth.externalAccess`) to start workflows
        * (`temporal:workflow:start`) and to send signals and updates
-       * (`temporal:workflow:signal`). Defaults to false, so per-user
+       * (`temporal:workflow:signal`, `temporal:workflow:update`). Defaults to false, so per-user
        * permissions apply to these actions. The read action
        * (`temporal:workflow:wait`) accepts any initiator.
        */
