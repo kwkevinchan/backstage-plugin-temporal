@@ -24,6 +24,29 @@ export interface Config {
        */
       maxBytes?: number;
       /**
+       * How long a definition read from a URL is kept in memory, in seconds,
+       * so repeated page views do not call the source host each time. The
+       * cache belongs to one backend process. 0 turns it off. Defaults to
+       * 30; at most 600.
+       */
+      cacheTtlSeconds?: number;
+      /**
+       * Most definition files the cache keeps; the least recently used is
+       * dropped. Defaults to 100.
+       */
+      cacheMaxEntries?: number;
+      /**
+       * Most URL reads that run at the same time in one backend process; the
+       * others wait. Defaults to 4.
+       */
+      maxConcurrentReads?: number;
+      /**
+       * Most URL reads (not counting cache hits) that start in a minute in
+       * one backend process. Above it the page shows an error until the
+       * minute ends. Defaults to 120.
+       */
+      maxReadsPerMinute?: number;
+      /**
        * Read definitions next to entities from `file:` locations, for a
        * development catalog. Only files in the folder of the entity file or
        * below it. Defaults to false.

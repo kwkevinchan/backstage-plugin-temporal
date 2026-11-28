@@ -695,20 +695,21 @@ keys below), [`temporal-frontend`](../plugins/temporal-frontend/config.d.ts)
 (`actions.allowServiceWrites`).
 Defaults and meanings are in the [README](../README.md#configuration).
 
-| Key                                                                          | Read by                                                             | Visible in the browser |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
-| `connection.address`                                                         | backend (`temporalServiceRef`)                                      |                        |
-| `connection.namespaces`, `connection.tls`, `connection.auth.type`            | backend                                                             |                        |
-| `connection.auth.token`                                                      | backend; secret                                                     |                        |
-| `connection.defaultNamespace`                                                | backend, frontend, Scaffolder backend module                        | yes                    |
-| `webUi.baseUrl`                                                              | backend, frontend                                                   | yes                    |
-| `searchAttributes.entityRef`, `searchAttributes.initiator`                   | backend                                                             |                        |
-| `control.enabled`                                                            | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
-| `control.allowedSignals`, `control.allowedUpdates`                           | backend (rejects), frontend (offers)                                | yes                    |
-| `externalStorage.objectUrl`                                                  | frontend                                                            | yes                    |
-| `overview.maxVisibilityCallsPerSecond`                                       | backend (per process, default `5` calls/s per namespace)            |                        |
-| `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations` | Zigflow backend module                                              |                        |
-| `actions.allowServiceWrites`                                                 | Actions registry backend module                                     |                        |
+| Key                                                                                                                             | Read by                                                             | Visible in the browser |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `connection.address`                                                                                                            | backend (`temporalServiceRef`)                                      |                        |
+| `connection.namespaces`, `connection.tls`, `connection.auth.type`                                                               | backend                                                             |                        |
+| `connection.auth.token`                                                                                                         | backend; secret                                                     |                        |
+| `connection.defaultNamespace`                                                                                                   | backend, frontend, Scaffolder backend module                        | yes                    |
+| `webUi.baseUrl`                                                                                                                 | backend, frontend                                                   | yes                    |
+| `searchAttributes.entityRef`, `searchAttributes.initiator`                                                                      | backend                                                             |                        |
+| `control.enabled`                                                                                                               | backend (mounts the operation routes), frontend (shows the buttons) | yes                    |
+| `control.allowedSignals`, `control.allowedUpdates`                                                                              | backend (rejects), frontend (offers)                                | yes                    |
+| `externalStorage.objectUrl`                                                                                                     | frontend                                                            | yes                    |
+| `overview.maxVisibilityCallsPerSecond`                                                                                          | backend (per process, default `5` calls/s per namespace)            |                        |
+| `definitions.allow`, `definitions.maxBytes`, `definitions.readFileLocations`                                                    | Zigflow backend module                                              |                        |
+| `definitions.cacheTtlSeconds`, `definitions.cacheMaxEntries`, `definitions.maxConcurrentReads`, `definitions.maxReadsPerMinute` | Zigflow backend module (per process: URL read cache and limits)     |                        |
+| `actions.allowServiceWrites`                                                                                                    | Actions registry backend module                                     |                        |
 
 The Scaffolder backend module also reads Backstage's own `app.baseUrl`, for
 the `workflowUrl` output.

@@ -57,9 +57,7 @@ function entityRefFromParams(req: Request): string {
  *
  * @internal
  */
-export async function createRouter(
-  options: RouterOptions,
-): Promise<express.Router> {
+export function createRouter(options: RouterOptions): express.Router {
   const { httpAuth, access, catalog, definitions } = options;
   const router = Router();
 
