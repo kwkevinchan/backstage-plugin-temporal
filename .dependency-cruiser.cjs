@@ -24,12 +24,8 @@ const FE = '^plugins/temporal/src';
 const GRAPH = `${FE}/components/graph`;
 const ZIGFLOW = '^plugins/temporal-module-zigflow/src';
 
-/** Files of services/ that call Temporal without a repository. */
-const CALLS_TEMPORAL = [
-  'WorkflowCommands',
-  'WorkflowListQueries',
-  'concurrencyLimit',
-];
+/** The gateway classes that the use cases are given. */
+const GIVEN_REPOSITORIES = `${BE}/repositories/Temporal(Read|Schedule|Write)Repository\\.ts$`;
 
 /** Files of the frontend that hold logic without React. */
 const PURE_FRONTEND = [
@@ -60,35 +56,21 @@ module.exports = {
       name: 'services-do-not-import-repositories',
       severity: 'error',
       comment:
-        'Use cases (services/) do not depend on the gateways (repositories/), apart from the read repository they are given (see services-are-given-the-read-repository).',
-      from: {
-        path: `${BE}/services/`,
-        pathNot: `${BE}/services/(${CALLS_TEMPORAL.join('|')})\\.ts$`,
-      },
-      to: {
-        path: `${BE}/repositories/`,
-        pathNot: `${BE}/repositories/TemporalReadRepository\\.ts$`,
-      },
-    },
-    {
-      name: 'services-that-call-temporal',
-      severity: 'error',
-      comment:
-        'Exception to services-do-not-import-repositories: the operations (WorkflowCommands) and the schedule list (WorkflowListQueries) call Temporal on the shared connection themselves, with the call helper, the error mapping and the schedule client of repositories/; concurrencyLimit uses the error messages. Nothing else of repositories/.',
-      from: { path: `${BE}/services/(${CALLS_TEMPORAL.join('|')})\\.ts$` },
-      to: {
-        path: `${BE}/repositories/`,
-        pathNot: `${BE}/repositories/(errors|scheduleClient|temporalCall|TemporalReadRepository)\\.ts$`,
-      },
-    },
-    {
-      name: 'services-are-given-the-read-repository',
-      severity: 'error',
-      comment:
-        'The query classes are given the one TemporalReadRepository that the plugin (or the access service factory) creates; they import its type only, so that they cannot create a second one. It has no interface: the classes of the plugin are plain.',
+        'Use cases (services/) do not depend on the gateways (repositories/), apart from the repositories they are given (see services-are-given-the-repositories). What both layers need (payload formats, deadlines, error messages) is in lib/.',
       from: { path: `${BE}/services/` },
       to: {
-        path: `${BE}/repositories/TemporalReadRepository\\.ts$`,
+        path: `${BE}/repositories/`,
+        pathNot: GIVEN_REPOSITORIES,
+      },
+    },
+    {
+      name: 'services-are-given-the-repositories',
+      severity: 'error',
+      comment:
+        'The use cases are given the repositories that the plugin (or the access service factory) creates: TemporalReadRepository for the reads, TemporalScheduleRepository for the schedules, TemporalWriteRepository for the operations. They import their types only, so that they cannot create a second one or call Temporal around them. The repositories have no interface: the classes of the plugin are plain.',
+      from: { path: `${BE}/services/` },
+      to: {
+        path: GIVEN_REPOSITORIES,
         dependencyTypesNot: ['type-only'],
       },
     },
@@ -96,7 +78,7 @@ module.exports = {
       name: 'gateways-do-not-import-use-cases',
       severity: 'error',
       comment:
-        'Gateways (repositories/) and the payload formats they share with the use cases (lib/) do not depend on the use cases, the routes or the access checks.',
+        'Gateways (repositories/) and what they share with the use cases (lib/) do not depend on the use cases, the routes or the access checks.',
       from: { path: `${BE}/(repositories|lib)/` },
       to: { path: `${BE}/(services|routes|access)/` },
     },

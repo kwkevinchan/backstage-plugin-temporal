@@ -1280,9 +1280,10 @@ Some reports carry warnings that API Extractor writes into them
 (`--allow-warnings`); a new warning still shows up in the report diff. Every
 one of them is a type of one entry point that names a type of another entry
 point of the same package (for example `TemporalApi` and the response types
-of `./common`), which this repository does not export twice. The three
-experimental fields of the graph types (`WorkflowGraphNode.llm` and `.tool`,
-`WorkflowGraphResponse.eventGroups`) are marked `@alpha`: they can change in
+of `./common`), which this repository does not export twice. The
+experimental fields of the graph types (`WorkflowGraphNode.llm`, `.tool` and
+`.groups`, `WorkflowGraphResponse.eventGroups` and `.eventGroupsTruncated`)
+are marked `@alpha`: they can change in
 a minor version.
 
 Back to [the documentation index](README.md).

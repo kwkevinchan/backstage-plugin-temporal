@@ -16,7 +16,8 @@
 
 import type { PendingActivity } from '../common';
 import { GRAPH_PENDING_ACTIVITY_FIELDS } from '../common/stepRules';
-import { buildWorkflowGraph, BuildGraphOptions, waitingHint } from './graph';
+import { buildWorkflowGraph, BuildGraphOptions } from './graph';
+import { waitingHint } from './graphProgress';
 
 const b64 = (s: string) => Buffer.from(s).toString('base64');
 const payloads = (...values: unknown[]) => ({

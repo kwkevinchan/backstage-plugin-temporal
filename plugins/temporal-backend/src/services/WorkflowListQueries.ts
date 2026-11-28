@@ -35,18 +35,21 @@ import {
   OVERVIEW_WINDOW_DAYS,
 } from '../common/listLimits';
 import { CLOSED_WITH_FAILURE } from '../common/stepRules';
-import { decodePageToken, encodePageToken, toWorkflowSummary } from './convert';
+import {
+  convertOptionsOf,
+  decodePageToken,
+  encodePageToken,
+  toWorkflowSummary,
+} from './convert';
 import { toTemporalSchedule } from './schedules';
-import { scheduleClientOf } from '../repositories/scheduleClient';
-import type { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import { TEMPORAL_DEADLINES } from '../lib/deadlines';
 import {
   isDeadlineError,
   isRateLimitedError,
   TEMPORAL_ERROR_MESSAGES,
-  isScheduleNotFound,
-  mapTemporalError,
-} from '../repositories/errors';
-import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
+} from '../lib/errorMessages';
+import type { TemporalReadRepository } from '../repositories/TemporalReadRepository';
+import type { TemporalScheduleRepository } from '../repositories/TemporalScheduleRepository';
 import {
   buildEntityVisibilityQuery,
   buildNamespaceVisibilityQuery,
@@ -57,7 +60,8 @@ import {
 } from './visibilityQuery';
 import { KeyedConcurrencyLimit, QueueDeadlineError } from './concurrencyLimit';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
-import { WorkflowQueries } from './WorkflowQueries';
+import { buildWorkflowProgress } from './graphProgress';
+import { WorkflowHistoryReader } from './WorkflowHistoryReader';
 
 /** Most history events read for the progress of one run in a list. */
 export const MAX_PROGRESS_EVENTS = 1000;
@@ -167,8 +171,9 @@ export class WorkflowListQueries {
   constructor(
     private readonly temporal: TemporalService,
     private readonly temporalReads: TemporalReadRepository,
+    private readonly schedules: TemporalScheduleRepository,
     private readonly sources: EntityWorkflowSources,
-    private readonly queries: WorkflowQueries,
+    private readonly historyReader: WorkflowHistoryReader,
     private readonly logger: LoggerService,
     options: { overviewRatePerSecond?: number } = {},
   ) {
@@ -192,43 +197,25 @@ export class WorkflowListQueries {
     const items: TemporalSchedule[] = [];
     /** Schedules that match only on a task queue, which the list lacks. */
     const toCheck: TemporalSchedule[] = [];
-    let truncated = false;
-    let read = 0;
-    // One deadline for the whole list: its pages are read as it is iterated.
-    await callTemporal(
-      this.temporal,
-      {
-        timeoutMs: TEMPORAL_DEADLINES.list,
-        mapError: mapTemporalError,
-        temporalCall: 'schedule.list',
-        namespace,
-        logger: this.logger,
-      },
-      async connection => {
-        const client = scheduleClientOf(connection, namespace);
-        for await (const summary of client.list({ pageSize: 100 })) {
-          read += 1;
-          if (read > MAX_SCHEDULES) {
-            truncated = true;
-            break;
-          }
-          const schedule = toTemporalSchedule(namespace, summary);
-          if (!sources) {
-            items.push(schedule);
-            continue;
-          }
-          const workflowType = schedule.workflowType ?? '';
-          // The list has no task queue: a source without one decides alone.
-          if (scheduleBelongsToSources({ workflowType }, sources)) {
-            items.push(schedule);
-          } else if (
-            sources.some(s => s.workflowTypes.includes(workflowType))
-          ) {
-            toCheck.push(schedule);
-          }
-        }
-      },
+    const { summaries, more } = await this.schedules.list(
+      namespace,
+      MAX_SCHEDULES,
     );
+    let truncated = more;
+    for (const summary of summaries) {
+      const schedule = toTemporalSchedule(namespace, summary);
+      if (!sources) {
+        items.push(schedule);
+        continue;
+      }
+      const workflowType = schedule.workflowType ?? '';
+      // The list has no task queue: a source without one decides alone.
+      if (scheduleBelongsToSources({ workflowType }, sources)) {
+        items.push(schedule);
+      } else if (sources.some(s => s.workflowTypes.includes(workflowType))) {
+        toCheck.push(schedule);
+      }
+    }
     // The list has no task queue: describe those schedules, a few at a time
     // and not more than MAX_SCHEDULE_DESCRIBES: the rest are not listed.
     if (toCheck.length > MAX_SCHEDULE_DESCRIBES) {
@@ -237,28 +224,10 @@ export class WorkflowListQueries {
     }
     for (let i = 0; i < toCheck.length; i += SCHEDULE_DESCRIBE_CONCURRENCY) {
       const batch = toCheck.slice(i, i + SCHEDULE_DESCRIBE_CONCURRENCY);
+      // A schedule deleted since the list was read has none: not shown.
       const queues = await Promise.all(
         batch.map(schedule =>
-          callTemporal(
-            this.temporal,
-            {
-              timeoutMs: TEMPORAL_DEADLINES.read,
-              mapError: mapTemporalError,
-              temporalCall: 'schedule.describe',
-              namespace,
-              logger: this.logger,
-            },
-            connection =>
-              scheduleClientOf(connection, namespace)
-                .getHandle(schedule.scheduleId)
-                .describe()
-                .then(d => d.action.taskQueue as string | undefined)
-                .catch(error => {
-                  // Deleted since the list was read: not shown.
-                  if (isScheduleNotFound(error)) return undefined;
-                  throw error;
-                }),
-          ),
+          this.schedules.taskQueue(namespace, schedule.scheduleId),
         ),
       );
       batch.forEach((schedule, j) => {
@@ -276,6 +245,20 @@ export class WorkflowListQueries {
     }
     items.sort((a, b) => a.scheduleId.localeCompare(b.scheduleId));
     return { items, truncated };
+  }
+
+  /**
+   * The schedules that start the workflow types of an entity: its own and
+   * those of its related entities. None for an entity without workflow
+   * types.
+   */
+  async listEntitySchedules(
+    context: TemporalEntityContext,
+  ): Promise<TemporalScheduleListResponse> {
+    const sources = this.sources.workflowSourcesOf(context);
+    return sources.length > 0
+      ? this.listSchedules(context.namespace, { sources })
+      : { items: [], truncated: false };
   }
 
   async listEntityWorkflows(
@@ -312,7 +295,7 @@ export class WorkflowListQueries {
       visibilityQuery,
       { pageSize: options.pageSize, nextPageToken },
     );
-    const convert = this.queries.convertOptions(context.namespace);
+    const convert = convertOptionsOf(this.temporal, context.namespace);
     const items = response.items.map(e => {
       const item = toWorkflowSummary(e, convert);
       const workflowEntityRef = matchingWorkflowEntity(
@@ -353,7 +336,7 @@ export class WorkflowListQueries {
         nextPageToken,
       },
     );
-    const convert = this.queries.convertOptions(namespace);
+    const convert = convertOptionsOf(this.temporal, namespace);
     return {
       items: response.items.map(e => toWorkflowSummary(e, convert)),
       nextPageToken: encodePageToken(response.nextPageToken),
@@ -442,7 +425,7 @@ export class WorkflowListQueries {
         }),
       ),
     ]);
-    const convert = this.queries.convertOptions(namespace);
+    const convert = convertOptionsOf(this.temporal, namespace);
     const items = sample.items
       .slice(0, OVERVIEW_SAMPLE_SIZE)
       .map(e => toWorkflowSummary(e, convert));
@@ -527,24 +510,27 @@ export class WorkflowListQueries {
   private readonly progressCache = new Map<string, WorkflowProgressResponse>();
 
   /**
-   * Completed steps and the current step of one run, for lists. The
-   * progress of closed runs is cached, since their history does not change.
+   * Completed steps and the current step of one run, for lists: the numbers
+   * and the text of its graph, read from the first MAX_PROGRESS_EVENTS
+   * events without building the graph. The progress of closed runs is
+   * cached, since their history does not change.
    */
   async progress(workflow: WorkflowDetail): Promise<WorkflowProgressResponse> {
     const key = `${workflow.namespace}/${workflow.workflowId}/${workflow.runId}`;
     const cached = this.progressCache.get(key);
     if (cached) return cached;
-    const graph = await this.queries.graph(workflow, {
-      maxEvents: MAX_PROGRESS_EVENTS,
+    const { events, truncated, closeEvent } =
+      await this.historyReader.readStepEvents(workflow, MAX_PROGRESS_EVENTS);
+    const progress = buildWorkflowProgress(events, {
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      status: workflow.status,
+      truncated,
+      pendingActivities: workflow.pendingActivities,
+      searchAttributes: workflow.searchAttributes,
+      failure: workflow.failure,
+      closeEvent,
     });
-    const progress: WorkflowProgressResponse = {
-      status: graph.status,
-      completedSteps: graph.completedSteps,
-      totalSteps: graph.totalSteps,
-      truncated: graph.truncated,
-    };
-    if (graph.current) progress.current = graph.current;
-    if (graph.currentDeadline) progress.currentDeadline = graph.currentDeadline;
     if (workflow.status !== 'Running' && workflow.status !== 'Unknown') {
       if (this.progressCache.size >= PROGRESS_CACHE_SIZE) {
         const oldest = this.progressCache.keys().next().value;

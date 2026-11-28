@@ -15,6 +15,7 @@
  */
 
 import type { JsonObject, JsonValue } from '@backstage/types';
+import type { TemporalService } from '../node';
 import {
   PendingActivity,
   WorkflowResultResponse,
@@ -233,6 +234,20 @@ export interface ConvertOptions {
     workflowId: string;
     runId: string;
   }) => string | undefined;
+}
+
+/** The conversion options of a namespace, from the settings of the plugin. */
+export function convertOptionsOf(
+  temporal: Pick<TemporalService, 'getSearchAttributeNames' | 'getWebUiUrl'>,
+  namespace: string,
+): ConvertOptions {
+  const attributes = temporal.getSearchAttributeNames();
+  return {
+    namespace,
+    entityRefAttribute: attributes.entityRef,
+    initiatorAttribute: attributes.initiator,
+    webUiUrl: ref => temporal.getWebUiUrl(ref),
+  };
 }
 
 /** Converts a `WorkflowExecutionInfo` message (JSON form). */

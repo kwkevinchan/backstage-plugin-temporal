@@ -15,16 +15,15 @@
  */
 
 import { mockServices } from '@backstage/backend-test-utils';
-import { WorkflowQueries } from './WorkflowQueries';
+import { WorkflowHistoryReader } from './WorkflowHistoryReader';
 
 const ref = { namespace: 'default', workflowId: 'wf', runId: 'run' };
 
-function queriesWith(historyPage: jest.Mock) {
-  return new WorkflowQueries(
-    {} as any,
-    mockServices.logger.mock(),
+function readerWith(historyPage: jest.Mock) {
+  return new WorkflowHistoryReader(
     { checkNamespace: () => undefined } as any,
     { historyPage } as any,
+    mockServices.logger.mock(),
   );
 }
 
@@ -38,7 +37,7 @@ describe('readEvents', () => {
       items: events(1, 500),
       nextPageToken: pageSize > 0 ? Uint8Array.of(1) : undefined,
     }));
-    const result = await queriesWith(historyPage).readEvents(ref, 700);
+    const result = await readerWith(historyPage).readEvents(ref, 700);
     expect(historyPage.mock.calls.map(c => c[1].pageSize)).toEqual([500, 200]);
     expect(result.events).toHaveLength(700);
     expect(result.truncated).toBe(true);
@@ -52,7 +51,7 @@ describe('readEvents', () => {
         nextPageToken: Uint8Array.of(1),
       })
       .mockResolvedValueOnce({ items: events(4, 2), nextPageToken: undefined });
-    const result = await queriesWith(historyPage).readEvents(ref, 10);
+    const result = await readerWith(historyPage).readEvents(ref, 10);
     expect(result.events).toHaveLength(5);
     expect(result.truncated).toBe(false);
   });
@@ -62,7 +61,7 @@ describe('readEvents', () => {
       items: [],
       nextPageToken: Uint8Array.of(1),
     }));
-    const result = await queriesWith(historyPage).readEvents(ref, 1000);
+    const result = await readerWith(historyPage).readEvents(ref, 1000);
     expect(historyPage.mock.calls.length).toBeLessThanOrEqual(100);
     expect(result.events).toEqual([]);
     expect(result.truncated).toBe(true);

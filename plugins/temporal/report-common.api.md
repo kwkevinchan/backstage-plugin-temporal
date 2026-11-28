@@ -448,6 +448,7 @@ export interface WorkflowGraphNode {
   events: WorkflowNodeEvent[];
   // (undocumented)
   failure?: WorkflowFailure;
+  // @alpha
   groups?: string[];
   id: string;
   input?: JsonValue;
@@ -485,6 +486,7 @@ export interface WorkflowGraphResponse {
   edges: WorkflowGraphEdge[];
   // @alpha
   eventGroups?: WorkflowEventGroup[];
+  // @alpha
   eventGroupsTruncated?: boolean;
   // (undocumented)
   nodes: WorkflowGraphNode[];

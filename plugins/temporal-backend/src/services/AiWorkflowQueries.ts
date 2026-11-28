@@ -23,7 +23,10 @@ import {
 import { decodePayloads } from './convert';
 import { buildWorkflowGraphWithLlm } from './graph';
 import { FAILURE_DETAIL_LEVELS } from './llm/llm';
-import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
+import {
+  MAX_STEP_EVENTS,
+  WorkflowHistoryReader,
+} from './WorkflowHistoryReader';
 
 /**
  * The payload in External Storage that holds a result or failure, if any,
@@ -103,7 +106,7 @@ function isAfterReadEvents(
  * calls. Callers check permissions first (see `access/`).
  */
 export class AiWorkflowQueries {
-  constructor(private readonly queries: WorkflowQueries) {}
+  constructor(private readonly historyReader: WorkflowHistoryReader) {}
 
   /**
    * The full record of one model call of a run, by the event ID of its
@@ -122,7 +125,7 @@ export class AiWorkflowQueries {
     };
     // Reads up to MAX_STEP_EVENTS and rebuilds the step graph per request
     // rather than caching or indexing incrementally.
-    const { events, truncated } = await this.queries.readEvents(
+    const { events, truncated } = await this.historyReader.readEvents(
       ref,
       MAX_STEP_EVENTS,
     );

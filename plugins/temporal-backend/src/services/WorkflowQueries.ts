@@ -33,7 +33,7 @@ import type { TemporalEntityContext } from '../node/alpha';
 import { CLOSED_WITH_FAILURE } from '../common/stepRules';
 import { decodeJsonPayloads, encodeJsonPayloads } from '../lib/payloads';
 import {
-  ConvertOptions,
+  convertOptionsOf,
   decodePageToken,
   encodePageToken,
   toHistoryEvent,
@@ -48,12 +48,8 @@ import {
   workflowIdCondition,
 } from './visibilityQuery';
 import { EntityWorkflowSources } from './EntityWorkflowSources';
+import { keepCloseEvent, WorkflowHistoryReader } from './WorkflowHistoryReader';
 
-export const HISTORY_PAGE_SIZE = { default: 100, max: 500 };
-/** Most history pages read for one run, whatever the pages hold. */
-export const MAX_HISTORY_PAGES = 100;
-/** Most history events read to build the steps of one run. */
-export const MAX_STEP_EVENTS = 5000;
 /** Query of the Temporal SDKs that lists a workflow's message definitions. */
 export const METADATA_QUERY = '__temporal_workflow_metadata';
 /** Time the metadata query may take. */
@@ -78,14 +74,6 @@ function messageDefinitionList(
 export const MAX_PARENT_DEPTH = 3;
 
 /**
- * Close events read during `describe()`, keyed by the returned `WorkflowDetail`.
- * Module-scoped so a detail described by `temporalAccessServiceRef`'s
- * `WorkflowQueries` instance can be reused by the plugin's own instance when
- * building a truncated graph, without adding internal fields to `WorkflowDetail`.
- */
-const describedCloseEvents = new WeakMap<WorkflowDetail, unknown>();
-
-/**
  * The read use cases of the plugin for one workflow: details, membership of
  * an entity, history, steps, graph, run position, queries and message definitions. Callers check permissions first (see
  * `access/`); this class checks that namespaces are allowed and reads
@@ -97,18 +85,8 @@ export class WorkflowQueries {
     private readonly logger: LoggerService,
     private readonly sources: EntityWorkflowSources,
     private readonly temporalReads: TemporalReadRepository,
+    private readonly historyReader: WorkflowHistoryReader,
   ) {}
-
-  /** The conversion options of a namespace; the list queries use them too. */
-  convertOptions(namespace: string): ConvertOptions {
-    const attributes = this.temporal.getSearchAttributeNames();
-    return {
-      namespace,
-      entityRefAttribute: attributes.entityRef,
-      initiatorAttribute: attributes.initiator,
-      webUiUrl: ref => this.temporal.getWebUiUrl(ref),
-    };
-  }
 
   /**
    * Describes a run without any entity check. Without `runId`, the latest
@@ -117,7 +95,10 @@ export class WorkflowQueries {
   async describe(ref: WorkflowRef): Promise<WorkflowDetail> {
     this.sources.checkNamespace(ref.namespace);
     const json = await this.temporalReads.describeExecution(ref);
-    const detail = toWorkflowDetail(json, this.convertOptions(ref.namespace));
+    const detail = toWorkflowDetail(
+      json,
+      convertOptionsOf(this.temporal, ref.namespace),
+    );
     // The close event tells the failure, or the run this one continued as.
     if (
       CLOSED_WITH_FAILURE.includes(detail.status) ||
@@ -128,12 +109,10 @@ export class WorkflowQueries {
         runId: detail.runId,
       });
       const described = toWorkflowDetail(json, {
-        ...this.convertOptions(ref.namespace),
+        ...convertOptionsOf(this.temporal, ref.namespace),
         closeEvent,
       });
-      if (closeEvent !== undefined) {
-        describedCloseEvents.set(described, closeEvent);
-      }
+      if (closeEvent !== undefined) keepCloseEvent(described, closeEvent);
       return described;
     }
     return detail;
@@ -194,7 +173,7 @@ export class WorkflowQueries {
       this.sources.checkNamespace(ref.namespace);
       current = toWorkflowDetail(
         await this.temporalReads.describeExecution(ref),
-        this.convertOptions(ref.namespace),
+        convertOptionsOf(this.temporal, ref.namespace),
       );
     }
   }
@@ -221,33 +200,6 @@ export class WorkflowQueries {
   }
 
   /**
-   * Reads the history of one run, oldest first, up to `max` events.
-   */
-  async readEvents(
-    ref: WorkflowRunRef,
-    max: number,
-  ): Promise<{ events: unknown[]; truncated: boolean }> {
-    this.sources.checkNamespace(ref.namespace);
-    const events: unknown[] = [];
-    let nextPageToken: Uint8Array | undefined;
-    let pages = 0;
-    do {
-      const response = await this.temporalReads.historyPage(ref, {
-        pageSize: Math.min(HISTORY_PAGE_SIZE.max, max - events.length),
-        nextPageToken,
-      });
-      events.push(...response.items);
-      nextPageToken = response.nextPageToken;
-      pages += 1;
-      // A server that keeps returning a token with empty pages ends here.
-    } while (nextPageToken && events.length < max && pages < MAX_HISTORY_PAGES);
-    return {
-      events: events.slice(0, max),
-      truncated: Boolean(nextPageToken) || events.length > max,
-    };
-  }
-
-  /**
    * The result or failure of a run, from its close event. A running run
    * returns only `status`.
    */
@@ -268,29 +220,12 @@ export class WorkflowQueries {
 
   /**
    * Steps and arrows of one run, from its history and the pending
-   * activities of `workflow`.
+   * activities of `workflow`. A run of a chain has its position among the
+   * runs of its workflow ID (see `runPosition`).
    */
-  async graph(
-    workflow: WorkflowDetail,
-    options: { maxEvents?: number } = {},
-  ): Promise<WorkflowGraphResponse> {
-    const ref = {
-      namespace: workflow.namespace,
-      workflowId: workflow.workflowId,
-      runId: workflow.runId,
-    };
-    const { events, truncated } = await this.readEvents(
-      ref,
-      options.maxEvents ?? MAX_STEP_EVENTS,
-    );
-    // A cut history misses the close event, whose failure tells the step
-    // the run failed at.
-    let closeEvent: unknown;
-    if (truncated && CLOSED_WITH_FAILURE.includes(workflow.status)) {
-      closeEvent = describedCloseEvents.has(workflow)
-        ? describedCloseEvents.get(workflow)
-        : await this.closeEventOrUndefined(ref);
-    }
+  async graph(workflow: WorkflowDetail): Promise<WorkflowGraphResponse> {
+    const { events, truncated, closeEvent } =
+      await this.historyReader.readStepEvents(workflow);
     const graph = buildWorkflowGraph(events, {
       namespace: workflow.namespace,
       workflowId: workflow.workflowId,
@@ -310,24 +245,10 @@ export class WorkflowQueries {
           })
           .debug('The graph has more edges than are drawn'),
     });
-    return graph;
-  }
-
-  /** The close event of a run; undefined when reading it fails. */
-  private async closeEventOrUndefined(ref: WorkflowRunRef): Promise<unknown> {
-    try {
-      return await this.temporalReads.closeEvent(ref);
-    } catch (error) {
-      this.logger
-        .child({
-          namespace: ref.namespace,
-          workflowId: ref.workflowId,
-          runId: ref.runId,
-          errorName: error instanceof Error ? error.name : 'Error',
-        })
-        .debug('The close event of a run could not be read');
-      return undefined;
+    if (graph.runChain) {
+      graph.runChain = await this.runPosition(workflow, graph.runChain);
     }
+    return graph;
   }
 
   /**
@@ -335,7 +256,7 @@ export class WorkflowQueries {
    * that started before it, and all runs) to the links of `chain`. When
    * counting fails, the links are returned as they are.
    */
-  async runPosition(
+  private async runPosition(
     workflow: WorkflowDetail,
     chain: WorkflowRunChain,
   ): Promise<WorkflowRunChain> {
