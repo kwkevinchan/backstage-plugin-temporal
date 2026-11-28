@@ -49,6 +49,7 @@ import {
   HISTORY_PAGE_SIZE,
   WorkflowQueries,
 } from '../services/WorkflowQueries';
+import { WorkflowTypeEntities } from '../access/WorkflowTypeEntities';
 import { decodePageToken } from '../services/convert';
 import { parseStatus, workflowIdCondition } from '../services/visibilityQuery';
 import {
@@ -80,6 +81,7 @@ export interface RouterOptions {
   logger: LoggerService;
   auditor: AuditorService;
   access: TemporalAccessService;
+  typeEntities: WorkflowTypeEntities;
   sources: EntityWorkflowSources;
   queries: WorkflowQueries;
   lists: WorkflowListQueries;
@@ -102,7 +104,16 @@ function describesWorkflowType(
 }
 
 export function createRouter(options: RouterOptions): express.Router {
-  const { httpAuth, logger, auditor, access, queries, lists, ai } = options;
+  const {
+    httpAuth,
+    logger,
+    auditor,
+    access,
+    typeEntities,
+    queries,
+    lists,
+    ai,
+  } = options;
   const entitySources = options.sources;
   const router = Router();
   router.use(express.json());
@@ -193,11 +204,7 @@ export function createRouter(options: RouterOptions): express.Router {
     );
     res.json({
       ...result,
-      items: await access.linkWorkflowEntities(
-        result.items,
-        namespace,
-        credentials,
-      ),
+      items: await typeEntities.link(result.items, namespace, credentials),
     });
   });
 
@@ -280,11 +287,7 @@ export function createRouter(options: RouterOptions): express.Router {
     );
     res.json({
       ...result,
-      items: await access.linkWorkflowEntities(
-        result.items,
-        namespace,
-        credentials,
-      ),
+      items: await typeEntities.link(result.items, namespace, credentials),
     });
   });
 
@@ -308,7 +311,7 @@ export function createRouter(options: RouterOptions): express.Router {
       !workflowWithEntity.workflowEntityRef &&
       !(context && describesWorkflowType(context.entity, workflow));
     const [linked] = needsTypeEntity
-      ? await access.linkWorkflowEntities(
+      ? await typeEntities.link(
           [workflowWithEntity],
           workflowWithEntity.namespace,
           credentials,
@@ -405,7 +408,7 @@ export function createRouter(options: RouterOptions): express.Router {
         )
       : undefined;
     if (matched) return matched;
-    const [linked] = await access.linkWorkflowEntities(
+    const [linked] = await typeEntities.link(
       [workflow],
       workflow.namespace,
       credentials,

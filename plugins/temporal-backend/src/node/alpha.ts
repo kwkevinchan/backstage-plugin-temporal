@@ -212,17 +212,6 @@ export interface TemporalAccessService {
       credentials: BackstageCredentials;
     },
   ): Promise<TemporalAccessibleWorkflow>;
-
-  /**
-   * Adds `workflowTypeEntityRef` to runs that match a single
-   * `TemporalWorkflow` entity the caller can see (same namespace, workflow
-   * type and task queue; the entities with the run's task queue win).
-   */
-  linkWorkflowEntities(
-    items: WorkflowSummary[],
-    namespace: string,
-    credentials: BackstageCredentials,
-  ): Promise<WorkflowSummary[]>;
 }
 
 /**

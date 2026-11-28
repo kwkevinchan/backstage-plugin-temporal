@@ -18,6 +18,7 @@ import {
   coreServices,
   createBackendPlugin,
 } from '@backstage/backend-plugin-api';
+import { catalogServiceRef } from '@backstage/plugin-catalog-node';
 import { temporalPermissions } from './common';
 import { temporalServiceRef } from './node';
 import {
@@ -28,6 +29,7 @@ import {
 } from './node/alpha';
 import { isValidControlActionId } from './routes/params';
 import { temporalWorkflowPermissionRules } from './access/rules';
+import { WorkflowTypeEntities } from './access/WorkflowTypeEntities';
 import { TemporalReadRepository } from './repositories/TemporalReadRepository';
 import { createControlRouter } from './routes/controlRoutes';
 import express from 'express';
@@ -77,6 +79,7 @@ export const temporalPlugin = createBackendPlugin({
         httpAuth: coreServices.httpAuth,
         httpRouter: coreServices.httpRouter,
         permissionsRegistry: coreServices.permissionsRegistry,
+        catalog: catalogServiceRef,
         temporal: temporalServiceRef,
         access: temporalAccessServiceRef,
       },
@@ -87,6 +90,7 @@ export const temporalPlugin = createBackendPlugin({
         httpAuth,
         httpRouter,
         permissionsRegistry,
+        catalog,
         temporal,
         access,
       }) {
@@ -170,6 +174,7 @@ export const temporalPlugin = createBackendPlugin({
             logger,
             auditor,
             access,
+            typeEntities: new WorkflowTypeEntities(catalog, sources, logger),
             sources,
             queries,
             lists,
