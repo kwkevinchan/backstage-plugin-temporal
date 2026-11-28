@@ -148,12 +148,13 @@ export function parseArgs(value: unknown): JsonValue[] | undefined {
 /** The `name` and `args` of a message body (query, signal, update). */
 export function parseMessageBody(req: Request): WorkflowMessageRequest {
   const { name, args } = requestBody(req);
-  if (
-    typeof name !== 'string' ||
-    !name.trim() ||
-    name.length > MAX_CONTROL_NAME_LENGTH
-  ) {
+  if (typeof name !== 'string' || !name.trim()) {
     throw new InputError('name is required');
+  }
+  if (name.length > MAX_CONTROL_NAME_LENGTH) {
+    throw new InputError(
+      `name must be at most ${MAX_CONTROL_NAME_LENGTH} characters`,
+    );
   }
   return { name: name.trim(), args: parseArgs(args) };
 }
@@ -200,4 +201,17 @@ export function parseOverviewEntityRefs(req: Request): string[] {
     return ref;
   });
   return [...new Set(refs)];
+}
+
+/**
+ * The `refresh` of an overview request: true reads the numbers again instead
+ * of using the ones the backend kept. Absent means false.
+ */
+export function parseOverviewRefresh(req: Request): boolean {
+  const { refresh } = requestBody(req);
+  if (refresh === undefined) return false;
+  if (typeof refresh !== 'boolean') {
+    throw new InputError('refresh must be a boolean');
+  }
+  return refresh;
 }

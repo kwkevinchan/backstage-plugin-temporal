@@ -82,7 +82,6 @@ in the repository README for examples.
 | GET    | `/entities/:kind/:namespace/:name/workflows`                                         | `temporal.workflow.read`                      |
 | GET    | `/schedules`                                                                         | `temporal.workflow.list` (without conditions) |
 | GET    | `/entities/:kind/:namespace/:name/schedules`                                         | `temporal.workflow.read`                      |
-| GET    | `/entities/:kind/:namespace/:name/workflow-stats`                                    | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId`                                       | `temporal.workflow.read` or list              |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId`                           | `temporal.workflow.read`                      |
 | GET    | `/namespaces/:namespace/workflows/:workflowId/runs/:runId/history`                   | `temporal.workflow.read`                      |
@@ -128,7 +127,7 @@ without `allRuns=true` or a `status`, runs that continued as new are left out,
 so a workflow that keeps continuing as new is listed once); `namespace`,
 `workflowType`, `workflowId` (start of the workflow ID) on `/workflows`;
 `searchAttribute` (both lists: a Bool search attribute that must be true);
-`limit` (stats, default 50, at most 100; the sample uses the same default as the list, so runs that continued as new are left out); `pageSize`, `pageToken` (history);
+`pageSize`, `pageToken` (history);
 `entityRef` on every route under `.../workflows/:workflowId/runs/:runId`
 and on the schedule operations. On a workflow route, `entityRef` names the
 entity the permission is checked on, and the workflow must belong to it

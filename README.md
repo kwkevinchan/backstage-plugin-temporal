@@ -1035,7 +1035,7 @@ The catalog adds `dependsOn` / `dependencyOf`. The component's Temporal tab
 then lists the workflow types it depends on (**Workflow types**), and its
 workflow executions are its own (from the annotations, if any) together with
 those of each workflow type entity; executions of a workflow type entity
-link to it. The merged execution list and the recent-run statistics include
+link to it. The merged execution list includes
 at most 20 of those workflow types (in the order of their entity references). When
 there are more, the tab says it is showing executions of the first 20 of N
 types; open a type in **Workflow types** above to see its executions. Only
@@ -1410,7 +1410,8 @@ changing schedules is left to code or the Temporal UI.
 The Temporal page lists schedules for users that may list every workflow
 (`temporal.workflow.list` without conditions); an entity's list needs
 `temporal.workflow.read` on the entity. At most the first 500 schedules of a
-namespace are read. A schedule whose memo or arguments cannot be decoded
+namespace are read, and the list of an entity describes at most 100 of the
+schedules whose task queue decides (the list is then marked `truncated`). A schedule whose memo or arguments cannot be decoded
 (an encoding the default converter does not know, such as encryption or
 compression by a codec) is listed and operated like any other.
 

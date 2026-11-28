@@ -29,7 +29,6 @@ import type {
   TemporalScheduleListResponse,
   WorkflowRef,
   WorkflowRunRef,
-  WorkflowStatsResponse,
   WorkflowStatus,
   WorkflowTypeOverviewResponse,
   WorkflowStartRequest,
@@ -93,23 +92,17 @@ export interface TemporalApi {
   listEntitySchedules(entityRef: string): Promise<TemporalScheduleListResponse>;
 
   /**
-   * Counts by status and mean duration of the entity's most recent runs
-   * (`limit`, default 50, at most 100).
-   */
-  getEntityWorkflowStats(
-    entityRef: string,
-    options?: { limit?: number },
-  ): Promise<WorkflowStatsResponse>;
-
-  /**
    * The numbers of `TemporalWorkflow` entities for the Workflows tab of the
    * Temporal page: running runs, runs completed and failed in the last 7
    * days, the latest run, the mean duration and the last failure. At most
    * 25 references (`MAX_WORKFLOW_TYPE_OVERVIEW_REFS`); the entities the
-   * caller may not read are left out of the response.
+   * caller may not read are left out of the response. The backend keeps the
+   * numbers for 60 seconds; `refresh` reads them again (the backend's rate
+   * limit still applies).
    */
   getWorkflowTypeOverview(
     entityRefs: string[],
+    options?: { refresh?: boolean },
   ): Promise<WorkflowTypeOverviewResponse>;
 
   /**

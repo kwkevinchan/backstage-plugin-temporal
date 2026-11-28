@@ -385,6 +385,40 @@ describe('POST /workflow-types/overview', () => {
     );
   });
 
+  it('reads the numbers again with refresh, keeps the new ones, and still checks the permission', async () => {
+    const { server, workflowService, permissions } = await start();
+    await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER] });
+    now.mockReturnValue(NOW + 1000);
+    const refreshed = await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER], refresh: true });
+    expect(refreshed.status).toBe(200);
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledTimes(2);
+    expect(refreshed.body.items[0].updatedAt).toBe(
+      new Date(NOW + 1000).toISOString(),
+    );
+    expect(permissions.authorize).toHaveBeenCalledTimes(2);
+    // The new numbers are the ones kept.
+    now.mockReturnValue(NOW + 2000);
+    const kept = await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER] });
+    expect(workflowService.countWorkflowExecutions).toHaveBeenCalledTimes(2);
+    expect(kept.body.items[0].updatedAt).toBe(
+      refreshed.body.items[0].updatedAt,
+    );
+  });
+
+  it('refuses a refresh that is not a boolean', async () => {
+    const { server } = await start();
+    await request(server)
+      .post(PATH)
+      .send({ entityRefs: [ORDER], refresh: 'yes' })
+      .expect(400);
+  });
+
   it('answers no items to a user who may not read an entity whose numbers are kept', async () => {
     const deny: string[] = [];
     const { server, workflowService } = await start({ deny });

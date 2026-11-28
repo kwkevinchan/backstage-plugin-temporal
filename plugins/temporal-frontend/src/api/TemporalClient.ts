@@ -19,7 +19,6 @@ import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 import { ResponseError } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
 import {
-  buildEntityWorkflowStatsPath,
   buildWorkflowMessageDefinitionsPath,
   buildWorkflowOperationPath,
   WorkflowMessageDefinitionsResponse,
@@ -41,7 +40,6 @@ import {
   WorkflowListResponse,
   WorkflowRef,
   WorkflowRunRef,
-  WorkflowStatsResponse,
   WorkflowStatus,
   WORKFLOW_TYPE_OVERVIEW_PATH,
   WorkflowTypeOverviewResponse,
@@ -208,20 +206,14 @@ export class TemporalClient implements TemporalApi {
     );
   }
 
-  getEntityWorkflowStats(
-    entityRef: string,
-    options?: { limit?: number },
-  ): Promise<WorkflowStatsResponse> {
-    return this.get(
-      buildEntityWorkflowStatsPath(parseEntityRef(entityRef)) +
-        queryString({ limit: options?.limit }),
-    );
-  }
-
   getWorkflowTypeOverview(
     entityRefs: string[],
+    options?: { refresh?: boolean },
   ): Promise<WorkflowTypeOverviewResponse> {
-    return this.post(WORKFLOW_TYPE_OVERVIEW_PATH, { entityRefs });
+    return this.post(WORKFLOW_TYPE_OVERVIEW_PATH, {
+      entityRefs,
+      ...(options?.refresh ? { refresh: true } : {}),
+    });
   }
 
   listWorkflowRuns(

@@ -258,7 +258,11 @@ export class DefaultTemporalService implements TemporalService {
     this.#connection = undefined;
     this.#clients.clear();
     if (connection) {
-      await (await connection).close();
+      try {
+        await (await connection).close();
+      } catch {
+        // A connection that failed to open has nothing to close.
+      }
     }
   }
 }

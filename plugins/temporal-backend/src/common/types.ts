@@ -203,34 +203,6 @@ export interface WorkflowListResponse {
 }
 
 /**
- * Summary of an entity's most recent workflow runs.
- *
- * @public
- */
-export interface WorkflowStatsResponse {
-  namespace: string;
-  /** Number of most recent runs the numbers are computed from. */
-  sampleSize: number;
-  /** The requested maximum of runs. */
-  limit: number;
-  /** Runs by status. */
-  byStatus: Partial<Record<WorkflowStatus, number>>;
-  /** Completed runs. */
-  succeeded: number;
-  /** Failed, timed out or terminated runs. */
-  failed: number;
-  /** Running runs. */
-  running: number;
-  /** Mean duration of the closed runs in the sample, in milliseconds. */
-  averageDurationMs?: number;
-  /**
-   * Present when the entity depends on TemporalWorkflow entities. Absent
-   * when it depends on none, or is itself a TemporalWorkflow entity.
-   */
-  relatedWorkflows?: RelatedWorkflows;
-}
-
-/**
  * Most entity references in one request of the workflow type overview.
  *
  * @public
@@ -245,6 +217,12 @@ export const MAX_WORKFLOW_TYPE_OVERVIEW_REFS = 25;
  */
 export interface WorkflowTypeOverviewRequest {
   entityRefs: string[];
+  /**
+   * True reads the numbers from Temporal again instead of using the ones the
+   * backend kept for 60 seconds. The reads still count against the rate limit
+   * of the overview.
+   */
+  refresh?: boolean;
 }
 
 /**

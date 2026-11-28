@@ -186,6 +186,8 @@ export interface EventGroupRun {
   status: WorkflowStatus;
   /** The node of the closing event, when the history has it. */
   end?: EventGroupNode;
+  /** The history was cut: a step left open may have ended after the cut. */
+  truncated?: boolean;
 }
 
 /** Run statuses that are final: a step left open will not end any more. */
@@ -201,14 +203,17 @@ const ENDED_RUNS = new Set<WorkflowStatus>([
  * its status is unknown. After the run ended (completed, failed, canceled,
  * timed out, terminated or continued as new), a group whose steps did not
  * all end is `Failed` when a step failed or the run failed, timed out or
- * was terminated, else `Canceled`.
+ * was terminated, else `Canceled`. When the history was cut, a step left
+ * open is not known to be unfinished: its status stays as it is.
  */
 export function eventGroupStatus(
   steps: EventGroupNode[],
   run: EventGroupRun,
 ): WorkflowNodeStatus {
   const status = stepsStatus(steps);
-  if (status !== 'Running' || !ENDED_RUNS.has(run.status)) return status;
+  if (status !== 'Running' || run.truncated || !ENDED_RUNS.has(run.status)) {
+    return status;
+  }
   if (steps.some(s => FAILED_STATUSES.has(s.status))) return 'Failed';
   return FAILED_RUNS.has(run.status) ? 'Failed' : 'Canceled';
 }

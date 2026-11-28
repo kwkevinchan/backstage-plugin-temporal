@@ -636,10 +636,15 @@ describe('event groups in the graph', () => {
     expect(completed.group('timer').status).toBe('Canceled');
     expect(completed.group('done').status).toBe('Completed');
 
-    // A history cut before the end: no end time.
-    const cut = graphOf(events, { status: 'Terminated', truncated: true });
-    expect(cut.group('open').status).toBe('Failed');
-    expect(cut.group('open').endTime).toBeUndefined();
+    // A history cut before the end: a step left open at the cut may have
+    // ended after it, so the group follows its steps and has no end time.
+    for (const status of ['Terminated', 'Completed', 'Failed'] as const) {
+      const cut = graphOf(events, { status, truncated: true });
+      expect(cut.group('open').status).toBe('Running');
+      expect(cut.group('open').endTime).toBeUndefined();
+      expect(cut.group('timer').status).toBe('Running');
+      expect(cut.group('done').status).toBe('Completed');
+    }
 
     // While the run runs, nothing changes.
     const running = graphOf(events, { status: 'Running' });

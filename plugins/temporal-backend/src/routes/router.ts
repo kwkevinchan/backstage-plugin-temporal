@@ -43,7 +43,6 @@ import {
   LIST_PAGE_SIZE,
   failedOverview,
   OverviewRequestStats,
-  STATS_LIMIT,
   WorkflowListQueries,
 } from '../services/WorkflowListQueries';
 import {
@@ -64,6 +63,7 @@ import {
   parseFlag,
   parseMessageBody,
   parseOverviewEntityRefs,
+  parseOverviewRefresh,
   parsePageSize,
   workflowIdFromParams,
 } from './params';
@@ -222,25 +222,12 @@ export async function createRouter(
     });
   });
 
-  router.get(
-    '/entities/:kind/:namespace/:name/workflow-stats',
-    async (req, res) => {
-      const credentials = await httpAuth.credentials(req);
-      const context = await access.loadEntity(
-        entityRefFromParams(req),
-        temporalWorkflowReadPermission,
-        credentials,
-      );
-      const limit = parsePageSize(req.query.limit, STATS_LIMIT, 'limit');
-      res.json(await lists.stats(context, { limit }));
-    },
-  );
-
   // The numbers of the TemporalWorkflow entities of one page of the
   // Temporal page. The entities the caller may not read are left out.
   router.post(WORKFLOW_TYPE_OVERVIEW_PATH, async (req, res) => {
     const credentials = await httpAuth.credentials(req);
     const entityRefs = parseOverviewEntityRefs(req);
+    const refresh = parseOverviewRefresh(req);
     const loaded = await access.loadWorkflowEntities(
       entityRefs,
       temporalWorkflowReadPermission,
@@ -249,7 +236,7 @@ export async function createRouter(
     const request: OverviewRequestStats = { queueTimeouts: 0 };
     const items = await Promise.all(
       loaded.map(({ entityRef, context, error }) => {
-        if (context) return lists.overview(context, request);
+        if (context) return lists.overview(context, request, { refresh });
         logger
           .child({ entityRef })
           .warn('Could not read the workflows of an entity', error as Error);
@@ -326,10 +313,16 @@ export async function createRouter(
   router.get(workflowRunPath, async (req, res) => {
     const { credentials, context, matchedEntityRef, workflow } =
       await loadWorkflow(req);
-    const workflowWithEntity =
-      matchedEntityRef && matchedEntityRef !== context?.entityRef
-        ? { ...workflow, workflowEntityRef: matchedEntityRef }
-        : workflow;
+    // The same rule as the list: the related entity a run matches directly,
+    // else the entity an ancestor matched (a child workflow).
+    const workflowEntityRef =
+      (context && queries.relatedWorkflowEntity(workflow, context)) ??
+      (matchedEntityRef && matchedEntityRef !== context?.entityRef
+        ? matchedEntityRef
+        : undefined);
+    const workflowWithEntity = workflowEntityRef
+      ? { ...workflow, workflowEntityRef }
+      : workflow;
     // The entity that describes the workflow type is only shown as a link.
     // An opened TemporalWorkflow entity already is that entity, unless the
     // run is a child workflow of another type.

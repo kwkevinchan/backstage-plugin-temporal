@@ -78,6 +78,13 @@ describe('spec.messages', () => {
   it('reads none from other entities', () => {
     const empty = { signals: [], updates: [], queries: [] };
     expect(getTemporalWorkflowMessages(undefined)).toEqual(empty);
+    // A TemporalWorkflow entity without a spec.
+    expect(
+      getTemporalWorkflowMessages({
+        ...workflow({}),
+        spec: undefined,
+      }),
+    ).toEqual(empty);
     expect(
       getTemporalWorkflowMessages({
         ...workflow({ updates: [approve] }),

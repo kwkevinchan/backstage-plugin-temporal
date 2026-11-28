@@ -1256,14 +1256,6 @@ describe('temporal backend plugin', () => {
         queried: MAX_RELATED_WORKFLOW_ENTITIES,
       },
     });
-    const stats = await request(server).get(
-      '/api/temporal/entities/component/default/many-workflows/workflow-stats',
-    );
-    expect(stats.status).toBe(200);
-    expect(stats.body.relatedWorkflows).toEqual({
-      total,
-      queried: MAX_RELATED_WORKFLOW_ENTITIES,
-    });
   });
 
   it('warns about a related TemporalWorkflow entity with an invalid spec, and leaves it out', async () => {
@@ -1315,13 +1307,6 @@ describe('temporal backend plugin', () => {
     expect(logger.records.filter(r => r.meta.queried !== undefined)).toEqual(
       [],
     );
-    const stats = await request(server).get(
-      '/api/temporal/entities/component/default/many-workflows/workflow-stats',
-    );
-    expect(stats.body.relatedWorkflows).toEqual({
-      total: MAX_RELATED_WORKFLOW_ENTITIES,
-      queried: MAX_RELATED_WORKFLOW_ENTITIES,
-    });
   });
 
   it('leaves out TemporalWorkflow entities the user may not read', async () => {
@@ -1363,113 +1348,6 @@ describe('temporal backend plugin', () => {
         `/api/temporal/namespaces/default/workflows/wf-pay/runs/wf-pay-run?entityRef=${ref}`,
       )
       .expect(404);
-  });
-
-  it('computes statistics of the most recent runs', async () => {
-    const workflowService = createFakeWorkflowService();
-    const closed = (id: string, status: string, seconds: number) => ({
-      ...executionInfo({ workflowId: id, status }),
-      closeTime: { seconds: String(1700000000 + seconds), nanos: 0 },
-    });
-    workflowService.listWorkflowExecutions.mockResolvedValue({
-      executions: [
-        closed('a', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 2),
-        closed('b', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 4),
-        closed('c', 'WORKFLOW_EXECUTION_STATUS_FAILED', 6),
-        closed('d', 'WORKFLOW_EXECUTION_STATUS_TIMED_OUT', 8),
-        executionInfo({
-          workflowId: 'e',
-          status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
-        }),
-      ] as any,
-      nextPageToken: new Uint8Array(),
-    });
-    const { server } = await start({ workflowService });
-    const res = await request(server).get(
-      '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=10',
-    );
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      namespace: 'default',
-      sampleSize: 5,
-      limit: 10,
-      byStatus: { Completed: 2, Failed: 1, TimedOut: 1, Running: 1 },
-      succeeded: 2,
-      failed: 2,
-      running: 1,
-      averageDurationMs: 5000,
-    });
-    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query:
-          "(TaskQueue = 'orders' AND WorkflowType = 'orderWorkflow') AND ExecutionStatus != 'ContinuedAsNew'",
-        pageSize: 10,
-      }),
-    );
-    await request(server)
-      .get(
-        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=1000',
-      )
-      .expect(400);
-    const denied = await start({ permission: AuthorizeResult.DENY });
-    await request(denied.server)
-      .get(
-        '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats',
-      )
-      .expect(403);
-  });
-
-  it('leaves continued-as-new runs out of the statistics sample', async () => {
-    const workflowService = createFakeWorkflowService();
-    const closed = (id: string, status: string, seconds: number) => ({
-      ...executionInfo({ workflowId: id, status }),
-      closeTime: { seconds: String(1700000000 + seconds), nanos: 0 },
-    });
-    const executions = [
-      closed('a', 'WORKFLOW_EXECUTION_STATUS_COMPLETED', 2),
-      closed('b', 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW', 3),
-      closed('c', 'WORKFLOW_EXECUTION_STATUS_FAILED', 6),
-      closed('d', 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW', 7),
-      executionInfo({
-        workflowId: 'e',
-        status: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
-      }),
-    ];
-    (workflowService.listWorkflowExecutions as jest.Mock).mockImplementation(
-      async (req: any) => {
-        const latestOnly = (req.query as string).includes(
-          "ExecutionStatus != 'ContinuedAsNew'",
-        );
-        return {
-          executions: latestOnly
-            ? executions.filter(
-                e => e.status !== 'WORKFLOW_EXECUTION_STATUS_CONTINUED_AS_NEW',
-              )
-            : executions,
-          nextPageToken: new Uint8Array(),
-        };
-      },
-    );
-    const { server } = await start({ workflowService });
-    const res = await request(server).get(
-      '/api/temporal/entities/temporalworkflow/default/order-workflow/workflow-stats?limit=10',
-    );
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      namespace: 'default',
-      sampleSize: 3,
-      limit: 10,
-      byStatus: { Completed: 1, Failed: 1, Running: 1 },
-      succeeded: 1,
-      failed: 1,
-      running: 1,
-      averageDurationMs: 4000,
-    });
-    expect(workflowService.listWorkflowExecutions).toHaveBeenCalledWith(
-      expect.objectContaining({
-        query: expect.stringContaining("ExecutionStatus != 'ContinuedAsNew'"),
-      }),
-    );
   });
 
   describe('Temporal page', () => {
@@ -1735,6 +1613,38 @@ describe('temporal backend plugin', () => {
         );
         expect(res.status).toBe(404);
         expect(JSON.stringify(res.body)).not.toContain('inner');
+      }
+    });
+
+    it('gives the list and the detail the same workflowEntityRef when the run matches both the entity itself and a related entity', async () => {
+      const both: Entity = {
+        apiVersion: 'backstage.io/v1alpha1',
+        kind: 'Component',
+        metadata: {
+          name: 'both',
+          namespace: 'default',
+          annotations: { 'temporal.io/workflow-type': 'orderWorkflow' },
+        },
+        spec: { type: 'service', owner: 'group:default/team-a' },
+        relations: [{ type: 'dependsOn', targetRef: orderWfRef }],
+      };
+      const { server } = await start({ entities: [...entities, both] });
+      const bothRef = 'component:default/both';
+      const list = await request(server).get(
+        `/api/temporal/entities/component/default/both/workflows?allRuns=true`,
+      );
+      expect(list.status).toBe(200);
+      const listed = list.body.items.filter(
+        (i: any) => i.workflowType === 'orderWorkflow',
+      );
+      expect(listed.length).toBeGreaterThan(0);
+      for (const item of listed) {
+        expect(item.workflowEntityRef).toBe(orderWfRef);
+        const detail = await request(server).get(
+          `/api/temporal/namespaces/default/workflows/${item.workflowId}/runs/${item.runId}?entityRef=${bothRef}`,
+        );
+        expect(detail.status).toBe(200);
+        expect(detail.body.workflowEntityRef).toBe(item.workflowEntityRef);
       }
     });
 

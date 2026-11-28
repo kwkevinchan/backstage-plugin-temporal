@@ -56,7 +56,11 @@ describe('route parameter parsers', () => {
       ),
     ).toEqual({ name: 'a'.repeat(196), args: [1, 'b'] });
 
-    for (const badName of [undefined, 123, '   ', 'a'.repeat(201)]) {
+    expect(() =>
+      parseMessageBody(reqWith({ body: { name: 'a'.repeat(201) } })),
+    ).toThrow(new InputError('name must be at most 200 characters'));
+
+    for (const badName of [undefined, 123, '   ']) {
       expect(() =>
         parseMessageBody(reqWith({ body: { name: badName } })),
       ).toThrow(new InputError('name is required'));

@@ -41,11 +41,15 @@ import { unexpectedErrorHandler } from './routes/unexpectedErrors';
 import { AiWorkflowQueries } from './services/AiWorkflowQueries';
 import { EntityWorkflowSources } from './services/EntityWorkflowSources';
 import { WorkflowListQueries } from './services/WorkflowListQueries';
+import { mapInBatches } from './services/mapInBatches';
 import { WorkflowQueries } from './services/WorkflowQueries';
 import {
   readControlOptions,
   WorkflowCommands,
 } from './services/WorkflowCommands';
+
+/** Workflows described at the same time to resolve permission resources. */
+const RESOURCE_CONCURRENCY = 8;
 
 /**
  * Backend plugin for Temporal. Serves routes under `/api/temporal` that read
@@ -178,20 +182,24 @@ export const temporalPlugin = createBackendPlugin({
           resourceRef: temporalWorkflowPermissionResourceRef,
           rules: Object.values(temporalWorkflowPermissionRules),
           async getResources(resourceRefs) {
-            return Promise.all(
-              resourceRefs.map(async resourceRef => {
-                const ref = parseTemporalWorkflowResourceRef(resourceRef);
-                if (!ref) return undefined;
-                return queries.describe(ref).catch(error => {
-                  const name = error instanceof Error ? error.name : 'Error';
-                  // A workflow that does not exist is an ordinary answer.
-                  if (name === 'NotFoundError') return undefined;
-                  logger
-                    .child({ resourceRef })
-                    .warn('Failed to describe a permission resource', error);
-                  return undefined;
-                });
-              }),
+            const describeOne = async (resourceRef: string) => {
+              const ref = parseTemporalWorkflowResourceRef(resourceRef);
+              if (!ref) return undefined;
+              return queries.describe(ref).catch(error => {
+                const name = error instanceof Error ? error.name : 'Error';
+                // A workflow that does not exist is an ordinary answer.
+                if (name === 'NotFoundError') return undefined;
+                logger
+                  .child({ resourceRef })
+                  .warn('Failed to describe a permission resource', error);
+                return undefined;
+              });
+            };
+            // A few at a time: a list can ask for many workflows at once.
+            return mapInBatches(
+              resourceRefs,
+              RESOURCE_CONCURRENCY,
+              describeOne,
             );
           },
         });

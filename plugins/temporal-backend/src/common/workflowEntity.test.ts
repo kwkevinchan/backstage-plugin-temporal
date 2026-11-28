@@ -17,7 +17,6 @@
 import type { JsonObject } from '@backstage/types';
 import { Entity, entityKindSchemaValidator } from '@backstage/catalog-model';
 import {
-  buildEntityWorkflowStatsPath,
   getDependsOnTemporalWorkflowRefs,
   InvalidTemporalWorkflowSpecError,
   isTemporalAvailable,
@@ -119,15 +118,5 @@ describe('TemporalWorkflow kind', () => {
     expect(
       isTemporalAvailable(workflow({ owner: 'a', workflowType: 'b' })),
     ).toBe(true);
-  });
-
-  it('builds the stats path', () => {
-    expect(
-      buildEntityWorkflowStatsPath({
-        kind: 'TemporalWorkflow',
-        namespace: 'default',
-        name: 'Order',
-      }),
-    ).toBe('/entities/temporalworkflow/default/order/workflow-stats');
   });
 });
