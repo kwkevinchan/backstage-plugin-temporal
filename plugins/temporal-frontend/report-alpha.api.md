@@ -17,7 +17,6 @@ import { ExtensionInput } from '@backstage/frontend-plugin-api';
 import { FilterPredicate } from '@backstage/filter-predicates';
 import { IconElement } from '@backstage/frontend-plugin-api';
 import type { JsonObject } from '@backstage/types';
-import type { JsonValue } from '@backstage/types';
 import { JSX as JSX_2 } from 'react';
 import { JSXElementConstructor } from 'react';
 import { OverridableExtensionDefinition } from '@backstage/frontend-plugin-api';

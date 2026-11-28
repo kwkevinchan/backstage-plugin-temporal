@@ -216,6 +216,7 @@ export class DefaultTemporalService implements TemporalService {
     this.#logger = logger;
   }
 
+  /** One connection for every namespace, opened on the first call. */
   getConnection(_options?: { namespace?: string }): Promise<Connection> {
     if (!this.#connection) {
       const { address, auth } = this.#options;

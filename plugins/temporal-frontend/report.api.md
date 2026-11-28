@@ -11,8 +11,6 @@ import { Entity } from '@backstage/catalog-model';
 import { FetchApi } from '@backstage/core-plugin-api';
 import type { JsonObject } from '@backstage/types';
 import type { JsonValue } from '@backstage/types';
-import { JSX as JSX_2 } from 'react';
-import { ReactNode } from 'react';
 import type { ResourcePermission } from '@backstage/plugin-permission-common';
 import { RouteRef } from '@backstage/core-plugin-api';
 
@@ -489,19 +487,6 @@ export interface TemporalWorkflowListActionProps {
 }
 
 // @public
-export function TemporalWorkflowProvider(
-  props: TemporalWorkflowProviderProps,
-): JSX_2.Element;
-
-// @public
-export interface TemporalWorkflowProviderProps {
-  // (undocumented)
-  children?: ReactNode;
-  // (undocumented)
-  value: TemporalWorkflowExtensionProps;
-}
-
-// @public
 export interface TemporalWorkflowSectionDef {
   // (undocumented)
   component: ComponentType<TemporalWorkflowExtensionProps>;
@@ -511,11 +496,8 @@ export interface TemporalWorkflowSectionDef {
   title: string;
 }
 
-// @public
-export function useTemporalWorkflow(): TemporalWorkflowExtensionProps;
-
 // Warnings were encountered during analysis:
 //
 // src/control/index.d.ts:21:5 - (ae-forgotten-export) The symbol "WorkflowDetail" needs to be exported by the entry point index.d.ts
-// src/extensions/api.d.ts:18:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
+// src/extensions/api.d.ts:25:9 - (ae-forgotten-export) The symbol "WorkflowStatus" needs to be exported by the entry point index.d.ts
 ```
