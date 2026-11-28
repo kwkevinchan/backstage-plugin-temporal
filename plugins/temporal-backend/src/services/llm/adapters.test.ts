@@ -14,13 +14,9 @@
  * limitations under the License.
  */
 
-import { mockServices } from '@backstage/backend-test-utils';
 import type { WorkflowGraphNode, WorkflowLlmRecord } from '../../common';
-import type { TemporalLlmAdapter } from '../../node/alpha';
 import { readHistoryFixture } from '../../__testUtils__/fixtures';
-import { recordingLogger } from '../../__testUtils__/recordingLogger';
 import { buildWorkflowGraph, buildWorkflowGraphWithLlm } from '../graph';
-import { LlmAdapters } from './LlmAdapters';
 
 /** A history of `test-fixtures/llm-integrations`. */
 function fixture(name: string): any[] {
@@ -34,17 +30,14 @@ const options = {
   truncated: false,
 };
 
-function read(name: string, adapters?: LlmAdapters) {
+function read(name: string) {
   const events = fixture(name);
-  const { graph, llm } = buildWorkflowGraphWithLlm(events, {
-    ...options,
-    llmAdapters: adapters,
-  });
+  const { graph, llm } = buildWorkflowGraphWithLlm(events, options);
   const node = (id: number) =>
     graph.nodes.find(n => n.id === `activity-${id}`)!;
   const calls = graph.nodes.filter(n => n.llm);
-  const record = (id: number, index = 0): WorkflowLlmRecord =>
-    llm.calls.get(`activity-${id}`)!.calls[index].record!;
+  const record = (id: number): WorkflowLlmRecord =>
+    llm.calls.get(`activity-${id}`)!.call.record!;
   return { events, graph, node, calls, record };
 }
 
@@ -78,13 +71,11 @@ describe('Vercel AI SDK adapter', () => {
     expect(node(11).llm).toMatchObject({
       framework: 'vercel-ai-sdk',
       record: 'available',
-      operation: 'chat',
       model: 'fake-model-2026-11',
       reasoning: true,
       finishReasons: ['tool-calls'],
     });
-    // No call name and no provider in the history.
-    expect(node(11).llm!.call).toBeUndefined();
+    // No provider in the history.
     expect(node(11).llm!.provider).toBeUndefined();
     expect(node(35).llm).toMatchObject({
       reasoning: false,
@@ -253,7 +244,6 @@ describe('Vercel AI SDK adapter', () => {
     ]);
     for (const c of calls) {
       expect(c.summary).toBe('plan call');
-      expect(c.llm!.call).toBeUndefined();
     }
   });
 
@@ -472,7 +462,7 @@ function vercelRecord(content: unknown[]) {
     ]),
     options,
   );
-  return [...llm.calls.values()][0].calls[0].record!;
+  return [...llm.calls.values()][0].call.record!;
 }
 
 describe('Vercel AI SDK tool-result fields', () => {
@@ -586,296 +576,5 @@ describe('LLM adapters', () => {
       expect(node.llm).toBeUndefined();
       expect(node.tool).toBeUndefined();
     }
-  });
-
-  it('shows a step as a plain step when an adapter fails, and warns once', () => {
-    const logger = recordingLogger();
-    const adapters = new LlmAdapters(logger);
-    adapters.add({
-      id: 'throws',
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls() {
-        throw new Error('secret detail');
-      },
-    });
-    adapters.add({
-      id: 'invalid',
-      isModelCall: step => step.activityType === 'runAgent',
-      readModelCalls: () => [{ record: { usage: 'many' } } as any],
-    });
-    adapters.addBuiltIns();
-    const graph = buildWorkflowGraph(
-      history([vercelCall, vercelCall, { type: 'runAgent', result: {} }]),
-      { ...options, llmAdapters: adapters },
-    );
-    for (const node of graph.nodes) expect(node.llm).toBeUndefined();
-    expect(JSON.stringify(graph)).not.toContain('secret detail');
-    // Once per adapter, with the IDs and the error name only.
-    expect(logger.records).toEqual([
-      {
-        level: 'warn',
-        message:
-          'readModelCalls threw an error; the step is shown as a plain step',
-        meta: {
-          llmAdapterId: 'throws',
-          activityType: 'invokeModel',
-          historyEventId: '2',
-          errorName: 'Error',
-        },
-      },
-      {
-        level: 'warn',
-        message:
-          'readModelCalls returned a value of the wrong shape; the step is shown as a plain step',
-        meta: {
-          llmAdapterId: 'invalid',
-          activityType: 'runAgent',
-          historyEventId: expect.any(String),
-        },
-      },
-    ]);
-    expect(JSON.stringify(logger.records)).not.toContain('secret detail');
-  });
-
-  it('asks the adapters that modules add before the built-in ones', () => {
-    const adapters = new LlmAdapters();
-    const mine: TemporalLlmAdapter = {
-      id: 'mine',
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls: () => [
-        {
-          name: 'my call',
-          record: {
-            requestModel: 'my-model',
-            usage: { inputTokens: 1 },
-            systemInstructions: [],
-            inputMessages: [],
-            outputMessages: [],
-            toolExecutions: [],
-          },
-        },
-      ],
-    };
-    adapters.add(mine);
-    adapters.addBuiltIns();
-    expect(adapters.all().map(a => a.id)).toEqual([
-      'mine',
-      'vercel-ai-sdk',
-      'openai-agents',
-    ]);
-    const graph = buildWorkflowGraph(history([vercelCall]), {
-      ...options,
-      llmAdapters: adapters,
-    });
-    expect(graph.nodes.find(n => n.llm)!.llm).toMatchObject({
-      framework: 'mine',
-      call: 'my call',
-      model: 'my-model',
-    });
-    // An adapter that returns no calls passes the step on.
-    const empty = new LlmAdapters();
-    empty.add({ ...mine, readModelCalls: () => [] });
-    empty.addBuiltIns();
-    const passed = buildWorkflowGraph(history([vercelCall]), {
-      ...options,
-      llmAdapters: empty,
-    });
-    expect(passed.nodes.find(n => n.llm)!.llm!.framework).toBe('vercel-ai-sdk');
-  });
-
-  it('rejects a taken ID', () => {
-    const adapters = LlmAdapters.builtIn();
-    expect(() =>
-      adapters.add({
-        id: 'vercel-ai-sdk',
-        isModelCall: () => false,
-        readModelCalls: () => [],
-      }),
-    ).toThrow('Duplicate LLM adapter id: vercel-ai-sdk');
-  });
-
-  it('sums the calls of a step that makes several', () => {
-    const adapters = new LlmAdapters();
-    const record = (model: string, input: number, tool?: string) => ({
-      requestModel: model,
-      usage: { inputTokens: input, outputTokens: 1 },
-      systemInstructions: [],
-      inputMessages: [],
-      outputMessages: tool
-        ? [
-            {
-              role: 'assistant',
-              parts: [
-                {
-                  type: 'tool_call',
-                  id: `${tool}-1`,
-                  name: tool,
-                  arguments: {},
-                },
-              ],
-            },
-          ]
-        : [],
-      toolExecutions: [],
-    });
-    adapters.add({
-      id: 'whole-agent',
-      isModelCall: step => step.activityType === 'runAgent',
-      readModelCalls: () => [
-        { record: record('a', 10, 'grep') },
-        { record: record('b', 20) },
-      ],
-    });
-    const { graph, llm } = buildWorkflowGraphWithLlm(
-      history([{ type: 'runAgent', result: {} }]),
-      { ...options, llmAdapters: adapters },
-    );
-    const node = graph.nodes.find(n => n.llm)!;
-    expect(node.llm).toMatchObject({
-      framework: 'whole-agent',
-      callCount: 2,
-      model: 'b',
-      usage: { inputTokens: 30, outputTokens: 2 },
-      toolCalls: [{ id: 'grep-1', name: 'grep' }],
-    });
-    expect(llm.calls.get(node.id)!.calls).toHaveLength(2);
-  });
-});
-
-describe('LLM adapter results', () => {
-  const plainRecord = () => ({
-    usage: {},
-    systemInstructions: [],
-    inputMessages: [],
-    outputMessages: [] as any[],
-    toolExecutions: [],
-  });
-  const graphWith = (
-    adapter: TemporalLlmAdapter,
-    events = history([vercelCall]),
-  ) => {
-    const logger = recordingLogger();
-    const adapters = new LlmAdapters(logger);
-    adapters.add(adapter);
-    adapters.addBuiltIns();
-    return {
-      graph: buildWorkflowGraph(events, { ...options, llmAdapters: adapters }),
-      logger,
-    };
-  };
-
-  it('takes values that are not plain JSON as a failure', () => {
-    const args: any = { q: 'x' };
-    args.self = args;
-    const withArgs = graphWith({
-      id: 'cyclic-arguments',
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls: () => {
-        const record = plainRecord();
-        record.outputMessages = [
-          {
-            role: 'assistant',
-            parts: [{ type: 'tool_call', name: 't', arguments: args }],
-          },
-        ];
-        return [{ record }];
-      },
-    });
-    const raw: any = {};
-    raw.raw = raw;
-    const withRaw = graphWith({
-      id: 'cyclic-raw',
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls: () => [{ record: plainRecord(), raw }],
-    });
-    const withFunction = graphWith({
-      id: 'function',
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls: () => [
-        { record: plainRecord(), raw: { f: () => 1 } as any },
-      ],
-    });
-    for (const { graph, logger } of [withArgs, withRaw, withFunction]) {
-      // The step is a plain step, not the built-in adapter's call.
-      expect(graph.nodes.find(n => n.llm)).toBeUndefined();
-      expect(logger.records).toHaveLength(1);
-      expect(logger.records[0]).toMatchObject({
-        level: 'warn',
-        message: expect.stringContaining('not plain JSON'),
-      });
-    }
-  });
-
-  it('copies the values of module adapters only', () => {
-    const shared = { kept: true };
-    const returning = (id: string): TemporalLlmAdapter => ({
-      id,
-      isModelCall: step => step.activityType === 'invokeModel',
-      readModelCalls: () => [{ record: plainRecord(), raw: { shared } }],
-    });
-    const logger = mockServices.logger.mock();
-    const builtIn = new LlmAdapters(logger);
-    builtIn.add(returning('built-in'), { builtIn: true });
-    const fromModule = new LlmAdapters(logger);
-    fromModule.add(returning('module'));
-    const rawOf = (adapters: LlmAdapters) =>
-      adapters
-        .reader()
-        .readModelCalls(
-          { kind: 'activity', activityType: 'invokeModel' },
-          { result: {} },
-        )!.calls[0].raw as any;
-    expect(rawOf(builtIn).shared).toBe(shared);
-    expect(rawOf(fromModule).shared).not.toBe(shared);
-    expect(rawOf(fromModule).shared).toEqual(shared);
-  });
-
-  it('takes more than 100 calls of one step as a failure', () => {
-    const calls = (n: number) => ({
-      id: `calls-${n}`,
-      isModelCall: (step: { activityType: string }) =>
-        step.activityType === 'invokeModel',
-      readModelCalls: () =>
-        Array.from({ length: n }, () => ({ record: plainRecord() })),
-    });
-    expect(
-      graphWith(calls(100)).graph.nodes.find(n => n.llm)!.llm!.callCount,
-    ).toBe(100);
-    expect(graphWith(calls(101)).graph.nodes.find(n => n.llm)).toBeUndefined();
-  });
-
-  it('reads model calls of activities only, and says so for a local activity', () => {
-    const events: any[] = [
-      { eventId: '1', workflowExecutionStartedEventAttributes: {} },
-      {
-        eventId: '2',
-        markerRecordedEventAttributes: {
-          markerName: 'core_local_activity',
-          details: {
-            data: payloads({ activity_id: '1', activity_type: 'callLocal' }),
-            result: payloads({ text: 'hi' }),
-          },
-        },
-      },
-    ];
-    const readCalls = jest.fn(() => [{ record: plainRecord() }]);
-    const { graph, logger } = graphWith(
-      {
-        id: 'local',
-        isModelCall: step => step.activityType === 'callLocal',
-        readModelCalls: readCalls,
-      },
-      events,
-    );
-    expect(graph.nodes.find(n => n.kind === 'marker')!.llm).toBeUndefined();
-    expect(readCalls).not.toHaveBeenCalled();
-    expect(logger.records).toHaveLength(1);
-    expect(logger.records[0]).toMatchObject({
-      level: 'warn',
-      message: expect.stringContaining(
-        'isModelCall is true for a local activity',
-      ),
-      meta: { llmAdapterId: 'local', activityType: 'callLocal' },
-    });
   });
 });

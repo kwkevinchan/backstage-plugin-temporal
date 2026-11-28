@@ -271,7 +271,6 @@ export const agentGraph: WorkflowGraphResponse = {
         ],
         reasoning: true,
         durationMs: 10,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 121,
@@ -541,7 +540,6 @@ export const agentGraph: WorkflowGraphResponse = {
         ],
         reasoning: false,
         durationMs: 9,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 201,
@@ -882,7 +880,6 @@ export const agentGraph: WorkflowGraphResponse = {
         toolCalls: [],
         reasoning: false,
         durationMs: 8,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 321,
@@ -1121,7 +1118,6 @@ export const agentGraph: WorkflowGraphResponse = {
         ],
         reasoning: true,
         durationMs: 8,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 122,
@@ -1391,7 +1387,6 @@ export const agentGraph: WorkflowGraphResponse = {
         ],
         reasoning: false,
         durationMs: 8,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 202,
@@ -1732,7 +1727,6 @@ export const agentGraph: WorkflowGraphResponse = {
         toolCalls: [],
         reasoning: false,
         durationMs: 8,
-        operation: 'chat',
         model: 'fake-model-2026-11',
         usage: {
           inputTokens: 322,

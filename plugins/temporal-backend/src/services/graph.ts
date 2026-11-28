@@ -36,17 +36,9 @@ import {
   toIsoTime,
   toWorkflowFailure,
 } from './convert';
-import {
-  LlmStepEntry,
-  LlmSteps,
-  localActivityId,
-  localActivityResult,
-  localActivityType,
-  readLlmSteps,
-} from './llm/llm';
+import { LlmStepEntry, LlmSteps, readLlmSteps } from './llm/llm';
 import { EventGroupCollector } from './eventGroups';
 import { FAILED_STATUSES, OPEN_STATUSES } from './stepStatus';
-import { builtInOnlyLlmAdapters, LlmAdapters } from './llm/LlmAdapters';
 
 /*
  * Groups the events of a workflow history into steps (nodes) and arrows
@@ -110,8 +102,6 @@ export interface BuildGraphOptions {
    * before it: the summary reads the failure from it.
    */
   closeEvent?: Json;
-  /** The LLM adapters that read model calls and tool calls. */
-  llmAdapters?: LlmAdapters;
 }
 
 export interface Building extends WorkflowGraphNode {
@@ -426,7 +416,6 @@ export function buildWorkflowGraphWithLlm(
       const entry: LlmStepEntry = {
         node,
         step: dropUndefined({
-          kind: 'activity' as const,
           activityType: a.activityType?.name ?? '',
           activityId: a.activityId || undefined,
           summary: summaryOf(event),
@@ -736,20 +725,6 @@ export function buildWorkflowGraphWithLlm(
         input: Object.keys(details).length > 0 ? details : undefined,
         details: { markerName },
       });
-      if (isLocalActivity) {
-        // A tool call can run as a local activity.
-        llmEntries.push({
-          node,
-          step: dropUndefined({
-            kind: 'localActivity' as const,
-            activityType: localActivityType(details) ?? '',
-            activityId: localActivityId(details),
-            summary: summaryOf(event),
-          }),
-          localResult: localActivityResult(details),
-          failures: [],
-        });
-      }
       instant(node, event);
       attach(node, event);
       continue;
@@ -863,11 +838,7 @@ export function buildWorkflowGraphWithLlm(
   }
 
   // Model calls and tool calls, read by the LLM adapters.
-  const llm = readLlmSteps(
-    llmEntries,
-    (options.llmAdapters ?? builtInOnlyLlmAdapters()).reader(),
-    decodePayloads,
-  );
+  const llm = readLlmSteps(llmEntries);
   // After the model calls: the groups add up their tokens.
   const groups = eventGroups.build(nodes, {
     status: options.status,

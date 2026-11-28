@@ -27,7 +27,6 @@ import { NotFoundError } from '@backstage/errors';
 import { WorkflowDetail } from '../common';
 import { AiWorkflowQueries } from './AiWorkflowQueries';
 import { buildWorkflowGraphWithLlm } from './graph';
-import { LlmAdapters } from './llm/LlmAdapters';
 import { MAX_STEP_EVENTS, WorkflowQueries } from './WorkflowQueries';
 
 const workflow: WorkflowDetail = {
@@ -43,10 +42,7 @@ const workflow: WorkflowDetail = {
 function makeQueries(
   readEvents: WorkflowQueries['readEvents'],
 ): WorkflowQueries {
-  return {
-    readEvents,
-    llmAdapters: LlmAdapters.builtIn(),
-  } as unknown as WorkflowQueries;
+  return { readEvents } as unknown as WorkflowQueries;
 }
 
 describe('AiWorkflowQueries', () => {

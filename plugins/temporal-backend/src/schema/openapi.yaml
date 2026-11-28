@@ -243,16 +243,6 @@ components:
       schema:
         type: string
         pattern: ^[0-9]{1,19}$
-    llmCallIndex:
-      name: index
-      in: query
-      required: false
-      allowReserved: true
-      description: Position of the model call in a step that made several, from 0.
-      schema:
-        type: string
-        pattern: ^[0-9]{1,4}$
-        default: '0'
   responses:
     BadRequest:
       description: Invalid parameters or body (`InputError`).
@@ -1298,20 +1288,9 @@ components:
           type: string
         activityType:
           type: string
-        call:
-          type: string
-          description: Name of the call, when the step records one.
         framework:
           type: string
           description: The LLM adapter that read the step, for example `vercel-ai-sdk`.
-        index:
-          type: integer
-          minimum: 0
-          description: Position of the call among the model calls of the step, when it made several.
-        callCount:
-          type: integer
-          minimum: 2
-          description: Model calls in the step, when it made several.
         status:
           $ref: '#/components/schemas/WorkflowNodeStatus'
         record:
@@ -1322,8 +1301,6 @@ components:
           type: string
         external:
           $ref: '#/components/schemas/ExternalPayload'
-        fromFailure:
-          type: boolean
       additionalProperties: {}
     WorkflowDefinitionResponse:
       type: object
@@ -1948,7 +1925,7 @@ paths:
 
         Permission: `temporal.workflow.read` on the entity (from `entityRef`, else from the workflow's entity reference search attribute), or `temporal.workflow.list` for a workflow it covers when no `entityRef` is given.
 
-        Experimental: the shape changes before the first stable release. A step that runs a whole agent can make several model calls; `index` picks one.
+        Experimental: the shape changes before the first stable release.
       tags:
         - Experimental
       x-temporal-permissions:
@@ -1960,7 +1937,6 @@ paths:
         - $ref: '#/components/parameters/workflowId'
         - $ref: '#/components/parameters/runId'
         - $ref: '#/components/parameters/eventId'
-        - $ref: '#/components/parameters/llmCallIndex'
         - $ref: '#/components/parameters/entityRef'
       responses:
         '200':

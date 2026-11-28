@@ -89,19 +89,16 @@ export function toolName(node: WorkflowGraphNode): string {
 }
 
 /**
- * The name of a model call: its call name, else the step's summary, else
- * the model, else the activity type.
+ * The name of a model call: the step's summary, else the model, else the
+ * activity type.
  */
 export function llmCallName(node: WorkflowGraphNode): string {
-  return node.llm?.call ?? node.summary ?? node.llm?.model ?? node.name;
+  return node.summary ?? node.llm?.model ?? node.name;
 }
 
-/**
- * The title of a model call box: the activity type when the call has a
- * name (shown in the panel), else the name of the call.
- */
+/** The title of a model call box: the name of the call. */
 export function llmBoxTitle(node: WorkflowGraphNode): string {
-  return node.llm?.call !== undefined ? node.name : llmCallName(node);
+  return llmCallName(node);
 }
 
 /** Text that marks a tool call linked by its name and order, not its ID. */

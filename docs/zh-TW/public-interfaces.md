@@ -30,7 +30,7 @@
 | 標記      | 意思                                                                                                            |
 | --------- | --------------------------------------------------------------------------------------------------------------- |
 | `@public` | 正式支援的 API。`1.0.0` 之前，minor 版本仍可能改動它，changelog 會寫出來（[README](../../README.md)）。         |
-| `@alpha`  | 可以用，但版本之間不保證相容。`./alpha` 入口只有這一種，`./ui` 也是；`./common` 有 14 個（實驗性的名稱）。      |
+| `@alpha`  | 可以用，但版本之間不保證相容。`./alpha` 入口只有這一種，`./ui` 也是；`./common` 有 13 個（實驗性的名稱）。      |
 | 實驗性    | 模型呼叫的型別和 Event Groups。第一版之前會大幅改動，見[實驗性](#實驗性模型呼叫和-event-groups)。不要依賴它們。 |
 
 HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己的標記：它們跟著提供或讀取它們的套件（`temporal-backend`，`@public`），實驗性的路由和設定鍵除外。
@@ -52,7 +52,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ## npm 入口
 
-![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 28 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 117 個，其中 103 個 public、14 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 117 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
+![七個發佈套件和它們的入口，每格是名稱數、release tag 和 API report 檔。temporal-backend：. 3 個 public（report.api.md），./alpha 21 個 alpha（report-alpha.api.md），./node 8 個 public（report-node.api.md），./common 116 個，其中 103 個 public、13 個是實驗性的 alpha（report-common.api.md）。temporal-frontend：. 25 個 public，./alpha 6 個 alpha，./common 同樣 116 個，./ui 26 個 alpha，只給同捆套件用（report-ui.api.md）。temporal-backend-module-zigflow：. 1 個 public。temporal-module-zigflow：. 1 個 public，./alpha 2 個 alpha。temporal-backend-module-actions：. 1 個 public。scaffolder-backend-module-temporal：. 1 個 public。scaffolder-module-temporal：. 2 個 public，./alpha 2 個 alpha。](images/entry-points.svg)
 
 套件名稱都以 `@kwkevinchan/backstage-plugin-` 開頭。每個入口完整、自動產生的清單是它的 API report（最後一欄）；下面的表格說明每個名稱的用途。
 
@@ -60,11 +60,11 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | ------------------------------------ | ---------- | -----: | -------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------- |
 | `temporal-backend`                   | `.`        |      3 | `@public`                  | 安裝後端                           | [`report.api.md`](../../plugins/temporal-backend/report.api.md)                       |
 |                                      | `./node`   |      8 | `@public`                  | 需要 Temporal 的其他後端程式       | [`report-node.api.md`](../../plugins/temporal-backend/report-node.api.md)             |
-|                                      | `./alpha`  |     28 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
-|                                      | `./common` |    117 | `@public` 103、`@alpha` 14 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
+|                                      | `./alpha`  |     21 | `@alpha`                   | 後端模組和權限政策                 | [`report-alpha.api.md`](../../plugins/temporal-backend/report-alpha.api.md)           |
+|                                      | `./common` |    116 | `@public` 103、`@alpha` 13 | 型別、路徑、權限、標註（後端程式） | [`report-common.api.md`](../../plugins/temporal-backend/report-common.api.md)         |
 | `temporal-frontend`                  | `.`        |     25 | `@public`                  | 舊前端系統，以及寫擴充用的型別     | [`report.api.md`](../../plugins/temporal-frontend/report.api.md)                      |
 |                                      | `./alpha`  |      6 | `@alpha`                   | 新前端系統：外掛和 blueprint       | [`report-alpha.api.md`](../../plugins/temporal-frontend/report-alpha.api.md)          |
-|                                      | `./common` |    117 | `@public` 103、`@alpha` 14 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal-frontend/report-common.api.md)        |
+|                                      | `./common` |    116 | `@public` 103、`@alpha` 13 | 同一份定義，給前端程式用           | [`report-common.api.md`](../../plugins/temporal-frontend/report-common.api.md)        |
 |                                      | `./ui`     |     26 | `@alpha`                   | 只給本版本庫的同捆套件             | [`report-ui.api.md`](../../plugins/temporal-frontend/report-ui.api.md)                |
 | `temporal-backend-module-zigflow`    | `.`        |      1 | `@public`                  | 安裝模組                           | [`report.api.md`](../../plugins/temporal-backend-module-zigflow/report.api.md)        |
 | `temporal-module-zigflow`            | `.`        |      1 | `@public`                  | 舊前端系統                         | [`report.api.md`](../../plugins/temporal-module-zigflow/report.api.md)                |
@@ -78,31 +78,30 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 
 ### `temporal-backend`
 
-| 名稱                                                                                                                                                                                      | 入口      | 是什麼                                                                                                | 什麼時候用                                             |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `default`                                                                                                                                                                                 | `.`       | Feature loader：`temporalPlugin`、`temporalAccessServiceFactory`、`catalogModuleTemporalWorkflowKind` | 安裝後端：`backend.add(import('…-temporal-backend'))`  |
-| `temporalPlugin`                                                                                                                                                                          | `.`       | 後端外掛（`pluginId: 'temporal'`）                                                                    | 一個一個加功能，例如不要 catalog 模組                  |
-| `catalogModuleTemporalWorkflowKind`                                                                                                                                                       | `.`       | Catalog 模組（`catalog` / `temporal-workflow-kind`），帶 kind 的 processor                            | catalog 在另一個後端執行                               |
-| `temporalServiceRef`                                                                                                                                                                      | `./node`  | 共用 Temporal 連線的 root service ref（`temporal.client`）                                            | 其他後端程式要呼叫 Temporal，或你要換掉連線            |
-| `TemporalService`                                                                                                                                                                         | `./node`  | 它的 interface：`getClient()`、`getConnection()`、namespace、search attribute 名稱、Web UI 連結       | 使用或實作這個服務                                     |
-| `TemporalSearchAttributeNames`                                                                                                                                                            | `./node`  | `{ entityRef?, initiator? }`，設定的屬性名稱                                                          | 讀 `getSearchAttributeNames()`                         |
-| `TemporalPluginClient`                                                                                                                                                                    | `./node`  | 以使用者身分呼叫外掛路由的 client                                                                     | 你的後端模組要代使用者呼叫外掛                         |
-| `buildWorkflowUrl`、`continuedAsNewRunIdOf`                                                                                                                                               | `./node`  | run 在 Backstage 的連結；被拒的操作改接到哪個 run                                                     | 同上                                                   |
-| `resolveWorkflowNamespace`、`WorkflowNamespaceOptions`                                                                                                                                    | `./node`  | 流程的 namespace：給定的、實體的，或預設                                                              | 同上                                                   |
-| `temporalAccessServiceRef`                                                                                                                                                                | `./alpha` | 存取檢查的 plugin scope service ref（`temporal.access`）                                              | 你的模組有自己的路由、要用同樣的檢查，或要自己決定存取 |
-| `temporalAccessServiceFactory`                                                                                                                                                            | `./alpha` | 那個 ref 的預設 factory                                                                               | 只加 `temporalPlugin` 時                               |
-| `TemporalAccessService` 和型別 `TemporalAccessibleWorkflow`、`TemporalEntityContext`、`TemporalWorkflowEntityLoadResult`                                                                  | `./alpha` | 存取的 interface（[見下](#temporalaccessserviceref)）                                                 | 同上                                                   |
-| `temporalControlExtensionPoint`、`TemporalControlExtensionPoint`、`TemporalControlAction`、`TemporalControlActionContext`                                                                 | `./alpha` | 自訂流程操作                                                                                          | 加一個你自己的操作                                     |
-| `temporalWorkflowEnricherExtensionPoint`、`TemporalWorkflowEnricherExtensionPoint`、`TemporalWorkflowEnricher`、`TemporalWorkflowEnricherContext`                                         | `./alpha` | 流程摘要的 enricher                                                                                   | 在列表和詳細資料加上資料                               |
-| `temporalLlmAdapterExtensionPoint`、`TemporalLlmAdapterExtensionPoint`、`TemporalLlmAdapter`、`TemporalLlmStep`、`TemporalLlmStepPayloads`、`TemporalLlmModelCall`、`TemporalLlmToolStep` | `./alpha` | LLM 轉接器：某個框架的模型呼叫和 tool call（[下面](#llm-轉接器)）                                     | 要讓外掛顯示它不認得的框架的模型呼叫                   |
-| `temporalWorkflowPermissionResourceRef`、`TemporalWorkflowFilter`                                                                                                                         | `./alpha` | `temporal-workflow` 權限 resource，以及規則在列表時轉成什麼                                           | 加權限規則                                             |
-| `temporalWorkflowPermissionRules`                                                                                                                                                         | `./alpha` | 這個 resource 的四條規則                                                                              | 用其他工具組條件                                       |
-| `temporalWorkflowConditions`、`createTemporalWorkflowConditionalDecision`                                                                                                                 | `./alpha` | list 權限的條件和條件式決定                                                                           | 你的權限政策                                           |
-| `inCondition`、`quote`                                                                                                                                                                    | `./alpha` | 用檢查過的值組 visibility 查詢的條件；遇到不安全的值會拒絕                                            | 你的權限規則的 `toQuery`                               |
+| 名稱                                                                                                                                              | 入口      | 是什麼                                                                                                | 什麼時候用                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `default`                                                                                                                                         | `.`       | Feature loader：`temporalPlugin`、`temporalAccessServiceFactory`、`catalogModuleTemporalWorkflowKind` | 安裝後端：`backend.add(import('…-temporal-backend'))`  |
+| `temporalPlugin`                                                                                                                                  | `.`       | 後端外掛（`pluginId: 'temporal'`）                                                                    | 一個一個加功能，例如不要 catalog 模組                  |
+| `catalogModuleTemporalWorkflowKind`                                                                                                               | `.`       | Catalog 模組（`catalog` / `temporal-workflow-kind`），帶 kind 的 processor                            | catalog 在另一個後端執行                               |
+| `temporalServiceRef`                                                                                                                              | `./node`  | 共用 Temporal 連線的 root service ref（`temporal.client`）                                            | 其他後端程式要呼叫 Temporal，或你要換掉連線            |
+| `TemporalService`                                                                                                                                 | `./node`  | 它的 interface：`getClient()`、`getConnection()`、namespace、search attribute 名稱、Web UI 連結       | 使用或實作這個服務                                     |
+| `TemporalSearchAttributeNames`                                                                                                                    | `./node`  | `{ entityRef?, initiator? }`，設定的屬性名稱                                                          | 讀 `getSearchAttributeNames()`                         |
+| `TemporalPluginClient`                                                                                                                            | `./node`  | 以使用者身分呼叫外掛路由的 client                                                                     | 你的後端模組要代使用者呼叫外掛                         |
+| `buildWorkflowUrl`、`continuedAsNewRunIdOf`                                                                                                       | `./node`  | run 在 Backstage 的連結；被拒的操作改接到哪個 run                                                     | 同上                                                   |
+| `resolveWorkflowNamespace`、`WorkflowNamespaceOptions`                                                                                            | `./node`  | 流程的 namespace：給定的、實體的，或預設                                                              | 同上                                                   |
+| `temporalAccessServiceRef`                                                                                                                        | `./alpha` | 存取檢查的 plugin scope service ref（`temporal.access`）                                              | 你的模組有自己的路由、要用同樣的檢查，或要自己決定存取 |
+| `temporalAccessServiceFactory`                                                                                                                    | `./alpha` | 那個 ref 的預設 factory                                                                               | 只加 `temporalPlugin` 時                               |
+| `TemporalAccessService` 和型別 `TemporalAccessibleWorkflow`、`TemporalEntityContext`、`TemporalWorkflowEntityLoadResult`                          | `./alpha` | 存取的 interface（[見下](#temporalaccessserviceref)）                                                 | 同上                                                   |
+| `temporalControlExtensionPoint`、`TemporalControlExtensionPoint`、`TemporalControlAction`、`TemporalControlActionContext`                         | `./alpha` | 自訂流程操作                                                                                          | 加一個你自己的操作                                     |
+| `temporalWorkflowEnricherExtensionPoint`、`TemporalWorkflowEnricherExtensionPoint`、`TemporalWorkflowEnricher`、`TemporalWorkflowEnricherContext` | `./alpha` | 流程摘要的 enricher                                                                                   | 在列表和詳細資料加上資料                               |
+| `temporalWorkflowPermissionResourceRef`、`TemporalWorkflowFilter`                                                                                 | `./alpha` | `temporal-workflow` 權限 resource，以及規則在列表時轉成什麼                                           | 加權限規則                                             |
+| `temporalWorkflowPermissionRules`                                                                                                                 | `./alpha` | 這個 resource 的四條規則                                                                              | 用其他工具組條件                                       |
+| `temporalWorkflowConditions`、`createTemporalWorkflowConditionalDecision`                                                                         | `./alpha` | list 權限的條件和條件式決定                                                                           | 你的權限政策                                           |
+| `inCondition`、`quote`                                                                                                                            | `./alpha` | 用檢查過的值組 visibility 查詢的條件；遇到不安全的值會拒絕                                            | 你的權限規則的 `toQuery`                               |
 
 ### `./common`（兩個核心套件都有）
 
-117 個名稱分組如下，每個名稱都在 [report](../../plugins/temporal-backend/report-common.api.md) 裡。
+116 個名稱分組如下，每個名稱都在 [report](../../plugins/temporal-backend/report-common.api.md) 裡。
 
 | 分組（原始檔）                                     | 名稱                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 誰會用                                                                          |
 | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -116,7 +115,7 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 | `TemporalWorkflow` kind（`workflowEntity.ts`，10） | `TEMPORAL_WORKFLOW_API_VERSION`、`TEMPORAL_WORKFLOW_KIND`、`TemporalWorkflowEntityV1alpha1`、`temporalWorkflowEntityV1alpha1Schema`、`isTemporalWorkflowEntity`、`isTemporalWorkflowEntityRef`、`parseTemporalWorkflowSpec`、`InvalidTemporalWorkflowSpecError`、`getTemporalWorkflowSource`、`getTemporalWorkflowExampleArgs`                                                                                                                                                                | 讀取流程實體的程式                                                              |
 | 訊息（`messages.ts`，6）                           | `TemporalWorkflowMessageSpec`、`TemporalWorkflowMessagesSpec`、`temporalWorkflowMessageSchema`、`getTemporalWorkflowMessages`、`mergeWorkflowMessageDefinitions`、`exampleArgs`                                                                                                                                                                                                                                                                                                               | kind 的 `spec.messages`                                                         |
 | 定義（`definition.ts`，4）                         | `TEMPORAL_DEFINITION_FORMATS`、`TemporalDefinitionFormat`、`TemporalWorkflowDefinitionSpec`、`getTemporalWorkflowDefinitionSpec`                                                                                                                                                                                                                                                                                                                                                              | kind 的 `spec.definition`                                                       |
-| 實驗性：LLM（`llm.ts`，12）                        | `addLlmUsage`、`buildLlmCallPath`、`WorkflowLlmCallResponse`、`WorkflowLlmMessage`、`WorkflowLlmPart`、`WorkflowLlmRecord`、`WorkflowLlmRecordState`、`WorkflowLlmSummary`、`WorkflowLlmToolCallRef`、`WorkflowLlmToolExecution`、`WorkflowLlmUsage`、`WorkflowToolLink`                                                                                                                                                                                                                      | [實驗性](#實驗性模型呼叫和-event-groups)：不要用                                |
+| 實驗性：LLM（`llm.ts`，11）                        | `addLlmUsage`、`buildLlmCallPath`、`WorkflowLlmCallResponse`、`WorkflowLlmMessage`、`WorkflowLlmPart`、`WorkflowLlmRecord`、`WorkflowLlmRecordState`、`WorkflowLlmSummary`、`WorkflowLlmToolCallRef`、`WorkflowLlmUsage`、`WorkflowToolLink`                                                                                                                                                                                                                                                  | [實驗性](#實驗性模型呼叫和-event-groups)：不要用                                |
 | 實驗性：Event Groups（`eventGroups.ts`，2）        | `WorkflowEventGroup`、`WorkflowEventGroupKind`                                                                                                                                                                                                                                                                                                                                                                                                                                                | [實驗性](#實驗性模型呼叫和-event-groups)：Event Groups 在 Temporal 是實驗性功能 |
 
 `DecodedPayload` 維持現在的三種形狀（`{ encoding, value }`、`{ encoding, size, undecodable: true, metadata? }`、`{ encoding, external }`），之後的版本只會加選填欄位。
@@ -207,23 +206,6 @@ HTTP API、權限、設定鍵、標註、kind 和 search attribute 沒有自己�
 `./alpha`，`@alpha`。`addWorkflowEnricher({ id, enrich })` 在流程摘要上加資料：`enrich(items, { entity?, namespace, credentials })` 依加入順序，在透過實體讀取流程的地方執行：實體的流程列表，以及透過實體讀取的詳細資料（以 `entityRef` 傳入，或 list 權限不允許時改用的 search attribute 實體）。Temporal 頁的列表、以 list 權限開啟的詳細資料不會執行。把你的資料放在每筆摘要的 `extensions[id]`（`WorkflowSummary.extensions`）；回傳的欄位會合併進摘要。前端不會自己顯示它，要搭配一個讀它的[分頁或按鈕](#blueprint-和-props)。丟出錯誤的 enricher 會被略過並記一筆警告；id 重複會讓外掛啟動失敗。不要假設 `entity` 一定有值：之後跨實體的列表可能在沒有實體時也執行 enricher。
 
 enricher 拿到完整的流程，含失敗內容；放進 `extensions` 的內容，看得到這個流程的人都看得到。自訂操作也拿到完整的流程（`handle` 和 `filter`），`handle` 的回傳值原樣送出。
-
-<a id="llm-轉接器"></a>
-
-### `temporalLlmAdapterExtensionPoint`
-
-`./alpha`，`@alpha`，實驗性。`addLlmAdapter(adapter)` 讓後端認得某個框架的模型呼叫：轉接器讀得出的步驟顯示成模型呼叫（訊息、tool call、token），其他步驟就是一般步驟。後端內建了 Temporal 官方 AI 整合的轉接器（`vercel-ai-sdk`、`openai-agents`，見 [README](../../README.md#model-calls-and-tool-calls)）。`TemporalLlmAdapter` 有：
-
-| 成員                             | 意思                                                                                                                                                                                                                                                              |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                             | 不可重複，顯示成它讀出的呼叫的 `framework`。用了已有的 id（包括內建的）會讓啟動失敗                                                                                                                                                                               |
-| `isModelCall(step)`              | 只看 `TemporalLlmStep`（`kind`、`activityType`、`activityId?`、`summary?`，不含 payload）：這個步驟可能是你的模型呼叫嗎？只有 activity 會被當成模型呼叫；對 local activity 回 true 沒有效果，會記一筆警告。External Storage 裡的 Payload 不會被讀取，所以會被略過 |
-| `readModelCalls(step, payloads)` | 這個步驟的模型呼叫，通常一次，一個步驟跑完整個 agent 時是多次（最多 100 次）：`{ name?, record?, raw? }`，`record` 是 `./common` 的 `WorkflowLlmRecord`。先檢查 `payloads`（`input?`、`result?`、`failureDetails?`）的形狀，不符就回 `[]`                         |
-| `readToolCall?(step, payloads)`  | 這個步驟是不是執行了某次模型呼叫要求的工具：`{ toolName?, toolCallId?, modelCall? }`，不是就回 undefined                                                                                                                                                          |
-
-模組加的轉接器依加入順序先問，再問內建的；第一個讀出步驟的轉接器決定結果，回 `[]` 的轉接器會把步驟交給下一個。轉接器丟出例外、或回傳的東西不是這些型別或不是單純的 JSON（循環結構、函式、class 實例）時，那個步驟就是一般步驟，並記一筆警告，只含轉接器 id、事件 id 和錯誤名稱，每讀一次 run 每個轉接器一筆；錯誤訊息不會被記錄，也不會傳回去。任何人都能把 activity 取成任何名稱，所以把步驟當成你的之前先檢查 payload。
-
-tool call 的連線由後端負責：轉接器回了 `toolCallId` 的步驟，連到要求那個 ID 的模型呼叫；其他步驟則在模型呼叫之後、同一個 agent 的下一次模型呼叫之前排程的步驟裡，用工具名稱和參數比對，並標成 `inferred`（`WorkflowToolLink`、`WorkflowLlmToolCallRef`）。推測連結有上限：一次模型呼叫最多 500 個、整個 run 最多 2000 個沒有 ID 的 tool 要求；超過任一個上限，整個 run 都不推測連結。流程圖只拿到名稱和數字（`WorkflowLlmSummary`，有錯誤類型、沒有錯誤訊息）；完整紀錄從 `GET /:wf/llm-calls/:eventId` 取得，權限相同。[範例](#加一個-llm-轉接器)。
 
 ### Feature loader 和 catalog 模組
 
@@ -488,9 +470,9 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
           level: debug
   ```
 
-- **Log**（logger 服務，外掛 `temporal`）。訊息是固定字串，會變動的值放在欄位裡，所以可以用欄位篩選 log（`logger.child({ ... }).warn('固定訊息')`），流程 ID 是自由文字也一樣。欄位有：`namespace`、`workflowId`、`runId`、`firstRunId`、`workflowType`、`taskQueue`、`entityRef`、`scheduleId`（和稽核事件用的名稱一致），以及 `temporalCall`（對 Temporal 的呼叫類別，例如 `describeWorkflowExecution`、`schedule.list`）、`grpcCode`、`grpcStatus`、`durationMs`、`timeoutMs`、`enricherId`、`llmAdapterId`、`activityType`、`historyEventId`、`resourceRef`、`permission`、`updateId`、`messageName`（signal、update 或 query 的名稱）、`errorName`。欄位名稱避開 Backstage 的 logger 已經在用的（`plugin`、`service`、`type`、`status`、`level`、`message`、`stack`）。
+- **Log**（logger 服務，外掛 `temporal`）。訊息是固定字串，會變動的值放在欄位裡，所以可以用欄位篩選 log（`logger.child({ ... }).warn('固定訊息')`），流程 ID 是自由文字也一樣。欄位有：`namespace`、`workflowId`、`runId`、`firstRunId`、`workflowType`、`taskQueue`、`entityRef`、`scheduleId`（和稽核事件用的名稱一致），以及 `temporalCall`（對 Temporal 的呼叫類別，例如 `describeWorkflowExecution`、`schedule.list`）、`grpcCode`、`grpcStatus`、`durationMs`、`timeoutMs`、`enricherId`、`resourceRef`、`permission`、`updateId`、`messageName`（signal、update 或 query 的名稱）、`errorName`。欄位名稱避開 Backstage 的 logger 已經在用的（`plugin`、`service`、`type`、`status`、`level`、`message`、`stack`）。
 
-  每個對 Temporal 的呼叫都會以 `debug` 記下類別、namespace 和耗時。呼叫失敗時會帶 gRPC 狀態：伺服端或後端自己的憑證出問題時記 `warn`（`UNAVAILABLE`、`RESOURCE_EXHAUSTED`、`PERMISSION_DENIED`、`UNAUTHENTICATED`、`INTERNAL`、`UNKNOWN`、`UNIMPLEMENTED`，以及 query 以外的呼叫超過期限），請求本身造成的記 `debug`（`NOT_FOUND`、`INVALID_ARGUMENT`、`ALREADY_EXISTS`、`FAILED_PRECONDITION`、不存在的排程或 namespace、沒有 worker 回答的 query）。其他的 `warn`：外掛套不上的權限條件（這是政策的問題，呼叫者只看到被拒絕）、spec 不合法的 `TemporalWorkflow` 實體、開不起來的連線、輪詢結束時還沒完成的 update，以及失敗的 enricher、LLM adapter 和定義檔。
+  每個對 Temporal 的呼叫都會以 `debug` 記下類別、namespace 和耗時。呼叫失敗時會帶 gRPC 狀態：伺服端或後端自己的憑證出問題時記 `warn`（`UNAVAILABLE`、`RESOURCE_EXHAUSTED`、`PERMISSION_DENIED`、`UNAUTHENTICATED`、`INTERNAL`、`UNKNOWN`、`UNIMPLEMENTED`，以及 query 以外的呼叫超過期限），請求本身造成的記 `debug`（`NOT_FOUND`、`INVALID_ARGUMENT`、`ALREADY_EXISTS`、`FAILED_PRECONDITION`、不存在的排程或 namespace、沒有 worker 回答的 query）。其他的 `warn`：外掛套不上的權限條件（這是政策的問題，呼叫者只看到被拒絕）、spec 不合法的 `TemporalWorkflow` 實體、開不起來的連線、輪詢結束時還沒完成的 update，以及失敗的 enricher 和定義檔。
 
   **不會**進 log 的：payload、signal／update／query 的參數和結果、token、請求和回應的 body。欄位只放 ID、名稱、狀態碼和耗時。
 
@@ -519,9 +501,9 @@ Kind：`apiVersion: temporal.io/v1alpha1`、`kind: TemporalWorkflow`（`Temporal
 
 ## 實驗性：模型呼叫和 Event Groups
 
-> **實驗性。第一版之前會大幅改動，除了透過 LLM 轉接器以外不要依賴。**
+> **實驗性。第一版之前會大幅改動，不要依賴。**
 
-- 模型呼叫和 tool call：一律開啟。路由 `GET /:wf/llm-calls/:eventId`、`TemporalApi` 的 `getLlmCall`（`@alpha`）、`./common` 裡 `llm.ts` 的名稱、`WorkflowGraphNode` 的 `llm`、`tool` 欄位，以及 [`temporalLlmAdapterExtensionPoint`](#llm-轉接器)。
+- 模型呼叫和 tool call：一律開啟。路由 `GET /:wf/llm-calls/:eventId`、`TemporalApi` 的 `getLlmCall`（`@alpha`）、`./common` 裡 `llm.ts` 的名稱、`WorkflowGraphNode` 的 `llm`、`tool` 欄位。
 - Event Groups：一律開啟，從事件紀錄讀出來。`./common` 裡 `eventGroups.ts` 的名稱、`WorkflowGraphNode` 的 `groups` 欄位，以及 `WorkflowGraphResponse` 的 `eventGroups`、`eventGroupsTruncated` 欄位（[README](../../README.md#event-groups)）。需要 Temporal server 1.32 以上和會寫 Event Groups 的 SDK（TypeScript SDK 1.23 以上）；版本不夠時這些欄位不會出現。Event Groups 在 Temporal 是實驗性功能，形狀跟著它變。
 
 ## 範例
@@ -660,55 +642,6 @@ export const temporalModuleOwner = createBackendModule({
 ```
 
 在前端，這個值就是 `workflow.extensions?.owner`，見下一個範例；只在 enricher 有執行的頁面拿得到（Temporal 頁沒有，見[擴充點](#temporalworkflowenricherextensionpoint)）。
-
-### 加一個 LLM 轉接器
-
-一個模組，讀某個框架的模型呼叫：它的模型呼叫 activity 是 `callModel`，回傳 `{ model, text, usage }`：
-
-```ts
-import { createBackendModule } from '@backstage/backend-plugin-api';
-import { temporalLlmAdapterExtensionPoint } from '@kwkevinchan/backstage-plugin-temporal-backend/alpha';
-
-export const temporalModuleMyAgents = createBackendModule({
-  pluginId: 'temporal',
-  moduleId: 'my-agents',
-  register(reg) {
-    reg.registerInit({
-      deps: { llm: temporalLlmAdapterExtensionPoint },
-      async init({ llm }) {
-        llm.addLlmAdapter({
-          id: 'my-agents',
-          isModelCall: step => step.activityType === 'callModel',
-          readModelCalls(_step, { result }) {
-            const r = result as Record<string, any> | undefined;
-            if (!r || typeof r.model !== 'string') return [];
-            return [
-              {
-                record: {
-                  requestModel: r.model,
-                  usage: { inputTokens: r.usage?.input },
-                  systemInstructions: [],
-                  inputMessages: [],
-                  outputMessages: [
-                    {
-                      role: 'assistant',
-                      parts: [{ type: 'text', content: String(r.text) }],
-                    },
-                  ],
-                  toolExecutions: [],
-                },
-                raw: r,
-              },
-            ];
-          },
-        });
-      },
-    });
-  },
-});
-```
-
-用 `backend.add(temporalModuleMyAgents)` 加入。type 是 `callModel` 但結果是別的形狀的步驟，仍然是一般步驟。
 
 ### 在詳細頁加一個分頁
 

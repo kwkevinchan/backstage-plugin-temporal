@@ -21,7 +21,7 @@ import type {
   WorkflowLlmRecord,
   WorkflowLlmUsage,
 } from '../../common';
-import type { TemporalLlmAdapter } from '../../node/alpha';
+import type { LlmAdapter } from './LlmAdapters';
 import { int, isObject, Json, str, structured } from './json';
 
 /*
@@ -170,7 +170,6 @@ const SKIPPED_OPTIONS = new Set([
 function readRecord(input: CallInput | undefined, result: CallResult) {
   const prompt = input?.options.prompt.filter(isObject) ?? [];
   const record: WorkflowLlmRecord = {
-    operation: 'chat',
     usage: usageOf(result),
     systemInstructions: prompt
       .filter(m => m.role === 'system')
@@ -184,7 +183,6 @@ function readRecord(input: CallInput | undefined, result: CallResult) {
         }),
       ),
     outputMessages: [{ role: 'assistant', parts: toParts(result.content) }],
-    toolExecutions: [],
   };
   if (input) record.requestModel = input.modelId;
   const responseModel = str(result.response?.modelId);
@@ -210,29 +208,26 @@ function readRecord(input: CallInput | undefined, result: CallResult) {
 }
 
 /** The built-in adapter of `@temporalio/vercel-ai-sdk`. */
-export const vercelAiSdkAdapter: TemporalLlmAdapter = {
+export const vercelAiSdkAdapter: LlmAdapter = {
   id: 'vercel-ai-sdk',
   isModelCall(step) {
-    return step.kind === 'activity' && MODEL_CALL_TYPES.has(step.activityType);
+    return MODEL_CALL_TYPES.has(step.activityType);
   },
-  readModelCalls(_step, payloads) {
+  readModelCall(_step, payloads) {
     const value = payloads.input?.[0];
     const result = payloads.result;
-    if (value !== undefined && !isCallInput(value)) return [];
+    if (value !== undefined && !isCallInput(value)) return undefined;
     const input = value as CallInput | undefined;
-    if (result !== undefined && !isCallResult(result)) return [];
-    if (input === undefined && result === undefined) return [];
-    if (result === undefined) return [{}];
-    return [
-      {
-        record: readRecord(input, result as CallResult),
-        raw: { input: input ?? null, result } as JsonValue,
-      },
-    ];
+    if (result !== undefined && !isCallResult(result)) return undefined;
+    if (input === undefined && result === undefined) return undefined;
+    if (result === undefined) return {};
+    return {
+      record: readRecord(input, result as CallResult),
+      raw: { input: input ?? null, result } as JsonValue,
+    };
   },
   readToolCall(step, payloads) {
-    if (step.kind !== 'activity' || !step.activityType.endsWith('-callTool'))
-      return undefined;
+    if (!step.activityType.endsWith('-callTool')) return undefined;
     const input: unknown = payloads.input?.[0];
     if (
       !isObject(input) ||

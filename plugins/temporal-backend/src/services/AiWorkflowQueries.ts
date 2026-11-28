@@ -102,15 +102,13 @@ export class AiWorkflowQueries {
 
   /**
    * The full record of one model call of a run, by the event ID of its
-   * `ActivityTaskScheduled` event, and for a step with several model calls
-   * by its position (`index`, from 0). Payloads of the step stored in
+   * `ActivityTaskScheduled` event. Payloads of the step stored in
    * External Storage are not read: the record is unavailable and the
    * response says where the payload is.
    */
   async llmCall(
     workflow: WorkflowDetail,
     scheduledEventId: string,
-    index = 0,
   ): Promise<WorkflowLlmCallResponse> {
     const ref = {
       namespace: workflow.namespace,
@@ -160,7 +158,6 @@ export class AiWorkflowQueries {
       status: workflow.status,
       truncated,
       pendingActivities: workflow.pendingActivities,
-      llmAdapters: this.queries.llmAdapters,
     });
     const nodeId = `activity-${scheduledEventId}`;
     const node = graph.nodes.find(n => n.id === nodeId);
@@ -173,12 +170,7 @@ export class AiWorkflowQueries {
       }
       throw new NotFoundError(`No model call ${scheduledEventId} in this run`);
     }
-    const call = read.calls[index];
-    if (!call) {
-      throw new NotFoundError(
-        `No model call ${index} in step ${scheduledEventId}`,
-      );
-    }
+    const { call } = read;
     const response: WorkflowLlmCallResponse = {
       nodeId,
       activityId: node.stepId ?? '',
@@ -186,15 +178,9 @@ export class AiWorkflowQueries {
       framework: read.framework,
       status: node.status,
     };
-    if (call.name !== undefined) response.call = call.name;
-    if (read.calls.length > 1) {
-      response.index = index;
-      response.callCount = read.calls.length;
-    }
     if (call.record) {
       response.record = call.record;
       if (call.raw !== undefined) response.raw = call.raw;
-      if (!result && failures.length > 0) response.fromFailure = true;
       return response;
     }
     if (!result && failures.length === 0) {

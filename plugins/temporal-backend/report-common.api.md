@@ -809,12 +809,8 @@ export interface WorkflowLlmCallResponse {
   activityId: string;
   // (undocumented)
   activityType: string;
-  call?: string;
-  callCount?: number;
   external?: ExternalPayload;
   framework: string;
-  fromFailure?: boolean;
-  index?: number;
   nodeId: string;
   raw?: JsonValue;
   record?: WorkflowLlmRecord;
@@ -825,7 +821,6 @@ export interface WorkflowLlmCallResponse {
 
 // @alpha
 export interface WorkflowLlmMessage {
-  finishReason?: string;
   // (undocumented)
   name?: string;
   // (undocumented)
@@ -841,8 +836,6 @@ export type WorkflowLlmPart = JsonObject & {
 // @alpha
 export interface WorkflowLlmRecord {
   // (undocumented)
-  conversationId?: string;
-  // (undocumented)
   durationMs?: number;
   // (undocumented)
   error?: {
@@ -852,8 +845,6 @@ export interface WorkflowLlmRecord {
   // (undocumented)
   finishReasons?: string[];
   inputMessages: WorkflowLlmMessage[];
-  // (undocumented)
-  operation?: string;
   outputMessages: WorkflowLlmMessage[];
   parameters?: JsonObject;
   // (undocumented)
@@ -864,12 +855,8 @@ export interface WorkflowLlmRecord {
   responseId?: string;
   // (undocumented)
   responseModel?: string;
-  // (undocumented)
-  startTime?: string;
   systemInstructions: WorkflowLlmPart[];
   toolDefinitions?: JsonValue[];
-  // (undocumented)
-  toolExecutions: WorkflowLlmToolExecution[];
   // (undocumented)
   usage: WorkflowLlmUsage;
 }
@@ -883,15 +870,12 @@ export type WorkflowLlmRecordState =
 
 // @alpha
 export interface WorkflowLlmSummary {
-  call?: string;
-  callCount?: number;
   durationMs?: number;
   error?: string;
   // (undocumented)
   finishReasons?: string[];
   framework: string;
   model?: string;
-  operation?: string;
   provider?: string;
   reasoning: boolean;
   // (undocumented)
@@ -905,26 +889,11 @@ export interface WorkflowLlmSummary {
 // @alpha
 export interface WorkflowLlmToolCallRef {
   id?: string;
-  inActivity?: boolean;
   inferred?: boolean;
   // (undocumented)
   name: string;
   nodeId?: string;
   status?: WorkflowNodeStatus;
-}
-
-// @alpha
-export interface WorkflowLlmToolExecution {
-  arguments?: JsonValue;
-  // (undocumented)
-  durationMs?: number;
-  error?: {
-    type?: string;
-    message: string;
-  };
-  id?: string;
-  name: string;
-  result?: JsonValue;
 }
 
 // @alpha
@@ -1144,7 +1113,6 @@ export interface WorkflowSummary {
 
 // @alpha
 export interface WorkflowToolLink {
-  call?: string;
   inferred?: boolean;
   llmNodeId?: string;
   name?: string;

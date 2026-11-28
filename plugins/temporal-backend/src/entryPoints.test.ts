@@ -52,9 +52,6 @@ describe('entry points for backend modules', () => {
       expect(alpha.temporalWorkflowEnricherExtensionPoint.id).toBe(
         'temporal.workflow-enrichers',
       );
-      expect(alpha.temporalLlmAdapterExtensionPoint.id).toBe(
-        'temporal.llm-adapters',
-      );
       expect(Object.keys(alpha).sort()).toEqual([
         'createTemporalWorkflowConditionalDecision',
         'inCondition',
@@ -62,7 +59,6 @@ describe('entry points for backend modules', () => {
         'temporalAccessServiceFactory',
         'temporalAccessServiceRef',
         'temporalControlExtensionPoint',
-        'temporalLlmAdapterExtensionPoint',
         'temporalWorkflowConditions',
         'temporalWorkflowEnricherExtensionPoint',
         'temporalWorkflowPermissionResourceRef',
