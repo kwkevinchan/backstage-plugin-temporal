@@ -43,14 +43,7 @@ import { temporalApiRef } from '@kwkevinchan/backstage-plugin-temporal';
 import { entityContentRouteRef } from '@kwkevinchan/backstage-plugin-temporal/ui';
 import type { WorkflowGraphResponse } from '@kwkevinchan/backstage-plugin-temporal/common';
 import type { WorkflowDefinitionResponse } from '../../common/definition';
-import { discoveryApiRef, fetchApiRef } from '@backstage/core-plugin-api';
-import { EntityTemporalDefinitionContentPage } from './DefinitionContent';
-
-jest.mock('../../api', () => ({
-  loadEntityDefinition: (_apis: unknown, entityRef: string) =>
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require('../../testData').mockGetEntityDefinition(entityRef),
-}));
+import { DefinitionContent } from './DefinitionContent';
 
 const content = readFileSync(
   join(__dirname, '../../../../../test-fixtures/definitions/every-task.yaml'),
@@ -145,14 +138,11 @@ function render(
     <TestApiProvider
       apis={[
         [temporalApiRef, api as any],
-        // The definition route is mocked (jest.mock of ../../api).
-        [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
-        [fetchApiRef, { fetch: jest.fn() }],
         [permissionApiRef, mockApis.permission()],
       ]}
     >
       <EntityProvider entity={entity}>
-        <EntityTemporalDefinitionContentPage />
+        <DefinitionContent definitions={api} />
       </EntityProvider>
     </TestApiProvider>,
     {
@@ -618,13 +608,11 @@ describe('Definition tab', () => {
         <TestApiProvider
           apis={[
             [temporalApiRef, api as any],
-            [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
-            [fetchApiRef, { fetch: jest.fn() }],
             [permissionApiRef, mockApis.permission()],
           ]}
         >
           <EntityProvider entity={yamlEntity}>
-            <EntityTemporalDefinitionContentPage />
+            <DefinitionContent definitions={api} />
           </EntityProvider>
         </TestApiProvider>,
       ),
@@ -658,13 +646,11 @@ describe('Definition tab', () => {
         <TestApiProvider
           apis={[
             [temporalApiRef, api as any],
-            [discoveryApiRef, { getBaseUrl: async () => '/api/temporal' }],
-            [fetchApiRef, { fetch: jest.fn() }],
             [permissionApiRef, mockApis.permission()],
           ]}
         >
           <EntityProvider entity={yamlEntity}>
-            <EntityTemporalDefinitionContentPage />
+            <DefinitionContent definitions={api} />
           </EntityProvider>
         </TestApiProvider>,
       ),

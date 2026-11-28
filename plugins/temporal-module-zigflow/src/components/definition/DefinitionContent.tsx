@@ -64,7 +64,7 @@ import {
   WorkflowDefinitionError,
   WorkflowDefinitionResponse,
 } from '../../common/definition';
-import { loadEntityDefinition } from '../../api';
+import { DefinitionClient, DefinitionSource } from '../../api';
 import { tp } from '../styles';
 
 import { DefinitionGraph } from './DefinitionGraph';
@@ -544,13 +544,15 @@ function DefinitionView(props: {
 }
 
 /** Loads and shows the definition of a `TemporalWorkflow` entity. */
-function LoadedDefinition(props: { entity: Entity }) {
-  const discoveryApi = useApi(discoveryApiRef);
-  const fetchApi = useApi(fetchApiRef);
+function LoadedDefinition(props: {
+  entity: Entity;
+  definitions: DefinitionSource;
+}) {
+  const { definitions } = props;
   const entityRef = stringifyEntityRef(props.entity);
   const state = useAsync(
-    () => loadEntityDefinition({ discoveryApi, fetchApi }, entityRef),
-    [discoveryApi, fetchApi, entityRef],
+    () => definitions.getEntityDefinition(entityRef),
+    [definitions, entityRef],
   );
   if (state.loading) return <Loading rows={6} label="Loading the definition" />;
   if (state.error) {
@@ -580,8 +582,9 @@ function LoadedDefinition(props: { entity: Entity }) {
  * Definition tab of a `TemporalWorkflow` entity: the YAML of a workflow
  * written in the Serverless Workflow DSL next to its graph, with an
  * optional run on top. Workflows written in code get links to their source.
+ * The definition file is read from `definitions`.
  */
-export function EntityTemporalDefinitionContentPage() {
+export function DefinitionContent(props: { definitions: DefinitionSource }) {
   const { entity } = useEntity();
   if (!isTemporalWorkflowEntity(entity)) {
     return (
@@ -602,5 +605,19 @@ export function EntityTemporalDefinitionContentPage() {
     );
   }
   if (!spec) return <SourceLinks entity={entity} />;
-  return <LoadedDefinition entity={entity} />;
+  return <LoadedDefinition entity={entity} definitions={props.definitions} />;
+}
+
+/**
+ * The Definition tab as the extensions mount it: it reads the definition
+ * file from the route of the backend module.
+ */
+export function EntityTemporalDefinitionContentPage() {
+  const discoveryApi = useApi(discoveryApiRef);
+  const fetchApi = useApi(fetchApiRef);
+  const definitions = useMemo(
+    () => new DefinitionClient({ discoveryApi, fetchApi }),
+    [discoveryApi, fetchApi],
+  );
+  return <DefinitionContent definitions={definitions} />;
 }

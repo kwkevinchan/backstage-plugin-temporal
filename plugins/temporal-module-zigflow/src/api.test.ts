@@ -17,19 +17,15 @@
 // The rule of the core plugin is not public, so the test reads it from its source.
 // eslint-disable-next-line @backstage/no-relative-monorepo-imports
 import { hasErrorBody as coreHasErrorBody } from '../../temporal/src/common/errorBody';
-import {
-  hasErrorBody,
-  loadEntityDefinition,
-  MODULE_MISSING_MESSAGE,
-} from './api';
+import { DefinitionClient, hasErrorBody, MODULE_MISSING_MESSAGE } from './api';
 
-describe('loadEntityDefinition', () => {
+describe('DefinitionClient', () => {
   const discoveryApi = { getBaseUrl: async () => '/api/temporal' };
   const load = (response: Response) =>
-    loadEntityDefinition(
-      { discoveryApi, fetchApi: { fetch: async () => response } },
-      'temporalworkflow:default/flow',
-    );
+    new DefinitionClient({
+      discoveryApi,
+      fetchApi: { fetch: async () => response },
+    }).getEntityDefinition('temporalworkflow:default/flow');
 
   it('requests the encoded entity definition path and returns parsed JSON on 200', async () => {
     const fetch = jest.fn(
@@ -45,10 +41,10 @@ describe('loadEntityDefinition', () => {
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
     );
-    const result = await loadEntityDefinition(
-      { discoveryApi, fetchApi: { fetch } },
-      'TemporalWorkflow:Team A/Order/Flow',
-    );
+    const result = await new DefinitionClient({
+      discoveryApi,
+      fetchApi: { fetch },
+    }).getEntityDefinition('TemporalWorkflow:Team A/Order/Flow');
     expect(fetch).toHaveBeenCalledWith(
       '/api/temporal/entities/temporalworkflow/team%20a/order%2Fflow/definition',
     );
@@ -86,10 +82,10 @@ describe('loadEntityDefinition', () => {
   it('rejects a malformed entityRef before calling fetch', async () => {
     const fetch = jest.fn();
     await expect(
-      loadEntityDefinition(
-        { discoveryApi, fetchApi: { fetch } },
-        '::invalid::',
-      ),
+      new DefinitionClient({
+        discoveryApi,
+        fetchApi: { fetch },
+      }).getEntityDefinition('::invalid::'),
     ).rejects.toThrow();
     expect(fetch).not.toHaveBeenCalled();
   });
