@@ -23,11 +23,7 @@ import {
   ServiceUnavailableError,
 } from '@backstage/errors';
 import type { JsonValue } from '@backstage/types';
-import type {
-  Client,
-  Connection,
-  ScheduleOverlapPolicy,
-} from '@temporalio/client';
+import type { Client } from '@temporalio/client';
 import type {
   TemporalScheduleOperation,
   WorkflowDetail,
@@ -35,34 +31,17 @@ import type {
   WorkflowRef,
   WorkflowStartResponse,
 } from '../common';
-import { TemporalService } from '../node';
-import { scheduleClientOf } from '../repositories/scheduleClient';
-import {
-  decodeJsonPayloads,
-  encodeJsonPayloads,
-  TemporalJsonPayload,
-} from '../lib/payloads';
-import {
-  isScheduleNotFound,
-  mapActionError,
-  mapChainCommandError,
-  mapCommandError,
-  mapConnectionError,
-} from '../repositories/errors';
-import { callTemporal, TEMPORAL_DEADLINES } from '../repositories/temporalCall';
+import { decodeJsonPayloads } from '../lib/payloads';
+import type {
+  ScheduleTarget,
+  TemporalScheduleRepository,
+} from '../repositories/TemporalScheduleRepository';
+import type {
+  TemporalWriteRepository,
+  WorkflowChainRef,
+} from '../repositories/TemporalWriteRepository';
 
-/**
- * Identifies an execution chain (Continue-As-New, workflow retry, cron or
- * reset) without locking to one run ID. Without `firstExecutionRunId` (the
- * Temporal server did not report it) the request is locked to `runId`.
- */
-export type WorkflowChainRef = {
-  namespace: string;
-  workflowId: string;
-} & (
-  | { firstExecutionRunId: string; runId?: undefined }
-  | { firstExecutionRunId?: undefined; runId: string }
-);
+export type { WorkflowChainRef };
 
 /** `temporal.control` settings. */
 interface ControlOptions {
@@ -107,24 +86,8 @@ function newWorkflowId(prefix: string, infix = ''): string {
   return `${prefix.slice(0, MAX_WORKFLOW_ID_LENGTH - suffix.length)}${suffix}`;
 }
 
-/**
- * Search attribute names Temporal keeps for itself (for example
- * `TemporalScheduledById`): a new workflow does not take them from another.
- */
-function isSystemSearchAttribute(name: string): boolean {
-  return name.startsWith('Temporal');
-}
-
 /** Most times an update that is not finished yet is polled for its result. */
 const MAX_UPDATE_POLLS = 5;
-const UPDATE_STAGE_COMPLETED = 3;
-
-/** The workflow ID reuse policies a start takes, with their protobuf values. */
-export const WORKFLOW_ID_REUSE_POLICY: Record<WorkflowIdReusePolicy, number> = {
-  ALLOW_DUPLICATE: 1,
-  ALLOW_DUPLICATE_FAILED_ONLY: 2,
-  REJECT_DUPLICATE: 3,
-};
 
 interface StartOptions {
   namespace: string;
@@ -138,134 +101,27 @@ interface StartOptions {
   identity: string;
 }
 
-/** A schedule to operate: what it starts, and its overlap policy. */
-interface ScheduleTarget {
-  namespace: string;
-  scheduleId: string;
-  workflowType: string;
-  taskQueue: string;
-  overlap?: ScheduleOverlapPolicy;
-}
-
-/** Keyword search attributes: JSON payloads with the `Keyword` type. */
-function keywordAttributes(
-  values: Record<string, string>,
-): Record<string, TemporalJsonPayload> {
-  const indexedFields: Record<string, TemporalJsonPayload> = {};
-  for (const [name, value] of Object.entries(values)) {
-    const [payload] = encodeJsonPayloads([value]).payloads;
-    indexedFields[name] = {
-      metadata: { ...payload.metadata, type: Buffer.from('Keyword') },
-      data: payload.data,
-    };
-  }
-  return indexedFields;
-}
-
-/**
- * The part of a request that addresses the target: the chain (workflow ID
- * plus `firstExecutionRunId`, never a workflow ID alone) or, without a chain
- * ID, the one run.
- */
-function chainTarget(ref: WorkflowChainRef): {
-  workflowExecution: { workflowId: string; runId?: string };
-  firstExecutionRunId?: string;
-} {
-  return ref.firstExecutionRunId
-    ? {
-        workflowExecution: { workflowId: ref.workflowId },
-        firstExecutionRunId: ref.firstExecutionRunId,
-      }
-    : {
-        workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
-      };
-}
-
 /**
  * The operations that change workflows in Temporal: signal, update, cancel,
  * terminate, start and rerun, and pause, unpause and trigger of schedules.
  * Permission checks are done by the routes, through the access service of
- * the plugin.
+ * the plugin; the calls to Temporal are made by the two repositories.
  */
 export class WorkflowCommands {
   constructor(
-    private readonly temporal: TemporalService,
+    private readonly writes: TemporalWriteRepository,
+    private readonly schedules: TemporalScheduleRepository,
     private readonly options: ControlOptions,
     private readonly logger: LoggerService,
   ) {}
 
-  /** A call to Temporal, with the errors of operations. */
-  private call<T>(
-    temporalCall: string,
-    namespace: string,
-    timeoutMs: number,
-    fn: (connection: Connection) => Promise<T>,
-  ): Promise<T> {
-    return callTemporal(
-      this.temporal,
-      {
-        timeoutMs,
-        mapError: mapCommandError,
-        temporalCall,
-        namespace,
-        logger: this.logger,
-      },
-      fn,
-    );
-  }
-
-  /**
-   * A call to Temporal addressed to an execution chain (`workflowId` plus
-   * `firstExecutionRunId`), mapping ended / mismatched-chain errors to 409.
-   */
-  private callChain<T>(
-    temporalCall: string,
-    ref: WorkflowChainRef,
-    timeoutMs: number,
-    fn: (connection: Connection) => Promise<T>,
-  ): Promise<T> {
-    if (!ref.firstExecutionRunId) {
-      if (!ref.runId) {
-        throw new InputError('firstExecutionRunId or runId is required');
-      }
-      // No chain ID: the request is locked to one run.
-      return this.call(temporalCall, ref.namespace, timeoutMs, fn);
-    }
-    return callTemporal(
-      this.temporal,
-      {
-        timeoutMs,
-        mapError: error => mapChainCommandError(ref.workflowId, error),
-        temporalCall,
-        namespace: ref.namespace,
-        logger: this.logger,
-      },
-      fn,
-    );
-  }
-
   /**
    * Runs a custom action with the client of `namespace`, under the deadline
-   * of an action (`TEMPORAL_DEADLINES.action`) for every call it makes, and
-   * rethrows its errors with `mapActionError`.
+   * of an action for every call it makes; its errors are mapped like those
+   * of the other operations.
    */
   runAction<T>(namespace: string, run: (client: Client) => Promise<T>) {
-    return callTemporal(
-      this.temporal,
-      {
-        timeoutMs: TEMPORAL_DEADLINES.action,
-        mapError: mapActionError,
-        temporalCall: 'customAction',
-        namespace,
-        logger: this.logger,
-      },
-      async () =>
-        run(
-          await this.temporal
-            .getClient({ namespace })
-            .catch(mapConnectionError),
-        ),
-    );
+    return this.writes.withClient(namespace, run);
   }
 
   checkSignal(name: string) {
@@ -289,20 +145,7 @@ export class WorkflowCommands {
     identity: string,
   ): Promise<void> {
     this.checkSignal(name);
-    await this.call(
-      'signalWorkflowExecution',
-      ref.namespace,
-      TEMPORAL_DEADLINES.operation,
-      c =>
-        c.workflowService.signalWorkflowExecution({
-          namespace: ref.namespace,
-          workflowExecution: { workflowId: ref.workflowId, runId: ref.runId },
-          signalName: name,
-          input: encodeJsonPayloads(args),
-          identity,
-          requestId: randomUUID(),
-        }),
-    );
+    await this.writes.signal(ref, name, args, identity);
   }
 
   async update(
@@ -318,52 +161,25 @@ export class WorkflowCommands {
   ): Promise<JsonValue | undefined> {
     this.checkUpdate(name);
     const updateId = requestedUpdateId ?? randomUUID();
-    const { workflowExecution } = chainTarget(ref);
-    const waitPolicy = { lifecycleStage: UPDATE_STAGE_COMPLETED };
     // Each call has its own deadline: a slow update that finishes within
     // the polls is not cut short.
-    let response: any = await this.callChain(
-      'updateWorkflowExecution',
-      ref,
-      TEMPORAL_DEADLINES.update,
-      c =>
-        c.workflowService.updateWorkflowExecution({
-          namespace: ref.namespace,
-          ...chainTarget(ref),
-          waitPolicy,
-          request: {
-            meta: { updateId, identity },
-            input: { name, args: encodeJsonPayloads(args) },
-          },
-        }),
-    );
-    // Poll the run that actually accepted the update when the server
-    // returned it, else keep addressing the same target as the update.
-    const acceptedExecution: { workflowId: string; runId?: string } = response
-      ?.updateRef?.workflowExecution?.runId
-      ? {
-          workflowId:
-            response.updateRef.workflowExecution.workflowId || ref.workflowId,
-          runId: response.updateRef.workflowExecution.runId,
-        }
-      : workflowExecution;
+    const sent = await this.writes.sendUpdate(ref, {
+      updateId,
+      name,
+      args,
+      identity,
+    });
+    let { outcome } = sent;
     // The server answers before the update is done when its wait ends;
     // ask again for the outcome.
-    for (let i = 0; !response?.outcome && i < MAX_UPDATE_POLLS; i++) {
-      response = await this.callChain(
-        'pollWorkflowExecutionUpdate',
+    for (let i = 0; !outcome && i < MAX_UPDATE_POLLS; i++) {
+      ({ outcome } = await this.writes.pollUpdate(
         ref,
-        TEMPORAL_DEADLINES.update,
-        c =>
-          c.workflowService.pollWorkflowExecutionUpdate({
-            namespace: ref.namespace,
-            updateRef: { workflowExecution: acceptedExecution, updateId },
-            identity,
-            waitPolicy,
-          }),
-      );
+        sent.execution,
+        updateId,
+        identity,
+      ));
     }
-    const outcome = response?.outcome;
     if (!outcome) {
       // The update may still finish; a retry would send it again.
       this.logger
@@ -373,9 +189,7 @@ export class WorkflowCommands {
           ...(ref.firstExecutionRunId
             ? { firstRunId: ref.firstExecutionRunId }
             : {}),
-          ...(acceptedExecution.runId
-            ? { runId: acceptedExecution.runId }
-            : {}),
+          ...(sent.execution.runId ? { runId: sent.execution.runId } : {}),
           messageName: name,
           updateId,
         })
@@ -389,18 +203,7 @@ export class WorkflowCommands {
   }
 
   async cancel(ref: WorkflowChainRef, identity: string): Promise<void> {
-    await this.callChain(
-      'requestCancelWorkflowExecution',
-      ref,
-      TEMPORAL_DEADLINES.operation,
-      c =>
-        c.workflowService.requestCancelWorkflowExecution({
-          namespace: ref.namespace,
-          ...chainTarget(ref),
-          identity,
-          requestId: randomUUID(),
-        }),
-    );
+    await this.writes.cancel(ref, identity);
   }
 
   async terminate(
@@ -408,60 +211,20 @@ export class WorkflowCommands {
     reason: string,
     identity: string,
   ): Promise<void> {
-    await this.callChain(
-      'terminateWorkflowExecution',
-      ref,
-      TEMPORAL_DEADLINES.operation,
-      c =>
-        c.workflowService.terminateWorkflowExecution({
-          namespace: ref.namespace,
-          ...chainTarget(ref),
-          reason,
-          identity,
-        }),
-    );
+    await this.writes.terminate(ref, reason, identity);
   }
 
   async start(options: StartOptions): Promise<WorkflowStartResponse> {
     const workflowId =
       options.workflowId || newWorkflowId(options.workflowType);
-    const response = await this.call(
-      'startWorkflowExecution',
-      options.namespace,
-      TEMPORAL_DEADLINES.operation,
-      c =>
-        c.workflowService.startWorkflowExecution({
-          namespace: options.namespace,
-          workflowId,
-          workflowType: { name: options.workflowType },
-          taskQueue: { name: options.taskQueue },
-          input: encodeJsonPayloads(options.args),
-          identity: options.identity,
-          requestId: randomUUID(),
-          ...(options.workflowIdReusePolicy
-            ? {
-                workflowIdReusePolicy:
-                  WORKFLOW_ID_REUSE_POLICY[options.workflowIdReusePolicy],
-              }
-            : {}),
-          searchAttributes: {
-            indexedFields: keywordAttributes(options.searchAttributes),
-          },
-        }),
-    );
-    return {
-      namespace: options.namespace,
-      workflowId,
-      runId: response.runId ?? '',
-    };
+    const runId = await this.writes.start({ ...options, workflowId });
+    return { namespace: options.namespace, workflowId, runId };
   }
 
   /**
-   * Starts a closed run again under a new workflow ID: the input,
-   * timeouts, retry policy, memo, header and search attributes of its start
-   * event, with `searchAttributes` set on top. The input is copied as it
-   * is, so payloads the backend cannot decode are kept. The search
-   * attributes Temporal sets itself (`Temporal...`) are not copied.
+   * Starts a closed run again under a new workflow ID, with what its start
+   * event has (see `TemporalWriteRepository.startLike`) and
+   * `searchAttributes` set on top.
    */
   async rerun(
     workflow: WorkflowDetail,
@@ -471,101 +234,40 @@ export class WorkflowCommands {
       identity: string;
     },
   ): Promise<WorkflowStartResponse> {
-    const history = await this.call(
-      'getWorkflowExecutionHistory',
-      workflow.namespace,
-      TEMPORAL_DEADLINES.read,
-      c =>
-        c.workflowService.getWorkflowExecutionHistory({
-          namespace: workflow.namespace,
-          execution: { workflowId: workflow.workflowId, runId: workflow.runId },
-          maximumPageSize: 1,
-        }),
-    );
-    const started =
-      history.history?.events?.[0]?.workflowExecutionStartedEventAttributes;
+    const started = await this.writes.startEvent({
+      namespace: workflow.namespace,
+      workflowId: workflow.workflowId,
+      runId: workflow.runId,
+    });
     if (!started) {
       throw new NotFoundError('The start event of the run was not found');
     }
     const workflowId =
       options.workflowId ||
       newWorkflowId(workflow.workflowId.replace(RERUN_SUFFIX, ''), '-rerun');
-    const response = await this.call(
-      'startWorkflowExecution',
-      workflow.namespace,
-      TEMPORAL_DEADLINES.operation,
-      c =>
-        c.workflowService.startWorkflowExecution({
-          namespace: workflow.namespace,
-          workflowId,
-          workflowType: {
-            name: started.workflowType?.name ?? workflow.workflowType,
-          },
-          taskQueue: {
-            name: started.taskQueue?.name ?? workflow.taskQueue ?? '',
-          },
-          input: started.input,
-          header: started.header,
-          memo: started.memo,
-          workflowExecutionTimeout: started.workflowExecutionTimeout,
-          workflowRunTimeout: started.workflowRunTimeout,
-          workflowTaskTimeout: started.workflowTaskTimeout,
-          retryPolicy: started.retryPolicy,
-          identity: options.identity,
-          requestId: randomUUID(),
-          searchAttributes: {
-            indexedFields: {
-              ...Object.fromEntries(
-                Object.entries(
-                  started.searchAttributes?.indexedFields ?? {},
-                ).filter(([name]) => !isSystemSearchAttribute(name)),
-              ),
-              ...keywordAttributes(options.searchAttributes),
-            },
-          },
-        }),
-    );
-    return {
+    const runId = await this.writes.startLike(started, {
       namespace: workflow.namespace,
       workflowId,
-      runId: response.runId ?? '',
-    };
+      workflowType: workflow.workflowType,
+      taskQueue: workflow.taskQueue ?? '',
+      identity: options.identity,
+      searchAttributes: options.searchAttributes,
+    });
+    return { namespace: workflow.namespace, workflowId, runId };
   }
 
   /** A schedule, read from Temporal for an operation on it. */
-  async describeSchedule(
+  describeSchedule(
     namespace: string,
     scheduleId: string,
   ): Promise<ScheduleTarget> {
-    const description = await this.call(
-      'schedule.describe',
-      namespace,
-      TEMPORAL_DEADLINES.read,
-      c =>
-        scheduleClientOf(c, namespace)
-          .getHandle(scheduleId)
-          .describe()
-          .catch(error => {
-            if (isScheduleNotFound(error)) {
-              throw new NotFoundError(`No schedule ${scheduleId}`);
-            }
-            throw error;
-          }),
-    );
-    return {
-      namespace,
-      scheduleId,
-      workflowType: description.action.workflowType,
-      taskQueue: description.action.taskQueue,
-      overlap: description.policies?.overlap,
-    };
+    return this.schedules.target(namespace, scheduleId);
   }
 
   /**
    * Pauses, unpauses or triggers a schedule. A pause or an unpause keeps
    * `note`, or a note that names `requestedBy`. A trigger uses the
-   * schedule's own overlap policy (the SDK's default is to allow every
-   * overlap).
+   * schedule's own overlap policy.
    */
   async operateSchedule(
     schedule: ScheduleTarget,
@@ -573,24 +275,18 @@ export class WorkflowCommands {
     options: { note?: string; requestedBy: string },
   ): Promise<void> {
     const { note, requestedBy } = options;
-    await this.call(
-      `schedule.${operation}`,
-      schedule.namespace,
-      TEMPORAL_DEADLINES.operation,
-      async c => {
-        const handle = scheduleClientOf(c, schedule.namespace).getHandle(
-          schedule.scheduleId,
-        );
-        if (operation === 'pause') {
-          await handle.pause(note ?? `Paused from Backstage by ${requestedBy}`);
-        } else if (operation === 'unpause') {
-          await handle.unpause(
-            note ?? `Resumed from Backstage by ${requestedBy}`,
-          );
-        } else {
-          await handle.trigger(schedule.overlap);
-        }
-      },
-    );
+    if (operation === 'pause') {
+      await this.schedules.pause(
+        schedule,
+        note ?? `Paused from Backstage by ${requestedBy}`,
+      );
+    } else if (operation === 'unpause') {
+      await this.schedules.unpause(
+        schedule,
+        note ?? `Resumed from Backstage by ${requestedBy}`,
+      );
+    } else {
+      await this.schedules.trigger(schedule);
+    }
   }
 }
